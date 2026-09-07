@@ -19,7 +19,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
@@ -36,7 +36,7 @@ jobs:
       # H12: SHA-pinned third-party actions so a malicious re-tag at
       # @v4 / @v2 can't replace the runner step out from under us.
       # Update by bumping the SHA AND the version comment together.
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # Runs before the toolchain setup so a leaked credential fails the
       # build in seconds rather than after a full Flutter bootstrap.
