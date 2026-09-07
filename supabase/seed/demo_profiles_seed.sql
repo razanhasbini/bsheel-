@@ -1,0 +1,6 @@
+-- Demo profiles for development (requires matching auth.users entries)
+-- These should be inserted after creating test users via Supabase Auth
+-- insert into public.profiles (id, username, display_name, bio, xp, level) values
+--   ('USER_UUID_1', 'testuser1', 'Test User 1', 'Demo account', 150, 3),
+--   ('USER_UUID_2', 'testuser2', 'Test User 2', 'Demo account', 80, 2),
+--   ('USER_UUID_3', 'admin1', 'Admin User', 'System admin', 0, 1);

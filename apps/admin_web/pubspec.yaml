@@ -1,0 +1,78 @@
+name: admin_web
+description: Quest App - Admin web dashboard.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Internal packages
+  app_core:
+    path: ../../packages/app_core
+  app_models:
+    path: ../../packages/app_models
+  app_repositories:
+    path: ../../packages/app_repositories
+  shared_ui:
+    path: ../../packages/shared_ui
+  supabase_contracts:
+    path: ../../packages/supabase_contracts
+
+  # State management
+  flutter_riverpod: ^2.4.0
+  riverpod_annotation: ^2.3.0
+
+  # Routing
+  go_router: ^13.0.0
+
+  # Backend
+  supabase_flutter: ^2.3.0
+  url_launcher: ^6.3.2
+  http: ^1.2.0
+
+  # Required by app_repositories (social auth)
+  google_sign_in: ^6.1.0
+  sign_in_with_apple: ^6.1.0
+  crypto: ^3.0.0
+
+  # Excel import for quest management
+  excel: ^4.0.6
+  file_picker: ^8.1.4
+
+  web: ^1.1.0
+  flutter_web_plugins:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  riverpod_generator: ^2.3.0
+  build_runner: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        # No Light cut bundled — map w300 to Regular so the port theme's
+        # light headlines never fall back to the system sans.
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 300
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700

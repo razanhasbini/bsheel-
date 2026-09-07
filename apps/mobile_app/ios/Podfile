@@ -1,0 +1,76 @@
+platform :ios, '14.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    # Force every pod (and every auto-generated *_Privacy resource bundle)
+    # to use the same iOS deployment target as the app. Without this,
+    # Xcode warns once per pod whose podspec declares an older minimum —
+    # which is most of them (AppAuth, GTM*, SDWebImage, libwebp, …).
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+    end
+  end
+
+  # Workaround: in this project, `pod install` doesn't add the Flutter
+  # xcframework path to Pods-Runner.<config>.xcconfig, so simulator
+  # builds fail with "Framework 'Flutter' not found" at link time.
+  # Patch the generated xcconfigs to append the right slice.
+  flutter_root_path = File.read(File.expand_path('Flutter/Generated.xcconfig', __dir__))[/FLUTTER_ROOT=(.+)/, 1].to_s.strip
+  if flutter_root_path && !flutter_root_path.empty?
+    sim_slice = "#{flutter_root_path}/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64_x86_64-simulator"
+    device_slice = "#{flutter_root_path}/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64"
+
+    %w[debug release profile].each do |config|
+      xcconfig_path = File.expand_path(
+        "Pods/Target Support Files/Pods-Runner/Pods-Runner.#{config}.xcconfig",
+        __dir__,
+      )
+      next unless File.exist?(xcconfig_path)
+      contents = File.read(xcconfig_path)
+      next if contents.include?('Flutter.xcframework/ios-arm64_x86_64-simulator')
+
+      patched = contents.sub(
+        /^FRAMEWORK_SEARCH_PATHS = (.*)$/,
+        "FRAMEWORK_SEARCH_PATHS = \\1 \"#{sim_slice}\" \"#{device_slice}\"",
+      )
+      File.write(xcconfig_path, patched)
+      puts "[Podfile] Patched #{File.basename(xcconfig_path)} with Flutter xcframework slices"
+    end
+  end
+end

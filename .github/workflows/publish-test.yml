@@ -1,0 +1,187 @@
+name: Publish to TestFlight
+
+# Pushing to `publish-test` puts a build in TestFlight. That is the whole contract.
+#
+# main and dev stay as they are: CI analyses and tests them, and nothing ships. Shipping is a
+# branch you push to on purpose, not a side effect of merging.
+on:
+  push:
+    branches: [publish-test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One ship at a time. Two overlapping runs would both ask Apple for "the next build number"
+# and both get the same answer; the second upload would be rejected.
+concurrency:
+  group: publish-test
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build, upload, distribute
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      BUNDLE_ID: com.questapp.mobileApp
+      APP_DIR: apps/mobile_app
+
+    steps:
+      # SHA-pinned third-party actions so a malicious re-tag at @v4 / @v2 can't replace the
+      # runner step out from under us. Update by bumping the SHA AND the version comment.
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+
+      - name: Confirm the signing secrets are present
+        run: |
+          # Names only, never values. A missing secret must stop the run here with a readable
+          # reason rather than surfacing 40 minutes later as an opaque signing failure.
+          MISSING=""
+          [ -n "$ASC_KEY_ID" ]    || MISSING="$MISSING ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || MISSING="$MISSING ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8" ]    || MISSING="$MISSING ASC_KEY_P8"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing repository secret(s):$MISSING — see docs/PUBLISHING.md"
+            exit 1
+          fi
+          printf '%s' "$ASC_KEY_P8" | head -1 | grep -q "BEGIN PRIVATE KEY" \
+            || (echo "::error::ASC_KEY_P8 does not look like a .p8 key" && exit 1)
+
+      - name: Restore GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          # A required build input that is deliberately gitignored, so CI has no copy and the
+          # Xcode build fails with "Build input file cannot be found" after four minutes of
+          # compiling. Injected from a secret rather than committed, to keep the repo's choice.
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "::error::Secret GOOGLE_SERVICE_INFO_PLIST is not set. See docs/PUBLISHING.md."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$APP_DIR/ios/Runner/GoogleService-Info.plist"
+          plutil -lint "$APP_DIR/ios/Runner/GoogleService-Info.plist"
+
+      - uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1  # v2.16.0
+        with:
+          flutter-version: "3.38.5"
+          channel: stable
+
+      - name: Install Melos
+        run: dart pub global activate melos 6.1.0
+
+      - name: Add pub-cache bin to PATH
+        run: echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Analyze and test
+        # A build nobody analysed does not reach a tester's phone.
+        run: |
+          melos run analyze
+          melos run test
+
+      - name: Work out the version and build number
+        id: version
+        run: |
+          # The marketing version comes from pubspec, which is where a human changes it.
+          VERSION=$(grep -E '^version:' "$APP_DIR/pubspec.yaml" | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*//')
+          # The build number comes from Apple, so builds shipped from CI and from a Mac share
+          # one increasing sequence and can never collide.
+          BUILD=$(python3 scripts/appstore.py next-build "$BUNDLE_ID")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD"     >> "$GITHUB_OUTPUT"
+          echo "Shipping $VERSION ($BUILD)"
+
+      - name: Install the App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          # The trailing newline matters: a PEM body without one fails to parse, and the error
+          # surfaces as a generic authentication failure rather than a malformed-key message.
+          printf '%s\n' "$ASC_KEY_P8" > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Import the signing certificate
+        env:
+          IOS_SIGNING_P12: ${{ secrets.IOS_SIGNING_P12 }}
+          IOS_SIGNING_P12_PASSWORD: ${{ secrets.IOS_SIGNING_P12_PASSWORD }}
+        run: |
+          # THIS is what stops the certificate leak.
+          #
+          # A fresh runner holds no private key, so `-allowProvisioningUpdates` used to create a
+          # brand new development certificate on every single run. Twelve runs filled Apple's
+          # per-team cap and every build then failed with "Choose a certificate to revoke".
+          #
+          # Importing one certificate we own means Xcode finds an identity it can already use,
+          # and creates nothing. The keychain is temporary and is destroyed with the runner.
+          if [ -z "$IOS_SIGNING_P12" ] || [ -z "$IOS_SIGNING_P12_PASSWORD" ]; then
+            echo "::error::IOS_SIGNING_P12 / IOS_SIGNING_P12_PASSWORD are not set. See docs/PUBLISHING.md."
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASS=$(uuidgen)
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          # Long enough for a slow archive; the runner dies well before it matters.
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+
+          printf '%s' "$IOS_SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/ci.p12"
+          security import "$RUNNER_TEMP/ci.p12" -k "$KEYCHAIN" -P "$IOS_SIGNING_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/xcodebuild
+          rm -f "$RUNNER_TEMP/ci.p12"
+
+          # Without this, codesign prompts for permission and hangs the runner forever.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN" >/dev/null
+          # xcodebuild only searches keychains on the search list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          echo "identities available to the build:"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Build, sign and upload
+        run: |
+          scripts/ios_release.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --build "${{ steps.version.outputs.build }}"
+
+      - name: Hand the build to the TestFlight groups
+        run: |
+          # Uploading is not distributing: a TestFlight group only offers the builds attached
+          # to it, so without this the build reaches App Store Connect and nobody's phone.
+          python3 scripts/appstore.py distribute "$BUNDLE_ID" "${{ steps.version.outputs.build }}"
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "### TestFlight: ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})"
+            echo ""
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Distributed to every TestFlight group on the app."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Destroy the signing keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN:-}" ] && [ -f "$KEYCHAIN" ]; then
+            security delete-keychain "$KEYCHAIN" || true
+          fi
+
+      - name: Remove the API key from the runner
+        if: always()
+        run: rm -f ~/private_keys/*.p8 build/ExportOptions.plist "$APP_DIR/ios/Runner/GoogleService-Info.plist"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        with:
+          name: publish-test-logs
+          path: build/*.log
+          retention-days: 14
+          if-no-files-found: ignore

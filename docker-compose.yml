@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:54329:5432"
+    environment:
+      POSTGRES_DB: bsheel
+      POSTGRES_USER: bsheel
+      POSTGRES_PASSWORD: bsheel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bsheel -d bsheel"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:63799:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis_data:/data
+
+  migrate:
+    build:
+      context: backend
+    command: ["node", "scripts/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: backend
+    env_file: backend/.env.example
+    environment:
+      DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  worker:
+    build:
+      context: backend
+    command: ["node", "--enable-source-maps", "dist/main.worker.js"]
+    env_file: backend/.env.example
+    environment:
+      APP_NAME: bsheel-worker
+      DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  proxy:
+    image: nginx:1.28-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

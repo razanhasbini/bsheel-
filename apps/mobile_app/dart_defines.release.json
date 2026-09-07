@@ -1,0 +1,7 @@
+{
+  "GOOGLE_IOS_CLIENT_ID": "854270137441-vhigjmc9rgr2jog9u0d091pb2e02ohi1.apps.googleusercontent.com",
+  "GOOGLE_WEB_CLIENT_ID": "854270137441-t7fnj89odpeut06588o1dee181n3bdsr.apps.googleusercontent.com",
+  "MIXPANEL_TOKEN": "55b3f6acdaa760fc8a637a591692ce5c",
+  "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MDIzMjcyLCJleHAiOjIwOTkzODMyNzJ9.0HGp8OvHc0peJcxlditiKrzFpz442iITeFQhyA_Vu7s",
+  "SUPABASE_URL": "https://api.bsheel.app"
+}

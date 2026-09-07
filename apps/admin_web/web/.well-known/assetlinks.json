@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.questapp.mobile_app",
+      "sha256_cert_fingerprints": [
+        "BF:50:D4:7F:4E:D3:1D:83:1A:B0:31:E5:79:89:4D:04:B0:3B:6A:34:C2:CB:32:0A:71:76:2C:7F:32:BC:C5:A2"
+      ]
+    }
+  }
+]

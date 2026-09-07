@@ -1,0 +1,32 @@
+name: app_repositories
+description: Repository contracts and Supabase implementations shared by mobile and admin apps.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  app_core:
+    path: ../app_core
+  app_models:
+    path: ../app_models
+  supabase_contracts:
+    path: ../supabase_contracts
+  http: ^1.2.2
+  mime: ^2.0.0
+  supabase_flutter: ^2.3.0
+  sign_in_with_apple: ^6.1.0
+  google_sign_in: ^6.2.1
+  crypto: ^3.0.3
+  firebase_messaging: ^15.0.0
+  flutter_secure_storage: ^10.0.0
+  socket_io_client: ^3.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  test: ^1.25.0

@@ -1,0 +1,110 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+
+    <application
+        android:label="BSHEEL"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Verified HTTPS app links for password recovery and shares.
+                 Must match redirectTo passed to resetPasswordForEmail
+                 in packages/app_repositories/lib/auth/supabase_auth_repository.dart -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/reset-password"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/post"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/user"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/join"/>
+            </intent-filter>
+            <!-- Custom bitsheel:// scheme (shares, invites, etc.)
+                 Note: custom schemes cannot be verified by Android's App Links
+                 mechanism — only https:// intents support autoVerify.
+                 For security-sensitive deep links (e.g. password reset, auth
+                 callbacks) always use the verified https:// intent filter above.
+                 This scheme is kept only for share/invite UX where hijacking
+                 has no privilege-escalation consequence. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="bitsheel"/>
+            </intent-filter>
+            <!--
+              Android App Links for shareable URLs to feed posts, user
+              profiles, and collab invites. Mirrors the iOS Universal
+              Links wired via Runner.entitlements + the AASA file at
+              admin.bsheel.app/.well-known/apple-app-site-association.
+
+              C4 (2026-05-17): autoVerify="true" — Android will fetch
+              /.well-known/assetlinks.json from admin.bsheel.app at
+              install time. The template is at
+              docs/deep_links/assetlinks.json.template — deploy it as
+              https://admin.bsheel.app/.well-known/assetlinks.json
+              after replacing the placeholder SHA256 fingerprint with
+              the production signing cert's fingerprint (output of
+              `keytool -list -v -keystore <prod-keystore>`).
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/post/"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/user/"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
+                      android:pathPrefix="/join/"/>
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,21 @@
+name: quest_app
+
+packages:
+  - apps/**
+  - packages/**
+
+scripts:
+  get:
+    run: melos exec -- flutter pub get
+
+  analyze:
+    run: melos exec -- flutter analyze
+
+  test:
+    run: melos exec --ignore="app_models,app_repositories,supabase_contracts" -- flutter test
+
+  format:
+    run: melos exec -- dart format .
+
+  clean:
+    run: melos exec -- flutter clean

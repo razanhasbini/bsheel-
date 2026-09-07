@@ -1,0 +1,16 @@
+name: app_models
+description: Shared data models used by both mobile and admin apps.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  app_core:
+    path: ../app_core
+  supabase_contracts:
+    path: ../supabase_contracts
+
+dev_dependencies:
+  test: ^1.25.0

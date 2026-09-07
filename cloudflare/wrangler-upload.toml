@@ -1,0 +1,28 @@
+name = "quest-media-upload"
+main = "worker-r2-upload.js"
+compatibility_date = "2025-01-01"
+
+# R2 binding — same bucket as the cleanup worker.
+[[r2_buckets]]
+binding = "QUEST_MEDIA"
+bucket_name = "quest-media"
+
+# Non-secret config: the legacy public R2 bucket URL is still needed
+# during the signed-media migration window so the worker can recognize
+# legacy public URLs in extractMediaKey() and rewrite them as signed.
+# After clients are fully on the new flow, this can be removed and the
+# pub-*.r2.dev bucket disabled.
+[vars]
+PUBLIC_URL = "https://pub-c5cc3a25116846169de23bc92a5ea697.r2.dev"
+
+# ── Secrets (set interactively after first deploy) ───────────────
+# Required (set via `wrangler secret put <NAME> --config cloudflare/wrangler-upload.toml`):
+#   SUPABASE_URL              — https://api.bsheel.app
+#   SUPABASE_ANON_KEY         — self-host anon JWT ("eyJ…"); copy SUPABASE_ANON_KEY
+#                               from the repo-root .env (NOT the old sb_publishable_ key)
+#   MEDIA_SIGNING_SECRET      — 64-char hex, see SECRETS_2026-06-02.txt
+#   ALLOWED_UPLOAD_ORIGINS    — comma-separated CORS allow list for browser
+#                               uploads (e.g. https://admin.bsheel.app)
+#
+# Optional:
+#   MEDIA_URL_TTL_SECONDS     — signed URL lifetime (defaults to 900 = 15 min)

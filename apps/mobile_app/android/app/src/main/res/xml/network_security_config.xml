@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  F-013 (pentest 2026-05-20): certificate pinning.
+
+  Without pinning, a managed device (corporate MDM that installs a root
+  CA) can intercept TLS traffic and read every request body, including
+  auth tokens. The previous network_security_config restricted trust
+  to system CAs only — which doesn't help against MDM-installed CAs
+  because those ARE in the system CA store.
+
+  Strategy:
+    * Pin the backend API (api.bsheel.app) + the R2 workers explicitly.
+      The R2 workers terminate on Cloudflare/Google Trust Services so
+      they share an intermediate (CN=WE1) and root (CN=GTS Root R4).
+      Pinning the intermediate is the conventional Cloudflare-fronted
+      approach because the leaf rotates every ~90 days.
+    * Provide a backup pin (the root) so a single intermediate rotation
+      doesn't brick the app between releases.
+    * Set expiration ~1 year out. If we forget to refresh, the pin
+      gracefully expires and the app falls back to base-config trust
+      (system CAs + cleartext blocked) rather than locking users out
+      with "TLS handshake failed".
+    * For every other domain (Mixpanel, FCM, share previews, etc.) the
+      base-config still enforces "no cleartext, system CAs only".
+
+  Pin hashes are SubjectPublicKeyInfo SHA-256, base64.
+  Verified live on 2026-06-04:
+    WE1   intermediate  →  kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=
+    GTS Root R4         →  mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=
+
+  To re-derive after rotation:
+    echo | openssl s_client -servername <host> -connect <host>:443 \
+      -showcerts 2>/dev/null \
+      | openssl x509 -pubkey -noout \
+      | openssl pkey -pubin -outform DER \
+      | openssl dgst -sha256 -binary | openssl base64
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Self-hosted backend: REST + Auth + Realtime + Storage + Functions
+         all on this host (cutover from Supabase cloud, 2026-07).
+
+         TODO(F-013 re-pin): the old supabase.co pin-set was removed at
+         cutover because api.bsheel.app's certificate chain couldn't be
+         verified from the migration environment. Once the host's TLS
+         chain is stable, re-derive the intermediate + root pins with the
+         openssl one-liner in the header comment and restore a pin-set
+         here. Until then this block still enforces no-cleartext and
+         system-CA-only trust. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.bsheel.app</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Cloudflare worker that gates R2 media upload + signing. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">quest-media-upload.laythayache5.workers.dev</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+        <pin-set expiration="2027-06-01">
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- Cloudflare worker that handles R2 cleanup. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">quest-media-cleanup.laythayache5.workers.dev</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+        <pin-set expiration="2027-06-01">
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

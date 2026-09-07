@@ -1,0 +1,88 @@
+#!/bin/bash
+# Ship when you push to a publish branch.
+#
+# GitHub Actions bills macOS runners at 10x on a private repo, and this account's Actions
+# budget is exhausted, so `publish-test` and `publish-store` never get a machine. This does the
+# same job on the Mac you are already sitting at, for nothing.
+#
+# Install (once, per clone):   git config core.hooksPath scripts/hooks
+# Skip for one push:           git push --no-verify
+#
+# It runs BEFORE the push and aborts it if the build fails, so a publish branch on the remote
+# always means "this actually shipped" rather than "someone pushed at it".
+
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BUNDLE_ID="com.questapp.mobileApp"
+
+say()  { printf "\n\033[1m%s\033[0m\n" "$1"; }
+warn() { printf "\033[33m%s\033[0m\n" "$1"; }
+bad()  { printf "\033[31m%s\033[0m\n" "$1" >&2; }
+
+TARGET=""
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/publish-test)  TARGET="test" ;;
+    refs/heads/publish-store) TARGET="store" ;;
+  esac
+done
+
+# Every other branch pushes exactly as before.
+[ -n "$TARGET" ] || exit 0
+
+cd "$REPO"
+
+# The build ships the WORKING TREE; the push ships commits. If they differ, the branch would
+# claim to contain something that was never built.
+if [ -n "$(git status --porcelain)" ]; then
+  bad "publish branch push refused: the working tree has uncommitted changes."
+  bad "The build ships your working tree, so the branch would not match what shipped."
+  bad "Commit or stash first, or push with --no-verify to skip shipping."
+  exit 1
+fi
+
+VERSION=$(grep -E '^version:' apps/mobile_app/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*//')
+
+if [ "$TARGET" = "store" ]; then
+  say "PUBLIC RELEASE — pushing publish-store submits BSHEEL $VERSION to Apple for review."
+  warn "On approval it goes live to every user automatically."
+  warn "Undoing it means shipping another release through another 1-3 day review."
+  # Checked before the 15-minute build, not after.
+  python3 scripts/appstore.py check-version "$BUNDLE_ID" "$VERSION" || exit 1
+  printf "\nType RELEASE to continue, anything else to abort: "
+  read -r answer < /dev/tty
+  if [ "$answer" != "RELEASE" ]; then
+    bad "aborted — nothing was built or submitted"
+    exit 1
+  fi
+else
+  say "Shipping BSHEEL $VERSION to TestFlight before this push completes."
+  warn "Takes about 15 minutes. Ctrl-C in the next 10 seconds to abort."
+  for i in $(seq 10 -1 1); do printf "\r  starting in %2ds… " "$i"; sleep 1; done
+  printf "\r                       \r"
+fi
+
+BUILD=$(python3 scripts/appstore.py next-build "$BUNDLE_ID") || { bad "could not reach App Store Connect"; exit 1; }
+say "Building $VERSION ($BUILD)"
+
+scripts/ios_release.sh --version "$VERSION" --build "$BUILD" || {
+  bad "build failed — the push has been aborted so the branch does not claim a release that did not happen"
+  exit 1
+}
+
+if [ "$TARGET" = "store" ]; then
+  python3 scripts/appstore.py submit "$BUNDLE_ID" "$VERSION" "$BUILD" || {
+    bad "the build uploaded but submission failed — see the output above. Push aborted."
+    exit 1
+  }
+  say "Submitted $VERSION ($BUILD) for review. Pushing the branch."
+else
+  python3 scripts/appstore.py distribute "$BUNDLE_ID" "$BUILD" || {
+    bad "the build uploaded but did not reach the testers — see the output above. Push aborted."
+    exit 1
+  }
+  say "TestFlight has $VERSION ($BUILD). Pushing the branch."
+fi
+
+exit 0

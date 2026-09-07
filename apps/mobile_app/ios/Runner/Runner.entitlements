@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- H8 (2026-05-17): production. App Store builds require this value.
+	     APNs routes to sandbox automatically when the IPA is signed with
+	     a development certificate, so this value works for both Xcode
+	     debug runs (sandbox) and TestFlight/App Store (production). -->
+	<key>aps-environment</key>
+	<string>production</string>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:admin.bsheel.app</string>
+	</array>
+</dict>
+</plist>

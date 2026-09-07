@@ -1,0 +1,68 @@
+import {
+  ArgumentsHost,
+  Catch,
+  HttpException,
+  HttpStatus,
+  Logger,
+  type ExceptionFilter,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import type { ApiErrorResponse } from './api-response.js';
+
+@Catch()
+export class ApiExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(ApiExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const http = host.switchToHttp();
+    const request = http.getRequest<Request>();
+    const response = http.getResponse<Response>();
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const payload = exception instanceof HttpException ? exception.getResponse() : undefined;
+    const details = typeof payload === 'object' ? payload : undefined;
+    const message = this.resolveMessage(exception, payload);
+
+    if (status >= 500) {
+      this.logger.error(
+        { requestId: request.id, method: request.method, path: request.path, exception },
+        message,
+      );
+    }
+
+    const body: ApiErrorResponse = {
+      success: false,
+      error: {
+        code: this.resolveCode(status, payload),
+        message,
+        ...(details === undefined ? {} : { details }),
+      },
+      meta: {
+        requestId: String(request.id),
+        timestamp: new Date().toISOString(),
+      },
+    };
+    response.status(status).json(body);
+  }
+
+  private resolveMessage(exception: unknown, payload: unknown): string {
+    if (typeof payload === 'string') return payload;
+    if (payload && typeof payload === 'object' && 'message' in payload) {
+      const message = payload.message;
+      return Array.isArray(message) ? message.join('; ') : String(message);
+    }
+    if (exception instanceof Error && !(exception instanceof HttpException)) {
+      return 'An unexpected error occurred';
+    }
+    return 'Request failed';
+  }
+
+  private resolveCode(status: number, payload: unknown): string {
+    if (payload && typeof payload === 'object' && 'code' in payload) {
+      return String(payload.code);
+    }
+    return HttpStatus[status] ?? 'ERROR';
+  }
+}

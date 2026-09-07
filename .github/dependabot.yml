@@ -1,0 +1,68 @@
+# M16 (2026-05-17): Dependabot config so deps don't go stale and so
+# transitive CVE bumps land via PR rather than a manual `flutter pub
+# upgrade` sweep.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 8
+    labels: ["dependencies", "backend", "security"]
+
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "infrastructure"]
+
+  # Dart / Flutter dependencies across the monorepo.
+  - package-ecosystem: "pub"
+    directory: "/apps/mobile_app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/apps/admin_web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/packages/app_core"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/packages/app_models"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/packages/app_repositories"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/packages/shared_ui"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "security"]
+  - package-ecosystem: "pub"
+    directory: "/packages/supabase_contracts"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "security"]
+
+  # GitHub Actions themselves — keep the SHA pins fresh.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]

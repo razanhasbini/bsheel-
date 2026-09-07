@@ -1,0 +1,38 @@
+name: Format & Analyze
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+# H12 (2026-05-17): least-privilege GITHUB_TOKEN scope.
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      # H12: SHA-pinned actions — see .github/workflows/ci.yml note.
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1  # v2.16.0
+        with:
+          flutter-version: "3.38.5"
+          channel: stable
+
+      - name: Install Melos
+        run: dart pub global activate melos 6.1.0
+
+      - name: Add pub-cache bin to PATH
+        run: echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Get dependencies
+        run: melos run get
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze
+        run: melos run analyze

@@ -1,0 +1,12 @@
+# melos_managed_dependency_overrides: app_core,app_models,app_repositories,shared_ui,supabase_contracts
+dependency_overrides:
+  app_core:
+    path: ../../packages/app_core
+  app_models:
+    path: ../../packages/app_models
+  app_repositories:
+    path: ../../packages/app_repositories
+  shared_ui:
+    path: ../../packages/shared_ui
+  supabase_contracts:
+    path: ../../packages/supabase_contracts

@@ -1,0 +1,21 @@
+name: shared_ui
+description: Reusable UI components shared across mobile and admin apps.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  app_core:
+    path: ../app_core
+  supabase_contracts:
+    path: ../supabase_contracts
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

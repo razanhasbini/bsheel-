@@ -1,0 +1,20 @@
+name = "quest-media-cleanup"
+main = "worker-r2-cleanup.js"
+compatibility_date = "2025-01-01"
+
+# R2 binding — gives the Worker direct list/get/delete access without any
+# external API token.
+[[r2_buckets]]
+binding = "QUEST_MEDIA"
+bucket_name = "quest-media"
+
+# All secrets and config are set via `npx wrangler secret put` after deploy
+# so they are never stored in the repository.
+#
+# Required secrets (set interactively — never echoed, never in the repo):
+#   npx wrangler secret put SUPABASE_URL        --config cloudflare/wrangler-cleanup.toml
+#   npx wrangler secret put SUPABASE_ANON_KEY   --config cloudflare/wrangler-cleanup.toml
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config cloudflare/wrangler-cleanup.toml
+#   npx wrangler secret put PUBLIC_URL          --config cloudflare/wrangler-cleanup.toml
+#
+# DO NOT add a [vars] block here with real URLs or keys.

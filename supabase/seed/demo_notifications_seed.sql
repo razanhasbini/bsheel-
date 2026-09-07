@@ -1,0 +1,4 @@
+-- Demo notifications (requires matching profile entries)
+-- insert into public.notifications (user_id, title, body, type) values
+--   ('USER_UUID_1', 'Quest Assigned!', 'You got a new quest: Morning Stretch', 'quest_assigned'),
+--   ('USER_UUID_1', 'Submission Approved!', 'Your submission was approved! +10 XP', 'submission_approved');

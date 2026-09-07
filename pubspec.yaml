@@ -1,0 +1,11 @@
+name: quest_app_workspace
+description: Quest gamification app monorepo
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+  melos: ^6.1.0

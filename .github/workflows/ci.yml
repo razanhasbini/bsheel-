@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# H12 (2026-05-17): least-privilege GITHUB_TOKEN scope. Default in
+# this repo was previously implicit (read+write everywhere); CI only
+# needs to read the source.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # H12: SHA-pinned third-party actions so a malicious re-tag at
+      # @v4 / @v2 can't replace the runner step out from under us.
+      # Update by bumping the SHA AND the version comment together.
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+
+      # Runs before the toolchain setup so a leaked credential fails the
+      # build in seconds rather than after a full Flutter bootstrap.
+      # Added 2026-08-04 after a live service_role JWT was found committed in
+      # the Postman collection since 6520808. GitHub secret scanning is
+      # unavailable on this repo (private, no Advanced Security), and plain
+      # grep cannot see a role buried in a base64 JWT payload.
+      - name: Check for committed secrets
+        run: bash scripts/check_secrets.sh
+
+      - uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1  # v2.16.0
+        with:
+          flutter-version: "3.38.5"
+          channel: stable
+
+      - name: Install Melos
+        run: dart pub global activate melos 6.1.0
+
+      - name: Add pub-cache bin to PATH
+        run: echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      - name: Get dependencies
+        run: melos run get
+
+      - name: Analyze
+        run: melos run analyze
+
+      - name: Test
+        run: melos run test
