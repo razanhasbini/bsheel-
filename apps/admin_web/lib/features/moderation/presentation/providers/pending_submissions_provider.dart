@@ -1,12 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../util/caption_flags.dart';
 
 class PendingSubmission {
@@ -109,114 +107,45 @@ class PendingSubmission {
     );
   }
 
+  /// The review-queue endpoint returns flat joined columns plus the
+  /// server-computed reviewer context.
   factory PendingSubmission.fromJson(Map<String, dynamic> json) {
-    final profile = json[Tables.profiles] as Map<String, dynamic>?;
-    final userQuest = json[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-
     return PendingSubmission(
-      id: (json[SubmissionColumns.id] ?? '').toString(),
-      userId: (json[SubmissionColumns.userId] ?? '').toString(),
-      userQuestId: (json[SubmissionColumns.userQuestId] ?? '').toString(),
-      mediaUrl: (json[SubmissionColumns.mediaUrl] ?? '').toString(),
-      mediaType: (json[SubmissionColumns.mediaType] ?? 'image').toString(),
-      caption: json[SubmissionColumns.caption] as String?,
-      status: (json[SubmissionColumns.status] ?? 'pending').toString(),
-      submittedAt: DateTime.parse(
-        json[SubmissionColumns.submittedAt].toString(),
-      ),
-      username: profile?[ProfileColumns.username] as String?,
-      displayName: profile?[ProfileColumns.displayName] as String?,
-      questTitle: quest?[QuestColumns.title] as String?,
-      appealNote: json[SubmissionColumns.appealNote] as String?,
-      appealed: json[SubmissionColumns.appealed] == true,
+      id: (json['id'] ?? '').toString(),
+      userId: (json['user_id'] ?? '').toString(),
+      userQuestId: (json['user_quest_id'] ?? '').toString(),
+      mediaUrl: (json['media_url'] ?? '').toString(),
+      mediaType: (json['media_type'] ?? 'image').toString(),
+      caption: json['caption'] as String?,
+      status: (json['status'] ?? 'pending').toString(),
+      submittedAt: DateTime.parse(json['submitted_at'].toString()),
+      username: json['username'] as String?,
+      displayName: json['display_name'] as String?,
+      questTitle: json['quest_title'] as String?,
+      appealNote: json['appeal_note'] as String?,
+      appealed: json['appealed'] == true,
+      userApprovedCount: (json['user_approved_count'] as num?)?.toInt() ?? 0,
+      userRejectedCount: (json['user_rejected_count'] as num?)?.toInt() ?? 0,
+      isDuplicate: json['is_duplicate'] == true,
     );
   }
 }
 
 final pendingSubmissionsProvider =
     FutureProvider.autoDispose<List<PendingSubmission>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-
-  // Oldest-first: anything left rotting at the top of the queue is what's
-  // most likely to leak past the user's expected review SLA.
-  final raw = await client
-      .from(Tables.submissions)
-      .select(
-        '*, profiles!submissions_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName}), ${Tables.userQuests}(*, ${Tables.quests}(${QuestColumns.title}))',
-      )
-      .eq(SubmissionColumns.status, SubmissionStatus.pending)
-      .order(SubmissionColumns.submittedAt, ascending: true);
-
-  final pending = (raw as List)
-      .map((e) => PendingSubmission.fromJson(Map<String, dynamic>.from(e)))
-      .toList();
-
-  if (pending.isEmpty) return pending;
-
-  // Enrich in two batched queries keyed by the set of users who appear in the
-  // current pending list — avoids N+1 round-trips when the queue grows.
-  final userIds = pending.map((s) => s.userId).toSet().toList();
-
-  final history = await client
-      .from(Tables.submissions)
-      .select('${SubmissionColumns.userId}, ${SubmissionColumns.status}, '
-          '${SubmissionColumns.mediaUrl}, ${SubmissionColumns.caption}')
-      .inFilter(SubmissionColumns.userId, userIds);
-
-  final approvedByUser = <String, int>{};
-  final rejectedByUser = <String, int>{};
-  // Per user, the set of media URLs and captions that have previously been
-  // rejected. A pending submission whose URL or (non-trivial) caption matches
-  // one of these is flagged as a likely re-upload of something already denied.
-  final rejectedUrlsByUser = <String, Set<String>>{};
-  final rejectedCaptionsByUser = <String, Set<String>>{};
-
-  for (final row in history as List) {
-    final m = Map<String, dynamic>.from(row);
-    final uid = (m[SubmissionColumns.userId] ?? '').toString();
-    final status = (m[SubmissionColumns.status] ?? '').toString();
-
-    if (status == SubmissionStatus.approved) {
-      approvedByUser[uid] = (approvedByUser[uid] ?? 0) + 1;
-    } else if (status == SubmissionStatus.rejected) {
-      rejectedByUser[uid] = (rejectedByUser[uid] ?? 0) + 1;
-
-      final url = (m[SubmissionColumns.mediaUrl] ?? '').toString().trim();
-      if (url.isNotEmpty) {
-        rejectedUrlsByUser.putIfAbsent(uid, () => <String>{}).add(url);
-      }
-      final cap = (m[SubmissionColumns.caption] as String?)?.trim() ?? '';
-      if (cap.length >= 8) {
-        rejectedCaptionsByUser
-            .putIfAbsent(uid, () => <String>{})
-            .add(cap.toLowerCase());
-      }
-    }
-  }
-
-  final enriched = pending.map((s) {
-    final priorUrls = rejectedUrlsByUser[s.userId] ?? const <String>{};
-    final priorCaptions = rejectedCaptionsByUser[s.userId] ?? const <String>{};
-    final cap = (s.caption ?? '').trim();
-    final isDuplicate = priorUrls.contains(s.mediaUrl.trim()) ||
-        (cap.length >= 8 && priorCaptions.contains(cap.toLowerCase()));
-
-    return s.copyWith(
-      userApprovedCount: approvedByUser[s.userId] ?? 0,
-      userRejectedCount: rejectedByUser[s.userId] ?? 0,
-      isDuplicate: isDuplicate,
-      captionFlags: CaptionFlags.compute(s.caption),
+  // Oldest-first: anything left rotting at the top of the queue is what is
+  // most likely to leak past the review SLA. The counts and the duplicate
+  // flag are computed by the API in the same query, so the client no longer
+  // fetches every submission for every user in the queue to derive them.
+  final rows = await AppBackend.repositories.moderation.reviewQueue();
+  return rows.map((row) {
+    final submission = PendingSubmission.fromJson(row);
+    // Caption heuristics are presentation-level text rules, so they stay
+    // here rather than in the database.
+    return submission.copyWith(
+      captionFlags: CaptionFlags.compute(submission.caption),
     );
   }).toList();
-
-  return Future.wait(
-    enriched.map((s) async {
-      return s.copyWith(
-        mediaUrl: await SignedMediaUrls.signJsonOrSingle(client, s.mediaUrl),
-      );
-    }),
-  );
 });
 
 /// Realtime feed for the moderation queue. Any insert/update on
@@ -226,25 +155,23 @@ final pendingSubmissionsProvider =
 /// Page-scoped — watch from the pending submissions page; the channel
 /// is torn down when the moderator navigates away.
 final pendingSubmissionsRealtimeProvider = Provider.autoDispose<void>((ref) {
-  final client = Supabase.instance.client;
-
-  final channel = client.channel('admin_pending_submissions')
-    ..onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: Tables.submissions,
-      callback: (_) {
-        if (kDebugMode) {
-          debugPrint(
-            '[Realtime] submissions change → refresh moderation queue',
-          );
-        }
-        ref.invalidate(pendingSubmissionsProvider);
-      },
-    )
-    ..subscribe();
-
-  ref.onDispose(() {
-    client.removeChannel(channel);
+  final realtime = AppBackend.repositories.realtime;
+  final subscription = realtime.events
+      .where((event) => event.type.startsWith('submission.'))
+      .listen((_) {
+    if (kDebugMode) {
+      debugPrint('[Realtime] submission event → refresh moderation queue');
+    }
+    ref.invalidate(pendingSubmissionsProvider);
   });
+  unawaited(() async {
+    try {
+      await realtime.connect();
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[Realtime] Moderation queue connection failed: $error');
+      }
+    }
+  }());
+  ref.onDispose(() => unawaited(subscription.cancel()));
 });

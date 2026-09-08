@@ -3,10 +3,10 @@ import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/providers/auth_session_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 
 final searchRepositoryProvider = Provider<SearchRepository>((ref) {
-  return SupabaseSearchRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.search;
 });
 
 /// Raw text in the search field. Trimmed before any query runs.
@@ -39,7 +39,9 @@ class RecentSearchesNotifier extends StateNotifier<List<String>> {
     final without =
         state.where((q) => q.toLowerCase() != lower).toList(growable: true);
     without.insert(0, trimmed);
-    if (without.length > _recentMax) without.removeRange(_recentMax, without.length);
+    if (without.length > _recentMax) {
+      without.removeRange(_recentMax, without.length);
+    }
     state = without;
     await _persist();
   }
@@ -66,8 +68,7 @@ class SearchResults {
 
   bool get isEmpty => users.isEmpty && quests.isEmpty && posts.isEmpty;
 
-  static const empty =
-      SearchResults(users: [], quests: [], posts: []);
+  static const empty = SearchResults(users: [], quests: [], posts: []);
 }
 
 final searchResultsProvider =
@@ -90,7 +91,9 @@ final searchResultsProvider =
   // Debounce: if the user keeps typing within 280ms, this closure is replaced
   // by a newer one before the network call fires, so we save requests.
   await Future<void>.delayed(const Duration(milliseconds: 280));
-  if (ref.read(searchQueryProvider).trim() != rawQuery) return SearchResults.empty;
+  if (ref.read(searchQueryProvider).trim() != rawQuery) {
+    return SearchResults.empty;
+  }
 
   final repo = ref.read(searchRepositoryProvider);
   final currentUser = ref.read(authSessionProvider);

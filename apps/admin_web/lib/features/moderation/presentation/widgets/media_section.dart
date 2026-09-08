@@ -190,8 +190,7 @@ class _MediaSectionState extends State<MediaSection> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.md),
+                          borderRadius: BorderRadius.circular(BsheelRadii.md),
                           border: Border.all(
                             color: selected
                                 ? BsheelColors.pureWhite
@@ -206,7 +205,8 @@ class _MediaSectionState extends State<MediaSection> {
                           frameBuilder: (context, child, frame, _) {
                             if (frame != null) {
                               WidgetsBinding.instance.addPostFrameCallback(
-                                  (_) => widget.onMediaViewed(i),);
+                                (_) => widget.onMediaViewed(i),
+                              );
                             }
                             return child;
                           },
@@ -215,7 +215,8 @@ class _MediaSectionState extends State<MediaSection> {
                           // "view" missing bytes.
                           errorBuilder: (_, __, ___) {
                             WidgetsBinding.instance.addPostFrameCallback(
-                                (_) => widget.onMediaViewed(i),);
+                              (_) => widget.onMediaViewed(i),
+                            );
                             return Container(
                               color: BsheelColors.ink,
                               child: const Icon(
@@ -285,8 +286,7 @@ class _ViewedToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        viewed ? BsheelColors.success : BsheelColors.pureWhite;
+    final color = viewed ? BsheelColors.success : BsheelColors.pureWhite;
     return Material(
       color: BsheelColors.pureBlack.withAlpha(190),
       borderRadius: BorderRadius.circular(BsheelRadii.full),
@@ -294,12 +294,13 @@ class _ViewedToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(BsheelRadii.full),
         onTap: onTap,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(BsheelRadii.full),
             border: Border.all(
-                color: color.withAlpha(180), width: BsheelBorders.thin,),
+              color: color.withAlpha(180),
+              width: BsheelBorders.thin,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -386,7 +387,9 @@ class _StackImage extends StatelessWidget {
           color: BsheelColors.pureBlack,
           borderRadius: BorderRadius.circular(BsheelRadii.md),
           border: Border.all(
-              color: _mediaPanelBorder, width: BsheelBorders.thin,),
+            color: _mediaPanelBorder,
+            width: BsheelBorders.thin,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Image.network(
@@ -394,8 +397,7 @@ class _StackImage extends StatelessWidget {
           fit: BoxFit.contain,
           frameBuilder: (context, child, frame, _) {
             if (frame != null) {
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => onLoaded());
+              WidgetsBinding.instance.addPostFrameCallback((_) => onLoaded());
             }
             return child;
           },

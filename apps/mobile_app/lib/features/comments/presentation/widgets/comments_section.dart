@@ -7,21 +7,20 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:shared_ui/shared_ui.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../../l10n/app_localizations.dart';
 
 // ── Public providers (used by page to invalidate after posting) ──────────────
 
 /// Single source of truth for the comments repository instance. Pages
-/// should consume this rather than constructing the Supabase repo
+/// should consume this rather than constructing a repository
 /// inline (the same anti-pattern was tripping up tests + future repo
 /// caching tweaks). ARC-008.
 final commentsRepositoryProvider = Provider<CommentsRepository>((ref) {
-  return SupabaseCommentsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.comments;
 });
 
 final commentsProvider = FutureProvider.autoDispose
@@ -30,7 +29,9 @@ final commentsProvider = FutureProvider.autoDispose
   try {
     return await repo.getComments(submissionId);
   } catch (e, st) {
-    if (kDebugMode) debugPrint('[Comments] ERROR loading $submissionId: $e\n$st');
+    if (kDebugMode) {
+      debugPrint('[Comments] ERROR loading $submissionId: $e\n$st');
+    }
     rethrow;
   }
 });
@@ -186,8 +187,8 @@ class _CommentTile extends ConsumerWidget {
     } catch (e) {
       messenger
         ..clearSnackBars()
-        ..showSnackBar(SnackBar(
-            content: Text(mapDbError(e, action: 'delete comment'))));
+        ..showSnackBar(
+            SnackBar(content: Text(mapDbError(e, action: 'delete comment'))));
     }
   }
 
@@ -310,22 +311,18 @@ class _MentionTextState extends ConsumerState<_MentionText> {
 
   Future<void> _openMentionProfile(String username) async {
     try {
-      final client = ref.read(supabaseClientProvider);
-      final rows = await client
-          .from(Tables.profiles)
-          .select(ProfileColumns.id)
-          .ilike(ProfileColumns.username, username)
-          .limit(1);
+      // Exact username lookup — search is fuzzy and must not decide where
+      // an @mention navigates.
+      final profile =
+          await AppBackend.repositories.profiles.getProfileByUsername(username);
       if (!mounted) return;
-      final list = rows as List<dynamic>;
-      if (list.isEmpty) {
+      if (profile == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('@$username was not found')),
         );
         return;
       }
-      final profile = Map<String, dynamic>.from(list.first as Map);
-      final userId = (profile[ProfileColumns.id] ?? '').toString();
+      final userId = profile.id;
       if (userId.isEmpty) return;
       context.pushNamed(
         RouteNames.userProfile,

@@ -5,10 +5,12 @@ import 'package:app_models/app_models.dart';
 enum SoftDeleteMode {
   /// Hide from the public feed but keep on the user's profile.
   hiddenFromFeed,
+
   /// Remove from feed AND profile, decrement XP via the DB trigger,
   /// re-add to BSHEEEL is impossible afterwards. Permanent from the
   /// user's perspective.
   deleted,
+
   /// Restore a previously hidden/deleted post.
   visible,
 }

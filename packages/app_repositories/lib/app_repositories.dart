@@ -1,68 +1,89 @@
+/// Repository contracts and their HTTP implementations against the
+/// self-hosted Bsheel API.
+///
+/// Features depend on the abstract contract; the concrete `Api*Repository`
+/// is wired once per application in its `AppBackend` composition root.
 library;
 
-// Auth
+// ── Transport and composition ────────────────────────────────────────────
+export 'api/api_client.dart';
+export 'api/api_repository_bundle.dart';
+export 'api/secure_api_token_store.dart';
+
+// ── Auth ─────────────────────────────────────────────────────────────────
+export 'auth/auth_models.dart';
 export 'auth/auth_repository.dart';
-export 'auth/supabase_auth_repository.dart';
+export 'auth/api_auth_repository.dart';
 
-// Profile
+// ── Account ──────────────────────────────────────────────────────────────
+export 'account/api_account_repository.dart';
+
+// ── Profile ──────────────────────────────────────────────────────────────
 export 'profile/profile_repository.dart';
-export 'profile/supabase_profile_repository.dart';
+export 'profile/api_profile_repository.dart';
 
-// Quests
+// ── Quests ───────────────────────────────────────────────────────────────
 export 'quests/quests_repository.dart';
-export 'quests/supabase_quests_repository.dart';
+export 'quests/api_quests_repository.dart';
 
-// Submissions
+// ── Submissions ──────────────────────────────────────────────────────────
 export 'submissions/submissions_repository.dart';
-export 'submissions/supabase_submissions_repository.dart';
+export 'submissions/api_submissions_repository.dart';
 
-// Feed
+// ── Feed ─────────────────────────────────────────────────────────────────
 export 'feed/feed_repository.dart';
-export 'feed/supabase_feed_repository.dart';
+export 'feed/api_feed_repository.dart';
 
-// Reactions
+// ── Reactions ────────────────────────────────────────────────────────────
 export 'reactions/reactions_repository.dart';
-export 'reactions/supabase_reactions_repository.dart';
+export 'reactions/api_reactions_repository.dart';
 
-// Leaderboard
+// ── Leaderboard ──────────────────────────────────────────────────────────
 export 'leaderboard/leaderboard_repository.dart';
-export 'leaderboard/supabase_leaderboard_repository.dart';
+export 'leaderboard/api_leaderboard_repository.dart';
 
-// Notifications
+// ── Notifications ────────────────────────────────────────────────────────
 export 'notifications/notifications_repository.dart';
-export 'notifications/supabase_notifications_repository.dart';
+export 'notifications/api_notifications_repository.dart';
 
-// Moderation
+// ── Moderation ───────────────────────────────────────────────────────────
 export 'moderation/moderation_repository.dart';
-export 'moderation/supabase_moderation_repository.dart';
+export 'moderation/api_moderation_repository.dart';
 
-// Comments
+// ── Comments ─────────────────────────────────────────────────────────────
 export 'comments/comments_repository.dart';
-export 'comments/supabase_comments_repository.dart';
+export 'comments/api_comments_repository.dart';
 
-// Follows
+// ── Follows ──────────────────────────────────────────────────────────────
 export 'follows/follows_repository.dart';
-export 'follows/supabase_follows_repository.dart';
+export 'follows/api_follows_repository.dart';
 
-// Saved Posts
+// ── Saved posts ──────────────────────────────────────────────────────────
 export 'saved_posts/saved_posts_repository.dart';
-export 'saved_posts/supabase_saved_posts_repository.dart';
+export 'saved_posts/api_saved_posts_repository.dart';
 
-// Saved Quests
+// ── Saved quests ─────────────────────────────────────────────────────────
 export 'saved_quests/saved_quests_repository.dart';
-export 'saved_quests/supabase_saved_quests_repository.dart';
+export 'saved_quests/api_saved_quests_repository.dart';
 
-// Collab
+// ── Collab ───────────────────────────────────────────────────────────────
 export 'collab/collab_repository.dart';
-export 'collab/supabase_collab_repository.dart';
+export 'collab/api_collab_repository.dart';
 
-// Search
+// ── Search ───────────────────────────────────────────────────────────────
 export 'search/search_repository.dart';
-export 'search/supabase_search_repository.dart';
+export 'search/api_search_repository.dart';
 
-// Admin role
+// ── Admin ────────────────────────────────────────────────────────────────
 export 'admin/admin_repository.dart';
-export 'admin/supabase_admin_repository.dart';
+export 'admin/api_admin_repository.dart';
 
-// Media (signed-URL helper for the Cloudflare worker /sign endpoint)
-export 'media/signed_media_urls.dart';
+// ── Public config ────────────────────────────────────────────────────────
+export 'public_config/api_public_config_repository.dart';
+
+// ── Media ────────────────────────────────────────────────────────────────
+export 'media/api_media_signer.dart';
+export 'media/api_media_uploader.dart';
+
+// ── Realtime ─────────────────────────────────────────────────────────────
+export 'realtime/api_realtime_client.dart';

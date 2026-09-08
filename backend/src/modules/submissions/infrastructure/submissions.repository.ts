@@ -167,14 +167,142 @@ export class SubmissionsRepository {
     return result.rows;
   }
 
-  async listPending(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
+  /// The moderation review queue with the reviewer context the admin UI
+  /// shows as trust hints and a DUPLICATE badge.
+  ///
+  /// The counts and the duplicate check are computed here rather than in the
+  /// client, which previously fetched every submission for every user in the
+  /// queue to derive them. `is_duplicate` matches the legacy rule exactly:
+  /// the same user has a rejected submission with an identical media_url, or
+  /// an identical caption of at least 8 characters.
+  /// Everything the review screen needs for one submission: the author's
+  /// profile, the quest, and whether this is a retake of a quest the user
+  /// already had approved (legacy `is_quest_retake`, migration 0087).
+  async adminDetail(id: string): Promise<Record<string, unknown> | null> {
+    const result = await this.database.query(
+      `SELECT s.*,
+              p.username::text, p.display_name, p.avatar_url, p.xp, p.level,
+              q.id AS quest_id, q.title AS quest_title, q.description AS quest_description,
+              q.category AS quest_category, q.difficulty AS quest_difficulty,
+              q.xp_reward AS quest_xp_reward, q.duration_hours AS quest_duration_hours,
+              uq.status AS user_quest_status, uq.assigned_at, uq.expires_at,
+              cg.id AS collab_group_id, cg.mode::text AS collab_mode,
+              cg.status::text AS collab_status,
+              EXISTS (
+                SELECT 1 FROM user_quests prior
+                WHERE prior.user_id = s.user_id
+                  AND prior.quest_id = uq.quest_id
+                  AND prior.status = 'approved'
+                  AND prior.id <> uq.id
+              ) AS is_retake
+       FROM submissions s
+       JOIN profiles p ON p.id = s.user_id
+       JOIN user_quests uq ON uq.id = s.user_quest_id
+       JOIN quests q ON q.id = uq.quest_id
+       -- The review screen shows a COLLAB / VERSUS badge. Joining it here
+       -- avoids a second request that would be scoped to the caller rather
+       -- than to the submission's author.
+       LEFT JOIN collab_group_members cgm ON cgm.user_quest_id = uq.id
+       LEFT JOIN collab_groups cg ON cg.id = cgm.group_id
+       WHERE s.id = $1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async reviewQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.database.query(
+      `WITH queue AS (
+         SELECT s.*, p.username::text, p.display_name, q.title AS quest_title
+         FROM submissions s
+         JOIN profiles p ON p.id = s.user_id
+         JOIN user_quests uq ON uq.id = s.user_quest_id
+         JOIN quests q ON q.id = uq.quest_id
+         WHERE s.status = 'pending'
+         ORDER BY s.submitted_at ASC, s.id
+         LIMIT $1 OFFSET $2
+       ),
+       stats AS (
+         SELECT user_id,
+                count(*) FILTER (WHERE status = 'approved') AS approved_count,
+                count(*) FILTER (WHERE status = 'rejected') AS rejected_count
+         FROM submissions
+         WHERE user_id IN (SELECT user_id FROM queue)
+         GROUP BY user_id
+       ),
+       rejected AS (
+         SELECT user_id, media_url, lower(btrim(caption)) AS caption
+         FROM submissions
+         WHERE status = 'rejected' AND user_id IN (SELECT user_id FROM queue)
+       )
+       SELECT queue.*,
+              coalesce(stats.approved_count, 0)::int AS user_approved_count,
+              coalesce(stats.rejected_count, 0)::int AS user_rejected_count,
+              EXISTS (
+                SELECT 1 FROM rejected r
+                WHERE r.user_id = queue.user_id
+                  AND (
+                    (queue.media_url <> '' AND r.media_url = queue.media_url)
+                    OR (char_length(coalesce(r.caption, '')) >= 8
+                        AND r.caption = lower(btrim(queue.caption)))
+                  )
+              ) AS is_duplicate
+       FROM queue
+       LEFT JOIN stats ON stats.user_id = queue.user_id
+       ORDER BY queue.submitted_at ASC, queue.id`,
+      [Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)],
+    );
+    return result.rows;
+  }
+
+  async listForAdmin(filter: {
+    status?: 'pending' | 'approved' | 'rejected' | 'all';
+    appealed?: boolean;
+    visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
+    order?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }): Promise<readonly Record<string, unknown>[]> {
+    const conditions: string[] = [];
+    const parameters: unknown[] = [];
+
+    const status = filter.status ?? 'pending';
+    if (status !== 'all') {
+      parameters.push(status);
+      conditions.push(`s.status = $${parameters.length}`);
+    }
+    if (filter.appealed !== undefined) {
+      parameters.push(filter.appealed);
+      conditions.push(`s.appealed = $${parameters.length}`);
+    }
+    // `not_visible` is the moderation "removed content" view: anything the
+    // feed no longer shows, whether hidden or soft-deleted.
+    if (filter.visibility === 'not_visible') {
+      conditions.push(`s.visibility <> 'visible'`);
+    } else if (filter.visibility !== undefined) {
+      parameters.push(filter.visibility);
+      conditions.push(`s.visibility = $${parameters.length}`);
+    }
+
+    // Interpolated only from a closed set the DTO already validated; never
+    // from raw input.
+    const direction = filter.order === 'desc' ? 'DESC' : 'ASC';
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    parameters.push(Math.min(Math.max(filter.limit ?? 50, 1), 100));
+    const limitPlaceholder = `$${parameters.length}`;
+    parameters.push(Math.max(filter.offset ?? 0, 0));
+    const offsetPlaceholder = `$${parameters.length}`;
+
     const result = await this.database.query(
       `SELECT s.*, p.username::text, p.display_name, p.avatar_url,
               q.title AS quest_title, q.description AS quest_description, q.category AS quest_category
        FROM submissions s JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
-       WHERE s.status = 'pending' ORDER BY s.submitted_at ASC, s.id LIMIT $1 OFFSET $2`,
-      [Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)],
+       ${where}
+       ORDER BY s.submitted_at ${direction}, s.id
+       LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+      parameters,
     );
     return result.rows;
   }

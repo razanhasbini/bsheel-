@@ -7,25 +7,21 @@ import 'home_extras.dart' show BsStreakFlame;
 
 // ── Colour helpers ────────────────────────────────────────────────────────
 
-Color _ink(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? QuestColors.textPrimary
-        : QuestColors.osTextPrimary;
+Color _ink(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? QuestColors.textPrimary
+    : QuestColors.osTextPrimary;
 
-Color _inkSoft(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? QuestColors.textSecondary
-        : QuestColors.osTextSecondary;
+Color _inkSoft(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? QuestColors.textSecondary
+    : QuestColors.osTextSecondary;
 
-Color _surface(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? QuestColors.darkCard
-        : QuestColors.osCard;
+Color _surface(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? QuestColors.darkCard
+    : QuestColors.osCard;
 
-Color _surfaceAlt(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? QuestColors.darkSurface
-        : QuestColors.osSurface;
+Color _surfaceAlt(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? QuestColors.darkSurface
+    : QuestColors.osSurface;
 
 BoxShadow _hardShadow(BuildContext c, {double offset = 4}) => BoxShadow(
       color: _ink(c),
@@ -133,8 +129,7 @@ class ArcadeAvatarLevel extends StatelessWidget {
               bottom: -2,
               right: -4,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: QuestColors.accentYellow,
                   border: Border.all(color: ink, width: 2),
@@ -232,7 +227,8 @@ class ArcadeNotificationBell extends StatelessWidget {
                 top: -4,
                 right: -4,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   constraints: const BoxConstraints(minWidth: 20),
                   decoration: BoxDecoration(
                     color: QuestColors.softRed,
@@ -323,8 +319,7 @@ class ArcadeSectionHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
-            child: Container(height: 2, color: ink.withAlpha(30))),
+        Flexible(child: Container(height: 2, color: ink.withAlpha(30))),
       ],
     );
   }
@@ -610,6 +605,7 @@ class ArcadeSlotMachine extends StatefulWidget {
   final bool isGenerating;
   final double progress; // 0..1
   final VoidCallback? onTap;
+
   /// when non-null, the slot is locked (e.g. "Quest in progress")
   final String? lockLabel;
   final String? activeQuestTitle;
@@ -624,7 +620,18 @@ class _ArcadeSlotMachineState extends State<ArcadeSlotMachine>
     with SingleTickerProviderStateMixin {
   late final AnimationController _spin;
 
-  static const _emojiPool = ['🎯', '⚡', '🎲', '🔥', '✨', '🎨', '🚀', '💪', '🧠', '🌟'];
+  static const _emojiPool = [
+    '🎯',
+    '⚡',
+    '🎲',
+    '🔥',
+    '✨',
+    '🎨',
+    '🚀',
+    '💪',
+    '🧠',
+    '🌟'
+  ];
 
   @override
   void initState() {
@@ -687,16 +694,14 @@ class _ArcadeSlotMachineState extends State<ArcadeSlotMachine>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color:
-                              QuestColors.accentYellow.withAlpha(40),
+                          color: QuestColors.accentYellow.withAlpha(40),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.casino,
-                                size: 12,
-                                color: QuestColors.accentYellow),
+                                size: 12, color: QuestColors.accentYellow),
                             const SizedBox(width: 5),
                             Text(
                               widget.lockLabel != null
@@ -821,13 +826,13 @@ class _Reels extends StatelessWidget {
                           builder: (_, __) {
                             final emoji = emojiPool[
                                 (spin.value * emojiPool.length).floor() +
-                                        i * 2 <
-                                    emojiPool.length
-                                ? (spin.value * emojiPool.length).floor() +
-                                    i * 2
-                                : ((spin.value * emojiPool.length).floor() +
-                                        i * 2) %
-                                    emojiPool.length];
+                                            i * 2 <
+                                        emojiPool.length
+                                    ? (spin.value * emojiPool.length).floor() +
+                                        i * 2
+                                    : ((spin.value * emojiPool.length).floor() +
+                                            i * 2) %
+                                        emojiPool.length];
                             return Text(emoji,
                                 style: const TextStyle(fontSize: 40));
                           },
@@ -835,9 +840,7 @@ class _Reels extends StatelessWidget {
                       : Opacity(
                           opacity: locked ? 0.25 : 1,
                           child: Text(
-                            restingEmojis.length > i
-                                ? restingEmojis[i]
-                                : '?',
+                            restingEmojis.length > i ? restingEmojis[i] : '?',
                             style: const TextStyle(fontSize: 40),
                           ),
                         ),

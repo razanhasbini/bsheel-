@@ -47,7 +47,14 @@ let AuthRepository = class AuthRepository {
             });
         }
         catch (error) {
-            if (this.isUniqueViolation(error)) {
+            const constraint = this.uniqueViolationConstraint(error);
+            if (constraint !== null) {
+                if (constraint.includes('username')) {
+                    throw new ConflictException({ code: 'USERNAME_TAKEN', message: 'That username is already taken' });
+                }
+                if (constraint.includes('email')) {
+                    throw new ConflictException({ code: 'EMAIL_TAKEN', message: 'That email is already registered' });
+                }
                 throw new ConflictException({ code: 'ACCOUNT_CONFLICT', message: 'Email or username is already in use' });
             }
             throw error;
@@ -284,8 +291,15 @@ let AuthRepository = class AuthRepository {
             role: row.role ?? 'user',
         };
     }
-    isUniqueViolation(error) {
-        return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
+    uniqueViolationConstraint(error) {
+        if (typeof error !== 'object' ||
+            error === null ||
+            !('code' in error) ||
+            error.code !== '23505') {
+            return null;
+        }
+        const constraint = error.constraint;
+        return typeof constraint === 'string' ? constraint : '';
     }
 };
 AuthRepository = __decorate([

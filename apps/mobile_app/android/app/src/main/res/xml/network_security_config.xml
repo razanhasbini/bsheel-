@@ -59,27 +59,8 @@
         </trust-anchors>
     </domain-config>
 
-    <!-- Cloudflare worker that gates R2 media upload + signing. -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">quest-media-upload.laythayache5.workers.dev</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-        <pin-set expiration="2027-06-01">
-            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
-            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
-        </pin-set>
-    </domain-config>
-
-    <!-- Cloudflare worker that handles R2 cleanup. -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">quest-media-cleanup.laythayache5.workers.dev</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-        <pin-set expiration="2027-06-01">
-            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
-            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
-        </pin-set>
-    </domain-config>
+    <!-- The Cloudflare media workers were removed: the API presigns object
+         storage directly, so media is fetched from the storage host itself.
+         Add a domain-config here for that host once it is fixed, with pins
+         re-derived from its live chain. -->
 </network-security-config>

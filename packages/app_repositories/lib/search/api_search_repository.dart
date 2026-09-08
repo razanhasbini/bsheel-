@@ -30,11 +30,14 @@ class ApiSearchRepository implements SearchRepository {
         _cachedRequest != null) {
       return _cachedRequest!;
     }
-    final request = _client.get('search', query: {
-      'q': trimmed,
-      'limit': requestedLimit,
-      'offset': 0,
-    },).then(apiObject);
+    final request = _client.get(
+      'search',
+      query: {
+        'q': trimmed,
+        'limit': requestedLimit,
+        'offset': 0,
+      },
+    ).then(apiObject);
     _cacheKey = key;
     _cachedAt = now;
     _cachedRequest = request;
@@ -45,12 +48,14 @@ class ApiSearchRepository implements SearchRepository {
   Future<List<ProfileModel>> searchUsers(String query, {int limit = 20}) async {
     final rows =
         apiObjectList((await _search(query, limit))['users']).take(limit);
-    return Future.wait(rows.map((row) async {
-      final profile = ProfileModel.fromJson(row);
-      return profile.copyWith(
-        avatarUrl: await _media.signNullable(profile.avatarUrl),
-      );
-    }),);
+    return Future.wait(
+      rows.map((row) async {
+        final profile = ProfileModel.fromJson(row);
+        return profile.copyWith(
+          avatarUrl: await _media.signNullable(profile.avatarUrl),
+        );
+      }),
+    );
   }
 
   @override
@@ -68,30 +73,32 @@ class ApiSearchRepository implements SearchRepository {
   }) async {
     final rows =
         apiObjectList((await _search(query, limit))['posts']).take(limit);
-    return Future.wait(rows.map((row) async {
-      final submission = SubmissionModel.fromJson(row);
-      final signed = await _media.signJsonOrSingle(submission.mediaUrl);
-      return SubmissionModel(
-        id: submission.id,
-        userQuestId: submission.userQuestId,
-        userId: submission.userId,
-        mediaUrl: signed,
-        mediaType: submission.mediaType,
-        caption: submission.caption,
-        status: submission.status,
-        reviewedBy: submission.reviewedBy,
-        reviewNote: submission.reviewNote,
-        submittedAt: submission.submittedAt,
-        reviewedAt: submission.reviewedAt,
-        appealNote: submission.appealNote,
-        appealed: submission.appealed,
-        showInFeed: submission.showInFeed,
-        visibility: submission.visibility,
-        deletedAt: submission.deletedAt,
-        questTitle: submission.questTitle,
-        authorUsername: submission.authorUsername,
-        authorDisplayName: submission.authorDisplayName,
-      );
-    }),);
+    return Future.wait(
+      rows.map((row) async {
+        final submission = SubmissionModel.fromJson(row);
+        final signed = await _media.signJsonOrSingle(submission.mediaUrl);
+        return SubmissionModel(
+          id: submission.id,
+          userQuestId: submission.userQuestId,
+          userId: submission.userId,
+          mediaUrl: signed,
+          mediaType: submission.mediaType,
+          caption: submission.caption,
+          status: submission.status,
+          reviewedBy: submission.reviewedBy,
+          reviewNote: submission.reviewNote,
+          submittedAt: submission.submittedAt,
+          reviewedAt: submission.reviewedAt,
+          appealNote: submission.appealNote,
+          appealed: submission.appealed,
+          showInFeed: submission.showInFeed,
+          visibility: submission.visibility,
+          deletedAt: submission.deletedAt,
+          questTitle: submission.questTitle,
+          authorUsername: submission.authorUsername,
+          authorDisplayName: submission.authorDisplayName,
+        );
+      }),
+    );
   }
 }

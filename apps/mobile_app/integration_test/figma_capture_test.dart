@@ -9,8 +9,7 @@
 //     --target=integration_test/figma_capture_test.dart \
 //     -d <iphone-17-udid> \
 //     --dart-define-from-file=.env.test \
-//     --dart-define=SUPABASE_URL=... \
-//     --dart-define=SUPABASE_ANON_KEY=... \
+//     --dart-define=API_URL=https://api.bsheel.app/api/v1 \
 //     --dart-define=MIXPANEL_TOKEN=...
 
 import 'package:flutter/widgets.dart';
@@ -19,9 +18,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:mobile_app/app.dart';
+import 'package:mobile_app/core/backend/app_backend.dart';
 import 'package:mobile_app/bootstrap.dart';
 
 const _testEmail = String.fromEnvironment('TEST_EMAIL');
@@ -54,10 +53,10 @@ void main() {
   testWidgets('Capture all logged-in screens for Figma', (tester) async {
     expect(_testEmail, isNotEmpty,
         reason: 'TEST_EMAIL not set — pass --dart-define-from-file=.env.test');
-    expect(_testPassword, isNotEmpty,
-        reason: 'TEST_PASSWORD not set');
+    expect(_testPassword, isNotEmpty, reason: 'TEST_PASSWORD not set');
 
-    // Initialize Supabase before pumping the app — same as production main().
+    // Initialise the backend before pumping the app — same as production
+    // main().
     await bootstrap();
 
     // Skip the onboarding walkthrough so navigations don't get redirected
@@ -66,17 +65,17 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
 
-    // Sign in via the Supabase client directly (no UI tap). The auth notifier
-    // picks this up when the app mounts and redirects past /login.
-    final client = Supabase.instance.client;
-    if (client.auth.currentUser == null) {
-      await client.auth.signInWithPassword(
-        email: _testEmail,
-        password: _testPassword,
-      );
+    // Sign in through the auth repository (no UI tap). The auth notifier
+    // picks the session up when the app mounts and redirects past /login.
+    final auth = AppBackend.repositories.auth;
+    if (auth.currentUser == null) {
+      await auth.signInWithEmail(_testEmail, _testPassword);
     }
-    expect(client.auth.currentUser, isNotNull,
-        reason: 'Sign-in failed — check creds in .env.test');
+    expect(
+      auth.currentUser,
+      isNotNull,
+      reason: 'Sign-in failed — check creds in .env.test',
+    );
 
     await tester.pumpWidget(const ProviderScope(child: QuestApp()));
 

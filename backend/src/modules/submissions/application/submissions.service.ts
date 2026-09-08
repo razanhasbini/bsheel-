@@ -13,7 +13,26 @@ export class SubmissionsService {
     return row;
   }
   listUser(userId: string, viewerId: string, limit: number, offset: number) { return this.repository.listUser(userId, viewerId, limit, offset); }
-  listPending(limit: number, offset: number) { return this.repository.listPending(limit, offset); }
+  async adminDetail(id: string): Promise<Record<string, unknown>> {
+    const submission = await this.repository.adminDetail(id);
+    if (!submission) {
+      throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Submission not found' });
+    }
+    return submission;
+  }
+
+  reviewQueue(limit: number, offset: number) { return this.repository.reviewQueue(limit, offset); }
+
+  listForAdmin(filter: {
+    status?: 'pending' | 'approved' | 'rejected' | 'all';
+    appealed?: boolean;
+    visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
+    order?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.repository.listForAdmin(filter);
+  }
   appeal(userId: string, id: string, note: string) { return this.repository.appeal(userId, id, note); }
   approve(actorId: string | null, id: string, note?: string, source?: Record<string, unknown>) {
     return this.repository.approve(actorId, id, note, source);

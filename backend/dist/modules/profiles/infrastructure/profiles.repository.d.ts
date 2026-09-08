@@ -28,6 +28,7 @@ export declare class ProfilesRepository {
     private readonly database;
     constructor(database: DatabaseService);
     findPublic(id: string): Promise<PublicProfileRecord | null>;
+    findPublicByUsername(username: string): Promise<PublicProfileRecord | null>;
     findOwn(id: string): Promise<OwnProfileRecord | null>;
     xpStats(id: string): Promise<UserXpStatsRecord | null>;
     listByXp(limit: number): Promise<readonly PublicProfileRecord[]>;

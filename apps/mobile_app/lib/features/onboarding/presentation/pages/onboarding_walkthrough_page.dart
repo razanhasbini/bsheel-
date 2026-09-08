@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_consent_controller.dart';
 import '../../../../core/services/sign_out_service.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../providers/onboarding_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -63,11 +60,7 @@ class _OnboardingWalkthroughPageState
       }
 
       try {
-        if (BackendConfig.usesNest) {
-          await MobileNestBackend.repositories.account.acceptTerms();
-        } else {
-          await Supabase.instance.client.rpc(RpcNames.acceptTerms);
-        }
+        await AppBackend.repositories.account.acceptTerms();
       } catch (e) {
         AppLogger.error('[Onboarding] acceptTerms RPC failed', e);
         if (mounted) {

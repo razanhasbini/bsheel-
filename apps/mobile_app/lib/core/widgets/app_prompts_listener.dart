@@ -31,8 +31,7 @@ class AppPromptsListener extends ConsumerStatefulWidget {
   final Widget child;
 
   @override
-  ConsumerState<AppPromptsListener> createState() =>
-      _AppPromptsListenerState();
+  ConsumerState<AppPromptsListener> createState() => _AppPromptsListenerState();
 }
 
 class _AppPromptsListenerState extends ConsumerState<AppPromptsListener> {

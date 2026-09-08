@@ -33,8 +33,8 @@ void main() {
     });
 
     test('splash is exempt from redirects', () {
-      expect(authRedirect(location: RoutePaths.splash, isLoggedIn: false),
-          isNull);
+      expect(
+          authRedirect(location: RoutePaths.splash, isLoggedIn: false), isNull);
     });
   });
 
@@ -54,8 +54,7 @@ void main() {
       }
     });
 
-    test('reset-password stays reachable while signed in (recovery link)',
-        () {
+    test('reset-password stays reachable while signed in (recovery link)', () {
       expect(
         authRedirect(
             location: RoutePaths.resetPassword,
@@ -97,7 +96,8 @@ void main() {
       );
     });
 
-    test('unknown onboarding state (null) does not bounce — avoids a false '
+    test(
+        'unknown onboarding state (null) does not bounce — avoids a false '
         'negative while the pref loads', () {
       expect(
         authRedirect(

@@ -4,13 +4,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
 import '../../../core/providers/auth_session_provider.dart';
-import '../../../core/providers/supabase_provider.dart';
 import '../presentation/widgets/mention_picker.dart';
-import '../../../core/backend/backend_config.dart';
-import '../../../core/backend/mobile_nest_backend.dart';
+import '../../../core/backend/app_backend.dart';
 
 /// Owns the @-mention picker plumbing shared by every comment input
 /// (comments sheet + post-detail page): listens to [textController],
@@ -145,78 +142,7 @@ class MentionInputController {
       return;
     }
     try {
-      if (BackendConfig.usesNest) {
-        await _loadNestSuggestions(user.id, query);
-        return;
-      }
-      final client = ref.read(supabaseClientProvider);
-      final followingRows = await client
-          .from(Tables.follows)
-          .select(FollowColumns.followingId)
-          .eq(FollowColumns.followerId, user.id);
-      final followingIds = (followingRows as List<dynamic>)
-          .map((row) =>
-              Map<String, dynamic>.from(row as Map)[FollowColumns.followingId])
-          .whereType<String>()
-          .toList();
-
-      final following = <MentionCandidate>[];
-      if (followingIds.isNotEmpty) {
-        final rows = await client
-            .from(Tables.profiles)
-            .select()
-            .inFilter(ProfileColumns.id, followingIds)
-            .limit(40);
-        following.addAll(
-          (rows as List<dynamic>).map(
-            (row) => MentionCandidate(
-              profile: ProfileModel.fromJson(Map<String, dynamic>.from(row)),
-              isFollowing: true,
-            ),
-          ),
-        );
-      }
-
-      bool matches(ProfileModel profile) {
-        if (query.isEmpty) return true;
-        final q = query.toLowerCase();
-        return profile.username.toLowerCase().contains(q) ||
-            profile.displayName.toLowerCase().contains(q);
-      }
-
-      final ordered = <String, MentionCandidate>{
-        for (final candidate in following.where((c) => matches(c.profile)))
-          candidate.profile.id: candidate,
-      };
-
-      if (query.isNotEmpty) {
-        final escaped = query.replaceAll('%', r'\%').replaceAll('_', r'\_');
-        final pattern = '%$escaped%';
-        final rows = await client
-            .from(Tables.profiles)
-            .select()
-            .or(
-              '${ProfileColumns.username}.ilike.$pattern,'
-              '${ProfileColumns.displayName}.ilike.$pattern',
-            )
-            .neq(ProfileColumns.id, user.id)
-            .order(ProfileColumns.xp, ascending: false)
-            .limit(12);
-        for (final row in rows as List<dynamic>) {
-          final profile = ProfileModel.fromJson(Map<String, dynamic>.from(row));
-          ordered.putIfAbsent(
-            profile.id,
-            () => MentionCandidate(profile: profile, isFollowing: false),
-          );
-        }
-      }
-
-      // Query changed while we were fetching (or the widget died) —
-      // drop this result on the floor.
-      if (_disposed || query != _query) return;
-      _suggestions = ordered.values.take(8).toList();
-      _loading = false;
-      onSuggestionsChanged();
+      await _loadNestSuggestions(user.id, query);
     } catch (e) {
       AppLogger.error('[Mentions] Failed to load suggestions', e);
       if (_disposed) return;
@@ -227,7 +153,7 @@ class MentionInputController {
   }
 
   Future<void> _loadNestSuggestions(String userId, String query) async {
-    final repositories = MobileNestBackend.repositories;
+    final repositories = AppBackend.repositories;
     final connections = await repositories.follows.listConnections(
       userId: userId,
       isFollowers: false,

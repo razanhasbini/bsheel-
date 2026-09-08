@@ -3,11 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:shared_ui/shared_ui.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
-import '../../../../core/providers/auth_repository_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_state_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/security/secure_screen.dart';
@@ -57,11 +54,9 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage>
     // applies on this path too (signup already does this). Without
     // emailLocalPart a user could otherwise set `Tayseer1234` via reset
     // even though the same string is blocked at signup / edit profile.
-    final email = BackendConfig.usesNest
-        ? null
-        : Supabase.instance.client.auth.currentSession?.user.email;
-    final localPart =
-        (email != null && email.contains('@')) ? email.split('@').first : null;
+    // A recovery link is consumed while signed out, so there is no session
+    // email to feed the validator. The server applies the same policy.
+    const String? localPart = null;
     final pwErr = validatePassword(password, emailLocalPart: localPart);
     final confirmErr = password != confirm
         ? AppLocalizations.of(context)!.passwordsDoNotMatch
@@ -73,8 +68,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage>
     });
     if (pwErr != null || confirmErr != null) return;
 
-    if (BackendConfig.usesNest &&
-        !_isValidRecoveryToken(widget.recoveryToken)) {
+    if (!_isValidRecoveryToken(widget.recoveryToken)) {
       setState(() {
         _passwordError = mapAuthError(
           'The password recovery token is invalid or expired.',
@@ -85,14 +79,10 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage>
 
     setState(() => _isLoading = true);
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.auth.completePasswordRecovery(
-          widget.recoveryToken!,
-          password,
-        );
-      } else {
-        await ref.read(authRepositoryProvider).updatePassword(password);
-      }
+      await AppBackend.repositories.auth.completePasswordRecovery(
+        widget.recoveryToken!,
+        password,
+      );
       // Only clear the recovery flag on SUCCESS. Previously this was
       // also cleared on failure, which kicked the user out of the
       // recovery flow on a transient network blip — they then had to

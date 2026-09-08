@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
 
 import '../../../../core/providers/admin_role_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+
 class _UserOption {
   final String id;
   final String username;
@@ -20,23 +21,15 @@ class _UserOption {
 
 final _usersProvider =
     FutureProvider.autoDispose<List<_UserOption>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.profiles)
-      .select(
-        '${ProfileColumns.id}, ${ProfileColumns.username}, ${ProfileColumns.displayName}',
-      )
-      .order(ProfileColumns.username);
-  return (data as List)
-      .map((row) {
-        final m = row as Map<String, dynamic>;
-        return _UserOption(
-          id: m[ProfileColumns.id] as String,
-          username: (m[ProfileColumns.username] ?? '') as String,
-          displayName: (m[ProfileColumns.displayName] ?? '') as String,
-        );
-      })
-      .toList();
+  final rows = await AppBackend.repositories.admin.users(limit: 200);
+  return (rows
+      .map((row) => _UserOption(
+            id: row['id']?.toString() ?? '',
+            username: row['username']?.toString() ?? '',
+            displayName: row['display_name']?.toString() ?? '',
+          ))
+      .toList()
+    ..sort((a, b) => a.username.compareTo(b.username)));
 });
 
 class _PendingInjection {
@@ -52,54 +45,20 @@ class _PendingInjection {
   });
 }
 
+/// Unconsumed injections, newest first. The API joins the quest title and
+/// the target username, replacing three client round-trips.
 final _pendingInjectionsProvider =
     FutureProvider.autoDispose<List<_PendingInjection>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final rows = await client
-      .from(Tables.adminQuestInjections)
-      .select('id, created_at, target_user_id, quest_id')
-      .filter('consumed_at', 'is', null)
-      .order('created_at', ascending: false) as List;
-
-  if (rows.isEmpty) return [];
-
-  final questIds = <String>{};
-  final userIds = <String>{};
-  for (final r in rows) {
-    final m = r as Map<String, dynamic>;
-    questIds.add(m['quest_id'] as String);
-    userIds.add(m['target_user_id'] as String);
-  }
-
-  final quests = await client
-      .from(Tables.quests)
-      .select('${QuestColumns.id}, ${QuestColumns.title}')
-      .inFilter(QuestColumns.id, questIds.toList()) as List;
-  final questTitles = <String, String>{
-    for (final q in quests)
-      (q as Map<String, dynamic>)[QuestColumns.id] as String:
-          (q[QuestColumns.title] ?? '') as String,
-  };
-
-  final profiles = await client
-      .from(Tables.profiles)
-      .select('${ProfileColumns.id}, ${ProfileColumns.username}')
-      .inFilter(ProfileColumns.id, userIds.toList()) as List;
-  final usernames = <String, String>{
-    for (final p in profiles)
-      (p as Map<String, dynamic>)[ProfileColumns.id] as String:
-          (p[ProfileColumns.username] ?? '') as String,
-  };
-
-  return rows.map((r) {
-    final m = r as Map<String, dynamic>;
-    return _PendingInjection(
-      id: m['id'] as String,
-      questTitle: questTitles[m['quest_id']] ?? 'UNKNOWN',
-      targetUsername: usernames[m['target_user_id']] ?? 'unknown',
-      createdAt: DateTime.parse(m['created_at'] as String),
-    );
-  }).toList();
+  final rows = await AppBackend.repositories.admin.injections();
+  return rows
+      .map((row) => _PendingInjection(
+            id: row['id']?.toString() ?? '',
+            questTitle: row['quest_title']?.toString() ?? 'UNKNOWN',
+            targetUsername: row['target_username']?.toString() ?? 'unknown',
+            createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+                DateTime.now(),
+          ))
+      .toList();
 });
 
 class QuestInjectionPage extends ConsumerStatefulWidget {
@@ -153,8 +112,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
 
   @override
   Widget build(BuildContext context) {
-    final isSuperAdmin =
-        ref.watch(isSuperAdminProvider).valueOrNull ?? false;
+    final isSuperAdmin = ref.watch(isSuperAdminProvider).valueOrNull ?? false;
     if (!isSuperAdmin) {
       return Padding(
         padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -163,8 +121,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
           children: [
             Text(
               'INJECT',
-              style:
-                  BsheelType.displaySm.copyWith(color: BsheelColors.ink),
+              style: BsheelType.displaySm.copyWith(color: BsheelColors.ink),
             ),
             const SizedBox(height: QuestSpacing.lg),
             Container(
@@ -176,8 +133,11 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.lock_outline,
-                      color: BsheelColors.hot, size: 20,),
+                  const Icon(
+                    Icons.lock_outline,
+                    color: BsheelColors.hot,
+                    size: 20,
+                  ),
                   const SizedBox(width: QuestSpacing.sm),
                   Expanded(
                     child: Text(
@@ -213,43 +173,42 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               Text(
                 'Push a custom quest or notification to one specific user. '
                 'Use sparingly — surfaces only on their next pull.',
-                style: BsheelType.bodyMd
-                    .copyWith(color: BsheelColors.inkSoft),
+                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         _buildUserPicker(),
-          const SizedBox(height: QuestSpacing.md),
-          Container(
-            decoration: BoxDecoration(
-              color: BsheelColors.paper,
-              border: Border.all(color: BsheelColors.ink, width: 1),
-              borderRadius: BorderRadius.circular(BsheelRadii.sm),
-            ),
-            child: TabBar(
-              controller: _tab,
-              indicatorColor: BsheelColors.primary,
-              labelColor: BsheelColors.primary,
-              unselectedLabelColor: BsheelColors.inkMuted,
-              labelStyle: BsheelType.labelSm,
-              tabs: const [
-                Tab(text: 'QUEST'),
-                Tab(text: 'NOTIFICATION'),
-              ],
-            ),
+        const SizedBox(height: QuestSpacing.md),
+        Container(
+          decoration: BoxDecoration(
+            color: BsheelColors.paper,
+            border: Border.all(color: BsheelColors.ink, width: 1),
+            borderRadius: BorderRadius.circular(BsheelRadii.sm),
           ),
-          const SizedBox(height: QuestSpacing.md),
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: [
-                _buildQuestForm(),
-                _buildNotificationForm(),
-              ],
-            ),
+          child: TabBar(
+            controller: _tab,
+            indicatorColor: BsheelColors.primary,
+            labelColor: BsheelColors.primary,
+            unselectedLabelColor: BsheelColors.inkMuted,
+            labelStyle: BsheelType.labelSm,
+            tabs: const [
+              Tab(text: 'QUEST'),
+              Tab(text: 'NOTIFICATION'),
+            ],
           ),
+        ),
+        const SizedBox(height: QuestSpacing.md),
+        Expanded(
+          child: TabBarView(
+            controller: _tab,
+            children: [
+              _buildQuestForm(),
+              _buildNotificationForm(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -272,22 +231,23 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
             children: [
               Text(
                 'TARGET USER',
-                style: BsheelType.labelSm
-                    .copyWith(color: BsheelColors.inkMuted),
+                style:
+                    BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
               ),
               const Spacer(),
               if (_selectedUser != null)
                 Text(
                   '@${_selectedUser!.username}',
-                  style: BsheelType.labelSm
-                      .copyWith(color: BsheelColors.primary),
+                  style:
+                      BsheelType.labelSm.copyWith(color: BsheelColors.primary),
                 ),
             ],
           ),
           const SizedBox(height: QuestSpacing.sm),
           BsheelFormField(
             label: 'SEARCH BY USERNAME OR NAME',
-            onChanged: (v) => setState(() => _userSearch = v.trim().toLowerCase()),
+            onChanged: (v) =>
+                setState(() => _userSearch = v.trim().toLowerCase()),
           ),
           const SizedBox(height: QuestSpacing.sm),
           SizedBox(
@@ -304,9 +264,11 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                 final filtered = _userSearch.isEmpty
                     ? users
                     : users
-                        .where((u) =>
-                            u.username.toLowerCase().contains(_userSearch) ||
-                            u.displayName.toLowerCase().contains(_userSearch),)
+                        .where(
+                          (u) =>
+                              u.username.toLowerCase().contains(_userSearch) ||
+                              u.displayName.toLowerCase().contains(_userSearch),
+                        )
                         .toList();
                 if (filtered.isEmpty) {
                   return Center(
@@ -392,23 +354,27 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                         label: 'CATEGORY',
                         items: const [
                           DropdownMenuItem(
-                              value: QuestCategory.fitness,
-                              child: Text('Fitness'),),
+                            value: QuestCategory.fitness,
+                            child: Text('Fitness'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestCategory.creativity,
-                              child: Text('Creativity'),),
+                            value: QuestCategory.creativity,
+                            child: Text('Creativity'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestCategory.social,
-                              child: Text('Social'),),
+                            value: QuestCategory.social,
+                            child: Text('Social'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestCategory.learning,
-                              child: Text('Learning'),),
+                            value: QuestCategory.learning,
+                            child: Text('Learning'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestCategory.adventure,
-                              child: Text('Adventure'),),
+                            value: QuestCategory.adventure,
+                            child: Text('Adventure'),
+                          ),
                         ],
-                        onChanged: (v) =>
-                            setState(() => _questCategory = v!),
+                        onChanged: (v) => setState(() => _questCategory = v!),
                       ),
                     ),
                     const SizedBox(width: QuestSpacing.md),
@@ -418,17 +384,19 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                         label: 'DIFFICULTY',
                         items: const [
                           DropdownMenuItem(
-                              value: QuestDifficulty.easy,
-                              child: Text('Easy'),),
+                            value: QuestDifficulty.easy,
+                            child: Text('Easy'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestDifficulty.medium,
-                              child: Text('Medium'),),
+                            value: QuestDifficulty.medium,
+                            child: Text('Medium'),
+                          ),
                           DropdownMenuItem(
-                              value: QuestDifficulty.hard,
-                              child: Text('Hard'),),
+                            value: QuestDifficulty.hard,
+                            child: Text('Hard'),
+                          ),
                         ],
-                        onChanged: (v) =>
-                            setState(() => _questDifficulty = v!),
+                        onChanged: (v) => setState(() => _questDifficulty = v!),
                       ),
                     ),
                   ],
@@ -472,7 +440,9 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: BsheelColors.pureBlack,),
+                              strokeWidth: 2,
+                              color: BsheelColors.pureBlack,
+                            ),
                           )
                         : const Icon(Icons.send, size: 16),
                     label: Text(
@@ -484,11 +454,11 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                       backgroundColor: BsheelColors.primary,
                       foregroundColor: BsheelColors.pureBlack,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.lg,
-                          vertical: QuestSpacing.sm,),
+                        horizontal: QuestSpacing.lg,
+                        vertical: QuestSpacing.sm,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.sm),
+                        borderRadius: BorderRadius.circular(BsheelRadii.sm),
                       ),
                     ),
                     onPressed: _injectingQuest ? null : _injectQuest,
@@ -500,8 +470,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
           const SizedBox(height: QuestSpacing.lg),
           Text(
             'PENDING INJECTIONS',
-            style: BsheelType.labelSm
-                .copyWith(color: BsheelColors.inkMuted),
+            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
           ),
           const SizedBox(height: QuestSpacing.sm),
           pendingAsync.when(
@@ -517,51 +486,54 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               if (rows.isEmpty) {
                 return Text(
                   'No pending injections.',
-                  style: BsheelType.bodySm
-                      .copyWith(color: BsheelColors.inkMuted),
+                  style:
+                      BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
                 );
               }
               return Column(
                 children: rows
-                    .map((r) => Container(
-                          margin: const EdgeInsets.only(bottom: QuestSpacing.sm),
-                          padding: const EdgeInsets.all(QuestSpacing.sm),
-                          decoration: BoxDecoration(
-                            color: BsheelColors.paper,
-                            border: Border.all(color: BsheelColors.ink),
-                            borderRadius:
-                                BorderRadius.circular(BsheelRadii.sm),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      r.questTitle,
-                                      style: BsheelType.bodySm
-                                          .copyWith(color: BsheelColors.ink),
+                    .map(
+                      (r) => Container(
+                        margin: const EdgeInsets.only(bottom: QuestSpacing.sm),
+                        padding: const EdgeInsets.all(QuestSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: BsheelColors.paper,
+                          border: Border.all(color: BsheelColors.ink),
+                          borderRadius: BorderRadius.circular(BsheelRadii.sm),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.questTitle,
+                                    style: BsheelType.bodySm
+                                        .copyWith(color: BsheelColors.ink),
+                                  ),
+                                  Text(
+                                    '→ @${r.targetUsername}',
+                                    style: BsheelType.labelSm.copyWith(
+                                      color: BsheelColors.inkMuted,
                                     ),
-                                    Text(
-                                      '→ @${r.targetUsername}',
-                                      style: BsheelType.labelSm
-                                          .copyWith(
-                                              color: BsheelColors.inkMuted,),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                tooltip: 'Cancel injection',
-                                icon: const Icon(Icons.delete_outline,
-                                    color: BsheelColors.hot, size: 18,),
-                                onPressed: () => _cancelInjection(r),
+                            ),
+                            IconButton(
+                              tooltip: 'Cancel injection',
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: BsheelColors.hot,
+                                size: 18,
                               ),
-                            ],
-                          ),
-                        ),)
+                              onPressed: () => _cancelInjection(r),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               );
             },
@@ -580,16 +552,15 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
 
     setState(() => _injectingQuest = true);
     try {
-      final client = ref.read(supabaseClientProvider);
-      await client.rpc(RpcNames.injectQuestForUser, params: {
-        'p_target_user_id': _selectedUser!.id,
-        'p_title': _questTitleCtrl.text.trim(),
-        'p_description': _questDescCtrl.text.trim(),
-        'p_category': _questCategory,
-        'p_difficulty': _questDifficulty,
-        'p_xp_reward': int.parse(_questXpCtrl.text.trim()),
-        'p_duration_hours': int.parse(_questDurationCtrl.text.trim()),
-      },);
+      await AppBackend.repositories.admin.injectQuest(
+        targetUserId: _selectedUser!.id,
+        title: _questTitleCtrl.text.trim(),
+        description: _questDescCtrl.text.trim(),
+        category: _questCategory,
+        difficulty: _questDifficulty,
+        xpReward: int.parse(_questXpCtrl.text.trim()),
+        durationHours: int.parse(_questDurationCtrl.text.trim()),
+      );
       _snack('Quest injected for @${_selectedUser!.username}.');
       _questTitleCtrl.clear();
       _questDescCtrl.clear();
@@ -621,8 +592,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'KEEP',
-              style: BsheelType.labelSm
-                  .copyWith(color: BsheelColors.inkMuted),
+              style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
             ),
           ),
           ElevatedButton(
@@ -645,14 +615,10 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
     if (confirmed != true) return;
 
     try {
-      final client = ref.read(supabaseClientProvider);
-      // Mark consumed instead of deleting. Deleting the row would let the
-      // orphaned quest leak into the public random pool (the isolation
-      // check in assign_random_quest matches on EXISTS in this table).
-      await client
-          .from(Tables.adminQuestInjections)
-          .update({'consumed_at': DateTime.now().toUtc().toIso8601String()})
-          .eq('id', inj.id);
+      // The API marks the row consumed rather than deleting it: deleting
+      // would let the orphaned quest leak back into the public random pool,
+      // whose isolation check matches on a row existing in this table.
+      await AppBackend.repositories.admin.cancelInjection(inj.id);
       ref.invalidate(_pendingInjectionsProvider);
       _snack('Injection cancelled.');
     } catch (e) {
@@ -690,7 +656,9 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: BsheelColors.pureBlack,),
+                          strokeWidth: 2,
+                          color: BsheelColors.pureBlack,
+                        ),
                       )
                     : const Icon(Icons.notifications_active, size: 16),
                 label: Text(
@@ -702,11 +670,11 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                   backgroundColor: BsheelColors.primary,
                   foregroundColor: BsheelColors.pureBlack,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: QuestSpacing.lg,
-                      vertical: QuestSpacing.sm,),
+                    horizontal: QuestSpacing.lg,
+                    vertical: QuestSpacing.sm,
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(BsheelRadii.sm),
+                    borderRadius: BorderRadius.circular(BsheelRadii.sm),
                   ),
                 ),
                 onPressed: _sendingNotif ? null : _sendNotification,
@@ -726,13 +694,12 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
     if (!_notifFormKey.currentState!.validate()) return;
     setState(() => _sendingNotif = true);
     try {
-      final client = ref.read(supabaseClientProvider);
-      await client.rpc(RpcNames.adminSendNotification, params: {
-        'p_target_user_id': _selectedUser!.id,
-        'p_title': _notifTitleCtrl.text.trim(),
-        'p_body': _notifBodyCtrl.text.trim(),
-        'p_type': NotificationType.announcement,
-      },);
+      await AppBackend.repositories.admin.sendNotification(
+        targetUserId: _selectedUser!.id,
+        title: _notifTitleCtrl.text.trim(),
+        body: _notifBodyCtrl.text.trim(),
+        type: NotificationType.announcement,
+      );
       _snack('Notification sent to @${_selectedUser!.username}.');
       _notifTitleCtrl.clear();
       _notifBodyCtrl.clear();
@@ -753,8 +720,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            isError ? BsheelColors.hot : BsheelColors.paper,
+        backgroundColor: isError ? BsheelColors.hot : BsheelColors.paper,
       ),
     );
   }

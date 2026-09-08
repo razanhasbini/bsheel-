@@ -4,56 +4,35 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart';
+import 'package:app_repositories/app_repositories.dart' show AdminRoleEnum;
 import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Providers ────────────────────────────────────────────────────────────────
 
+/// One request returns the profile fields, the account email/status and the
+/// admin role together, with avatars already signed — the page previously
+/// issued three separate calls to assemble the same rows.
 final usersProvider = FutureProvider.autoDispose<List<_UserRow>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-
-  final profiles = await client
-      .from(Tables.profiles)
-      .select('*')
-      .order(ProfileColumns.createdAt, ascending: false);
-
-  final admins = await client
-      .from(Tables.admins)
-      .select('${AdminColumns.userId}, ${AdminColumns.role}');
-
-  final adminMap = <String, String>{};
-  for (final a in admins) {
-    adminMap[a[AdminColumns.userId].toString()] =
-        a[AdminColumns.role].toString();
-  }
-
-  final avatarRefs = (profiles as List)
-      .map((p) => p[ProfileColumns.avatarUrl]?.toString())
-      .whereType<String>();
-  final signedAvatars = await SignedMediaUrls.signMany(client, avatarRefs);
-
-  return profiles.map((p) {
-    final id = p[ProfileColumns.id]?.toString() ?? '';
-    final avatarUrl = p[ProfileColumns.avatarUrl]?.toString();
+  final rows = await AppBackend.repositories.admin.users(limit: 200);
+  return rows.map((row) {
     return _UserRow(
-      id: id,
-      username: p[ProfileColumns.username]?.toString() ?? '',
-      displayName: p[ProfileColumns.displayName]?.toString() ?? '',
-      avatarUrl: avatarUrl == null ? null : signedAvatars[avatarUrl] ?? avatarUrl,
-      bio: p[ProfileColumns.bio]?.toString(),
-      xp: p[ProfileColumns.xp] ?? 0,
-      level: p[ProfileColumns.level] ?? 1,
-      questsCompleted: p[ProfileColumns.questsCompleted] ?? 0,
-      createdAt:
-          DateTime.tryParse(p[ProfileColumns.createdAt]?.toString() ?? ''),
-      adminRole: adminMap[id],
+      id: row['id']?.toString() ?? '',
+      username: row['username']?.toString() ?? '',
+      displayName: row['display_name']?.toString() ?? '',
+      avatarUrl: row['avatar_url']?.toString(),
+      bio: row['bio']?.toString(),
+      xp: (row['xp'] as num?)?.toInt() ?? 0,
+      level: (row['level'] as num?)?.toInt() ?? 1,
+      questsCompleted: (row['quests_completed'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.tryParse(row['created_at']?.toString() ?? ''),
+      adminRole: row['admin_role']?.toString(),
     );
   }).toList();
 });
@@ -144,8 +123,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                     const SizedBox(height: 14),
                     BsheelDisplay(
                       'Mind the {community.}',
-                      baseStyle:
-                          BsheelType.displayXl.copyWith(fontSize: 44),
+                      baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -191,7 +169,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               hintStyle: BsheelType.bodySm.copyWith(
                 color: BsheelColors.inkMuted,
               ),
-              prefixIcon: const Icon(Icons.search, color: BsheelColors.inkMuted),
+              prefixIcon:
+                  const Icon(Icons.search, color: BsheelColors.inkMuted),
               filled: true,
               fillColor: BsheelColors.paper,
               isDense: true,
@@ -213,62 +192,61 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           ),
         ),
         Expanded(
-            child: usersAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Error: $e',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.hot,
-                  ),
+          child: usersAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
+            ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.hot,
                 ),
               ),
-              data: (users) {
-                final filtered = users.where((u) {
-                  if (_search.isEmpty) return true;
-                  return u.username.toLowerCase().contains(_search) ||
-                      u.displayName.toLowerCase().contains(_search);
-                }).toList();
+            ),
+            data: (users) {
+              final filtered = users.where((u) {
+                if (_search.isEmpty) return true;
+                return u.username.toLowerCase().contains(_search) ||
+                    u.displayName.toLowerCase().contains(_search);
+              }).toList();
 
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No users found.',
-                      style: BsheelType.bodyMd.copyWith(
-                        color: BsheelColors.inkMuted,
-                      ),
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No users found.',
+                    style: BsheelType.bodyMd.copyWith(
+                      color: BsheelColors.inkMuted,
                     ),
-                  );
-                }
+                  ),
+                );
+              }
 
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth < 600) {
-                      return ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: QuestSpacing.sm),
-                        itemBuilder: (context, i) =>
-                            _buildMobileCard(context, filtered[i]),
-                      );
-                    }
-                    return Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: BsheelColors.paper,
-                        border: Border.all(
-                          color: BsheelColors.ink,
-                          width: 1,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.sm),
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 600) {
+                    return ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: QuestSpacing.sm),
+                      itemBuilder: (context, i) =>
+                          _buildMobileCard(context, filtered[i]),
+                    );
+                  }
+                  return Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: BsheelColors.paper,
+                      border: Border.all(
+                        color: BsheelColors.ink,
+                        width: 1,
                       ),
-                      child: SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: DataTable(
+                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: DataTable(
                           headingRowColor: WidgetStateProperty.all(
                             BsheelColors.surface,
                           ),
@@ -295,14 +273,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                               .map((e) => _buildRow(context, e.value, e.key))
                               .toList(),
                         ),
-                        ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
+        ),
       ],
     );
   }
@@ -321,9 +299,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           CircleAvatar(
             radius: 20,
             backgroundColor: BsheelColors.cool.withAlpha(50),
-            backgroundImage: user.avatarUrl != null
-                ? NetworkImage(user.avatarUrl!)
-                : null,
+            backgroundImage:
+                user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
             child: user.avatarUrl == null
                 ? Text(
                     user.displayName.isNotEmpty
@@ -428,7 +405,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'suspend',
-                child: _MenuItem(Icons.pause_circle, 'Suspend User', isDestructive: true),
+                child: _MenuItem(Icons.pause_circle, 'Suspend User',
+                    isDestructive: true),
               ),
               const PopupMenuItem(
                 value: 'ban',
@@ -456,8 +434,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
 
   DataRow _buildRow(BuildContext context, _UserRow user, int index) {
     final createdAt = user.createdAt;
-    final rowColor =
-        index.isEven ? BsheelColors.paper : BsheelColors.surface;
+    final rowColor = index.isEven ? BsheelColors.paper : BsheelColors.surface;
 
     return DataRow(
       color: WidgetStateProperty.all(rowColor),
@@ -574,7 +551,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'suspend',
-                child: _MenuItem(Icons.pause_circle, 'Suspend User', isDestructive: true),
+                child: _MenuItem(Icons.pause_circle, 'Suspend User',
+                    isDestructive: true),
               ),
               const PopupMenuItem(
                 value: 'ban',
@@ -587,7 +565,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'delete',
-                child: _MenuItem(Icons.delete, 'Delete User', isDestructive: true),
+                child:
+                    _MenuItem(Icons.delete, 'Delete User', isDestructive: true),
               ),
             ],
           ),
@@ -622,16 +601,21 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     }
   }
 
-  Future<void> _setAccountStatus(String userId, String status, String name) async {
-    final client = ref.read(supabaseClientProvider);
+  Future<void> _setAccountStatus(
+      String userId, String status, String name) async {
     try {
-      await client.rpc(RpcNames.setUserAccountStatus, params: {
-        'p_user_id': userId,
-        'p_status': status,
-      },);
+      await AppBackend.repositories.admin.setAccountStatus(
+        userId,
+        status,
+        'Changed from the admin users page',
+      );
       ref.invalidate(usersProvider);
       if (mounted) {
-        final label = status == 'active' ? 'activated' : status == 'suspended' ? 'suspended' : 'banned';
+        final label = status == 'active'
+            ? 'activated'
+            : status == 'suspended'
+                ? 'suspended'
+                : 'banned';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$name has been $label.')),
         );
@@ -808,15 +792,18 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     int xp,
     int level,
   ) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client.from(Tables.profiles).update({
-        ProfileColumns.username: username,
-        ProfileColumns.displayName: displayName,
-        ProfileColumns.bio: bio.isEmpty ? null : bio,
-        ProfileColumns.xp: xp,
-        ProfileColumns.level: level,
-      }).eq(ProfileColumns.id, userId);
+      // One audited request: a rename and an XP correction saved together
+      // either both apply or neither does.
+      await AppBackend.repositories.admin.updateUserProfile(
+        userId,
+        username: username,
+        displayName: displayName,
+        bio: bio,
+        xp: xp,
+        level: level,
+        reason: 'Edited from the admin users page',
+      );
       ref.invalidate(usersProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -904,7 +891,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               ),
               child: Text(
                 'SAVE',
-                style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+                style:
+                    BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
               ),
             ),
           ],
@@ -914,24 +902,17 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   }
 
   Future<void> _setRole(String userId, String? role) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client.functions.invoke(
-        EdgeFunctionNames.adminManageUser,
-        body: {
-          'action': 'set_admin_role',
-          'user_id': userId,
-          'role': role,
-        },
+      await AppBackend.repositories.admin.setRole(
+        userId,
+        AdminRoleEnum.fromDbString(role),
       );
       ref.invalidate(usersProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              role != null
-                  ? 'Role updated to $role.'
-                  : 'Admin role removed.',
+              role != null ? 'Role updated to $role.' : 'Admin role removed.',
             ),
           ),
         );
@@ -1002,16 +983,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   }
 
   Future<void> _resetPassword(String userId, String newPassword) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client.functions.invoke(
-        EdgeFunctionNames.adminManageUser,
-        body: {
-          'action': 'reset_password',
-          'user_id': userId,
-          'new_password': newPassword,
-        },
-      );
+      await AppBackend.repositories.admin
+          .forceResetPassword(userId, newPassword);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password reset successfully.')),
@@ -1131,19 +1105,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   }
 
   Future<void> _deleteUser(String userId) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      final res = await client.functions.invoke(
-        EdgeFunctionNames.adminManageUser,
-        body: {
-          'action': 'delete_user',
-          'user_id': userId,
-        },
-      );
-      final data = res.data;
-      if (data is Map && data['error'] != null) {
-        throw Exception(data['error']);
-      }
+      await AppBackend.repositories.admin.deleteUser(userId);
       ref.invalidate(usersProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1160,12 +1123,10 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   }
 
   void _showAssignQuestDialog(BuildContext context, _UserRow user) {
-    final client = ref.read(supabaseClientProvider);
     showDialog<void>(
       context: context,
       builder: (ctx) => _AssignQuestDialog(
         user: user,
-        client: client,
         onAssigned: () {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1258,42 +1219,24 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     String title,
     String body,
   ) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      // 1. Store in notifications table (in-app bell)
-      await client.from(Tables.notifications).insert({
-        NotificationColumns.userId: userId,
-        NotificationColumns.title: title,
-        NotificationColumns.body: body,
-        NotificationColumns.type: 'announcement',
-      });
-
-      // 2. Get the user's FCM token for push delivery
-      final profileData = await client
-          .from(Tables.profiles)
-          .select(ProfileColumns.fcmToken)
-          .eq(ProfileColumns.id, userId)
-          .maybeSingle();
-
-      final fcmToken = profileData?[ProfileColumns.fcmToken] as String?;
-      if (fcmToken != null && fcmToken.isNotEmpty) {
-        await client.functions.invoke(
-          EdgeFunctionNames.sendPush,
-          body: {
-            'token': fcmToken,
-            'title': title,
-            'body': body,
-          },
-        );
-      }
+      // The API writes the inbox row and enqueues push delivery to every
+      // registered device in one transaction. The client no longer reads
+      // device tokens — they are encrypted at rest and server-only.
+      final devices = await AppBackend.repositories.admin.sendNotification(
+        targetUserId: userId,
+        title: title,
+        body: body,
+        type: 'announcement',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              fcmToken != null
+              devices > 0
                   ? 'Notification sent (push + in-app).'
-                  : 'Notification stored (user has no FCM token).',
+                  : 'Notification stored (user has no registered device).',
             ),
           ),
         );
@@ -1404,22 +1347,13 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     String username,
     String displayName,
   ) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      final res = await client.functions.invoke(
-        EdgeFunctionNames.adminManageUser,
-        body: {
-          'action': 'create_user',
-          'email': email,
-          'password': password,
-          'username': username,
-          'display_name': displayName.isEmpty ? username : displayName,
-        },
+      await AppBackend.repositories.admin.createUser(
+        email: email,
+        password: password,
+        username: username,
+        displayName: displayName.isEmpty ? username : displayName,
       );
-      final data = res.data;
-      if (data is Map && data['error'] != null) {
-        throw Exception(data['error']);
-      }
       ref.invalidate(usersProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1454,7 +1388,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
         'Avatar URL',
         'Joined',
       ];
-      sheet.appendRow(headers.map<xl.CellValue>((h) => xl.TextCellValue(h)).toList());
+      sheet.appendRow(
+          headers.map<xl.CellValue>((h) => xl.TextCellValue(h)).toList());
 
       for (final u in users) {
         final joined = u.createdAt;
@@ -1483,7 +1418,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       }
 
       final now = DateTime.now();
-      final stamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
+      final stamp =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
           '_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
       final filename = 'users_$stamp.xlsx';
 
@@ -1506,7 +1442,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported ${users.length} users to $filename')),
+          SnackBar(
+              content: Text('Exported ${users.length} users to $filename')),
         );
       }
     } catch (e) {
@@ -1525,7 +1462,12 @@ class _UsersPageState extends ConsumerState<UsersPage> {
 // authoritative gate; this is just a UX hint so admins don't submit a
 // password the function will reject.
 const _adminPwBanned = [
-  'bsheel', 'bitsheel', 'password', 'qwerty', '123456', 'letmein',
+  'bsheel',
+  'bitsheel',
+  'password',
+  'qwerty',
+  '123456',
+  'letmein',
 ];
 
 String? _validateAdminResetPassword(String? v) {
@@ -1558,20 +1500,20 @@ class _RoleBadge extends StatelessWidget {
     }
     final (Color bg, Color fg, String label) = switch (role) {
       'super_admin' => (
-        BsheelColors.hot.withAlpha(30),
-        BsheelColors.hot,
-        'SUPER ADMIN',
-      ),
+          BsheelColors.hot.withAlpha(30),
+          BsheelColors.hot,
+          'SUPER ADMIN',
+        ),
       'moderator' => (
-        BsheelColors.cool.withAlpha(30),
-        BsheelColors.cool,
-        'MODERATOR',
-      ),
+          BsheelColors.cool.withAlpha(30),
+          BsheelColors.cool,
+          'MODERATOR',
+        ),
       _ => (
-        BsheelColors.inkMuted.withAlpha(30),
-        BsheelColors.inkMuted,
-        role!.toUpperCase(),
-      ),
+          BsheelColors.inkMuted.withAlpha(30),
+          BsheelColors.inkMuted,
+          role!.toUpperCase(),
+        ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -1686,13 +1628,11 @@ class _DarkRadioTile<T> extends StatelessWidget {
 class _AssignQuestDialog extends StatefulWidget {
   const _AssignQuestDialog({
     required this.user,
-    required this.client,
     required this.onAssigned,
     required this.onError,
   });
 
   final _UserRow user;
-  final dynamic client;
   final VoidCallback onAssigned;
   final void Function(Object) onError;
 
@@ -1714,14 +1654,20 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
 
   Future<void> _loadQuests() async {
     try {
-      final data = await widget.client
-          .from(Tables.quests)
-          .select('${QuestColumns.id}, ${QuestColumns.title}, ${QuestColumns.category}, ${QuestColumns.xpReward}')
-          .eq(QuestColumns.isActive, true)
-          .order(QuestColumns.title) as List<dynamic>;
+      final quests = await AppBackend.repositories.quests.listAllQuestsAdmin();
       if (mounted) {
         setState(() {
-          _quests = data.cast<Map<String, dynamic>>();
+          _quests = quests
+              .where((quest) => quest.isActive)
+              .map((quest) => {
+                    'id': quest.id,
+                    'title': quest.title,
+                    'category': quest.category,
+                    'xp_reward': quest.xpReward,
+                  })
+              .toList()
+            ..sort((a, b) =>
+                (a['title'] as String).compareTo(b['title'] as String));
           _loading = false;
         });
       }
@@ -1734,19 +1680,11 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
     if (_selectedQuestId == null) return;
     setState(() => _assigning = true);
     try {
-      // Force-expire any active quest so the RPC won't throw
-      await widget.client
-          .from(Tables.userQuests)
-          .update({UserQuestColumns.status: 'expired'})
-          .eq(UserQuestColumns.userId, widget.user.id)
-          .inFilter(UserQuestColumns.status, ['assigned', 'submitted']);
-
-      await widget.client.rpc(
-        RpcNames.assignSpecificQuest,
-        params: {
-          'p_user_id': widget.user.id,
-          'p_quest_id': _selectedQuestId,
-        },
+      // One request: the API expires any in-flight quest and assigns the
+      // new one in the same transaction.
+      await AppBackend.repositories.quests.assignQuestToUser(
+        widget.user.id,
+        _selectedQuestId!,
       );
       if (mounted) Navigator.pop(context);
       widget.onAssigned();
@@ -1788,8 +1726,7 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                             (q[QuestColumns.category] ?? '').toString();
                         final xp = q[QuestColumns.xpReward] ?? 0;
                         return GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedQuestId = qId),
+                          onTap: () => setState(() => _selectedQuestId = qId),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 120),
                             padding: const EdgeInsets.all(QuestSpacing.md),
@@ -1825,16 +1762,14 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                                     children: [
                                       Text(
                                         q[QuestColumns.title].toString(),
-                                        style:
-                                            BsheelType.bodySm.copyWith(
+                                        style: BsheelType.bodySm.copyWith(
                                           color: BsheelColors.ink,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       Text(
                                         category.toUpperCase(),
-                                        style:
-                                            BsheelType.labelSm.copyWith(
+                                        style: BsheelType.labelSm.copyWith(
                                           color: BsheelColors.inkMuted,
                                           fontSize: 9,
                                         ),
@@ -1862,8 +1797,7 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             'CANCEL',
-            style: BsheelType.labelSm
-                .copyWith(color: BsheelColors.inkMuted),
+            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
           ),
         ),
         ElevatedButton(
@@ -1880,12 +1814,14 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: BsheelColors.pureBlack,),
+                    strokeWidth: 2,
+                    color: BsheelColors.pureBlack,
+                  ),
                 )
               : Text(
                   'ASSIGN',
-                  style:
-                      BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+                  style: BsheelType.labelSm
+                      .copyWith(color: BsheelColors.pureBlack),
                 ),
         ),
       ],

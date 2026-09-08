@@ -5,10 +5,7 @@ import 'package:app_core/app_core.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/router/safe_back.dart';
 import '../../../../core/providers/current_profile_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../l10n/locale_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/services/sign_out_service.dart';
@@ -302,14 +299,7 @@ class SettingsPage extends ConsumerWidget {
                       }
                       setDialogState(() => busy = true);
                       try {
-                        if (BackendConfig.usesNest) {
-                          await MobileNestBackend.repositories.account
-                              .requestDeletion();
-                        } else {
-                          await ref
-                              .read(supabaseClientProvider)
-                              .rpc(RpcNames.deleteOwnAccount);
-                        }
+                        await AppBackend.repositories.account.requestDeletion();
                         // App could have been backgrounded / route
                         // swapped between RPC and cleanup. Guard ref
                         // usage on dialog-context mounted state.

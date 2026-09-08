@@ -29,6 +29,17 @@ export declare class AdminService {
         recipients: number;
     }>;
     config(): Promise<import("pg").QueryResultRow[]>;
+    updateUserProfile(actorId: string, userId: string, input: {
+        username?: string;
+        displayName?: string;
+        bio?: string;
+        xp?: number;
+        level?: number;
+        questsCompleted?: number;
+        reason: string;
+    }): Promise<void>;
+    xpAudit(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;
+    notifications(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;
     publicConfig(): Promise<import("pg").QueryResultRow[]>;
     setConfig(actorId: string, key: string, value: unknown, description: string | undefined, isPublic: boolean): Promise<import("pg").QueryResultRow>;
     qotd(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;

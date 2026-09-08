@@ -4,22 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_app/app.dart';
 import 'package:mobile_app/core/providers/auth_repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _FakeAuthRepository implements AuthRepository {
   @override
   Stream<AuthState> get authStateChanges => const Stream<AuthState>.empty();
 
   @override
-  User? get currentUser => null;
+  AuthUser? get currentUser => null;
 
   @override
-  Future<AuthResponse> signInWithEmail(String email, String password) {
+  Future<AuthResult> signInWithEmail(String email, String password) {
     throw UnimplementedError();
   }
 
   @override
-  Future<AuthResponse> signUpWithEmail(
+  Future<AuthResult> signUpWithEmail(
     String email,
     String password, {
     Map<String, dynamic>? data,
@@ -39,17 +38,17 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> resendSignupConfirmation(String email) async {}
 
   @override
-  Future<UserResponse> updatePassword(String newPassword) {
+  Future<AuthUser> updatePassword(String newPassword) {
     throw UnimplementedError();
   }
 
   @override
-  Future<AuthResponse> signInWithApple() {
+  Future<AuthResult> signInWithApple() {
     throw UnimplementedError();
   }
 
   @override
-  Future<AuthResponse> signInWithGoogle() {
+  Future<AuthResult> signInWithGoogle() {
     throw UnimplementedError();
   }
 }
@@ -60,10 +59,6 @@ void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    await Supabase.initialize(
-      url: 'https://localhost',
-      anonKey: 'test-anon-key',
-    );
   });
 
   testWidgets('App renders', (WidgetTester tester) async {

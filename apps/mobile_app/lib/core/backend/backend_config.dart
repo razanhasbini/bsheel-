@@ -1,61 +1,52 @@
-import 'package:app_core/app_core.dart';
+import 'package:flutter/foundation.dart';
 
-/// Selects the backend composition root at compile time.
+/// Compile-time API configuration.
 ///
-/// `legacy` remains the default while parity fixtures are being completed.
-/// A canary build opts into Nest with:
+/// The application talks to exactly one backend: the self-hosted Bsheel API.
+/// Supply its base URL at build time:
 ///
 /// ```text
-/// --dart-define=BACKEND_MODE=nest
-/// --dart-define=NEST_API_URL=https://api.example.com/api/v1
+/// --dart-define=API_URL=https://api.bsheel.app/api/v1
 /// ```
-enum BackendMode { legacy, nest }
-
+///
+/// Debug builds fall back to a local API so `flutter run` works with no
+/// extra flags. Release builds have no fallback on purpose — shipping a
+/// binary that points at a developer machine is worse than failing to build.
 abstract final class BackendConfig {
-  static const String _rawMode = String.fromEnvironment(
-    'BACKEND_MODE',
-    defaultValue: 'legacy',
-  );
-
-  static const String nestApiUrl = String.fromEnvironment(
-    'NEST_API_URL',
+  static const String apiUrl = String.fromEnvironment(
+    'API_URL',
     defaultValue: '',
   );
 
-  static BackendMode get mode => switch (_rawMode.trim().toLowerCase()) {
-        'legacy' => BackendMode.legacy,
-        'nest' => BackendMode.nest,
-        _ => throw StateError(
-            'BACKEND_MODE must be either "legacy" or "nest".',
-          ),
-      };
+  /// Used only by debug builds when `API_URL` is not supplied.
+  static const String _debugFallback = 'http://127.0.0.1:3010/api/v1';
 
-  static bool get usesNest => mode == BackendMode.nest;
+  static Uri get apiUri {
+    final raw = apiUrl.trim().isNotEmpty
+        ? apiUrl.trim()
+        : (kReleaseMode ? '' : _debugFallback);
 
-  static Uri get nestApiUri {
-    if (!usesNest) {
-      throw StateError('NEST_API_URL is only available in Nest mode.');
+    if (raw.isEmpty) {
+      throw StateError(
+        'API_URL is required. Build with '
+        '--dart-define=API_URL=https://api.bsheel.app/api/v1',
+      );
     }
-    final uri = Uri.tryParse(nestApiUrl);
+
+    final uri = Uri.tryParse(raw);
     if (uri == null ||
         !uri.hasScheme ||
         !uri.hasAuthority ||
         (uri.scheme != 'https' && uri.scheme != 'http')) {
-      throw StateError(
-        'NEST_API_URL must be an absolute HTTP(S) URL in Nest mode.',
-      );
+      throw StateError('API_URL must be an absolute HTTP(S) URL. Got "$raw".');
+    }
+    if (kReleaseMode && uri.scheme != 'https') {
+      throw StateError('API_URL must use HTTPS in a release build.');
     }
     return uri;
   }
 
-  static void validate() {
-    if (!usesNest) return;
-    final uri = nestApiUri;
-    if (uri.scheme != 'https') {
-      AppLogger.warning(
-        '[BackendConfig] Nest API is not using HTTPS. '
-        'This is acceptable only for local development.',
-      );
-    }
-  }
+  /// Resolved at startup so a misconfigured build fails immediately with a
+  /// readable message rather than on the first network call.
+  static void validate() => apiUri;
 }

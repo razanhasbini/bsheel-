@@ -13,7 +13,11 @@ linter:
     - prefer_const_declarations
     - prefer_final_locals
     - avoid_print
-    - require_trailing_commas
+    # `require_trailing_commas` is deliberately NOT enabled. CI runs
+    # `dart format --set-exit-if-changed`, and the formatter removes
+    # trailing commas wherever a call fits on one line — so the lint and
+    # the formatter contradict each other and no tree can satisfy both.
+    # The formatter owns comma placement.
     - sort_child_properties_last
     - unawaited_futures
     - prefer_single_quotes

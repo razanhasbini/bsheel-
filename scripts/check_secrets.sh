@@ -58,17 +58,28 @@ done < <(git ls-files)
 
 # Postgres connection strings with an inline password.
 #
-# Loopback hosts (127.0.0.1 / localhost / ::1) are EXEMPT: those are the
-# local Supabase CLI dev stack on port 54322, whose password is a
-# well-known default and grants nothing remotely. Flagging them would make
-# this check noisy, and a guard that cries wolf gets ignored — which is how
-# the real leak survived in the first place.
+# Two classes of host are EXEMPT, because neither grants anything remotely
+# and a guard that cries wolf gets ignored — which is how the real leak
+# survived in the first place:
+#
+#   * loopback (127.0.0.1 / localhost / ::1) — a local dev database
+#   * single-label hostnames with no dot (postgres, redis, db) — these are
+#     docker-compose service names, resolvable only inside the compose
+#     network, carrying the well-known dev credentials from .env.example
+#
+# A dotted hostname or a non-loopback IP is still flagged: that is a real
+# remote database with a password in the tree.
 while IFS= read -r hit; do
   file="${hit%%:*}"
   uri=$(printf '%s' "$hit" | grep -ohE 'postgres(ql)?://[^[:space:]"'"'"']+' | head -1)
   host=$(printf '%s' "$uri" | sed -E 's#^postgres(ql)?://[^@]*@##; s#[:/].*$##')
   case "$host" in
     127.0.0.1|localhost|::1|'[::1]'|'') continue ;;
+  esac
+  # docker-compose service name: no dot, and not an IP literal
+  case "$host" in
+    *.*|*:*) ;;
+    *) continue ;;
   esac
   echo "${RED}LEAKED SECRET${NC}  $file"
   echo "    postgres:// URI with inline password, host=${host}"

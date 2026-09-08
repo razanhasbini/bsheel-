@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:app_repositories/nest_api_repositories.dart' show ApiException;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:app_repositories/app_repositories.dart'
+    show ApiException, AuthException;
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/admin_route_names.dart';

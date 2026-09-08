@@ -45,7 +45,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tint = _avatarColor(user.userId);
-    final border = Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth);
+    final border = Border.all(
+        color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth);
     final radiusObj = BorderRadius.circular(radius);
 
     final placeholder = Container(
@@ -55,7 +56,9 @@ class _Avatar extends StatelessWidget {
         color: tint,
         border: border,
         borderRadius: radiusObj,
-        boxShadow: const [BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
+        ],
       ),
       alignment: Alignment.center,
       child: Text(
@@ -79,7 +82,9 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(
         border: border,
         borderRadius: radiusObj,
-        boxShadow: const [BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius - 1),
@@ -118,7 +123,9 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
     final currentUser = ref.watch(authSessionProvider);
     final loc = AppLocalizations.of(context)!;
 
-    final provider = _scope == 'following' ? followingLeaderboardProvider : leaderboardProvider;
+    final provider = _scope == 'following'
+        ? followingLeaderboardProvider
+        : leaderboardProvider;
 
     return Scaffold(
       backgroundColor: QuestColors.osBg,
@@ -134,89 +141,124 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
               await ref.read(provider.future);
             },
             child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-            const SliverToBoxAdapter(child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
-              child: Text('Leaderboard',
-                  style: TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 24, fontWeight: FontWeight.w800,
-                      color: QuestColors.osTextPrimary, letterSpacing: -0.3)),
-            )),
-
-            SliverToBoxAdapter(child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: BsSegBar(
-                options: const ['global', 'following'],
-                value: _scope,
-                onChange: (v) => setState(() => _scope = v),
-              ),
-            )),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            asyncValue.when(
-              loading: () => const SliverToBoxAdapter(
-                child: Center(child: CircularProgressIndicator(color: QuestColors.osPrimary, strokeWidth: 2)),
-              ),
-              error: (e, _) => SliverToBoxAdapter(
-                child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline, color: QuestColors.osRed, size: 48),
-                  const SizedBox(height: 16),
-                  const Text('Failed to load', style: TextStyle(fontFamily: 'DMSans', fontVariations: [FontVariation('wght', 500)], color: QuestColors.osTextSecondary)),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: () => ref.invalidate(provider),
-                    child: const Text('TAP TO RETRY',
-                        style: TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 12, fontWeight: FontWeight.w800, color: QuestColors.osPrimary)),
-                  ),
-                ])),
-              ),
-              data: (users) {
-                if (users.isEmpty) {
-                  return SliverToBoxAdapter(child: Center(child: Column(
-                    mainAxisSize: MainAxisSize.min, children: [
-                    const SizedBox(height: 60),
-                    const Icon(Icons.leaderboard_outlined, color: QuestColors.osTextMuted, size: 64),
-                    const SizedBox(height: 16),
-                    Text(loc.noRankingsYet,
-                        style: const TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 16, fontWeight: FontWeight.w800, color: QuestColors.osTextPrimary)),
-                  ])));
-                }
-
-                final top3 = users.take(3).toList();
-                final rest = users.skip(3).toList();
-
-                return SliverMainAxisGroup(slivers: [
-                  if (top3.length >= 3) SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: _Podium(entries: top3, currentUserId: currentUser?.id),
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  const SliverToBoxAdapter(
+                      child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
+                    child: Text('Leaderboard',
+                        style: TextStyle(
+                            fontFamily: 'Syne',
+                            fontVariations: [FontVariation('wght', 800)],
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: QuestColors.osTextPrimary,
+                            letterSpacing: -0.3)),
+                  )),
+                  SliverToBoxAdapter(
+                      child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: BsSegBar(
+                      options: const ['global', 'following'],
+                      value: _scope,
+                      onChange: (v) => setState(() => _scope = v),
                     ),
-                  ),
-
-                  // Rest of the list in one ChunkyCard
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    sliver: SliverToBoxAdapter(
-                      child: ChunkyCard(
-                        padding: EdgeInsets.zero,
-                        child: Column(children: List.generate(rest.length, (i) {
-                          final u = rest[i];
-                          final isMe = u.userId == currentUser?.id;
-                          return _RankRow(
-                            user: u,
-                            isCurrentUser: isMe,
-                            onTap: () => context.pushNamed(RouteNames.userProfile,
-                                pathParameters: {'userId': u.userId}),
-                            showDivider: i < rest.length - 1,
-                          );
-                        })),
-                      ),
+                  )),
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  asyncValue.when(
+                    loading: () => const SliverToBoxAdapter(
+                      child: Center(
+                          child: CircularProgressIndicator(
+                              color: QuestColors.osPrimary, strokeWidth: 2)),
                     ),
+                    error: (e, _) => SliverToBoxAdapter(
+                      child: Center(
+                          child:
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.error_outline,
+                            color: QuestColors.osRed, size: 48),
+                        const SizedBox(height: 16),
+                        const Text('Failed to load',
+                            style: TextStyle(
+                                fontFamily: 'DMSans',
+                                fontVariations: [FontVariation('wght', 500)],
+                                color: QuestColors.osTextSecondary)),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () => ref.invalidate(provider),
+                          child: const Text('TAP TO RETRY',
+                              style: TextStyle(
+                                  fontFamily: 'Syne',
+                                  fontVariations: [FontVariation('wght', 800)],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: QuestColors.osPrimary)),
+                        ),
+                      ])),
+                    ),
+                    data: (users) {
+                      if (users.isEmpty) {
+                        return SliverToBoxAdapter(
+                            child: Center(
+                                child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                              const SizedBox(height: 60),
+                              const Icon(Icons.leaderboard_outlined,
+                                  color: QuestColors.osTextMuted, size: 64),
+                              const SizedBox(height: 16),
+                              Text(loc.noRankingsYet,
+                                  style: const TextStyle(
+                                      fontFamily: 'Syne',
+                                      fontVariations: [
+                                        FontVariation('wght', 800)
+                                      ],
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: QuestColors.osTextPrimary)),
+                            ])));
+                      }
+
+                      final top3 = users.take(3).toList();
+                      final rest = users.skip(3).toList();
+
+                      return SliverMainAxisGroup(slivers: [
+                        if (top3.length >= 3)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              child: _Podium(
+                                  entries: top3,
+                                  currentUserId: currentUser?.id),
+                            ),
+                          ),
+
+                        // Rest of the list in one ChunkyCard
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                          sliver: SliverToBoxAdapter(
+                            child: ChunkyCard(
+                              padding: EdgeInsets.zero,
+                              child: Column(
+                                  children: List.generate(rest.length, (i) {
+                                final u = rest[i];
+                                final isMe = u.userId == currentUser?.id;
+                                return _RankRow(
+                                  user: u,
+                                  isCurrentUser: isMe,
+                                  onTap: () => context.pushNamed(
+                                      RouteNames.userProfile,
+                                      pathParameters: {'userId': u.userId}),
+                                  showDivider: i < rest.length - 1,
+                                );
+                              })),
+                            ),
+                          ),
+                        ),
+                      ]);
+                    },
                   ),
-                ]);
-              },
-            ),
-          ]),
+                ]),
           );
         }),
       ),
@@ -249,31 +291,38 @@ class _Podium extends StatelessWidget {
     ];
     final sizes = [88.0, 108.0, 78.0]; // card heights
 
-    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: List.generate(3, (i) {
-      final e = slots[i];
-      if (e == null) {
-        return Expanded(child: SizedBox(height: sizes[i]));
-      }
-      final isMe = e.userId == currentUserId;
-      return Expanded(child: Padding(
-        padding: EdgeInsets.only(left: i > 0 ? 8 : 0),
-        child: GestureDetector(
-          onTap: () => context.pushNamed(RouteNames.userProfile,
-              pathParameters: {'userId': e.userId}),
-          child: _PodiumCard(
-            entry: e,
-            color: podiumColors[i],
-            cardHeight: sizes[i],
-            isMe: isMe,
-          ),
-        ),
-      ));
-    }));
+    return Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(3, (i) {
+          final e = slots[i];
+          if (e == null) {
+            return Expanded(child: SizedBox(height: sizes[i]));
+          }
+          final isMe = e.userId == currentUserId;
+          return Expanded(
+              child: Padding(
+            padding: EdgeInsets.only(left: i > 0 ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => context.pushNamed(RouteNames.userProfile,
+                  pathParameters: {'userId': e.userId}),
+              child: _PodiumCard(
+                entry: e,
+                color: podiumColors[i],
+                cardHeight: sizes[i],
+                isMe: isMe,
+              ),
+            ),
+          ));
+        }));
   }
 }
 
 class _PodiumCard extends StatelessWidget {
-  const _PodiumCard({required this.entry, required this.color, required this.cardHeight, required this.isMe});
+  const _PodiumCard(
+      {required this.entry,
+      required this.color,
+      required this.cardHeight,
+      required this.isMe});
   final LeaderboardUserModel entry;
   final Color color;
   final double cardHeight;
@@ -297,23 +346,44 @@ class _PodiumCard extends StatelessWidget {
       FitText(entry.username,
           minFontSize: 8,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 12, fontWeight: FontWeight.w800, color: QuestColors.osTextPrimary)),
+          style: const TextStyle(
+              fontFamily: 'Syne',
+              fontVariations: [FontVariation('wght', 800)],
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: QuestColors.osTextPrimary)),
       Text('${entry.xp} XP',
-          style: const TextStyle(fontFamily: 'DMSans', fontVariations: [FontVariation('wght', 500)], fontSize: 10, fontWeight: FontWeight.w600, color: QuestColors.osTextSecondary)),
+          style: const TextStyle(
+              fontFamily: 'DMSans',
+              fontVariations: [FontVariation('wght', 500)],
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: QuestColors.osTextSecondary)),
       const SizedBox(height: 4),
       // Podium block
       Container(
         height: cardHeight,
         decoration: BoxDecoration(
           color: color,
-          border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+          border: Border.all(
+              color: QuestColors.osTextPrimary,
+              width: QuestSpacing.cardBorderWidth),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-          boxShadow: const [BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 4))],
+          boxShadow: const [
+            BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 4))
+          ],
         ),
         alignment: Alignment.center,
         child: Text('#${entry.rank}',
-            style: TextStyle(fontFamily: 'Syne', fontVariations: const [FontVariation('wght', 800)], fontSize: rankFontSize, fontWeight: FontWeight.w800,
-                color: entry.rank == 1 ? QuestColors.osTextPrimary : QuestColors.osTextOnPrimary, height: 1)),
+            style: TextStyle(
+                fontFamily: 'Syne',
+                fontVariations: const [FontVariation('wght', 800)],
+                fontSize: rankFontSize,
+                fontWeight: FontWeight.w800,
+                color: entry.rank == 1
+                    ? QuestColors.osTextPrimary
+                    : QuestColors.osTextOnPrimary,
+                height: 1)),
       ),
     ]);
   }
@@ -322,7 +392,11 @@ class _PodiumCard extends StatelessWidget {
 // ── Rank Row ──────────────────────────────────────────────────────────────────
 
 class _RankRow extends StatelessWidget {
-  const _RankRow({required this.user, required this.isCurrentUser, required this.onTap, this.showDivider = true});
+  const _RankRow(
+      {required this.user,
+      required this.isCurrentUser,
+      required this.onTap,
+      this.showDivider = true});
   final LeaderboardUserModel user;
   final bool isCurrentUser;
   final VoidCallback onTap;
@@ -330,12 +404,13 @@ class _RankRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: isCurrentUser ? QuestColors.osAccent.withAlpha(40) : Colors.transparent,
+          color: isCurrentUser
+              ? QuestColors.osAccent.withAlpha(40)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(showDivider ? 0 : 20),
         ),
         child: Column(children: [
@@ -351,9 +426,12 @@ class _RankRow extends StatelessWidget {
                   height: 28,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    color: isCurrentUser ? QuestColors.osTextPrimary : QuestColors.osSurface,
+                    color: isCurrentUser
+                        ? QuestColors.osTextPrimary
+                        : QuestColors.osSurface,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+                    border: Border.all(
+                        color: QuestColors.osTextPrimary, width: 1.5),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -364,7 +442,9 @@ class _RankRow extends StatelessWidget {
                       fontVariations: const [FontVariation('wght', 800)],
                       fontSize: user.rank > 99 ? 11 : 12,
                       fontWeight: FontWeight.w800,
-                      color: isCurrentUser ? QuestColors.osAccent : QuestColors.osTextPrimary,
+                      color: isCurrentUser
+                          ? QuestColors.osAccent
+                          : QuestColors.osTextPrimary,
                     ),
                   ),
                 ),
@@ -394,12 +474,22 @@ class _RankRow extends StatelessWidget {
                 child: FitText('${user.xp}',
                     minFontSize: 10,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 16, fontWeight: FontWeight.w800, color: QuestColors.osTextPrimary)),
+                    style: const TextStyle(
+                        fontFamily: 'Syne',
+                        fontVariations: [FontVariation('wght', 800)],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: QuestColors.osTextPrimary)),
               ),
             ]),
           ),
-          if (showDivider) const Divider(height: 1, thickness: 1, color: QuestColors.osBorder,
-              indent: 14, endIndent: 14),
+          if (showDivider)
+            const Divider(
+                height: 1,
+                thickness: 1,
+                color: QuestColors.osBorder,
+                indent: 14,
+                endIndent: 14),
         ]),
       ),
     );

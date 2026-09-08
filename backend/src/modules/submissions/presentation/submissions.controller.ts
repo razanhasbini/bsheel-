@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBooleanString, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
@@ -15,6 +15,18 @@ class SubmissionListQuery {
 
 class SubmissionIdParam {
   @IsUUID() id!: string;
+}
+
+/// Drives both moderation views: the review queue (status=pending) and the
+/// appeals queue (status=pending&appealed=true), plus the full history
+/// (status=all, newest first).
+class AdminSubmissionListQuery {
+  @IsOptional() @IsIn(['pending', 'approved', 'rejected', 'all']) status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending';
+  @IsOptional() @IsBooleanString() appealed?: string;
+  @IsOptional() @IsIn(['visible', 'hidden_from_feed', 'deleted', 'not_visible']) visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
+  @IsOptional() @IsIn(['asc', 'desc']) order: 'asc' | 'desc' = 'asc';
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
 }
 
 @ApiTags('submissions')
@@ -32,7 +44,39 @@ export class SubmissionsController {
 
   @Roles('moderator', 'super_admin')
   @Get('admin/pending')
-  pending(@Query() query: SubmissionListQuery) { return this.service.listPending(query.limit, query.offset); }
+  pending(@Query() query: AdminSubmissionListQuery) {
+    return this.service.listForAdmin({
+      status: 'pending',
+      order: query.order,
+      limit: query.limit,
+      offset: query.offset,
+    });
+  }
+
+  @Roles('moderator', 'super_admin')
+  @Get('admin/review-queue')
+  reviewQueue(@Query() query: AdminSubmissionListQuery) {
+    return this.service.reviewQueue(query.limit, query.offset);
+  }
+
+  @Roles('moderator', 'super_admin')
+  @Get('admin')
+  adminList(@Query() query: AdminSubmissionListQuery) {
+    return this.service.listForAdmin({
+      status: query.status,
+      appealed: query.appealed === undefined ? undefined : query.appealed === 'true',
+      visibility: query.visibility,
+      order: query.order,
+      limit: query.limit,
+      offset: query.offset,
+    });
+  }
+
+  @Roles('moderator', 'super_admin')
+  @Get('admin/:id')
+  adminDetail(@Param() params: SubmissionIdParam) {
+    return this.service.adminDetail(params.id);
+  }
 
   @Get(':id')
   detail(@CurrentUser() user: AuthUser, @Param() params: SubmissionIdParam) { return this.service.detail(params.id, user.id); }

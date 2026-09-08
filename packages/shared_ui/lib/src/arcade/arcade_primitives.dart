@@ -15,10 +15,10 @@ import 'package:app_core/app_core.dart';
 
 /// Button variant. Drives the fill colour + foreground colour.
 enum ArcadeButtonVariant {
-  primary,   // gold (accentYellow)
+  primary, // gold (accentYellow)
   secondary, // violet (primary)
-  danger,    // coral (softRed)
-  ghost,     // transparent w/ ink border
+  danger, // coral (softRed)
+  ghost, // transparent w/ ink border
 }
 
 /// Button size.
@@ -57,10 +57,18 @@ class _ArcadeButtonState extends State<ArcadeButton> {
     final enabled = widget.onTap != null && !widget.isLoading;
 
     final (bg, fg) = switch (widget.variant) {
-      ArcadeButtonVariant.primary =>
-        (QuestColors.accentYellow, QuestColors.accentYellowInk),
-      ArcadeButtonVariant.secondary => (QuestColors.osPrimary, QuestColors.osTextOnPrimary),
-      ArcadeButtonVariant.danger => (QuestColors.softRed, QuestColors.osTextOnPrimary),
+      ArcadeButtonVariant.primary => (
+          QuestColors.accentYellow,
+          QuestColors.accentYellowInk
+        ),
+      ArcadeButtonVariant.secondary => (
+          QuestColors.osPrimary,
+          QuestColors.osTextOnPrimary
+        ),
+      ArcadeButtonVariant.danger => (
+          QuestColors.softRed,
+          QuestColors.osTextOnPrimary
+        ),
       ArcadeButtonVariant.ghost => (QuestColors.cardBg(context), ink),
     };
 
@@ -226,9 +234,7 @@ class _ArcadeTextFieldState extends State<ArcadeTextField> {
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Icon(
-            _obscured
-                ? Icons.visibility_off_rounded
-                : Icons.visibility_rounded,
+            _obscured ? Icons.visibility_off_rounded : Icons.visibility_rounded,
             color: ink.withAlpha(QuestColors.alphaInkSoft),
             size: 20,
           ),
@@ -542,4 +548,3 @@ class ArcadeErrorState extends StatelessWidget {
     );
   }
 }
-

@@ -65,8 +65,7 @@ class _InlineVideoState extends State<InlineVideo> {
     // Unique view type per instance — multiple cards on the same page each
     // need their own factory, otherwise the platform-view registry rejects
     // the duplicate registration.
-    _viewType =
-        'inline-video-${widget.url.hashCode}-${identityHashCode(this)}';
+    _viewType = 'inline-video-${widget.url.hashCode}-${identityHashCode(this)}';
 
     ui_web.platformViewRegistry.registerViewFactory(
       _viewType,
@@ -103,8 +102,10 @@ class _InlineVideoState extends State<InlineVideo> {
             final hitFraction =
                 dur > 0 && cur / dur >= widget.watchedAfterFraction;
             final secondsGate = dur > 0
-                ? math.min(widget.watchedAfterSeconds,
-                    dur * widget.watchedAfterFraction,)
+                ? math.min(
+                    widget.watchedAfterSeconds,
+                    dur * widget.watchedAfterFraction,
+                  )
                 : widget.watchedAfterSeconds;
             final hitSeconds = cur >= secondsGate;
             if (hitFraction || hitSeconds) {
@@ -143,7 +144,9 @@ class _InlineVideoState extends State<InlineVideo> {
           color: BsheelColors.pureBlack,
           borderRadius: BorderRadius.circular(BsheelRadii.md),
           border: Border.all(
-              color: const Color(0xFF2A2A2A), width: BsheelBorders.thin,),
+            color: const Color(0xFF2A2A2A),
+            width: BsheelBorders.thin,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: HtmlElementView(viewType: _viewType),
@@ -161,15 +164,19 @@ class _InlineVideoState extends State<InlineVideo> {
           color: BsheelColors.ink,
           borderRadius: BorderRadius.circular(BsheelRadii.md),
           border: Border.all(
-              color: const Color(0xFF2A2A2A), width: BsheelBorders.thin,),
+            color: const Color(0xFF2A2A2A),
+            width: BsheelBorders.thin,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.videocam_off_outlined,
-                  color: BsheelColors.inkMuted,),
+              const Icon(
+                Icons.videocam_off_outlined,
+                color: BsheelColors.inkMuted,
+              ),
               const SizedBox(height: 8),
               const Text(
                 "CAN'T PLAY IN BROWSER",

@@ -33,7 +33,6 @@ dependencies:
   go_router: ^13.0.0
 
   # Backend
-  supabase_flutter: ^2.3.0
 
   # UI/UX
   cached_network_image: ^3.3.0

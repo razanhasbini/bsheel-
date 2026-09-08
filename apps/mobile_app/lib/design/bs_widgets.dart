@@ -26,13 +26,22 @@ class ChunkyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final deco = BoxDecoration(
       color: tint ?? QuestColors.osCard,
-      border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+      border: Border.all(
+          color: QuestColors.osTextPrimary,
+          width: QuestSpacing.cardBorderWidth),
       borderRadius: BorderRadius.circular(radius),
-      boxShadow: shadow ? [const BoxShadow(color: QuestColors.osTextPrimary, offset: QuestSpacing.hardShadowOffset)] : null,
+      boxShadow: shadow
+          ? [
+              const BoxShadow(
+                  color: QuestColors.osTextPrimary,
+                  offset: QuestSpacing.hardShadowOffset)
+            ]
+          : null,
     );
     Widget w = Container(decoration: deco, padding: padding, child: child);
     if (onTap != null) {
-      w = InkWell(onTap: onTap, borderRadius: BorderRadius.circular(radius), child: w);
+      w = InkWell(
+          onTap: onTap, borderRadius: BorderRadius.circular(radius), child: w);
     }
     return w;
   }
@@ -73,9 +82,18 @@ class _ChunkyButtonState extends State<ChunkyButton> {
   Widget build(BuildContext context) {
     late Color bg, fg;
     switch (widget.variant) {
-      case ChunkyVariant.primary: bg = QuestColors.osPrimary; fg = QuestColors.osTextOnPrimary; break;
-      case ChunkyVariant.accent:  bg = QuestColors.osAccent;  fg = QuestColors.osAccentInk;  break;
-      case ChunkyVariant.surface: bg = QuestColors.osCard; fg = QuestColors.osTextPrimary;        break;
+      case ChunkyVariant.primary:
+        bg = QuestColors.osPrimary;
+        fg = QuestColors.osTextOnPrimary;
+        break;
+      case ChunkyVariant.accent:
+        bg = QuestColors.osAccent;
+        fg = QuestColors.osAccentInk;
+        break;
+      case ChunkyVariant.surface:
+        bg = QuestColors.osCard;
+        fg = QuestColors.osTextPrimary;
+        break;
     }
 
     final child = AnimatedContainer(
@@ -83,9 +101,17 @@ class _ChunkyButtonState extends State<ChunkyButton> {
       padding: widget.padding,
       decoration: BoxDecoration(
         color: bg,
-        border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+        border: Border.all(
+            color: QuestColors.osTextPrimary,
+            width: QuestSpacing.cardBorderWidth),
         borderRadius: BorderRadius.circular(18),
-        boxShadow: _pressed ? [] : [const BoxShadow(color: QuestColors.osTextPrimary, offset: QuestSpacing.hardShadowOffset)],
+        boxShadow: _pressed
+            ? []
+            : [
+                const BoxShadow(
+                    color: QuestColors.osTextPrimary,
+                    offset: QuestSpacing.hardShadowOffset)
+              ],
       ),
       transform: Matrix4.translationValues(0, _pressed ? 5 : 0, 0),
       alignment: Alignment.center,
@@ -93,10 +119,15 @@ class _ChunkyButtonState extends State<ChunkyButton> {
         mainAxisSize: widget.full ? MainAxisSize.max : MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (widget.leading != null) ...[widget.leading!, const SizedBox(width: 10)],
+          if (widget.leading != null) ...[
+            widget.leading!,
+            const SizedBox(width: 10)
+          ],
           Text(
             widget.label.toUpperCase(),
-            style: TextStyle(fontFamily: 'Syne', fontVariations: const [FontVariation('wght', 800)], 
+            style: TextStyle(
+              fontFamily: 'Syne',
+              fontVariations: const [FontVariation('wght', 800)],
               fontWeight: FontWeight.w800,
               fontSize: widget.fontSize,
               letterSpacing: 0.3,
@@ -112,7 +143,8 @@ class _ChunkyButtonState extends State<ChunkyButton> {
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onPressed,
-      child: widget.full ? SizedBox(width: double.infinity, child: child) : child,
+      child:
+          widget.full ? SizedBox(width: double.infinity, child: child) : child,
     );
   }
 }
@@ -125,7 +157,13 @@ class BsChip extends StatelessWidget {
   final Color? bg;
   final Color? fg;
   final Color? border;
-  const BsChip({super.key, required this.label, this.leading, this.bg, this.fg, this.border});
+  const BsChip(
+      {super.key,
+      required this.label,
+      this.leading,
+      this.bg,
+      this.fg,
+      this.border});
 
   @override
   Widget build(BuildContext context) {
@@ -142,9 +180,13 @@ class BsChip extends StatelessWidget {
           if (leading != null) ...[leading!, const SizedBox(width: 6)],
           Text(
             label.toUpperCase(),
-            style: TextStyle(fontFamily: 'DMSans', fontVariations: const [FontVariation('wght', 500)], 
-              fontSize: 11, fontWeight: FontWeight.w700,
-              letterSpacing: 0.2, color: fg ?? QuestColors.osPrimary,
+            style: TextStyle(
+              fontFamily: 'DMSans',
+              fontVariations: const [FontVariation('wght', 500)],
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              color: fg ?? QuestColors.osPrimary,
             ),
           ),
         ],
@@ -179,7 +221,9 @@ class BsXpBar extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: QuestColors.osSurface,
-                border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+                border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: QuestSpacing.cardBorderWidth),
                 borderRadius: BorderRadius.circular(height / 1.5),
               ),
             ),
@@ -217,9 +261,18 @@ class BsSectionHeader extends StatelessWidget {
       child: Row(children: [
         Container(width: 20, height: 2, color: QuestColors.osTextPrimary),
         const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontFamily: 'Syne', fontVariations: [FontVariation('wght', 800)], fontSize: 14, fontWeight: FontWeight.w800, color: QuestColors.osTextPrimary, letterSpacing: 0.5)),
+        Text(label,
+            style: const TextStyle(
+                fontFamily: 'Syne',
+                fontVariations: [FontVariation('wght', 800)],
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: QuestColors.osTextPrimary,
+                letterSpacing: 0.5)),
         const SizedBox(width: 8),
-        Flexible(child: Container(height: 2, color: QuestColors.osTextPrimary.withAlpha(38))),
+        Flexible(
+            child: Container(
+                height: 2, color: QuestColors.osTextPrimary.withAlpha(38))),
       ]),
     );
   }
@@ -247,12 +300,16 @@ class BsSegBar extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: QuestColors.osSurface,
-        border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+        border: Border.all(
+            color: QuestColors.osTextPrimary,
+            width: QuestSpacing.cardBorderWidth),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(children: options.map((o) {
+      child: Row(
+          children: options.map((o) {
         final active = o == value;
-        return Expanded(child: GestureDetector(
+        return Expanded(
+            child: GestureDetector(
           onTap: () => onChange(o),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
@@ -263,10 +320,14 @@ class BsSegBar extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(o.toUpperCase(),
-              style: TextStyle(fontFamily: 'Syne', fontVariations: const [FontVariation('wght', 800)], 
-                fontSize: small ? 11 : 12, fontWeight: FontWeight.w800,
-                color: active ? QuestColors.osBg : QuestColors.osTextPrimary, letterSpacing: 0.4,
-              )),
+                style: TextStyle(
+                  fontFamily: 'Syne',
+                  fontVariations: const [FontVariation('wght', 800)],
+                  fontSize: small ? 11 : 12,
+                  fontWeight: FontWeight.w800,
+                  color: active ? QuestColors.osBg : QuestColors.osTextPrimary,
+                  letterSpacing: 0.4,
+                )),
           ),
         ));
       }).toList()),
@@ -288,10 +349,13 @@ class BsToggle extends StatelessWidget {
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 48, height: 28,
+        width: 48,
+        height: 28,
         decoration: BoxDecoration(
           color: value ? QuestColors.osPrimary : QuestColors.osSurface,
-          border: Border.all(color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth),
+          border: Border.all(
+              color: QuestColors.osTextPrimary,
+              width: QuestSpacing.cardBorderWidth),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Stack(children: [
@@ -300,10 +364,12 @@ class BsToggle extends StatelessWidget {
             alignment: value ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               margin: const EdgeInsets.all(2),
-              width: 20, height: 20,
+              width: 20,
+              height: 20,
               decoration: BoxDecoration(
                 color: QuestColors.osAccent,
-                border: Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+                border:
+                    Border.all(color: QuestColors.osTextPrimary, width: 1.5),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),

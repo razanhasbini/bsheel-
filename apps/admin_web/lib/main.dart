@@ -4,8 +4,6 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 import 'bootstrap.dart';
 import 'app.dart';
-import 'core/backend/backend_config.dart';
-import 'core/backend/admin_nest_overrides.dart';
 
 void main() async {
   usePathUrlStrategy();
@@ -22,11 +20,11 @@ void main() async {
       AppLogger.info('[Main] Suppressed font loading error: $error');
       return;
     }
-    // Suppress Supabase initialization errors
+    // Suppress session-restore errors from a stale refresh token
     if (error.contains('Session expired') ||
         error.contains('refresh token') ||
         error.contains('auth session missing')) {
-      AppLogger.info('[Main] Suppressed Supabase init error: $error');
+      AppLogger.info('[Main] Suppressed session-restore error: $error');
       return;
     }
     FlutterError.presentError(details);
@@ -34,11 +32,8 @@ void main() async {
 
   await bootstrap();
   runApp(
-    ProviderScope(
-      overrides: [
-        if (BackendConfig.usesNest) ...adminNestRepositoryOverrides(),
-      ],
-      child: const AdminApp(),
+    const ProviderScope(
+      child: AdminApp(),
     ),
   );
 }

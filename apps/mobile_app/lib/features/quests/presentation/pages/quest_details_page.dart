@@ -192,8 +192,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
 
                         // ── Rewards ─────────────────────────────────
                         _SectionHeader(
-                            icon: Icons.stars_rounded,
-                            label: l.rewardsLabel),
+                            icon: Icons.stars_rounded, label: l.rewardsLabel),
                         const SizedBox(height: 10),
                         _RewardsCard(
                           xpReward: quest.xpReward,
@@ -367,8 +366,7 @@ class _HeroCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: QuestColors.osCard,
                   borderRadius: BorderRadius.circular(8),
@@ -708,9 +706,7 @@ class _RequirementItem extends StatelessWidget {
             child: Text(
               text,
               style: QuestTypography.bodyMedium.copyWith(
-                color: isComplete
-                    ? ink.withAlpha(130)
-                    : ink.withAlpha(210),
+                color: isComplete ? ink.withAlpha(130) : ink.withAlpha(210),
                 fontSize: 13.5,
                 height: 1.4,
                 decoration: isComplete ? TextDecoration.lineThrough : null,
@@ -789,8 +785,8 @@ class _RewardsCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: ink,
                   borderRadius: BorderRadius.circular(8),

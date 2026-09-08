@@ -10,14 +10,11 @@ abstract final class DeepLinkConfig {
   static const String domain = 'admin.bsheel.app';
 
   /// Build a shareable HTTPS link to a feed post.
-  static String postLink(String postId) =>
-      'https://$domain/post/$postId';
+  static String postLink(String postId) => 'https://$domain/post/$postId';
 
   /// Build a shareable HTTPS link to a user profile.
-  static String profileLink(String userId) =>
-      'https://$domain/user/$userId';
+  static String profileLink(String userId) => 'https://$domain/user/$userId';
 
   /// Build a shareable HTTPS link to join a collab quest.
-  static String collabInviteLink(String code) =>
-      'https://$domain/join/$code';
+  static String collabInviteLink(String code) => 'https://$domain/join/$code';
 }

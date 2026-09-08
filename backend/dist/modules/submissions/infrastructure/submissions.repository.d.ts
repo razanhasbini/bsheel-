@@ -27,7 +27,16 @@ export declare class SubmissionsRepository {
     private parseMediaKeys;
     findVisibleToUser(id: string, viewerId: string): Promise<Record<string, unknown> | null>;
     listUser(userId: string, viewerId: string, limit: number, offset: number): Promise<readonly SubmissionRecord[]>;
-    listPending(limit: number, offset: number): Promise<readonly Record<string, unknown>[]>;
+    adminDetail(id: string): Promise<Record<string, unknown> | null>;
+    reviewQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]>;
+    listForAdmin(filter: {
+        status?: 'pending' | 'approved' | 'rejected' | 'all';
+        appealed?: boolean;
+        visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
+        order?: 'asc' | 'desc';
+        limit?: number;
+        offset?: number;
+    }): Promise<readonly Record<string, unknown>[]>;
     appeal(userId: string, id: string, appealNote: string): Promise<void>;
     approve(actorId: string | null, id: string, reviewNote?: string, source?: Record<string, unknown>): Promise<void>;
     reject(actorId: string | null, id: string, reviewNote: string, source?: Record<string, unknown>): Promise<void>;

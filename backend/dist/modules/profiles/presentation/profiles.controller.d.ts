@@ -20,6 +20,7 @@ export declare class ProfilesController {
         status: string;
     }>;
     list(query: ProfileListQuery): Promise<readonly import("../infrastructure/profiles.repository.js").PublicProfileRecord[]>;
+    getByUsername(username: string): Promise<import("../infrastructure/profiles.repository.js").PublicProfileRecord>;
     get(id: string): Promise<import("../infrastructure/profiles.repository.js").PublicProfileRecord>;
 }
 export {};

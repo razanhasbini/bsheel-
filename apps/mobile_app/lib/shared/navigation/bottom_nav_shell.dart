@@ -5,12 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/nest_api_repositories.dart'
+import 'package:app_repositories/app_repositories.dart'
     show RealtimeDomainEvent;
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/backend/backend_config.dart';
-import '../../core/backend/mobile_nest_backend.dart';
+import '../../core/backend/app_backend.dart';
 import '../../core/router/route_names.dart';
 import '../../core/providers/auth_session_provider.dart';
 import '../../core/providers/connectivity_provider.dart';
@@ -48,17 +45,13 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   OverlayEntry? _levelUpEntry;
 
   // Global XP-freshness realtime: home_page used to own the only
-  // submissions/user_quests subscription, but it dies the moment the user
-  // leaves the home tab. If a submission is approved while the user is on
-  // leaderboard or profile, neither `profiles.xp` (current profile) nor the
-  // cached leaderboard get invalidated — so the three screens drift apart.
-  // Subscribing here means XP-touching events refresh every surface as long
-  // as the user is anywhere inside the bottom-nav shell.
-  RealtimeChannel? _xpUserQuestChannel;
-  RealtimeChannel? _xpSubmissionChannel;
-  RealtimeChannel? _notificationsChannel;
-  RealtimeChannel? _followsChannel;
-  StreamSubscription<RealtimeDomainEvent>? _nestRealtimeSubscription;
+  // submission subscription, but it dies the moment the user leaves the
+  // home tab. If a submission is approved while the user is on leaderboard
+  // or profile, neither `profiles.xp` nor the cached leaderboard get
+  // invalidated — so the three screens drift apart. Subscribing here means
+  // XP-touching events refresh every surface as long as the user is
+  // anywhere inside the bottom-nav shell.
+  StreamSubscription<RealtimeDomainEvent>? _realtimeSubscription;
   String? _subscribedUserId;
 
   // Dynamic Island / Lock Screen Live Activity bookkeeping. Tracks the
@@ -76,12 +69,8 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   @override
   void dispose() {
     _levelUpEntry?.remove();
-    _xpUserQuestChannel?.unsubscribe();
-    _xpSubmissionChannel?.unsubscribe();
-    _notificationsChannel?.unsubscribe();
-    _followsChannel?.unsubscribe();
-    final nestSubscription = _nestRealtimeSubscription;
-    if (nestSubscription != null) unawaited(nestSubscription.cancel());
+    final subscription = _realtimeSubscription;
+    if (subscription != null) unawaited(subscription.cancel());
     super.dispose();
   }
 
@@ -90,30 +79,18 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     final user = ref.read(authSessionProvider);
     if (user == null) {
       // Logged out — drop any stale subscription.
-      _xpUserQuestChannel?.unsubscribe();
-      _xpSubmissionChannel?.unsubscribe();
-      _notificationsChannel?.unsubscribe();
-      _followsChannel?.unsubscribe();
-      final nestSubscription = _nestRealtimeSubscription;
-      if (nestSubscription != null) unawaited(nestSubscription.cancel());
-      _xpUserQuestChannel = null;
-      _xpSubmissionChannel = null;
-      _notificationsChannel = null;
-      _followsChannel = null;
-      _nestRealtimeSubscription = null;
+      final subscription = _realtimeSubscription;
+      if (subscription != null) unawaited(subscription.cancel());
+      _realtimeSubscription = null;
       _subscribedUserId = null;
       return;
     }
     if (_subscribedUserId == user.id) return;
-    _xpUserQuestChannel?.unsubscribe();
-    _xpSubmissionChannel?.unsubscribe();
-    _notificationsChannel?.unsubscribe();
-    _followsChannel?.unsubscribe();
-    final previousNestSubscription = _nestRealtimeSubscription;
-    if (previousNestSubscription != null) {
-      unawaited(previousNestSubscription.cancel());
+    final previousSubscription = _realtimeSubscription;
+    if (previousSubscription != null) {
+      unawaited(previousSubscription.cancel());
     }
-    _nestRealtimeSubscription = null;
+    _realtimeSubscription = null;
     _subscribedUserId = user.id;
 
     void invalidateXpSurfaces() {
@@ -130,121 +107,37 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       ref.invalidate(userSubmissionsProvider);
     }
 
-    if (BackendConfig.usesNest) {
-      final realtime = MobileNestBackend.repositories.realtime;
-      _nestRealtimeSubscription = realtime.events.listen((event) {
-        final eventUserId = event.data['userId'];
-        final targetUserId = event.data['targetUserId'];
-        final profileId = event.data['profileId'];
-        if ((event.type.startsWith('submission.') ||
-                event.type.startsWith('quest.')) &&
-            eventUserId == user.id) {
-          invalidateXpSurfaces();
-        } else if (event.type == 'profile.updated' && profileId == user.id) {
-          ref.invalidate(currentProfileProvider);
-          ref.invalidate(leaderboardProvider);
-          ref.invalidate(followingLeaderboardProvider);
-        } else if (event.type.startsWith('notification.') &&
-            eventUserId == user.id) {
-          ref.invalidate(notificationsProvider);
-          ref.invalidate(unreadCountProvider);
-        } else if (event.type == 'social.follow.changed' &&
-            (eventUserId == user.id || targetUserId == user.id)) {
-          ref.invalidate(followCountsProvider(user.id));
-          ref.invalidate(isFollowingProvider);
-          ref.invalidate(feedProvider);
-        }
-      });
-      unawaited(() async {
-        try {
-          await realtime.connect();
-        } catch (error) {
-          AppLogger.warning('[ShellRealtime] Nest connection failed: $error');
-        }
-      }());
-    } else {
-      final supabase = Supabase.instance.client;
-      _xpUserQuestChannel = supabase
-          .channel('shell_xp_user_quests_${user.id}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: Tables.userQuests,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'user_id',
-              value: user.id,
-            ),
-            callback: (_) => invalidateXpSurfaces(),
-          )
-          .subscribe();
-
-      _xpSubmissionChannel = supabase
-          .channel('shell_xp_submissions_${user.id}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: Tables.submissions,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'user_id',
-              value: user.id,
-            ),
-            callback: (_) => invalidateXpSurfaces(),
-          )
-          .subscribe();
-
-      _notificationsChannel = supabase
-          .channel('shell_notifications_${user.id}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: Tables.notifications,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: NotificationColumns.userId,
-              value: user.id,
-            ),
-            callback: (_) {
-              ref.invalidate(notificationsProvider);
-              ref.invalidate(unreadCountProvider);
-            },
-          )
-          .subscribe();
-
-      _followsChannel = supabase
-          .channel('shell_follows_${user.id}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: Tables.follows,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: FollowColumns.followingId,
-              value: user.id,
-            ),
-            callback: (_) {
-              ref.invalidate(followCountsProvider(user.id));
-              ref.invalidate(isFollowingProvider);
-            },
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: Tables.follows,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: FollowColumns.followerId,
-              value: user.id,
-            ),
-            callback: (_) {
-              ref.invalidate(followCountsProvider(user.id));
-              ref.invalidate(isFollowingProvider);
-              ref.invalidate(feedProvider);
-            },
-          )
-          .subscribe();
-    }
+    final realtime = AppBackend.repositories.realtime;
+    _realtimeSubscription = realtime.events.listen((event) {
+      final eventUserId = event.data['userId'];
+      final targetUserId = event.data['targetUserId'];
+      final profileId = event.data['profileId'];
+      if ((event.type.startsWith('submission.') ||
+              event.type.startsWith('quest.')) &&
+          eventUserId == user.id) {
+        invalidateXpSurfaces();
+      } else if (event.type == 'profile.updated' && profileId == user.id) {
+        ref.invalidate(currentProfileProvider);
+        ref.invalidate(leaderboardProvider);
+        ref.invalidate(followingLeaderboardProvider);
+      } else if (event.type.startsWith('notification.') &&
+          eventUserId == user.id) {
+        ref.invalidate(notificationsProvider);
+        ref.invalidate(unreadCountProvider);
+      } else if (event.type == 'social.follow.changed' &&
+          (eventUserId == user.id || targetUserId == user.id)) {
+        ref.invalidate(followCountsProvider(user.id));
+        ref.invalidate(isFollowingProvider);
+        ref.invalidate(feedProvider);
+      }
+    });
+    unawaited(() async {
+      try {
+        await realtime.connect();
+      } catch (error) {
+        AppLogger.warning('[ShellRealtime] Nest connection failed: $error');
+      }
+    }());
 
     // Pre-warm tab content so switching tabs feels instant. These reads
     // start in parallel the moment the user lands inside the shell, while

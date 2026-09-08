@@ -82,14 +82,18 @@ abstract final class QuestTypography {
   // ──────────────────────────────────────────────
 
   // Display scale
-  static TextStyle get displayLarge => _display(fontSize: 38, letterSpacing: -0.5);
-  static TextStyle get displayMedium => _display(fontSize: 30, letterSpacing: -0.4);
-  static TextStyle get displaySmall => _display(fontSize: 24, letterSpacing: -0.3);
+  static TextStyle get displayLarge =>
+      _display(fontSize: 38, letterSpacing: -0.5);
+  static TextStyle get displayMedium =>
+      _display(fontSize: 30, letterSpacing: -0.4);
+  static TextStyle get displaySmall =>
+      _display(fontSize: 24, letterSpacing: -0.3);
 
   // Headline scale
   static TextStyle get headlineLarge => _display(fontSize: 20, height: 1.15);
   static TextStyle get headlineMedium => _display(fontSize: 16, height: 1.2);
-  static TextStyle get headlineSmall => _display(fontSize: 14, height: 1.25, letterSpacing: 0.2);
+  static TextStyle get headlineSmall =>
+      _display(fontSize: 14, height: 1.25, letterSpacing: 0.2);
 
   // Body
   static TextStyle get bodyLarge => _body(fontSize: 16, height: 1.5);
@@ -115,19 +119,22 @@ abstract final class QuestTypography {
   // LIGHT-SURFACE STYLES (ink text — feed the light ThemeData)
   // ──────────────────────────────────────────────
 
-  static TextStyle get osDisplayLarge =>
-      _display(fontSize: 38, letterSpacing: -0.5, color: QuestColors.osTextPrimary);
-  static TextStyle get osDisplayMedium =>
-      _display(fontSize: 30, letterSpacing: -0.4, color: QuestColors.osTextPrimary);
-  static TextStyle get osDisplaySmall =>
-      _display(fontSize: 24, letterSpacing: -0.3, color: QuestColors.osTextPrimary);
+  static TextStyle get osDisplayLarge => _display(
+      fontSize: 38, letterSpacing: -0.5, color: QuestColors.osTextPrimary);
+  static TextStyle get osDisplayMedium => _display(
+      fontSize: 30, letterSpacing: -0.4, color: QuestColors.osTextPrimary);
+  static TextStyle get osDisplaySmall => _display(
+      fontSize: 24, letterSpacing: -0.3, color: QuestColors.osTextPrimary);
 
   static TextStyle get osHeadlineLarge =>
       _display(fontSize: 20, height: 1.15, color: QuestColors.osTextPrimary);
   static TextStyle get osHeadlineMedium =>
       _display(fontSize: 16, height: 1.2, color: QuestColors.osTextPrimary);
-  static TextStyle get osHeadlineSmall =>
-      _display(fontSize: 14, height: 1.25, letterSpacing: 0.2, color: QuestColors.osTextPrimary);
+  static TextStyle get osHeadlineSmall => _display(
+      fontSize: 14,
+      height: 1.25,
+      letterSpacing: 0.2,
+      color: QuestColors.osTextPrimary);
 
   static TextStyle get osBodyLarge =>
       _body(fontSize: 16, height: 1.5, color: QuestColors.osTextPrimary);
@@ -140,8 +147,8 @@ abstract final class QuestTypography {
       _mono(fontSize: 13, color: QuestColors.osTextPrimary, letterSpacing: 0.6);
   static TextStyle get osLabelMedium =>
       _mono(fontSize: 11, color: QuestColors.osTextPrimary, letterSpacing: 0.8);
-  static TextStyle get osLabelSmall =>
-      _mono(fontSize: 10, color: QuestColors.osTextSecondary, letterSpacing: 1.0);
+  static TextStyle get osLabelSmall => _mono(
+      fontSize: 10, color: QuestColors.osTextSecondary, letterSpacing: 1.0);
 
   static TextStyle get osButtonText => _display(
         fontSize: 14,

@@ -1,6 +1,10 @@
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { QuestsService } from '../application/quests.service.js';
 import { BulkCreateQuestsDto, CreateQuestDto, DeleteAllQuestsDto, FollowingActiveQueryDto, QuestHistoryQueryDto, QuestIdDto, QuestPickerQueryDto, UpdateQuestDto, UserQuestIdDto } from './quest.dto.js';
+declare class AdminAssignQuestDto {
+    userId: string;
+    questId: string;
+}
 export declare class QuestsController {
     private readonly service;
     constructor(service: QuestsService);
@@ -18,6 +22,7 @@ export declare class QuestsController {
     assign(user: AuthUser, body: QuestIdDto): Promise<import("../domain/quest.types.js").UserQuestRecord>;
     expire(user: AuthUser, body: UserQuestIdDto): Promise<void>;
     get(id: string): Promise<import("../domain/quest.types.js").QuestRecord>;
+    assignForUser(body: AdminAssignQuestDto): Promise<import("../domain/quest.types.js").UserQuestRecord>;
     allAdmin(): Promise<readonly import("../domain/quest.types.js").QuestRecord[]>;
     create(user: AuthUser, body: CreateQuestDto): Promise<import("../domain/quest.types.js").QuestRecord>;
     createBulk(user: AuthUser, body: BulkCreateQuestsDto): Promise<readonly import("../domain/quest.types.js").QuestRecord[]>;
@@ -27,3 +32,4 @@ export declare class QuestsController {
         deleted: number;
     }>;
 }
+export {};

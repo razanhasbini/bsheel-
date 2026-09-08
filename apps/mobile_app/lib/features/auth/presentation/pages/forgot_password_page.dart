@@ -127,7 +127,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                         ),
                         const SizedBox(height: 18),
                         ArcadeButton(
-                          label: _isLoading ? AppLocalizations.of(context)!.sending : AppLocalizations.of(context)!.sendResetLink,
+                          label: _isLoading
+                              ? AppLocalizations.of(context)!.sending
+                              : AppLocalizations.of(context)!.sendResetLink,
                           icon: _isLoading ? null : Icons.send_rounded,
                           isLoading: _isLoading,
                           size: ArcadeButtonSize.large,

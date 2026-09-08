@@ -25,10 +25,14 @@ class ApiReactionsRepository implements ReactionsRepository {
     if (type != ReactionType.upvote && type != ReactionType.downvote) {
       throw ArgumentError.value(type, 'type', 'must be upvote or downvote');
     }
-    return ReactionModel.fromJson(apiObject(await _client.put(
-      'social/posts/$submissionId/vote',
-      body: {'type': type},
-    ),),);
+    return ReactionModel.fromJson(
+      apiObject(
+        await _client.put(
+          'social/posts/$submissionId/vote',
+          body: {'type': type},
+        ),
+      ),
+    );
   }
 
   @override

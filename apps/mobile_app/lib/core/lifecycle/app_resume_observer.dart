@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/backend_config.dart';
-import '../backend/mobile_nest_backend.dart';
+import '../backend/app_backend.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 
 import '../providers/auth_session_provider.dart';
@@ -81,23 +79,15 @@ void refreshAfterReconnect(WidgetRef ref, String reason) {
   // Disconnect alone is enough — the SDK transparently reconnects on the
   // next channel subscribe, which is exactly what the invalidate() calls
   // below trigger via the StreamProviders that watch realtime channels.
-  if (BackendConfig.usesNest) {
-    final realtime = MobileNestBackend.repositories.realtime;
-    realtime.disconnect();
-    unawaited(() async {
-      try {
-        await realtime.connect();
-      } catch (error) {
-        AppLogger.warning('[Lifecycle] Realtime reconnect failed: $error');
-      }
-    }());
-  } else {
+  final realtime = AppBackend.repositories.realtime;
+  realtime.disconnect();
+  unawaited(() async {
     try {
-      Supabase.instance.client.realtime.disconnect();
-    } catch (e) {
-      AppLogger.warning('[Lifecycle] Realtime disconnect failed: $e');
+      await realtime.connect();
+    } catch (error) {
+      AppLogger.warning('[Lifecycle] Realtime reconnect failed: $error');
     }
-  }
+  }());
 
   // Invalidate the hot read paths so the user sees fresh data on whatever
   // screen they're on. SWR caches mean these don't flash empty.

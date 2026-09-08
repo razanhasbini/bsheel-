@@ -49,30 +49,41 @@ abstract final class NotificationType {
   // ── New types added in migration 0036–0039 ──────────────────
   /// Quest timer expired without submission.
   static const String questExpired = 'quest_expired';
+
   /// A follower completed a quest and had it approved.
   static const String followQuestCompleted = 'follow_quest_completed';
+
   /// A submission reached a reaction milestone (10 / 25 / 50).
   static const String reactionMilestone = 'reaction_milestone';
+
   /// A new submission arrived for admin review.
   static const String newSubmission = 'new_submission';
+
   /// A user resubmitted after a rejection (appeal).
   static const String appealSubmitted = 'appeal_submitted';
+
   /// Another user overtook this user on the leaderboard.
   static const String leaderboardOvertaken = 'leaderboard_overtaken';
+
   /// This user entered the top 10 on the leaderboard.
   static const String top10Entry = 'top_10_entry';
+
   /// 30-minute warning before a quest expires.
   static const String questTimerWarning = 'quest_timer_warning';
+
   /// Admin reminder: pending submissions older than 24 hours.
   static const String pendingReviewReminder = 'pending_review_reminder';
+
   /// Another user commented on the same submission (reply-in-thread).
   static const String commentReply = 'comment_reply';
+
   /// Another user mentioned this user in a comment.
   static const String mention = 'mention';
 
   // ── Collab types added in migration 0072–0074 ──────────────────
   /// A user accepted your collab invite.
   static const String collabJoined = 'collab_joined';
+
   /// Your collab partner's submission was approved.
   static const String collabPartnerApproved = 'collab_partner_approved';
 }
@@ -105,5 +116,6 @@ abstract final class SubmissionVisibility {
 abstract final class MediaType {
   static const String image = 'image';
   static const String video = 'video';
-  static const String mixed = 'mixed'; // multiple files with both images and videos
+  static const String mixed =
+      'mixed'; // multiple files with both images and videos
 }

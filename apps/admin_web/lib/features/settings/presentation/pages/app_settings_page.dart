@@ -1,30 +1,16 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/backend/admin_nest_backend.dart';
-import '../../../../core/backend/backend_config.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
-final _appConfigProvider =
-    FutureProvider<Map<String, String>>((ref) async {
-  if (BackendConfig.usesNest) {
-    final rows = await AdminNestBackend.repositories.admin.config();
-    return {
-      for (final row in rows)
-        row['key'] as String: _configValueAsString(row['value']),
-    };
-  }
-  final rows = await Supabase.instance.client
-      .from(Tables.appConfig)
-      .select('key, value') as List<dynamic>;
+final _appConfigProvider = FutureProvider<Map<String, String>>((ref) async {
+  final rows = await AppBackend.repositories.admin.config();
   return {
     for (final row in rows)
-      (row as Map<String, dynamic>)['key'] as String:
-          row['value'] as String,
+      row['key'] as String: _configValueAsString(row['value']),
   };
 });
 
@@ -48,19 +34,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     setState(() => _saving = true);
     try {
       final nextValue = (!currentValue).toString();
-      if (BackendConfig.usesNest) {
-        await AdminNestBackend.repositories.admin.setConfig(
-          key,
-          value: nextValue,
-          isPublic: true,
-        );
-      } else {
-        await Supabase.instance.client.from(Tables.appConfig).upsert({
-          'key': key,
-          'value': nextValue,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      }
+      await AppBackend.repositories.admin.setConfig(
+        key,
+        value: nextValue,
+        isPublic: true,
+      );
       ref.invalidate(_appConfigProvider);
     } catch (e) {
       if (mounted) {
@@ -78,19 +56,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   Future<void> _writeValue(String key, String value) async {
     setState(() => _saving = true);
     try {
-      if (BackendConfig.usesNest) {
-        await AdminNestBackend.repositories.admin.setConfig(
-          key,
-          value: value,
-          isPublic: true,
-        );
-      } else {
-        await Supabase.instance.client.from(Tables.appConfig).upsert({
-          'key': key,
-          'value': value,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      }
+      await AppBackend.repositories.admin.setConfig(
+        key,
+        value: value,
+        isPublic: true,
+      );
       ref.invalidate(_appConfigProvider);
     } catch (e) {
       if (mounted) {
@@ -138,7 +108,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     );
     if (confirmed != true) return;
     await _writeValue(
-        'rate_prompt_token', DateTime.now().toUtc().toIso8601String(),);
+      'rate_prompt_token',
+      DateTime.now().toUtc().toIso8601String(),
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rate prompt token bumped.')),
@@ -148,88 +120,95 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
 
   Future<void> _openForceUpdateEditor(Map<String, String> config) async {
     final minBuildCtrl = TextEditingController(
-        text: config['update_required_min_build'] ?? '',);
+      text: config['update_required_min_build'] ?? '',
+    );
     final messageCtrl = TextEditingController(
-        text: config['update_required_message'] ?? '',);
+      text: config['update_required_message'] ?? '',
+    );
     bool force = config['update_required_force']?.toLowerCase() == 'true';
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
-        return AlertDialog(
-          backgroundColor: BsheelColors.paper,
-          title: const Text(
-            'FORCE UPDATE',
-            style: TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
-          ),
-          content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Users whose iOS build number (CFBundleVersion) is below '
-                  'this value see the update overlay on next launch.',
-                  style: TextStyle(color: BsheelColors.inkSoft),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: minBuildCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: BsheelColors.ink),
-                  decoration: const InputDecoration(
-                    labelText: 'Minimum build number (integer)',
-                    helperText:
-                        'Leave empty to disable the prompt entirely',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          return AlertDialog(
+            backgroundColor: BsheelColors.paper,
+            title: const Text(
+              'FORCE UPDATE',
+              style: TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
+            ),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Users whose iOS build number (CFBundleVersion) is below '
+                    'this value see the update overlay on next launch.',
+                    style: TextStyle(color: BsheelColors.inkSoft),
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: messageCtrl,
-                  maxLines: 2,
-                  style: const TextStyle(color: BsheelColors.ink),
-                  decoration: const InputDecoration(
-                    labelText: 'Optional custom message',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Checkbox(
-                    value: force,
-                    onChanged: (v) => setLocal(() => force = v ?? false),
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Hard-block (user cannot keep using the app — only the Update button is visible)',
-                      style: TextStyle(color: BsheelColors.inkSoft),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: minBuildCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: BsheelColors.ink),
+                    decoration: const InputDecoration(
+                      labelText: 'Minimum build number (integer)',
+                      helperText: 'Leave empty to disable the prompt entirely',
                     ),
                   ),
-                ],),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BsheelColors.ink,
-                foregroundColor: BsheelColors.pureWhite,
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: messageCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(color: BsheelColors.ink),
+                    decoration: const InputDecoration(
+                      labelText: 'Optional custom message',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: force,
+                        onChanged: (v) => setLocal(() => force = v ?? false),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Hard-block (user cannot keep using the app — only the Update button is visible)',
+                          style: TextStyle(color: BsheelColors.inkSoft),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('SAVE'),
             ),
-          ],
-        );
-      },),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: BsheelColors.ink,
+                  foregroundColor: BsheelColors.pureWhite,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('SAVE'),
+              ),
+            ],
+          );
+        },
+      ),
     );
 
     if (saved != true) return;
     await _writeValue(
-        'update_required_min_build', minBuildCtrl.text.trim(),);
+      'update_required_min_build',
+      minBuildCtrl.text.trim(),
+    );
     await _writeValue('update_required_message', messageCtrl.text.trim());
     await _writeValue('update_required_force', force ? 'true' : 'false');
     if (mounted) {
@@ -322,10 +301,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 style: const TextStyle(color: BsheelColors.hot),
               ),
               data: (config) {
-                final socialEnabled =
-                    config['social_login_enabled'] != 'false';
-                final maintenanceOn =
-                    config['maintenance_mode'] == 'true';
+                final socialEnabled = config['social_login_enabled'] != 'false';
+                final maintenanceOn = config['maintenance_mode'] == 'true';
 
                 return Column(
                   children: [
@@ -377,10 +354,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                         if (minBuild.isEmpty) {
                           return 'No update gate active — users on any build number can use the app.';
                         }
-                        final force =
-                            (config['update_required_force'] ?? '')
-                                    .toLowerCase() ==
-                                'true';
+                        final force = (config['update_required_force'] ?? '')
+                                .toLowerCase() ==
+                            'true';
                         return 'Users below build $minBuild see the update overlay. '
                             '${force ? "HARD-BLOCK (can't dismiss)." : "Soft prompt (dismissable)."}';
                       }(),
@@ -426,7 +402,9 @@ class _ActionTile extends StatelessWidget {
         color: BsheelColors.paper,
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
       ),
       child: Row(
         children: [
@@ -498,8 +476,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent =
-        danger && value ? BsheelColors.hot : BsheelColors.success;
+    final accent = danger && value ? BsheelColors.hot : BsheelColors.success;
     return Container(
       padding: const EdgeInsets.all(QuestSpacing.md),
       decoration: BoxDecoration(

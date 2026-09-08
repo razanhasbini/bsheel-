@@ -1,102 +1,135 @@
-# Auth Test Matrix — every sign-in / sign-up scenario
+# Auth test matrix
 
-Audited 2026-07-14 against the self-hosted backend (api.bsheel.app).
-Legend: ✅ automated (unit/widget test) · 🔬 verified in code review · 📱 needs one manual device pass · 🖥️ server-config dependent.
+Every sign-up, sign-in, recovery and session scenario, with the error code the
+API returns. Clients branch on `error.code`, never on the message.
 
-## 1. Email sign-up
+Legend: **A** automated in `backend/test/` · **C** verified by code review ·
+**D** needs a device pass · **P** needs a live provider (Google, Apple, email)
 
-| # | Scenario | Expected behavior | Status |
-|---|----------|-------------------|--------|
-| 1.1 | Happy path (valid username/email/password, 13+ checked) | Account created; `handle_new_user` trigger creates profile with chosen username; confirmations ON → "check your email" + routed to login; OFF → session starts, router sends to walkthrough | 🔬 + 📱 |
-| 1.2 | Email already registered (confirmed account) | Supabase anti-enumeration returns fake user with EMPTY `identities` — app detects this and shows "already registered — log in or use FORGOT PASSWORD" instead of a phantom "check your email" | 🔬 (fixed 2026-07-14) |
-| 1.3 | Email already registered (unconfirmed) | Supabase re-sends the confirmation email, `identities` non-empty → normal "check your email" message. Correct behavior | 🔬 |
-| 1.4 | Username already taken | DB unique violation → mapped to "already taken", routed to the username field | ✅ mapper + 🔬 field routing |
-| 1.5 | Username invalid (< 3 chars, symbols) | Client-side validator blocks pre-submit | 🔬 |
-| 1.6 | Weak password (< 10, missing case/digit, contains username/email/banned words) | `validatePassword` blocks pre-submit with specific hints | ✅ password_policy_test (8 cases) |
-| 1.7 | Mixed-case email `Foo@Bar.com` | Lower-cased before signUp — one canonical account | 🔬 |
-| 1.8 | Under-13 (checkbox unchecked) | Blocked pre-submit with age error; `age_verified` lands on profile via trigger metadata when checked | 🔬 |
-| 1.9 | Network drop mid-signup | Error mapped to "No internet connection" | ✅ mapper |
-| 1.10 | Rate limited | "Too many attempts" | ✅ mapper |
+> Rewritten 2026-09-08. The previous version described Supabase GoTrue
+> behaviour — anti-enumeration responses with empty `identities`, automatic
+> cross-provider identity linking, `GOTRUE_*` environment variables. None of
+> that applies any more: the API owns auth, and its semantics are different in
+> ways that matter (noted per row).
 
-## 2. Email sign-in
+## 1. Registration — `POST /auth/register`
 
 | # | Scenario | Expected | Status |
-|---|----------|----------|--------|
-| 2.1 | Happy path | Session starts; FCM token saved on `signedIn` event; analytics identify; router → home (or walkthrough if onboarding incomplete) | 🔬 + 📱 |
-| 2.2 | Wrong password / unknown email | One generic "Incorrect email or password." (no account enumeration) | ✅ mapper |
-| 2.3 | Mixed-case email | Normalized (trim + lowercase) to match signup — same account | ✅ login_credentials_test (fixed 2026-07-14) |
-| 2.4 | Unconfirmed email | "Please confirm your email" + one-tap **RESEND CONFIRMATION EMAIL** link (enumeration-safe copy) | ✅ mapper + 🔬 (resend added 2026-07-14) |
-| 2.5 | Suspended/banned account logs in | Login succeeds (read-only access by design); every write action blocked client-side by `guardAccountAction` AND server-side by migration `0123_banned_user_write_guard` | 🔬 |
-| 2.6 | Session expires while app open | `AuthNotifier` catches refresh errors, nulls the session, router bounces to login; module caches wiped on sign-out event so user A's data can't leak to user B | 🔬 |
-| 2.7 | Empty fields | Client-side field errors | 🔬 |
+|---|---|---|---|
+| 1.1 | Valid email, username, password, `ageVerified: true` | Account created. With `AUTH_EMAIL_CONFIRMATION_REQUIRED=true` returns `{confirmationRequired: true}` and no session; otherwise returns a token pair | A |
+| 1.2 | Email already registered | `409 EMAIL_TAKEN` | A |
+| 1.3 | Username already taken | `409 USERNAME_TAKEN` | A |
+| 1.4 | Both collide | Whichever constraint fires first; both codes are field-attributable | A |
+| 1.5 | `ageVerified: false` or absent | `403 AGE_VERIFICATION_REQUIRED`, before any row is written | A |
+| 1.6 | Password fails policy | `400`, rejected before hashing | A |
+| 1.7 | Username fails the format rule | `400` from DTO validation | A |
+| 1.8 | Mixed-case email `Foo@Bar.com` | Lower-cased before insert, so one canonical account | C |
+| 1.9 | Unknown field in the body | `400` — `forbidNonWhitelisted` rejects rather than ignores | A |
 
-## 3. Google sign-in (native id-token flow)
+**Deliberate difference from the legacy system.** Registration now tells the
+caller *which* value collided. Supabase deliberately returned a fake success to
+avoid account enumeration, and the app had to detect an empty `identities`
+array to show a useful message. That trade is now explicit: signup reveals that
+an email is registered, because a signup form that cannot say so is a worse
+product for a consumer app. Recovery (§4) remains enumeration-safe, which is
+where it actually matters.
 
-| # | Scenario | Expected | Status |
-|---|----------|----------|--------|
-| 3.1 | First-time Google user | New auth user; trigger creates profile with generated `user_XXXXXXXX` username; age modal confirmed pre-flow; `age_verified` persisted post-auth | 🔬 + 📱 |
-| 3.2 | Returning Google user | Same account; no duplicate profile (`ON CONFLICT (id) DO NOTHING`) | 🔬 |
-| 3.3 | **Google email == existing email/password account** | GoTrue links the Google identity to the SAME user (automatic linking, verified emails) → same profile/XP. No duplicate | 🖥️ + 📱 one-time verify on self-host |
-| 3.4 | User cancels the Google sheet | Silent return (no error toast) — cancellation filtered | 🔬 |
-| 3.5 | Declines age modal | Flow aborts BEFORE any account is created | 🔬 |
-| 3.6 | Missing GOTRUE_EXTERNAL_GOOGLE_* config on self-host | Sign-in fails with an error (fails safe — no mis-linking) | 🖥️ verify env on Contabo |
-| 3.7 | Social login remotely disabled (`socialLoginEnabledProvider`) | Buttons hidden entirely | 🔬 |
-
-## 4. Apple sign-in (native, nonce-protected)
+## 2. Sign-in — `POST /auth/login`
 
 | # | Scenario | Expected | Status |
-|---|----------|----------|--------|
-| 4.1 | First-time / returning | Same as 3.1/3.2; replay attacks blocked by hashed nonce | 🔬 + 📱 |
-| 4.2 | Apple email == existing account email | Linked to same user (as 3.3) | 🖥️ + 📱 |
-| 4.3 | **"Hide My Email" relay address** | Different email → legitimately a SECOND account. Platform behavior, cannot be prevented — document in support copy | 🔬 (accepted) |
-| 4.4 | User cancels Apple sheet | Silent return | 🔬 |
-| 4.5 | Apple returns no identity token | Explicit AuthException surfaced via mapper | 🔬 |
+|---|---|---|---|
+| 2.1 | Correct credentials | Token pair; `last_login` touched | A |
+| 2.2 | Wrong password | `401 INVALID_CREDENTIALS` | A |
+| 2.3 | Unknown email | `401 INVALID_CREDENTIALS` — identical to 2.2, no enumeration | A |
+| 2.4 | Unconfirmed email | `403 EMAIL_NOT_CONFIRMED`; client offers "resend confirmation" | A |
+| 2.5 | Suspended or banned | `403 ACCOUNT_RESTRICTED` with the status in the message | A |
+| 2.6 | Mixed-case email | Normalised, matches the account created in 1.8 | A |
+| 2.7 | Empty fields | `400` from DTO validation | A |
+| 2.8 | Malformed email | `400`, before any database read | A |
 
-## 5. Cross-provider duplicate matrix (same person, same email)
+Note 2.5 differs from legacy, which let a banned user sign in read-only and
+blocked writes at the row level. The API refuses the session outright.
 
-| First → then | Result |
-|---|---|
-| Email/password (confirmed) → Google | One account (identity linked) 🖥️ |
-| Email/password (confirmed) → Apple (real email) | One account 🖥️ |
-| Google → email signup, same address | Anti-enumeration fake user; app now detects empty `identities` and says "already registered" (fix 1.2). To add a password: FORGOT PASSWORD flow works — recovery email sets a password on the same account | 🔬 |
-| Google → Apple (same Gmail) | One account 🖥️ |
-| Apple (Hide-My-Email) → anything | Separate account (relay email ≠ real email) — expected | 🔬 |
-| Email/password (UNconfirmed) → Google same address | GoTrue version-dependent: may create a second user. **One-time manual test required on api.bsheel.app**; mitigation if needed: enable `GOTRUE_MAILER_AUTOCONFIRM` or clean unconfirmed rows | 📱🖥️ |
-
-## 6. Forgot / reset password
+## 3. OAuth — `POST /auth/oauth`
 
 | # | Scenario | Expected | Status |
-|---|----------|----------|--------|
-| 6.1 | Known email | Recovery email; deep link `https://admin.bsheel.app/reset-password` → app link opens reset page (requires admin.bsheel.app AASA/assetlinks live) | 📱 after web deploy |
-| 6.2 | Unknown email | Identical success UI (enumeration-safe — even network errors show success) | 🔬 |
-| 6.3 | Expired/used reset link | `updatePassword` fails → "Your reset link has expired or was already used" | ✅ mapper (fixed 2026-07-14) |
-| 6.4 | New password fails policy (incl. contains email local-part) | Blocked client-side; recovery session's email fed to the validator | 🔬 |
-| 6.5 | Transient failure during update | Recovery flag intentionally NOT cleared → user can retry without a new email | 🔬 |
-| 6.6 | Reset while already signed in | `/reset-password` exempt from the logged-in redirect | ✅ route_guards_test |
+|---|---|---|---|
+| 3.1 | First-time Google user | Identity verified server-side against Google's keys; account and profile created with a generated username | P |
+| 3.2 | Returning Google user | Same account, no duplicate identity row | P |
+| 3.3 | First-time Apple user, nonce-protected | As 3.1; a replayed nonce is rejected | P |
+| 3.4 | Apple "Hide My Email" relay address | Legitimately a separate account — the relay address is a different identity. Platform behaviour; document it in support copy | C |
+| 3.5 | Invalid or expired ID token | `401`, no account created | C |
+| 3.6 | `OAUTH_GOOGLE_CLIENT_IDS` / `OAUTH_APPLE_CLIENT_IDS` unset | Verification fails closed — no session | C |
+| 3.7 | Social login disabled via `app_config` | Buttons hidden. **The flag now fails closed**: an absent row means off | A |
+| 3.8 | Restricted account signs in with OAuth | `403 ACCOUNT_RESTRICTED` | C |
 
-## 7. Routing / session guards (fully automated)
+**Deliberate difference.** Supabase auto-linked a Google identity to an
+existing password account with the same verified email. The API does not link
+implicitly — an identity is matched on `(provider, provider_subject)`. Silent
+linking on a matching email address is a documented account-takeover vector if
+the provider's email verification is ever weaker than assumed. If product wants
+linking, it should be an explicit, authenticated "connect account" action.
+**This changes observable behaviour for a user who signed up with a password
+and then taps "Continue with Google" using the same address**, so it needs a
+product decision and support copy.
 
-`route_guards_test.dart` covers: signed-out → login bounce for every protected route; auth routes reachable signed-out; splash exemption; signed-in bounce off auth pages; reset-password exemption (signed-in AND mid-onboarding); onboarding gate + no-loop; null-onboarding no-bounce.
-
-## 8. Sign-out / account deletion
+## 4. Password recovery
 
 | # | Scenario | Expected | Status |
-|---|----------|----------|--------|
-| 8.1 | Sign out | FCM token deleted BEFORE session ends (RPC needs auth.uid); all module caches reset; router → login | 🔬 |
-| 8.2 | Delete account | Confirmation dialog with typed confirmation; queued via `account_deletion_queue` (0122); drained by cron → `admin_manage_user` edge fn | 🔬 |
-| 8.3 | Silent token expiry (not user-initiated) | `AuthNotifier` also resets caches on `signedOut` event — no data bleed between accounts | 🔬 |
+|---|---|---|---|
+| 4.1 | `POST /auth/password-recovery`, known email | `204`. A one-time token is generated, SHA-256 indexed, AES-256-GCM encrypted at rest, valid 1 hour, and delivered **only by the worker** | A |
+| 4.2 | Same, unknown email | **Identical `204`.** No enumeration. The API never returns the raw token | A |
+| 4.3 | `POST /auth/password-recovery/complete` with a valid token | Password set; token consumed | A |
+| 4.4 | Reusing a consumed token | Rejected — single use | A |
+| 4.5 | Expired token | Rejected | A |
+| 4.6 | Malformed token | Rejected with the same error as 4.4/4.5, so probing learns nothing | A |
+| 4.7 | New password fails policy | `400`; the token is **not** consumed, so the user can retry | A |
+| 4.8 | Deep link `/reset-password?token=…` | Opens the reset page and consumes the token. Requires AASA/assetlinks live on the origin | D |
 
-## Fixes shipped with this audit (2026-07-14)
+## 5. Email confirmation
 
-1. Login email now normalized (trim + lowercase) to match signup — prevents case-variant "wrong password" confusion.
-2. Signup detects Supabase's anti-enumeration response (`identities == []`) — no more phantom "check your email" for already-registered addresses.
-3. "RESEND CONFIRMATION EMAIL" one-tap action on login when the account is unconfirmed (enumeration-safe messaging), incl. new `AuthRepository.resendSignupConfirmation`.
-4. Expired-reset-link errors now map to an actionable message instead of raw "Auth session missing!".
-5. `authRedirect` refactored to take a plain location string → the full redirect matrix is now unit-tested.
+| # | Scenario | Expected | Status |
+|---|---|---|---|
+| 5.1 | `POST /auth/email-confirmation/complete` with a valid token | Email marked verified; login now succeeds | A |
+| 5.2 | Reused or expired token | Rejected; the admin-web page shows "invalid or has expired" | A |
+| 5.3 | `POST /auth/email-confirmation/resend` for an unconfirmed account | `204`, new token queued | A |
+| 5.4 | Resend for an unknown or already-confirmed email | Identical `204` — enumeration-safe | A |
 
-## Outstanding one-time manual checks (need device + live server)
+## 6. Sessions, refresh and logout
 
-- [ ] 3.3 / 4.2: same-email cross-provider linking on api.bsheel.app (one row in `auth.users`?)
-- [ ] 5-last: unconfirmed-email + OAuth same-address behavior on the deployed GoTrue version
-- [ ] 3.6: `GOTRUE_EXTERNAL_APPLE_*` / `GOOGLE_*` envs present on the Contabo box
-- [ ] 6.1: reset-email deep link end-to-end once admin.bsheel.app serves `/reset-password` + `.well-known` files
+| # | Scenario | Expected | Status |
+|---|---|---|---|
+| 6.1 | `POST /auth/refresh` with a valid token | New pair; the old session is marked rotated | A |
+| 6.2 | **Replaying an already-rotated refresh token** | `401 REFRESH_TOKEN_REUSED` **and the whole token family is revoked** — this is the theft-detection path | A |
+| 6.3 | Refresh token whose hash does not verify | `401 INVALID_REFRESH_TOKEN`, family revoked | A |
+| 6.4 | Refresh after a server-side revocation (`tokenVersion` bumped) | `401 SESSION_REVOKED`, family revoked | A |
+| 6.5 | Refresh on a revoked or expired session | `401 INVALID_REFRESH_SESSION` | A |
+| 6.6 | Concurrent refreshes from one client | The client serialises refresh in `ApiClient`, so only one request spends the token. Without that, 6.2 would fire on a legitimate client | A (Dart) |
+| 6.7 | `POST /auth/logout` | Session revoked; a missing token is a no-op, not an error | A |
+| 6.8 | Access token expires mid-session | Client refreshes transparently on the first 401 and retries once | A (Dart) |
+| 6.9 | Refresh fails unrecoverably | Client emits `signedOut`, clears the token store, wipes module caches so one user's data cannot leak to the next, and the router bounces to login | C |
+| 6.10 | Authenticated route with no token | `401` | A |
+| 6.11 | Authenticated route with a malformed token | `401` | A |
+| 6.12 | Admin route with a valid non-admin token | `403` — authentication and authorisation are separate layers | A |
+
+## 7. Routing and guards (client)
+
+`route_guards_test.dart` covers: signed-out bounce for every protected route,
+auth routes reachable while signed out, splash exemption, signed-in bounce off
+auth pages, `/reset-password` exempt from the signed-in redirect and from the
+onboarding gate, and the onboarding gate with no redirect loop.
+
+## 8. Account deletion
+
+| # | Scenario | Expected | Status |
+|---|---|---|---|
+| 8.1 | `POST /account/deletion` | Queued in `account_delete_requests`; drained by the worker | A |
+| 8.2 | Device token cleanup on sign-out | Token deregistered before the session ends, while the call is still authorised | C |
+| 8.3 | Username after deletion | Retained as a tombstone so it cannot be immediately re-registered | A |
+
+## Outstanding — needs a live provider or a device
+
+- 3.1–3.3, 3.6: Google and Apple sign-in against real provider keys.
+- 4.1, 5.3: real email delivery through `EMAIL_DELIVERY_WEBHOOK_URL`.
+- 4.8: reset deep link end to end, once `.well-known` files are served.
+- A product decision on §3's implicit-linking change, plus the support copy.

@@ -13,16 +13,24 @@ class ApiCollabRepository implements CollabRepository {
     String userQuestId,
     String mode,
   ) async =>
-      apiObject(await _client.post('collab/groups', body: {
-        'userQuestId': userQuestId,
-        'mode': mode,
-      },),);
+      apiObject(
+        await _client.post(
+          'collab/groups',
+          body: {
+            'userQuestId': userQuestId,
+            'mode': mode,
+          },
+        ),
+      );
 
   @override
   Future<CollabGroupPreviewModel> getGroupDetails(String code) async =>
-      CollabGroupPreviewModel.fromJson(apiObject(
-        await _client.get('collab/groups/preview/${Uri.encodeComponent(code)}'),
-      ),);
+      CollabGroupPreviewModel.fromJson(
+        apiObject(
+          await _client
+              .get('collab/groups/preview/${Uri.encodeComponent(code)}'),
+        ),
+      );
 
   @override
   Future<Map<String, dynamic>> joinGroup(String code) async =>
@@ -30,9 +38,11 @@ class ApiCollabRepository implements CollabRepository {
 
   @override
   Future<CollabGroupStatusModel> getGroupStatus(String userQuestId) async =>
-      CollabGroupStatusModel.fromJson(apiObject(
-        await _client.get('collab/assignments/$userQuestId'),
-      ),);
+      CollabGroupStatusModel.fromJson(
+        apiObject(
+          await _client.get('collab/assignments/$userQuestId'),
+        ),
+      );
 
   @override
   Future<void> abandonQuest(String userQuestId) async {

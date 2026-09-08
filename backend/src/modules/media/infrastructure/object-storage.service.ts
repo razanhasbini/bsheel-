@@ -27,6 +27,7 @@ export class ObjectStorageService implements OnModuleDestroy {
         endpoint,
         region: config.get('R2_REGION', { infer: true }),
         credentials: { accessKeyId, secretAccessKey },
+        forcePathStyle: config.get('S3_FORCE_PATH_STYLE', { infer: true }),
         maxAttempts: 3,
       });
     }

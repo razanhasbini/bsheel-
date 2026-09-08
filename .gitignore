@@ -23,13 +23,8 @@ app.*.map.json
 .env.*
 !.env.example
 
-# ─── Supabase ────────────────────────────────────────────────────────────────
-.supabase/
-supabase/.temp/
-
-# ─── Node (edge functions) ───────────────────────────────────────────────────
+# ─── Node (backend) ──────────────────────────────────────────────────────────
 node_modules/
-supabase/functions/**/node_modules/
 
 # ─── Platform build artifacts ────────────────────────────────────────────────
 # Android
@@ -107,10 +102,6 @@ apps/mobile_app/android/app/google-services.json
 .claude/*
 !.claude/skills/
 SECRETS_*.txt
-
-# wrangler local cache
-.wrangler/
-**/.wrangler/
 
 # Vercel (retired — admin is self-hosted behind Caddy; ignore stray CLI metadata)
 .vercel/

@@ -86,7 +86,9 @@ class _CollabPageState extends ConsumerState<CollabPage> {
     SharePlus.instance.share(
       ShareParams(text: 'Join my $modeLabel quest on BSHEEL!\n\n$link'),
     );
-    ref.read(analyticsProvider).track('collab_invite_shared', {'code': _groupCode});
+    ref
+        .read(analyticsProvider)
+        .track('collab_invite_shared', {'code': _groupCode});
   }
 
   void _copyLink(String code) {
@@ -229,11 +231,13 @@ class _CollabPageState extends ConsumerState<CollabPage> {
   Widget _buildCollabContent(UserQuestModel activeQuest) {
     final groupAsync = ref.watch(collabGroupStatusProvider(activeQuest.id));
     return groupAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (_, __) => ArcadeErrorState(
         title: "Couldn't load group",
         subtitle: 'Check your connection and try again.',
-        onRetry: () => ref.invalidate(collabGroupStatusProvider(activeQuest.id)),
+        onRetry: () =>
+            ref.invalidate(collabGroupStatusProvider(activeQuest.id)),
       ),
       data: (group) {
         if (group.isCollab) {
@@ -868,8 +872,8 @@ class _MemberTile extends StatelessWidget {
   final bool isLeader;
 
   (String, Color) _status(BuildContext context) {
-    final label =
-        (member.submissionStatus ?? member.questStatus ?? 'assigned').toUpperCase();
+    final label = (member.submissionStatus ?? member.questStatus ?? 'assigned')
+        .toUpperCase();
     if (member.submissionStatus == 'approved') {
       return (label, QuestColors.successGreen);
     }

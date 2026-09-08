@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:app_repositories/nest_api_repositories.dart';
+import 'package:app_repositories/app_repositories.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:test/test.dart';
 
 String jwt(Map<String, Object?> payload) {

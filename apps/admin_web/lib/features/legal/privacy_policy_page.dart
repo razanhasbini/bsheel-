@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app_core/app_core.dart';
 
 import '../../core/theme/bsheel_design.dart';
+
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
 
@@ -41,8 +42,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               children: [
                 const _Section(
                   title: 'Privacy Policy & Support',
-                  content:
-                      'Last updated: April 2025\n\n'
+                  content: 'Last updated: April 2025\n\n'
                       'BSHEEL ("we", "our", or "us") is committed to protecting your privacy. '
                       'This Privacy Policy explains how we collect, use, and safeguard your information '
                       'when you use the BSHEEL mobile application.',
@@ -59,8 +59,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                 ),
                 const _Section(
                   title: '2. How We Use Your Information',
-                  content:
-                      '• To provide and operate the BSHEEL app.\n'
+                  content: '• To provide and operate the BSHEEL app.\n'
                       '• To display your profile, posts, and activity to other users.\n'
                       '• To send push notifications about quest assignments, approvals, and social activity.\n'
                       '• To calculate XP, levels, and leaderboard rankings.\n'
@@ -96,8 +95,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                 ),
                 const _Section(
                   title: '7. Your Rights',
-                  content:
-                      '• Access your data: visible in your profile.\n'
+                  content: '• Access your data: visible in your profile.\n'
                       '• Delete your account: available in Settings → Delete Account.\n'
                       '• Contact us: for any data requests or concerns, email us below.',
                 ),
@@ -113,8 +111,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                   padding: const EdgeInsets.all(QuestSpacing.lg),
                   decoration: BoxDecoration(
                     color: BsheelColors.paper,
-                    borderRadius:
-                        BorderRadius.circular(BsheelRadii.md),
+                    borderRadius: BorderRadius.circular(BsheelRadii.md),
                     border: Border.all(
                       color: BsheelColors.ink,
                       width: 1,
@@ -217,8 +214,11 @@ class _Section extends StatelessWidget {
 }
 
 class _SupportRow extends StatelessWidget {
-  const _SupportRow(
-      {required this.icon, required this.label, required this.value,});
+  const _SupportRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
   final IconData icon;
   final String label;
   final String value;

@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart';
+import 'package:supabase_contracts/supabase_contracts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../providers/moderation_controller.dart';
 import '../providers/pending_submissions_provider.dart';
@@ -15,48 +14,12 @@ import '../widgets/inline_video.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
+/// Full review context in one request: the submission, the author's
+/// profile, the quest, and the retake flag. Media and avatar arrive signed.
 final _submissionDetailProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>?, String>((ref, id) async {
-      final client = ref.watch(supabaseClientProvider);
-      final data = await client
-          .from(Tables.submissions)
-          .select(
-            '*, profiles!submissions_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName}, ${ProfileColumns.avatarUrl}, ${ProfileColumns.xp}, ${ProfileColumns.level}), ${Tables.userQuests}(*, ${Tables.quests}(${QuestColumns.title}, ${QuestColumns.description}, ${QuestColumns.category}, ${QuestColumns.difficulty}, ${QuestColumns.xpReward}))',
-          )
-          .eq(SubmissionColumns.id, id)
-          .maybeSingle();
-      if (data == null) return null;
-
-      final media = data[SubmissionColumns.mediaUrl]?.toString() ?? '';
-      final profile = data['profiles'] as Map<String, dynamic>?;
-      final avatar = profile?[ProfileColumns.avatarUrl]?.toString();
-      return {
-        ...data,
-        SubmissionColumns.mediaUrl:
-            await SignedMediaUrls.signJsonOrSingle(client, media),
-        if (profile != null)
-          'profiles': {
-            ...profile,
-            ProfileColumns.avatarUrl:
-                await SignedMediaUrls.signNullable(client, avatar),
-          },
-      };
-    });
-
-/// Checks if this submission is a retake of a previously completed quest.
-final _isRetakeProvider = FutureProvider.autoDispose
-    .family<bool, String>((ref, submissionId) async {
-      final client = ref.watch(supabaseClientProvider);
-      try {
-        final result = await client.rpc(
-          RpcNames.isQuestRetake,
-          params: {'p_submission_id': submissionId},
-        );
-        return result == true;
-      } catch (_) {
-        return false;
-      }
-    });
+  return AppBackend.repositories.moderation.reviewDetail(id);
+});
 
 class SubmissionReviewPage extends ConsumerWidget {
   final String submissionId;
@@ -113,34 +76,31 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
   Widget build(BuildContext context) {
     final data = widget.data;
 
-    final profile = data[Tables.profiles] as Map<String, dynamic>?;
-    final userQuest = data[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-
-    final username = profile?[ProfileColumns.username] ?? 'Unknown';
-    final displayName = profile?[ProfileColumns.displayName] ?? username;
-    final userXp = profile?[ProfileColumns.xp] ?? 0;
-    final userLevel = profile?[ProfileColumns.level] ?? 1;
-    final mediaUrl = (data[SubmissionColumns.mediaUrl] ?? '').toString();
-    final mediaType = (data[SubmissionColumns.mediaType] ?? 'image').toString();
-    final caption = data[SubmissionColumns.caption] as String?;
-    final status = (data[SubmissionColumns.status] ?? '').toString();
+    final username = data['username'] ?? 'Unknown';
+    final displayName = data['display_name'] ?? username;
+    final userXp = data['xp'] ?? 0;
+    final userLevel = data['level'] ?? 1;
+    final mediaUrl = (data['media_url'] ?? '').toString();
+    final mediaType = (data['media_type'] ?? 'image').toString();
+    final caption = data['caption'] as String?;
+    final status = (data['status'] ?? '').toString();
     final submittedAt = DateTime.tryParse(
-      data[SubmissionColumns.submittedAt]?.toString() ?? '',
+      data['submitted_at']?.toString() ?? '',
     );
 
-    final questTitle = quest?[QuestColumns.title] ?? 'Unknown Quest';
-    final questDesc = quest?[QuestColumns.description] ?? '';
-    final questCategory = quest?[QuestColumns.category] ?? '';
-    final questDifficulty = quest?[QuestColumns.difficulty] ?? '';
-    final questXp = quest?[QuestColumns.xpReward] ?? 0;
+    final questTitle = data['quest_title'] ?? 'Unknown Quest';
+    final questDesc = data['quest_description'] ?? '';
+    final questCategory = data['quest_category'] ?? '';
+    final questDifficulty = data['quest_difficulty'] ?? '';
+    final questXp = data['quest_xp_reward'] ?? 0;
 
     final isPending = status == SubmissionStatus.pending;
-    final isAppeal = data[SubmissionColumns.appealed] == true;
-    final appealNote = data[SubmissionColumns.appealNote] as String?;
+    final isAppeal = data['appealed'] == true;
+    final appealNote = data['appeal_note'] as String?;
 
     // Check if this submission is part of a collab pair
-    final userQuestId = data[SubmissionColumns.userQuestId] as String?;
+    final collabGroupId = data['collab_group_id']?.toString();
+    final collabMode = data['collab_mode']?.toString();
 
     return SingleChildScrollView(
       child: Column(
@@ -156,8 +116,10 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded,
-                      color: BsheelColors.ink,),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: BsheelColors.ink,
+                  ),
                   onPressed: () =>
                       context.goNamed(AdminRouteNames.pendingSubmissions),
                 ),
@@ -170,58 +132,58 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                       const SizedBox(height: 12),
                       BsheelDisplay(
                         'Read it {carefully.}',
-                        baseStyle:
-                            BsheelType.displayLg.copyWith(fontSize: 36),
+                        baseStyle: BsheelType.displayLg.copyWith(fontSize: 36),
                       ),
                     ],
                   ),
                 ),
-              // Retake badge
-              Builder(
-                builder: (ctx) {
-                  final isRetake = ref.watch(_isRetakeProvider(widget.submissionId)).valueOrNull ?? false;
-                  if (!isRetake) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(left: QuestSpacing.sm),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: BsheelColors.surface,
-                        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-                        border: Border.all(color: BsheelColors.line),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.refresh,
-                              size: 12, color: BsheelColors.cool,),
-                          const SizedBox(width: 4),
-                          Text(
-                            'RETAKE',
-                            style: BsheelType.labelSm.copyWith(
+                // Retake badge
+                Builder(
+                  builder: (ctx) {
+                    final isRetake = data['is_retake'] == true;
+                    if (!isRetake) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(left: QuestSpacing.sm),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: BsheelColors.surface,
+                          borderRadius: BorderRadius.circular(BsheelRadii.lg),
+                          border: Border.all(color: BsheelColors.line),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.refresh,
+                              size: 12,
                               color: BsheelColors.cool,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 1,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              'RETAKE',
+                              style: BsheelType.labelSm.copyWith(
+                                color: BsheelColors.cool,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-              if (userQuestId != null) ...[
-                const SizedBox(width: QuestSpacing.sm),
-                _CollabBadgeAsync(
-                  userQuestId: userQuestId,
-                  submissionId: widget.submissionId,
+                    );
+                  },
                 ),
+                if (collabGroupId != null) ...[
+                  const SizedBox(width: QuestSpacing.sm),
+                  _CollabBadge(mode: collabMode ?? 'with'),
+                ],
+                const Spacer(),
+                _StatusChip(status: status),
               ],
-              const Spacer(),
-              _StatusChip(status: status),
-            ],
-          ),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -243,7 +205,8 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.gavel, size: 20, color: BsheelColors.accent),
+                      const Icon(Icons.gavel,
+                          size: 20, color: BsheelColors.accent),
                       const SizedBox(width: QuestSpacing.sm),
                       Text(
                         'APPEAL — THIS SUBMISSION WAS PREVIOUSLY REJECTED',
@@ -345,8 +308,7 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                       vertical: QuestSpacing.md,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.full),
+                      borderRadius: BorderRadius.circular(BsheelRadii.full),
                     ),
                   ),
                 );
@@ -371,8 +333,7 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                       vertical: QuestSpacing.md,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.full),
+                      borderRadius: BorderRadius.circular(BsheelRadii.full),
                     ),
                   ),
                 );
@@ -470,16 +431,15 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
 
     setState(() => _isActioning = true);
     try {
-      final client = ref.read(supabaseClientProvider);
-      // Atomic admin RPC: re-verifies admin status, asserts current state
-      // is 'pending' under FOR UPDATE, applies the review_note (if any),
-      // and writes an admin_audit_log entry — all in one transaction.
-      final params = <String, dynamic>{'p_submission_id': widget.submissionId};
+      // Atomic on the API: it re-checks the moderator's role, asserts the
+      // submission is still pending under FOR UPDATE, awards XP once,
+      // applies the review note and writes an audit record — one transaction.
       final trimmedNote = reviewNote.trim();
-      if (trimmedNote.isNotEmpty) {
-        params['p_review_note'] = trimmedNote;
-      }
-      await client.rpc(RpcNames.adminApproveSubmission, params: params);
+      await AppBackend.repositories.moderation.approveSubmission(
+        widget.submissionId,
+        '',
+        note: trimmedNote.isEmpty ? null : trimmedNote,
+      );
 
       ref.invalidate(pendingSubmissionsProvider);
       if (context.mounted) {
@@ -514,11 +474,11 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
 
     setState(() => _isActioning = true);
     try {
-      final client = ref.read(supabaseClientProvider);
-      await client.rpc(RpcNames.adminRejectSubmission, params: {
-        'p_submission_id': widget.submissionId,
-        'p_review_note': rejectionNote,
-      },);
+      await AppBackend.repositories.moderation.rejectSubmission(
+        widget.submissionId,
+        '',
+        note: rejectionNote,
+      );
 
       ref.invalidate(pendingSubmissionsProvider);
       if (context.mounted) {
@@ -559,7 +519,9 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.xl),
               side: const BorderSide(
-                  color: BsheelColors.line, width: BsheelBorders.thin,),
+                color: BsheelColors.line,
+                width: BsheelBorders.thin,
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -772,7 +734,9 @@ class _DetailsSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: BsheelColors.paper,
             border: Border.all(
-                color: BsheelColors.line, width: BsheelBorders.thin,),
+              color: BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
             borderRadius: BorderRadius.circular(BsheelRadii.lg),
           ),
           child: Row(
@@ -837,7 +801,9 @@ class _DetailsSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: BsheelColors.paper,
             border: Border.all(
-                color: BsheelColors.line, width: BsheelBorders.thin,),
+              color: BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
             borderRadius: BorderRadius.circular(BsheelRadii.lg),
           ),
           child: Column(
@@ -984,7 +950,9 @@ class _StatusChip extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(BsheelRadii.full),
         border: Border.all(
-            color: fg.withAlpha(100), width: BsheelBorders.thin,),
+          color: fg.withAlpha(100),
+          width: BsheelBorders.thin,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1004,78 +972,43 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// Async check if this submission is part of a collab pair.
-/// [_CollabBadgeAsync] renders a COLLAB (or VERSUS) badge if so.
-final _collabGroupProvider = FutureProvider.autoDispose
-    .family<Map<String, dynamic>?, String>((ref, userQuestId) async {
-  final client = ref.watch(supabaseClientProvider);
-  final memberRow = await client
-      .from(Tables.collabGroupMembers)
-      .select(CollabGroupMemberColumns.groupId)
-      .eq(CollabGroupMemberColumns.userQuestId, userQuestId)
-      .maybeSingle();
-  if (memberRow == null) return null;
-  final groupId = memberRow[CollabGroupMemberColumns.groupId] as String;
-  return await client
-      .from(Tables.collabGroups)
-      .select()
-      .eq(CollabGroupColumns.id, groupId)
-      .maybeSingle();
-});
+/// Collab context arrives with the review detail, so the badge no longer
+/// issues its own request — the old one was scoped to the signed-in user
+/// and returned nothing when a moderator reviewed somebody else's post.
+class _CollabBadge extends StatelessWidget {
+  const _CollabBadge({required this.mode});
 
-class _CollabBadgeAsync extends ConsumerWidget {
-  final String userQuestId;
-  final String submissionId;
-
-  const _CollabBadgeAsync({
-    required this.userQuestId,
-    required this.submissionId,
-  });
+  /// `with` or `versus`, from the review detail payload.
+  final String mode;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pairAsync = ref.watch(_collabGroupProvider(userQuestId));
+  Widget build(BuildContext context) {
+    final isVersus = mode == 'versus';
+    final badgeColor = isVersus ? BsheelColors.hot : BsheelColors.ink;
+    final badgeLabel = isVersus ? 'VERSUS' : 'COLLAB';
 
-    return pairAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (pair) {
-        if (pair == null) return const SizedBox.shrink();
-
-        final mode = pair[CollabGroupColumns.mode] as String? ?? 'with';
-        final isVersus = mode == 'versus';
-        final badgeColor = isVersus ? BsheelColors.hot : BsheelColors.ink;
-        final badgeLabel = isVersus ? 'VERSUS' : 'COLLAB';
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: badgeColor.withAlpha(20),
-                borderRadius: BorderRadius.circular(BsheelRadii.full),
-                border: Border.all(color: badgeColor.withAlpha(80)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.group, size: 12, color: badgeColor),
-                  const SizedBox(width: 4),
-                  Text(
-                    badgeLabel,
-                    style: BsheelType.labelSm.copyWith(
-                      color: badgeColor,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withAlpha(20),
+        borderRadius: BorderRadius.circular(BsheelRadii.full),
+        border: Border.all(color: badgeColor.withAlpha(80)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.group, size: 12, color: badgeColor),
+          const SizedBox(width: 4),
+          Text(
+            badgeLabel,
+            style: BsheelType.labelSm.copyWith(
+              color: badgeColor,
+              fontWeight: FontWeight.w500,
+              fontSize: 10,
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 }

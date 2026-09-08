@@ -7,16 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('mapDbError', () {
     test('falls through to "Failed to {action}" when nothing matches', () {
-      final out = mapDbError(Exception('totally novel error'),
-          action: 'do the thing');
+      final out =
+          mapDbError(Exception('totally novel error'), action: 'do the thing');
       expect(out, equals('Failed to do the thing. Please try again.'));
     });
 
     test('translates 42501 / Not authorized into a sign-in hint', () {
       final out = mapDbError('PostgrestException(message: Not authorized, '
           'code: 42501, details: ...)');
-      expect(out,
-          contains('don\'t have permission'));
+      expect(out, contains('don\'t have permission'));
     });
 
     test('extracts the human-readable message from a P0001 raise', () {

@@ -3,14 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/profile_repository_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../leaderboard/presentation/providers/leaderboard_provider.dart';
 
 /// Profile row for any [userId]. Used both by the profile page (when
@@ -44,47 +41,18 @@ final profileRealtimeProvider =
     ref.invalidate(followingLeaderboardProvider);
   }
 
-  if (BackendConfig.usesNest) {
-    final realtime = MobileNestBackend.repositories.realtime;
-    final subscription = realtime.events.where((event) {
-      return event.type == 'profile.updated' &&
-          event.data['profileId'] == userId;
-    }).listen((_) => invalidateProfile());
-    unawaited(() async {
-      try {
-        await realtime.connect();
-      } catch (error) {
-        if (kDebugMode) {
-          debugPrint('[Realtime] Profile connection failed: $error');
-        }
+  final realtime = AppBackend.repositories.realtime;
+  final subscription = realtime.events.where((event) {
+    return event.type == 'profile.updated' && event.data['profileId'] == userId;
+  }).listen((_) => invalidateProfile());
+  unawaited(() async {
+    try {
+      await realtime.connect();
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[Realtime] Profile connection failed: $error');
       }
-    }());
-    ref.onDispose(() => unawaited(subscription.cancel()));
-    return;
-  }
-
-  final client = Supabase.instance.client;
-
-  final channel = client.channel('profile_realtime_$userId')
-    ..onPostgresChanges(
-      event: PostgresChangeEvent.update,
-      schema: 'public',
-      table: Tables.profiles,
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: ProfileColumns.id,
-        value: userId,
-      ),
-      callback: (_) {
-        if (kDebugMode) debugPrint('[Realtime] profile change on $userId');
-        // Invalidate the right read depending on whether this is the
-        // viewer's own profile or someone else's.
-        invalidateProfile();
-      },
-    )
-    ..subscribe();
-
-  ref.onDispose(() {
-    client.removeChannel(channel);
-  });
+    }
+  }());
+  ref.onDispose(() => unawaited(subscription.cancel()));
 });

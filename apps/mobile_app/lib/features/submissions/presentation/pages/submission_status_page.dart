@@ -7,16 +7,14 @@ import '../../../../core/router/route_names.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
-import 'package:app_repositories/nest_api_repositories.dart'
+import 'package:app_repositories/app_repositories.dart'
     show RealtimeDomainEvent;
 import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/submission_providers.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../../feed/presentation/providers/feed_provider.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 
 // Screen-specific colours — not theme tokens.
 const Color _inkShadow = Color(0x331A1330); // ~20% ink hard offset shadow
@@ -33,9 +31,8 @@ class SubmissionStatusPage extends ConsumerStatefulWidget {
 }
 
 class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
-  RealtimeChannel? _channel;
-  StreamSubscription<RealtimeDomainEvent>? _nestSubscription;
-  bool _nestPostSubscribed = false;
+  StreamSubscription<RealtimeDomainEvent>? _realtimeSubscription;
+  bool _postSubscribed = false;
   // ARC-003: gate the appeal RPC against double-submit. The bottom
   // sheet's send button can be tapped twice in quick succession on a
   // slow connection, which used to fire two RPCs (the second of which
@@ -49,63 +46,40 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
   @override
   void initState() {
     super.initState();
-    if (BackendConfig.usesNest) {
-      final realtime = MobileNestBackend.repositories.realtime;
-      _nestSubscription = realtime.events.where((event) {
-        return event.data['submissionId'] == submissionId &&
-            event.type.startsWith('submission.');
-      }).listen((event) {
-        final status = switch (event.type) {
-          'submission.approved' => SubmissionStatus.approved,
-          'submission.rejected' => SubmissionStatus.rejected,
-          _ => null,
-        };
-        _handleStatusUpdate(status);
-      });
-      unawaited(() async {
-        try {
-          await realtime.connect();
-          realtime.subscribeToPost(submissionId);
-          _nestPostSubscribed = true;
-        } catch (error) {
-          AppLogger.warning('[SubmissionStatus] Realtime failed: $error');
-        }
-      }());
-      return;
-    }
-    _channel = Supabase.instance.client
-        .channel('submission_$submissionId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: Tables.submissions,
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: SubmissionColumns.id,
-            value: submissionId,
-          ),
-          callback: (payload) {
-            final newStatus =
-                payload.newRecord[SubmissionColumns.status] as String?;
-            _handleStatusUpdate(newStatus);
-          },
-        )
-        .subscribe();
+    final realtime = AppBackend.repositories.realtime;
+    _realtimeSubscription = realtime.events.where((event) {
+      return event.data['submissionId'] == submissionId &&
+          event.type.startsWith('submission.');
+    }).listen((event) {
+      final status = switch (event.type) {
+        'submission.approved' => SubmissionStatus.approved,
+        'submission.rejected' => SubmissionStatus.rejected,
+        _ => null,
+      };
+      _handleStatusUpdate(status);
+    });
+    unawaited(() async {
+      try {
+        await realtime.connect();
+        realtime.subscribeToPost(submissionId);
+        _postSubscribed = true;
+      } catch (error) {
+        AppLogger.warning('[SubmissionStatus] Realtime failed: $error');
+      }
+    }());
   }
 
   @override
   void dispose() {
-    if (_nestPostSubscribed) {
+    if (_postSubscribed) {
       try {
-        MobileNestBackend.repositories.realtime
-            .unsubscribeFromPost(submissionId);
+        AppBackend.repositories.realtime.unsubscribeFromPost(submissionId);
       } on Object {
         // The shared socket may already be reconnecting or signed out.
       }
     }
-    final subscription = _nestSubscription;
+    final subscription = _realtimeSubscription;
     if (subscription != null) unawaited(subscription.cancel());
-    _channel?.unsubscribe();
     super.dispose();
   }
 
@@ -657,15 +631,8 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
     _appealing = true;
 
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.submissions
-            .appealSubmission(submissionId, appealText);
-      } else {
-        await Supabase.instance.client.rpc(RpcNames.appealSubmission, params: {
-          AppealSubmissionParams.submissionId: submissionId,
-          AppealSubmissionParams.appealNote: appealText,
-        });
-      }
+      await AppBackend.repositories.submissions
+          .appealSubmission(submissionId, appealText);
       // Refresh all related providers so UI updates immediately. Includes
       // activeQuestProvider so the home screen flips the appealed quest
       // back into IN REVIEW without a manual refresh.

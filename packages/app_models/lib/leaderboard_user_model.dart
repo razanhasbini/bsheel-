@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class LeaderboardUserModel {
   final int rank;
   final String userId;
@@ -23,14 +25,17 @@ class LeaderboardUserModel {
 
   factory LeaderboardUserModel.fromJson(Map<String, dynamic> json) {
     return LeaderboardUserModel(
-      rank: _toInt(json[LeaderboardRpcColumns.rank]),
+      rank: coerceInt(json[LeaderboardRpcColumns.rank]),
       userId: (json[LeaderboardRpcColumns.userId] ?? '').toString(),
       username: (json[ProfileColumns.username] ?? '').toString(),
       displayName: (json[ProfileColumns.displayName] ?? '').toString(),
       avatarUrl: json[ProfileColumns.avatarUrl] as String?,
-      xp: _toInt(json[ProfileColumns.xp]),
-      level: _toInt(json[ProfileColumns.level]),
-      questsCompleted: _toInt(json[ProfileColumns.questsCompleted]),
+      xp: coerceInt(json[ProfileColumns.xp]),
+      // Same default as ProfileModel — see [defaultLevel]. This used to
+      // fall back to 0, so a NULL level read "LVL 0" here and "LVL 1" on
+      // the same user's profile.
+      level: coerceInt(json[ProfileColumns.level], defaultValue: defaultLevel),
+      questsCompleted: coerceInt(json[ProfileColumns.questsCompleted]),
     );
   }
 
@@ -47,9 +52,29 @@ class LeaderboardUserModel {
     };
   }
 
-  static int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is LeaderboardUserModel &&
+        other.rank == rank &&
+        other.userId == userId &&
+        other.username == username &&
+        other.displayName == displayName &&
+        other.avatarUrl == avatarUrl &&
+        other.xp == xp &&
+        other.level == level &&
+        other.questsCompleted == questsCompleted;
   }
+
+  @override
+  int get hashCode => Object.hash(
+        rank,
+        userId,
+        username,
+        displayName,
+        avatarUrl,
+        xp,
+        level,
+        questsCompleted,
+      );
 }

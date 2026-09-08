@@ -10,7 +10,9 @@ abstract final class AdminTheme {
     final inputBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(BsheelRadii.md),
       borderSide: const BorderSide(
-          color: BsheelColors.line, width: BsheelBorders.thin,),
+        color: BsheelColors.line,
+        width: BsheelBorders.thin,
+      ),
     );
 
     return ThemeData(
@@ -63,7 +65,9 @@ abstract final class AdminTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.lg),
           side: const BorderSide(
-              color: BsheelColors.line, width: BsheelBorders.thin,),
+            color: BsheelColors.line,
+            width: BsheelBorders.thin,
+          ),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -99,7 +103,9 @@ abstract final class AdminTheme {
             borderRadius: BorderRadius.circular(BsheelRadii.full),
           ),
           side: const BorderSide(
-              color: BsheelColors.ink, width: BsheelBorders.thin,),
+            color: BsheelColors.ink,
+            width: BsheelBorders.thin,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -151,7 +157,9 @@ abstract final class AdminTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.xl),
           side: const BorderSide(
-              color: BsheelColors.line, width: BsheelBorders.thin,),
+            color: BsheelColors.line,
+            width: BsheelBorders.thin,
+          ),
         ),
         titleTextStyle: BsheelType.displaySm,
         contentTextStyle: BsheelType.bodyMd,
@@ -174,7 +182,9 @@ abstract final class AdminTheme {
         selectedColor: BsheelColors.ink,
         labelStyle: BsheelType.labelMd,
         side: const BorderSide(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.full),
         ),

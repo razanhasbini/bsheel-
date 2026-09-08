@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 import 'package:app_core/app_core.dart';
 
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/services/analytics_service.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 
 /// Bottom sheet for the "..." menu on a Reels card. Surfaces SHARE and
 /// REPORT, plus a CANCEL row. Tapping outside dismisses without action.
@@ -63,19 +60,11 @@ class _PostActionsSheet extends StatelessWidget {
     final reason = await _askReportReason(context);
     if (reason == null || reason.isEmpty) return;
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.account.reportContent(
-          type: 'submission',
-          id: postId,
-          reason: reason,
-        );
-      } else {
-        await Supabase.instance.client.rpc(RpcNames.reportContent, params: {
-          'p_reported_type': 'submission',
-          'p_reported_id': postId,
-          'p_reason': reason,
-        });
-      }
+      await AppBackend.repositories.account.reportContent(
+        type: 'submission',
+        id: postId,
+        reason: reason,
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report submitted. Thank you.')),

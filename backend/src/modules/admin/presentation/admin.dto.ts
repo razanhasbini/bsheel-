@@ -47,6 +47,16 @@ export class SetUserXpDto {
   @IsString() @Length(3, 500) reason!: string;
 }
 
+export class UpdateUserProfileDto {
+  @IsOptional() @IsString() @Matches(/^[a-z0-9_]{3,30}$/i) username?: string;
+  @IsOptional() @IsString() @Length(1, 50) displayName?: string;
+  @IsOptional() @IsString() @MaxLength(300) bio?: string;
+  @IsOptional() @IsInt() @Min(0) xp?: number;
+  @IsOptional() @IsInt() @Min(1) level?: number;
+  @IsOptional() @IsInt() @Min(0) questsCompleted?: number;
+  @IsString() @Length(3, 500) reason!: string;
+}
+
 export class ReviewReportDto {
   @IsIn(['reviewed', 'dismissed', 'actioned']) status!: 'reviewed' | 'dismissed' | 'actioned';
   @IsOptional() @IsString() @MaxLength(2000) adminNote?: string;

@@ -7,14 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 
 import '../../../../core/providers/auth_session_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../data/quest_providers.dart';
@@ -426,26 +424,14 @@ void resetQotdCache() {
 
 final questOfTheDayProvider = FutureProvider<QuestOfTheDayModel?>((ref) async {
   try {
-    if (BackendConfig.usesNest) {
-      final row = await MobileNestBackend.repositories.quests
-          .getQuestOfTheDay()
-          .timeout(const Duration(seconds: 6));
-      if (row == null) {
-        _lastGoodQotd = null;
-        return null;
-      }
-      final fresh = QuestOfTheDayModel.fromRow(row);
-      _lastGoodQotd = fresh;
-      return fresh;
-    }
-    final res = await Supabase.instance.client
-        .rpc(RpcNames.getQuestOfTheDay)
+    final row = await AppBackend.repositories.quests
+        .getQuestOfTheDay()
         .timeout(const Duration(seconds: 6));
-    if (res is! List || res.isEmpty) {
+    if (row == null) {
       _lastGoodQotd = null;
       return null;
     }
-    final fresh = QuestOfTheDayModel.fromRow(res.first as Map<String, dynamic>);
+    final fresh = QuestOfTheDayModel.fromRow(row);
     _lastGoodQotd = fresh;
     return fresh;
   } catch (e, st) {
@@ -462,19 +448,10 @@ final activeQuestPeersProvider =
   // returns rows scoped to the current user's follow graph.
   ref.watch(authSessionProvider);
   try {
-    if (BackendConfig.usesNest) {
-      final rows = await MobileNestBackend.repositories.quests
-          .getFollowingActiveQuests(limit: 12)
-          .timeout(const Duration(seconds: 6));
-      return rows.map(ActiveQuestPeer.fromRow).toList(growable: false);
-    }
-    final res = await Supabase.instance.client.rpc(
-        RpcNames.getFollowingActiveQuests,
-        params: {'p_limit': 12}).timeout(const Duration(seconds: 6));
-    if (res is! List) return const [];
-    return res
-        .map((r) => ActiveQuestPeer.fromRow(r as Map<String, dynamic>))
-        .toList();
+    final rows = await AppBackend.repositories.quests
+        .getFollowingActiveQuests(limit: 12)
+        .timeout(const Duration(seconds: 6));
+    return rows.map(ActiveQuestPeer.fromRow).toList(growable: false);
   } catch (_) {
     // Migration not deployed yet, or transient network blip — show nothing
     // rather than spamming error UI on the home page. The completed-feed

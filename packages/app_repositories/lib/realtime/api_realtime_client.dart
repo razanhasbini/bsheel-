@@ -63,7 +63,7 @@ class RealtimeException implements Exception {
 
 /// Authenticated Socket.IO client for the Nest realtime gateway.
 ///
-/// One instance is owned by [NestRepositoryBundle]. It uses websocket-only
+/// One instance is owned by [ApiRepositoryBundle]. It uses websocket-only
 /// transport on Flutter, bounded exponential reconnection, a single explicit
 /// refresh-token retry after an auth rejection, and typed domain events.
 class ApiRealtimeClient {

@@ -25,7 +25,8 @@ class SecureApiTokenStore implements ApiTokenStore {
     if (encoded == null || encoded.isEmpty) return null;
     try {
       final value = jsonDecode(encoded);
-      if (value is! Map) throw const FormatException('Token value is not an object');
+      if (value is! Map)
+        throw const FormatException('Token value is not an object');
       return ApiTokenPair.fromJson(Map<String, dynamic>.from(value));
     } on FormatException {
       await clear();

@@ -1,57 +1,155 @@
-# Deployment Policy — Bit Sheel?
+# Deployment
 
-**One rule: you deploy by pushing to `main`. Nobody edits the server by hand.**
+## What ships, and how
 
-The backend is self-hosted on our Contabo box (`api.bsheel.app`). All server-side
-changes are shipped automatically by GitHub Actions
-([`.github/workflows/deploy-server.yml`](../.github/workflows/deploy-server.yml)) when
-`main` changes. Manually SSHing in to rsync files, run migrations, rebuild the admin
-dashboard, or `caddy reload` is **not allowed** — it drifts the server out of sync with
-git, skips migration tracking, and has broken admin login before.
+There are three separate deliverables with three different paths:
 
-## How to deploy
+| Deliverable | Path | Automated? |
+|---|---|---|
+| API + worker (`backend/`) | container image → your host | **not yet wired** |
+| Admin dashboard (`apps/admin_web`) | Flutter web build → static hosting | **not yet wired** |
+| Mobile app | App Store / Play Store via `scripts/ios_release.sh` | manual, see `PUBLISHING.md` |
 
-1. Branch off `main`, make your change, open a **Pull Request**.
-2. CI runs automatically on the PR: `analyze`, `test`, and `dart format` must pass.
-3. Get it reviewed and **merge to `main`**.
-4. The **Deploy to server** workflow fires on the merge and does everything below.
-   Watch it under the repo's **Actions** tab; the run is green when it's live.
+> **Status, stated plainly.** This repository has a complete, working local
+> container topology and no production deployment pipeline. The previous
+> `deploy-server.yml` workflow was removed: it rsynced the *legacy Supabase*
+> edge functions and SQL to a shared production host, which no longer matches
+> what the applications talk to, and firing it from this repository would have
+> pushed obsolete code at a live box running five unrelated services.
+>
+> Wiring a real pipeline needs decisions only the owner can make — where the
+> API runs, where secrets come from, and what the rollback story is. The
+> sections below give the shape and the constraints.
 
-That's it. No terminal, no SSH, no manual build.
+## Local / staging stack
 
-## What a push to `main` deploys automatically
+```bash
+cp backend/.env.example backend/.env    # then replace every development secret
+docker compose up --build
+# API:     http://localhost:8080/api/v1
+# OpenAPI: http://localhost:8080/docs
+```
 
-| Part | Where it lands |
-|------|----------------|
-| Edge functions (`supabase/functions/`) | rsynced to the server's functions runtime |
-| New DB migrations (`supabase/migrations/*.sql`) | applied to Postgres, tracked by filename (idempotent — safe to re-run) |
-| Admin dashboard (`apps/admin_web`) | rebuilt as Flutter web, served at https://admin.bsheel.app |
+`docker-compose.yml` brings up six services:
 
-## What is NOT deployed by this (important)
+| Service | Role |
+|---|---|
+| `postgres` | PostgreSQL 17, published on `127.0.0.1:54329` |
+| `redis` | Redis 7.4, append-only, `noeviction`, on `127.0.0.1:63799` |
+| `migrate` | one-shot migration runner; the API waits for it to complete successfully |
+| `api` | stateless NestJS API |
+| `worker` | BullMQ worker from the same image, scaled separately |
+| `proxy` | nginx on `:8080` — rate limiting, WebSocket upgrade, request IDs |
 
-- **The mobile app.** The iOS/Android binary ships through the App Store / Play Store,
-  built with `flutter build ipa` (see `CLAUDE.md`). Pushing to `main` does **not** put a
-  new app in users' hands — that's a separate store release.
+**This compose file is for local use only.** `api` and `worker` read
+`backend/.env.example`, so they boot with placeholder secrets. Production must
+supply real values from the deployment platform's secret store — never from a
+committed env file. The environment schema rejects placeholder secrets when
+`NODE_ENV=production`.
+
+Scale the worker independently:
+
+```bash
+docker compose up -d --scale worker=3
+```
+
+## What a production deployment must satisfy
+
+These follow from how the backend is built, so treat them as requirements
+rather than suggestions.
+
+**Migrations run before new code.** The `migrate` service is a one-shot job and
+the API depends on `service_completed_successfully`. Any orchestrator must
+preserve that ordering. Migrations are forward-only, checksummed and immutable
+once applied — `backend/scripts/migrate.mjs` refuses to run a modified applied
+migration.
+
+**Schema changes must be backward compatible across one deploy window.**
+During a rolling release both old and new code run against the same schema. Add
+a column, deploy, backfill, then remove the old path in a later release. Never
+in one step.
+
+**API replicas are stateless.** Sessions are JWTs; realtime fanout goes through
+Redis pub/sub. That is what makes horizontal scaling safe — do not introduce
+in-process state that a second replica would not see.
+
+**Pool size multiplies per replica.** `DATABASE_POOL_MAX` defaults to 20, so
+five replicas plus workers can demand 120+ connections. Size it against
+PostgreSQL's `max_connections`, or put a pooler in front. See
+`backend/PERFORMANCE.md`.
+
+**Readiness gates traffic; liveness does not.** `/api/v1/health/ready` checks
+PostgreSQL and Redis and should gate load-balancer membership.
+`/api/v1/health/live` only reports process health — never gate on it, or a
+database blip will restart every container at once.
+
+**Graceful shutdown is already wired** (`enableShutdownHooks`, 30s
+`stop_grace_period`). Give the proxy time to drain before SIGKILL.
+
+**Secrets required at runtime**, all rejected as placeholders in production:
+`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `DEVICE_TOKEN_ENCRYPTION_KEY`,
+`AUTH_ACTION_TOKEN_ENCRYPTION_KEY`, plus provider credentials for whatever is
+enabled (`FIREBASE_SERVICE_ACCOUNT`, R2 keys, `EMAIL_DELIVERY_WEBHOOK_*`,
+`TELEGRAM_*`). Each of the four crypto secrets must be independent — reusing
+one across two purposes means one leak compromises both.
+
+**Integrations fail silently when unconfigured — check them explicitly.**
+`TELEGRAM_ENABLED`, `PUSH_NOTIFICATIONS_ENABLED` and the email delivery webhook
+each default to off, and the environment schema treats an empty value as
+"absent". That is the right default, but it means a half-configured
+environment looks healthy while doing nothing. This exact failure mode once
+cost the legacy system 165 submissions that never reached the moderation
+channel, and five password resets that sent no email, with nothing alerting.
+After any environment bring-up, assert delivery end to end rather than assuming
+it: send one test notification, one test email, and one Telegram message.
+
+**Feature flags fail closed.** `app_config` rows seeded by migration `0014`
+drive the social-login kill switch, maintenance mode and the force-update gate.
+An absent row reads as "off" in the client, which is the safe direction for a
+kill switch. Confirm the rows exist after any fresh database bring-up.
+
+## Admin dashboard
+
+A static Flutter web bundle:
+
+```bash
+cd apps/admin_web
+flutter build web --dart-define=API_URL=https://api.bsheel.app/api/v1
+# → build/web
+```
+
+It is a public bundle, so it must not carry secrets — the API enforces
+authorisation, and admin routes assert a role. Put an outer access control
+layer (basic auth or SSO) in front of it anyway; it is an admin surface and
+defence in depth is cheap here.
+
+Serve `/.well-known/assetlinks.json` and
+`/.well-known/apple-app-site-association` from the same origin if deep links
+are in use — see `docs/deep_links/README.md`.
+
+## Mobile app
+
+Not deployed by any backend pipeline. It ships through the App Store and Play
+Store. See [`PUBLISHING.md`](PUBLISHING.md).
+
+A release build compiles `apps/mobile_app/dart_defines.release.json`, which
+carries `API_URL`. A build made without it signs and installs perfectly and
+cannot reach the API, which is why `scripts/ios_release.sh` refuses to run when
+the file is missing.
+
+**Client builds pin the API URL at compile time.** Moving the API to a new
+hostname therefore requires an app release, so put the API behind a stable
+hostname you control from the start.
 
 ## Rules that keep deploys safe
 
-- **Never deploy by hand on the server.** No manual `rsync`, `scp`, `docker` file copies,
-  or migration runs. Push to `main` and let CI do it.
-- **New migration = next number at the TOP LEVEL** of `supabase/migrations/`
-  (e.g. `0148_...`). **Never** rename, renumber, re-apply, or edit anything in
-  `supabase/migrations/applied/` — that's frozen, already-applied history.
-- **Never run `caddy reload`** on the server. Its Basic-Auth password is hashed once at
-  container start; a reload breaks admin login (HTTP 401). Caddyfile changes require a full
-  `docker compose restart caddy`.
-- **Secrets never go in git.** Server/CI secrets live in GitHub → Settings → Secrets and
-  in the server's `.env`. Client build values are the client-safe `--dart-define`s only.
-
-## Need to re-run a deploy without a new commit?
-
-Use the manual trigger — still no server edits:
-**Actions → "Deploy to server" → Run workflow** (`workflow_dispatch`).
-
-## Who can push / merge to `main`
-
-If you want stronger enforcement than convention, turn on a branch protection rule on
-`main` (require PR + passing CI before merge) so a hand-deploy simply isn't possible.
+- **Never edit a server by hand.** A manual change drifts the host away from
+  git and skips migration tracking. Whatever pipeline you build, make it the
+  only path.
+- **Never edit an applied migration.** Add the next number.
+- **Use a disposable database for tests.** Never point a test suite at
+  production; the integration suite creates and deletes real rows.
+- **Verify a fresh bring-up replays cleanly** (`npm run db:migrate` from empty,
+  then `npm run db:migrate:check`) before trusting a new environment.
+- **Test backup restoration before you need it.** An untested backup is a
+  hypothesis.

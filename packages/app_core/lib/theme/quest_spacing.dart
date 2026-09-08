@@ -13,9 +13,9 @@ abstract final class QuestSpacing {
 
   // Border radii
   static const double radiusSm = 10.0;
-  static const double radiusMd = 14.0;   // small tiles, cards, inputs
-  static const double radiusLg = 18.0;   // quest option cards
-  static const double radiusXl = 22.0;   // hero cards
+  static const double radiusMd = 14.0; // small tiles, cards, inputs
+  static const double radiusLg = 18.0; // quest option cards
+  static const double radiusXl = 22.0; // hero cards
   static const double radiusFull = 999.0;
 
   // Screen padding

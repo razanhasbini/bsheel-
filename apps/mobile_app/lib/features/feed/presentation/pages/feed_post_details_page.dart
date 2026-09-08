@@ -1,4 +1,3 @@
-import 'dart:async' show unawaited;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
@@ -14,14 +13,11 @@ import 'package:app_models/app_models.dart'
     show CollabFeedMember, CommentModel, FeedPostModel;
 import 'package:shared_ui/shared_ui.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/router/route_names.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/services/analytics_service.dart';
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../providers/feed_provider.dart';
@@ -32,7 +28,6 @@ import '../../../submissions/data/submission_providers.dart';
 import '../../../leaderboard/presentation/providers/leaderboard_provider.dart';
 import '../widgets/collab_vote_button.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
-import '../../../comments/application/comment_notifications.dart';
 import '../../../comments/application/mention_controller.dart';
 import '../../../comments/presentation/widgets/comments_section.dart';
 import '../../../comments/presentation/widgets/mention_picker.dart';
@@ -109,38 +104,6 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
       // re-renders with the new row before the input bar reactivates.
       ref.invalidate(commentsProvider(widget.postId));
       await ref.read(commentsProvider(widget.postId).future);
-      if (!BackendConfig.usesNest) {
-        final client = ref.read(supabaseClientProvider);
-        final commenterProfile = ref.read(currentProfileProvider).valueOrNull;
-        final mentioned = await resolveMentionedUsers(
-          client,
-          body,
-          selectedMentions: _mention.selectedMentions,
-        );
-        unawaited(
-          sendCommentThreadNotifications(
-            client: client,
-            submissionId: widget.postId,
-            body: body,
-            commenterProfile: commenterProfile,
-            excludedUserIds: mentioned.keys.toSet(),
-            logContext: 'PostDetails',
-          ),
-        );
-        unawaited(
-          sendMentionNotifications(
-            client: client,
-            submissionId: widget.postId,
-            body: body,
-            commenterProfile: commenterProfile,
-            mentioned: mentioned,
-            post: ref.read(feedPostDetailsProvider(widget.postId)).valueOrNull,
-            // This surface's legacy copy truncated with a three-dot
-            // ellipsis (the sheet uses `…`) — kept as-is.
-            ellipsis: '...',
-          ),
-        );
-      }
     } catch (e) {
       AppLogger.error('[PostDetails] Failed to post comment', e);
       if (mounted) {
@@ -346,19 +309,11 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
     ).whenComplete(controller.dispose);
     if (reason == null || reason.isEmpty || !ctx.mounted) return;
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.account.reportContent(
-          type: type,
-          id: id,
-          reason: reason,
-        );
-      } else {
-        await Supabase.instance.client.rpc(RpcNames.reportContent, params: {
-          'p_reported_type': type,
-          'p_reported_id': id,
-          'p_reason': reason,
-        });
-      }
+      await AppBackend.repositories.account.reportContent(
+        type: type,
+        id: id,
+        reason: reason,
+      );
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx)
           ..clearSnackBars()
@@ -413,13 +368,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
     );
     if (confirmed != true || !ctx.mounted) return;
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.account.blockUser(userId);
-      } else {
-        await Supabase.instance.client.rpc(RpcNames.blockUser, params: {
-          'p_blocked_id': userId,
-        });
-      }
+      await AppBackend.repositories.account.blockUser(userId);
       ref.invalidate(feedProvider);
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx)

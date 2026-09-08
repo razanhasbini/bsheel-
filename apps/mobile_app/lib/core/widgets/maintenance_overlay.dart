@@ -57,16 +57,32 @@ class _MaintenancePanel extends StatelessWidget {
           // screen should feel calm, not busy).
           Center(
             child: SizedBox(
-              width: 600, height: 600,
+              width: 600,
+              height: 600,
               child: CustomPaint(painter: _RaysPainter()),
             ),
           ),
           // A handful of floating shapes for visual rhythm.
-          const _Shape(left: 32, top: 110, size: 38, color: _coral, radius: 10, rot: -18),
-          const _Shape(right: 38, top: 150, size: 28, color: _gold, radius: 999),
-          const _Shape(right: 26, top: 260, size: 24, color: _green, radius: 6, rot: 22),
-          const _Shape(left: 28, bottom: 210, size: 32, color: _sky, radius: 10, rot: -12),
-          const _Shape(right: 46, bottom: 280, size: 20, color: _violet, radius: 999),
+          const _Shape(
+              left: 32,
+              top: 110,
+              size: 38,
+              color: _coral,
+              radius: 10,
+              rot: -18),
+          const _Shape(
+              right: 38, top: 150, size: 28, color: _gold, radius: 999),
+          const _Shape(
+              right: 26, top: 260, size: 24, color: _green, radius: 6, rot: 22),
+          const _Shape(
+              left: 28,
+              bottom: 210,
+              size: 32,
+              color: _sky,
+              radius: 10,
+              rot: -12),
+          const _Shape(
+              right: 46, bottom: 280, size: 20, color: _violet, radius: 999),
 
           SafeArea(
             child: Center(
@@ -78,7 +94,8 @@ class _MaintenancePanel extends StatelessWidget {
                     // Big chunky icon tile in coral so it reads as
                     // "deliberate state", not "error".
                     Container(
-                      width: 108, height: 108,
+                      width: 108,
+                      height: 108,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: _coral,
@@ -125,7 +142,8 @@ class _MaintenancePanel extends StatelessWidget {
                     // Decorative ribbon / stamp — purely aesthetic.
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8,
+                        horizontal: 14,
+                        vertical: 8,
                       ),
                       decoration: BoxDecoration(
                         color: _gold,
@@ -154,7 +172,9 @@ class _MaintenancePanel extends StatelessWidget {
 
           // Bottom stamp matching splash treatment.
           Positioned(
-            bottom: 22, left: 0, right: 0,
+            bottom: 22,
+            left: 0,
+            right: 0,
             child: Center(
               child: Text(
                 'BSHEEEL · ARCADE QUESTS',

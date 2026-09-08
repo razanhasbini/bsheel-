@@ -103,6 +103,11 @@ class ApiQuestsRepository implements QuestsRepository {
   }
 
   @override
+
+  /// Assigns a quest to the signed-in user. The API derives the user from
+  /// the access token, so [userId] is accepted only to satisfy the existing
+  /// contract and must be the caller. Admins assigning to somebody else use
+  /// [assignQuestToUser].
   Future<UserQuestModel> assignSpecificQuest(
     String userId,
     String questId,
@@ -112,6 +117,23 @@ class ApiQuestsRepository implements QuestsRepository {
           await _client.post(
             'quests/assign',
             body: {'questId': questId},
+          ),
+        ),
+      );
+
+  /// Admin override: assigns an existing quest to [userId], expiring
+  /// whatever that user currently has in flight. One audited transaction
+  /// on the API — the previous client version expired the active quest in a
+  /// separate call, so a failure between the two left the user with nothing.
+  Future<UserQuestModel> assignQuestToUser(
+    String userId,
+    String questId,
+  ) async =>
+      UserQuestModel.fromJson(
+        apiObject(
+          await _client.post(
+            'quests/admin/assign',
+            body: {'userId': userId, 'questId': questId},
           ),
         ),
       );

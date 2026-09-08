@@ -1,3 +1,5 @@
+import 'src/json_coercions.dart';
+
 /// Composite of a `saved_posts` row joined with submission + quest info.
 /// Returned by the `get_user_saved_posts` RPC so the BSHEEEL list can
 /// render in one round-trip without an N+1 detail fetch.
@@ -41,7 +43,7 @@ class SavedPostWithQuest {
   factory SavedPostWithQuest.fromRpc(Map<String, dynamic> json) {
     return SavedPostWithQuest(
       savedId: (json['saved_id'] ?? '').toString(),
-      savedAt: DateTime.parse(json['saved_at'] as String),
+      savedAt: coerceTimestamp(json['saved_at']),
       submissionId: (json['submission_id'] ?? '').toString(),
       mediaUrl: (json['media_url'] ?? '').toString(),
       mediaType: (json['media_type'] ?? 'image').toString(),
@@ -51,7 +53,7 @@ class SavedPostWithQuest {
       questTitle: (json['quest_title'] ?? '').toString(),
       questDescription: (json['quest_description'] ?? '').toString(),
       questCategory: (json['quest_category'] ?? '').toString(),
-      xpReward: _toInt(json['xp_reward']),
+      xpReward: coerceInt(json['xp_reward']),
       authorId: (json['author_id'] ?? '').toString(),
       authorUsername: (json['author_username'] ?? '').toString(),
       authorDisplayName: (json['author_display_name'] ?? '').toString(),
@@ -59,9 +61,45 @@ class SavedPostWithQuest {
     );
   }
 
-  static int _toInt(dynamic v) {
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    return int.tryParse(v?.toString() ?? '') ?? 0;
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is SavedPostWithQuest &&
+        other.savedId == savedId &&
+        other.savedAt == savedAt &&
+        other.submissionId == submissionId &&
+        other.mediaUrl == mediaUrl &&
+        other.mediaType == mediaType &&
+        other.visibility == visibility &&
+        other.status == status &&
+        other.questId == questId &&
+        other.questTitle == questTitle &&
+        other.questDescription == questDescription &&
+        other.questCategory == questCategory &&
+        other.xpReward == xpReward &&
+        other.authorId == authorId &&
+        other.authorUsername == authorUsername &&
+        other.authorDisplayName == authorDisplayName &&
+        other.authorAvatarUrl == authorAvatarUrl;
   }
+
+  @override
+  int get hashCode => Object.hash(
+        savedId,
+        savedAt,
+        submissionId,
+        mediaUrl,
+        mediaType,
+        visibility,
+        status,
+        questId,
+        questTitle,
+        questDescription,
+        questCategory,
+        xpReward,
+        authorId,
+        authorUsername,
+        authorDisplayName,
+        authorAvatarUrl,
+      );
 }

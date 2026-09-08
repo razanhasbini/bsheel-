@@ -7,7 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('AdminRoleEnum.fromDbString', () {
     test("'super_admin' maps to AdminRoleEnum.superAdmin", () {
-      expect(AdminRoleEnum.fromDbString('super_admin'), AdminRoleEnum.superAdmin);
+      expect(
+          AdminRoleEnum.fromDbString('super_admin'), AdminRoleEnum.superAdmin);
     });
 
     test("'moderator' maps to AdminRoleEnum.moderator", () {

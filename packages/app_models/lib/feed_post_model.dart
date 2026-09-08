@@ -1,6 +1,8 @@
-import 'dart:convert';
 import 'package:supabase_contracts/supabase_contracts.dart';
+
 import 'collab_feed_member.dart';
+import 'src/json_coercions.dart';
+import 'src/value_equality.dart';
 
 /// Represents an enriched feed post from the get_feed RPC or a detail join query.
 /// Combines submission data with profile info and quest info.
@@ -60,7 +62,7 @@ class FeedPostModel {
     this.netScore = 0,
     this.hotScore = 0.0,
     this.showInFeed = true,
-    this.visibility = 'visible',
+    this.visibility = SubmissionVisibility.visible,
     this.isCollab = false,
     this.collabGroupId,
     this.collabMode,
@@ -87,7 +89,7 @@ class FeedPostModel {
       mediaType:
           (json[SubmissionColumns.mediaType] as String?) ?? MediaType.image,
       caption: json[SubmissionColumns.caption] as String?,
-      submittedAt: _toDateTime(json[SubmissionColumns.submittedAt]),
+      submittedAt: coerceTimestamp(json[SubmissionColumns.submittedAt]),
       userId: (json[FeedRpcColumns.userId] ?? '').toString(),
       username: (json[ProfileColumns.username] ?? '').toString(),
       displayName: (json[ProfileColumns.displayName] ?? '').toString(),
@@ -95,33 +97,31 @@ class FeedPostModel {
       bio: json[ProfileColumns.bio] as String?,
       questId: (json[FeedRpcColumns.questId] ?? '').toString(),
       questTitle: (json[FeedRpcColumns.questTitle] ?? '').toString(),
-      questDescription: (json[FeedRpcColumns.questDescription] ?? '').toString(),
+      questDescription:
+          (json[FeedRpcColumns.questDescription] ?? '').toString(),
       questCategory: (json[FeedRpcColumns.questCategory] ?? '').toString(),
-      xpReward: _toInt(json[FeedRpcColumns.xpReward]),
-      upvoteCount: _toInt(json[FeedRpcColumns.upvoteCount]),
-      downvoteCount: _toInt(json[FeedRpcColumns.downvoteCount]),
-      netScore: _toInt(json[FeedRpcColumns.netScore]),
-      hotScore: _toDouble(json[FeedRpcColumns.hotScore]),
-      isCollab: json[CollabFeedRpcColumns.isCollab] as bool? ?? false,
+      xpReward: coerceInt(json[FeedRpcColumns.xpReward]),
+      upvoteCount: coerceInt(json[FeedRpcColumns.upvoteCount]),
+      downvoteCount: coerceInt(json[FeedRpcColumns.downvoteCount]),
+      netScore: coerceInt(json[FeedRpcColumns.netScore]),
+      hotScore: coerceDouble(json[FeedRpcColumns.hotScore]),
+      isCollab: coerceBool(
+        json[CollabFeedRpcColumns.isCollab],
+        ifMissing: false,
+      ),
       collabGroupId: json[CollabFeedRpcColumns.collabGroupId] as String?,
       collabMode: json[CollabFeedRpcColumns.collabMode] as String?,
-      collabMemberCount: _toInt(json[CollabFeedRpcColumns.collabMemberCount]),
+      collabMemberCount:
+          coerceInt(json[CollabFeedRpcColumns.collabMemberCount]),
       collabMembers: members,
-      expiresAt: _toNullableDateTime(json['expires_at']),
+      expiresAt: coerceNullableTimestamp(json['expires_at']),
     );
   }
 
   /// Returns all media URLs. Handles both a single URL string and a
-  /// JSON-encoded array (used when multiple files are uploaded).
-  List<String> get mediaUrls {
-    final trimmed = mediaUrl.trim();
-    if (trimmed.startsWith('[')) {
-      try {
-        return List<String>.from(jsonDecode(trimmed) as List);
-      } catch (_) {}
-    }
-    return [mediaUrl];
-  }
+  /// JSON-encoded array (used when multiple files are uploaded). An empty
+  /// `media_url` yields `[]`, not `['']`.
+  List<String> get mediaUrls => decodeMediaUrls(mediaUrl);
 
   FeedPostModel copyWith({
     String? mediaUrl,
@@ -158,29 +158,80 @@ class FeedPostModel {
       collabMode: collabMode,
       collabMemberCount: collabMemberCount,
       collabMembers: collabMembers ?? this.collabMembers,
+      // `expiresAt` is not a copyWith parameter on purpose — nothing varies
+      // it — but it MUST be forwarded. Omitting it reset the field to null on
+      // every optimistic vote, which broke the collab
+      // "WAITING FOR" -> "DIDN'T POST" flip that reads it.
+      expiresAt: expiresAt,
     );
   }
 
-  static double _toDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  /// Value equality despite the [collabMembers] list: the list is bounded by
+  /// the collab party size (`max_members`, at most a handful) and members
+  /// are themselves cheap value objects, so the comparison stays O(1)-ish.
+  /// This is the class where equality pays off most — the feed re-fetches
+  /// the same rows constantly and identity equality rebuilt every tile.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FeedPostModel &&
+        other.id == id &&
+        other.mediaUrl == mediaUrl &&
+        other.mediaType == mediaType &&
+        other.caption == caption &&
+        other.submittedAt == submittedAt &&
+        other.userId == userId &&
+        other.username == username &&
+        other.displayName == displayName &&
+        other.avatarUrl == avatarUrl &&
+        other.bio == bio &&
+        other.questId == questId &&
+        other.questTitle == questTitle &&
+        other.questDescription == questDescription &&
+        other.questCategory == questCategory &&
+        other.xpReward == xpReward &&
+        other.upvoteCount == upvoteCount &&
+        other.downvoteCount == downvoteCount &&
+        other.netScore == netScore &&
+        other.hotScore == hotScore &&
+        other.showInFeed == showInFeed &&
+        other.visibility == visibility &&
+        other.isCollab == isCollab &&
+        other.collabGroupId == collabGroupId &&
+        other.collabMode == collabMode &&
+        other.collabMemberCount == collabMemberCount &&
+        other.expiresAt == expiresAt &&
+        listEquals(other.collabMembers, collabMembers);
   }
 
-  static int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
-  }
-
-  static DateTime? _toNullableDateTime(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    return DateTime.tryParse(value.toString());
-  }
+  @override
+  int get hashCode => Object.hashAll([
+        id,
+        mediaUrl,
+        mediaType,
+        caption,
+        submittedAt,
+        userId,
+        username,
+        displayName,
+        avatarUrl,
+        bio,
+        questId,
+        questTitle,
+        questDescription,
+        questCategory,
+        xpReward,
+        upvoteCount,
+        downvoteCount,
+        netScore,
+        hotScore,
+        showInFeed,
+        visibility,
+        isCollab,
+        collabGroupId,
+        collabMode,
+        collabMemberCount,
+        expiresAt,
+        ...collabMembers,
+      ]);
 }

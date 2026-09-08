@@ -44,6 +44,17 @@ export class ProfilesRepository {
     return result.rows[0] ?? null;
   }
 
+  /// Exact, case-insensitive username lookup. `username` is citext and
+  /// UNIQUE, so this resolves at most one row — unlike search, which is
+  /// fuzzy and must never decide where an @mention navigates.
+  async findPublicByUsername(username: string): Promise<PublicProfileRecord | null> {
+    const result = await this.database.query<PublicProfileRecord>(
+      `SELECT ${publicColumns} FROM profiles WHERE username = $1`,
+      [username.trim()],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async findOwn(id: string): Promise<OwnProfileRecord | null> {
     const result = await this.database.query<OwnProfileRecord>(
       `SELECT ${publicColumns}, age_verified, analytics_consent_at FROM profiles WHERE id = $1`,

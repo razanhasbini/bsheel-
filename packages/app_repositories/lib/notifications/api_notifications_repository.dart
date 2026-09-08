@@ -12,9 +12,14 @@ class ApiNotificationsRepository implements NotificationsRepository {
 
   @override
   Future<List<NotificationModel>> getNotifications(String userId) async {
-    final page = apiObject(await _client.get('notifications', query: {
-      'limit': 50,
-    },),);
+    final page = apiObject(
+      await _client.get(
+        'notifications',
+        query: {
+          'limit': 50,
+        },
+      ),
+    );
     final rows = apiObjectList(page['items']);
     final avatarValues = rows.map((row) {
       final actor = row['actor_profile'];

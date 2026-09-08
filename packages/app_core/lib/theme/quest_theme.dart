@@ -142,7 +142,8 @@ abstract final class QuestTheme {
             color: QuestColors.osTextMuted,
           ),
           labelStyle: QuestTypography.osLabelMedium,
-          errorStyle: QuestTypography.osBodySmall.copyWith(color: QuestColors.osRed),
+          errorStyle:
+              QuestTypography.osBodySmall.copyWith(color: QuestColors.osRed),
         ),
         dividerTheme: const DividerThemeData(
           color: QuestColors.osBorder,

@@ -1,12 +1,12 @@
 import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'supabase_provider.dart';
+import '../../core/backend/app_backend.dart';
 
 /// Single underlying repo so mobile + admin_web share one read path
 /// for admin role lookup. ARC-021.
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
-  return SupabaseAdminRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.admin;
 });
 
 /// True when the signed-in user has a row in `admins`.

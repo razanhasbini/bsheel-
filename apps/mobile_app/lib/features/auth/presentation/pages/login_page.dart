@@ -49,7 +49,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
     final identifier = _emailController.text.trim();
     final password = _passwordController.text;
     final emailErr = LoginCredentials.validateIdentifier(identifier);
-    final passwordErr = password.isEmpty ? AppLocalizations.of(context)!.pleaseEnterPassword : null;
+    final passwordErr = password.isEmpty
+        ? AppLocalizations.of(context)!.pleaseEnterPassword
+        : null;
 
     setState(() {
       _emailError = emailErr;
@@ -68,7 +70,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
       if (user != null) {
         ref.read(analyticsProvider).identify(
               user.id,
-              username: user.userMetadata?['username'] as String?,
+              username: user.userMetadata['username'] as String?,
             );
         ref.read(analyticsProvider).track('login');
       }

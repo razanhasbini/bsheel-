@@ -92,8 +92,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-          SnackBar(content: Text(mapDbError(e, action: 'upload avatar'))),
-        );
+            SnackBar(content: Text(mapDbError(e, action: 'upload avatar'))),
+          );
       }
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
@@ -122,8 +122,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-          SnackBar(content: Text(mapDbError(e, action: 'remove avatar'))),
-        );
+            SnackBar(content: Text(mapDbError(e, action: 'remove avatar'))),
+          );
       }
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
@@ -164,20 +164,20 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     // Validate username format (must match DB constraint: ^[a-zA-Z0-9_]+$, 3-30 chars)
     if (username.length < 3 || username.length > 30) {
       ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.usernameLength)),
-      );
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.usernameLength)),
+        );
       return;
     }
     if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
       ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.usernameFormat),
-        ),
-      );
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.usernameFormat),
+          ),
+        );
       return;
     }
 
@@ -214,7 +214,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
               bio: _bioController.text.trim().isEmpty
                   ? null
                   : _bioController.text.trim(),
-              avatarUrl: _avatarDeleted ? null : (_avatarUrl ?? profile.avatarUrl),
+              avatarUrl:
+                  _avatarDeleted ? null : (_avatarUrl ?? profile.avatarUrl),
             ),
           );
 
@@ -226,7 +227,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           context,
         )
           ..clearSnackBars()
-          ..showSnackBar(SnackBar(content: Text(mapDbError(e, action: 'save profile'))));
+          ..showSnackBar(
+              SnackBar(content: Text(mapDbError(e, action: 'save profile'))));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -303,240 +305,247 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         }
       },
       child: Scaffold(
-      backgroundColor: QuestColors.bg(context),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(QuestSpacing.screenPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header ──────────────────────────────────
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      if (await confirmDiscardIfDirty() && context.mounted) {
-                        safeBack(context);
-                      }
-                    },
-                    child: Icon(Icons.arrow_back, size: 20, color: navyColor),
-                  ),
-                  const SizedBox(width: QuestSpacing.md),
-                  Text(
-                    l.editProfile,
-                    style: QuestTypography.headlineLarge.copyWith(
-                      color: QuestColors.pageTitle(context),
-                      fontSize: 20,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: QuestSpacing.xl),
-
-              // ── Avatar ──────────────────────────────────
-              Center(
-                child: Column(
+        backgroundColor: QuestColors.bg(context),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(QuestSpacing.screenPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Header ──────────────────────────────────
+                Row(
                   children: [
-                    Stack(
-                      children: [
-                        PixelAvatar(
-                          username: profile?.username ?? '',
-                          imageUrl: _avatarUrl,
-                          size: 88,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _isLoading ? null : _pickAvatar,
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: navyColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: QuestColors.bg(context), width: 2),
-                              ),
-                              child: Icon(
-                                Icons.camera_alt,
-                                size: 16,
-                                color: QuestColors.bg(context),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    GestureDetector(
+                      onTap: () async {
+                        if (await confirmDiscardIfDirty() && context.mounted) {
+                          safeBack(context);
+                        }
+                      },
+                      child: Icon(Icons.arrow_back, size: 20, color: navyColor),
                     ),
-                    const SizedBox(height: QuestSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GestureDetector(
-                          onTap: _isLoading ? null : _pickAvatar,
-                          child: Text(
-                            l.changePhoto,
-                            style: QuestTypography.labelSmall.copyWith(
-                              color: navyColor,
-                            ),
+                    const SizedBox(width: QuestSpacing.md),
+                    Text(
+                      l.editProfile,
+                      style: QuestTypography.headlineLarge.copyWith(
+                        color: QuestColors.pageTitle(context),
+                        fontSize: 20,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: QuestSpacing.xl),
+
+                // ── Avatar ──────────────────────────────────
+                Center(
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          PixelAvatar(
+                            username: profile?.username ?? '',
+                            imageUrl: _avatarUrl,
+                            size: 88,
                           ),
-                        ),
-                        if (_avatarUrl != null) ...[
-                          const SizedBox(width: QuestSpacing.lg),
-                          GestureDetector(
-                            onTap: _isLoading ? null : _deleteAvatar,
-                            child: Text(
-                              l.remove,
-                              style: QuestTypography.labelSmall.copyWith(
-                                color: QuestColors.softRed,
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: _isLoading ? null : _pickAvatar,
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: navyColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: QuestColors.bg(context), width: 2),
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  size: 16,
+                                  color: QuestColors.bg(context),
+                                ),
                               ),
                             ),
                           ),
                         ],
-                      ],
+                      ),
+                      const SizedBox(height: QuestSpacing.sm),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: _isLoading ? null : _pickAvatar,
+                            child: Text(
+                              l.changePhoto,
+                              style: QuestTypography.labelSmall.copyWith(
+                                color: navyColor,
+                              ),
+                            ),
+                          ),
+                          if (_avatarUrl != null) ...[
+                            const SizedBox(width: QuestSpacing.lg),
+                            GestureDetector(
+                              onTap: _isLoading ? null : _deleteAvatar,
+                              child: Text(
+                                l.remove,
+                                style: QuestTypography.labelSmall.copyWith(
+                                  color: QuestColors.softRed,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: QuestSpacing.xl),
+
+                // ── Fields ──────────────────────────────────
+                Text(l.displayName,
+                    style:
+                        QuestTypography.labelSmall.copyWith(color: navyColor)),
+                const SizedBox(height: QuestSpacing.sm),
+                TextField(
+                  controller: _displayNameController,
+                  style: QuestTypography.bodyMedium.copyWith(color: navyColor),
+                  decoration: InputDecoration(
+                    hintText: l.yourDisplayName,
+                    prefixIcon: Icon(Icons.person_outline,
+                        size: 20, color: navyColor.withAlpha(120)),
+                    filled: true,
+                    fillColor: navyColor.withAlpha(8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(80)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: QuestSpacing.lg),
+                Text(l.username,
+                    style:
+                        QuestTypography.labelSmall.copyWith(color: navyColor)),
+                const SizedBox(height: QuestSpacing.sm),
+                TextField(
+                  controller: _usernameController,
+                  style: QuestTypography.bodyMedium.copyWith(color: navyColor),
+                  decoration: InputDecoration(
+                    hintText: AppLocalizations.of(context)!.usernameHint,
+                    prefixIcon: Icon(Icons.alternate_email,
+                        size: 20, color: navyColor.withAlpha(120)),
+                    filled: true,
+                    fillColor: navyColor.withAlpha(8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(80)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: QuestSpacing.lg),
+                Text(l.bio,
+                    style:
+                        QuestTypography.labelSmall.copyWith(color: navyColor)),
+                const SizedBox(height: QuestSpacing.sm),
+                TextField(
+                  controller: _bioController,
+                  style: QuestTypography.bodyMedium.copyWith(color: navyColor),
+                  maxLines: 1,
+                  inputFormatters: [
+                    _MaxWordsFormatter(4),
                   ],
+                  decoration: InputDecoration(
+                    hintText: l.maxFourWords,
+                    filled: true,
+                    fillColor: navyColor.withAlpha(8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(80)),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: QuestSpacing.xl),
+                const SizedBox(height: QuestSpacing.lg),
+                Text(l.newPassword,
+                    style:
+                        QuestTypography.labelSmall.copyWith(color: navyColor)),
+                const SizedBox(height: QuestSpacing.sm),
+                TextField(
+                  controller: _passwordController,
+                  style: QuestTypography.bodyMedium.copyWith(color: navyColor),
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: AppLocalizations.of(context)!.passwordKeepCurrent,
+                    prefixIcon: Icon(Icons.lock_outline,
+                        size: 20, color: navyColor.withAlpha(120)),
+                    filled: true,
+                    fillColor: navyColor.withAlpha(8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(30)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: navyColor.withAlpha(80)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: QuestSpacing.xxl),
 
-              // ── Fields ──────────────────────────────────
-              Text(l.displayName,
-                  style: QuestTypography.labelSmall.copyWith(color: navyColor)),
-              const SizedBox(height: QuestSpacing.sm),
-              TextField(
-                controller: _displayNameController,
-                style: QuestTypography.bodyMedium.copyWith(color: navyColor),
-                decoration: InputDecoration(
-                  hintText: l.yourDisplayName,
-                  prefixIcon: Icon(Icons.person_outline, size: 20, color: navyColor.withAlpha(120)),
-                  filled: true,
-                  fillColor: navyColor.withAlpha(8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(80)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              Text(l.username,
-                  style: QuestTypography.labelSmall.copyWith(color: navyColor)),
-              const SizedBox(height: QuestSpacing.sm),
-              TextField(
-                controller: _usernameController,
-                style: QuestTypography.bodyMedium.copyWith(color: navyColor),
-                decoration: InputDecoration(
-                  hintText: AppLocalizations.of(context)!.usernameHint,
-                  prefixIcon: Icon(Icons.alternate_email, size: 20, color: navyColor.withAlpha(120)),
-                  filled: true,
-                  fillColor: navyColor.withAlpha(8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(80)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              Text(l.bio,
-                  style: QuestTypography.labelSmall.copyWith(color: navyColor)),
-              const SizedBox(height: QuestSpacing.sm),
-              TextField(
-                controller: _bioController,
-                style: QuestTypography.bodyMedium.copyWith(color: navyColor),
-                maxLines: 1,
-                inputFormatters: [
-                  _MaxWordsFormatter(4),
-                ],
-                decoration: InputDecoration(
-                  hintText: l.maxFourWords,
-                  filled: true,
-                  fillColor: navyColor.withAlpha(8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(80)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              Text(l.newPassword,
-                  style: QuestTypography.labelSmall.copyWith(color: navyColor)),
-              const SizedBox(height: QuestSpacing.sm),
-              TextField(
-                controller: _passwordController,
-                style: QuestTypography.bodyMedium.copyWith(color: navyColor),
-                obscureText: true,
-                decoration: InputDecoration(
-                  hintText: AppLocalizations.of(context)!.passwordKeepCurrent,
-                  prefixIcon: Icon(Icons.lock_outline, size: 20, color: navyColor.withAlpha(120)),
-                  filled: true,
-                  fillColor: navyColor.withAlpha(8),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(30)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: navyColor.withAlpha(80)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.xxl),
-
-              // ── Save button ─────────────────────────────
-              GestureDetector(
-                onTap: _isLoading ? null : _save,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: navyColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _isLoading ? l.savingChanges : l.saveChanges,
-                      style: QuestTypography.labelMedium.copyWith(
-                        color: QuestColors.bg(context),
-                        letterSpacing: 1.5,
+                // ── Save button ─────────────────────────────
+                GestureDetector(
+                  onTap: _isLoading ? null : _save,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: navyColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _isLoading ? l.savingChanges : l.saveChanges,
+                        style: QuestTypography.labelMedium.copyWith(
+                          color: QuestColors.bg(context),
+                          letterSpacing: 1.5,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 }

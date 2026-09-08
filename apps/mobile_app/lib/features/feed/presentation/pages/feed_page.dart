@@ -104,8 +104,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     });
 
     final feedAsync = ref.watch(feedProvider);
-    final feedHasPosts =
-        (feedAsync.valueOrNull?.posts.isNotEmpty ?? false);
+    final feedHasPosts = (feedAsync.valueOrNull?.posts.isNotEmpty ?? false);
     // Only fire `feedViewed` once the user has actually seen posts —
     // previously it fired on first hasValue even when the list was
     // empty, polluting the funnel with phantom views.
@@ -379,8 +378,7 @@ class _TopOverlay extends ConsumerWidget {
           Expanded(
             child: _FeedScopeTabs(
               value: scope,
-              onChange: (s) =>
-                  ref.read(feedProvider.notifier).changeScope(s),
+              onChange: (s) => ref.read(feedProvider.notifier).changeScope(s),
             ),
           ),
           // Right: filter + search, smaller and translucent.
@@ -500,7 +498,8 @@ class _IconAction extends StatelessWidget {
               color: QuestColors.textPrimary,
               size: 24,
               shadows: const [
-                Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 1)),
+                Shadow(
+                    color: Colors.black54, blurRadius: 8, offset: Offset(0, 1)),
               ],
             ),
             if (badge)
@@ -568,8 +567,7 @@ class _EmptyState extends StatelessWidget {
                 height: 72,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: QuestColors.pureWhite, width: 2.5),
+                  border: Border.all(color: QuestColors.pureWhite, width: 2.5),
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -624,8 +622,7 @@ class _ErrorState extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.softRed,
                   shape: BoxShape.circle,
-                  border:
-                      Border.all(color: QuestColors.pureWhite, width: 2.5),
+                  border: Border.all(color: QuestColors.pureWhite, width: 2.5),
                 ),
                 child: const Icon(Icons.error_outline,
                     color: QuestColors.osTextOnPrimary, size: 36),
@@ -642,13 +639,12 @@ class _ErrorState extends StatelessWidget {
               GestureDetector(
                 onTap: onRetry,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 22, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                   decoration: BoxDecoration(
                     color: QuestColors.accentYellow,
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: QuestColors.pureBlack, width: 2),
+                    border: Border.all(color: QuestColors.pureBlack, width: 2),
                   ),
                   child: Text(
                     l.retry.toUpperCase(),

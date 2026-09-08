@@ -6,7 +6,8 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Public } from '../../../common/auth/public.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import { AdminService } from '../application/admin.service.js';
-import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
+import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto,
+  UpdateUserProfileDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
 
 @ApiTags('configuration')
 @Controller({ path: 'config', version: '1' })
@@ -23,6 +24,8 @@ export class AdminController {
 
   @Get('me') me(@CurrentUser() user: AuthUser) { return this.service.me(user.id); }
   @Get('stats') stats() { return this.service.stats(); }
+  @Roles('super_admin') @Get('xp-audit')
+  xpAudit(@Query() query: AdminListQueryDto) { return this.service.xpAudit(query.limit, query.offset); }
   @Get('users') users(@Query() query: AdminListQueryDto) { return this.service.users(query.q, query.limit, query.offset); }
   @Throttle({ default: { limit: 10, ttl: 60_000 } }) @Post('users')
   createUser(@CurrentUser() user: AuthUser, @Body() body: CreateUserDto) {
@@ -54,6 +57,11 @@ export class AdminController {
   }
   @Roles('super_admin') @HttpCode(204) @Patch('users/:id/status')
   setStatus(@CurrentUser() user: AuthUser, @Param() param: UserIdParam, @Body() body: SetAccountStatusDto) { return this.service.setStatus(user.id, param.id, body.status, body.reason); }
+  @Roles('super_admin') @HttpCode(204) @Patch('users/:id/profile')
+  updateUserProfile(@CurrentUser() user: AuthUser, @Param() param: UserIdParam, @Body() body: UpdateUserProfileDto) {
+    return this.service.updateUserProfile(user.id, param.id, body);
+  }
+
   @Roles('super_admin') @HttpCode(204) @Patch('users/:id/xp')
   setXp(@CurrentUser() user: AuthUser, @Param() param: UserIdParam, @Body() body: SetUserXpDto) { return this.service.setXp(user.id, param.id, body.xp, body.level, body.questsCompleted, body.reason); }
 
@@ -71,6 +79,13 @@ export class AdminController {
   @HttpCode(204) @Delete('injections/:id') cancelInjection(@CurrentUser() user: AuthUser, @Param() param: UserIdParam) { return this.service.cancelInjection(user.id, param.id); }
 
   @Post('notifications') notify(@CurrentUser() user: AuthUser, @Body() body: SendNotificationDto) { return this.service.notify(user.id, body.targetUserId, body.title, body.body, body.type); }
+
+  /// Recent automatic notifications, so the admin dashboard can show what
+  /// the system has been sending. Announcements are excluded because they
+  /// are authored by admins and listed on their own page.
+  @Get('notifications') notifications(@Query() query: AdminListQueryDto) {
+    return this.service.notifications(query.limit, query.offset);
+  }
 
   @Roles('super_admin') @Get('config') config() { return this.service.config(); }
   @Roles('super_admin') @Put('config/:key')

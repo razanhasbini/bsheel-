@@ -4,19 +4,20 @@ import 'package:app_core/app_core.dart' show AppLogger;
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
-import '../../../feed/presentation/providers/feed_provider.dart' show feedProvider;
+import '../../../feed/presentation/providers/feed_provider.dart'
+    show feedProvider;
 import '../../../feed/presentation/providers/feed_post_details_provider.dart'
     show feedPostDetailsProvider;
+import '../../../../core/backend/app_backend.dart';
 
 final reactionsRepositoryProvider = Provider<ReactionsRepository>((ref) {
-  return SupabaseReactionsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.reactions;
 });
 
 final savedPostsRepositoryProvider = Provider<SavedPostsRepository>((ref) {
-  return SupabaseSavedPostsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.savedPosts;
 });
 
 // ── Optimistic state overrides ──────────────────────────────────────────────
@@ -53,7 +54,8 @@ final isPostSavedProvider = FutureProvider.autoDispose
 
 // ── Public getters that merge optimistic state with server state ─────────
 
-String? getEffectiveVoteType(WidgetRef ref, String submissionId, String userId) {
+String? getEffectiveVoteType(
+    WidgetRef ref, String submissionId, String userId) {
   final optimistic = ref.watch(_optimisticVoteType(submissionId));
   if (optimistic != null) return optimistic == 'none' ? null : optimistic;
   return ref
@@ -187,8 +189,8 @@ void _applyOptimistic({
   required String nextTarget,
   required Map<String, int> baseCounts,
 }) {
-  final currentCounts = ref.read(_optimisticVoteCounts(submissionId)) ??
-      baseCounts;
+  final currentCounts =
+      ref.read(_optimisticVoteCounts(submissionId)) ?? baseCounts;
   final newCounts = Map<String, int>.from(currentCounts);
 
   if (previousType != null && previousType != 'none') {

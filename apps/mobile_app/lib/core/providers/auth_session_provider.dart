@@ -1,9 +1,9 @@
+import 'package:app_repositories/app_repositories.dart' show AuthUser;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_repository_provider.dart';
 
-/// Provides the current auth session user, or null if not authenticated.
-final authSessionProvider = StateProvider<User?>((ref) {
+/// The current auth session user, or null when not authenticated.
+final authSessionProvider = StateProvider<AuthUser?>((ref) {
   return ref.watch(authRepositoryProvider).currentUser;
 });

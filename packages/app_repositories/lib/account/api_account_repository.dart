@@ -21,10 +21,12 @@ class ApiAccountRepository {
   }
 
   Future<DateTime?> setAnalyticsConsent(bool consented) async {
-    final data = apiObject(await _client.patch(
-      'profiles/me/analytics-consent',
-      body: {'consented': consented},
-    ),);
+    final data = apiObject(
+      await _client.patch(
+        'profiles/me/analytics-consent',
+        body: {'consented': consented},
+      ),
+    );
     final value = data['analytics_consent_at'];
     return value == null ? null : DateTime.parse(value as String);
   }
@@ -34,8 +36,10 @@ class ApiAccountRepository {
     return DateTime.parse(data['accepted_terms_at'] as String);
   }
 
-  Future<void> blockUser(String userId,
-      {String reason = 'Blocked by user',}) async {
+  Future<void> blockUser(
+    String userId, {
+    String reason = 'Blocked by user',
+  }) async {
     await _client.post('social/users/$userId/block', body: {'reason': reason});
   }
 
@@ -47,10 +51,12 @@ class ApiAccountRepository {
     final rows = <Map<String, dynamic>>[];
     const pageSize = 100;
     for (var offset = 0;; offset += pageSize) {
-      final page = apiObjectList(await _client.get(
-        'social/blocked-users',
-        query: {'limit': pageSize, 'offset': offset},
-      ),);
+      final page = apiObjectList(
+        await _client.get(
+          'social/blocked-users',
+          query: {'limit': pageSize, 'offset': offset},
+        ),
+      );
       rows.addAll(page);
       if (page.length < pageSize) break;
     }
@@ -74,19 +80,29 @@ class ApiAccountRepository {
     required String id,
     required String reason,
   }) async {
-    final data = apiObject(await _client.post('social/reports', body: {
-      'reportedType': type,
-      'reportedId': id,
-      'reason': reason,
-    },),);
+    final data = apiObject(
+      await _client.post(
+        'social/reports',
+        body: {
+          'reportedType': type,
+          'reportedId': id,
+          'reason': reason,
+        },
+      ),
+    );
     return data['id'] as String;
   }
 
   Future<String> registerDeviceToken(String token, String platform) async {
-    final data = apiObject(await _client.post('notifications/devices', body: {
-      'token': token,
-      'platform': platform,
-    },),);
+    final data = apiObject(
+      await _client.post(
+        'notifications/devices',
+        body: {
+          'token': token,
+          'platform': platform,
+        },
+      ),
+    );
     return data['id'] as String;
   }
 
@@ -100,9 +116,10 @@ class ApiAccountRepository {
   Future<List<Map<String, dynamic>>> exports() async =>
       apiObjectList(await _client.get('account/exports'));
 
-  Future<Map<String, dynamic>> requestDeletion() async =>
-      apiObject(await _client.post(
-        'account/deletion',
-        body: const {'confirmation': 'DELETE'},
-      ),);
+  Future<Map<String, dynamic>> requestDeletion() async => apiObject(
+        await _client.post(
+          'account/deletion',
+          body: const {'confirmation': 'DELETE'},
+        ),
+      );
 }

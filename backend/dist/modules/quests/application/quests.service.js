@@ -38,6 +38,9 @@ let QuestsService = class QuestsService {
         return this.repository.history(userId, limit, offset);
     }
     assign(userId, questId) { return this.repository.assignSpecific(userId, questId); }
+    assignForUser(userId, questId) {
+        return this.repository.assignSpecific(userId, questId, true);
+    }
     expire(userId, userQuestId) { return this.repository.expire(userId, userQuestId); }
     picker(userId, count) { return this.repository.pickerOptions(userId, count); }
     qotd() { return this.repository.questOfTheDay(); }

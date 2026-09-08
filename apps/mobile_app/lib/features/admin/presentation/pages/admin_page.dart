@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/router/safe_back.dart';
 
 /// Shared admin repo seam — same lookup the admin web uses (ARC-021).
 final _adminRepositoryProvider = Provider<AdminRepository>((ref) {
-  return SupabaseAdminRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.admin;
 });
 
 /// Strongly-typed admin role for the current user.
@@ -42,31 +42,20 @@ final isSuperAdminProvider = FutureProvider<bool>((ref) async {
 final _deletedSubmissionsProvider =
     FutureProvider.autoDispose<List<SubmissionModel>>((ref) async {
   ref.watch(authSessionProvider);
-  final client = ref.watch(supabaseClientProvider);
-  final response = await client
-      .from(Tables.submissions)
-      .select()
-      .neq(SubmissionColumns.visibility, SubmissionVisibility.visible)
-      .order(SubmissionColumns.deletedAt, ascending: false);
-
-  return (response as List<dynamic>)
-      .map((row) => SubmissionModel.fromJson(Map<String, dynamic>.from(row)))
-      .toList();
+  final rows = await AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: 'all',
+    visibility: 'not_visible',
+    order: 'desc',
+  );
+  return rows.map(SubmissionModel.fromJson).toList();
 });
 
 final _pendingSubmissionsProvider =
     FutureProvider.autoDispose<List<SubmissionModel>>((ref) async {
   ref.watch(authSessionProvider);
-  final client = ref.watch(supabaseClientProvider);
-  final response = await client
-      .from(Tables.submissions)
-      .select()
-      .eq(SubmissionColumns.status, SubmissionStatus.pending)
-      .order(SubmissionColumns.submittedAt, ascending: false);
-
-  return (response as List<dynamic>)
-      .map((row) => SubmissionModel.fromJson(Map<String, dynamic>.from(row)))
-      .toList();
+  final rows = await AppBackend.repositories.moderation
+      .listSubmissionsForAdmin(status: 'pending', order: 'desc');
+  return rows.map(SubmissionModel.fromJson).toList();
 });
 
 class AdminPage extends ConsumerStatefulWidget {
@@ -114,8 +103,7 @@ class _AdminPageState extends ConsumerState<AdminPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.wifi_off_rounded,
-                    size: 48,
-                    color: QuestColors.textDim(context)),
+                    size: 48, color: QuestColors.textDim(context)),
                 const SizedBox(height: QuestSpacing.md),
                 Text("Couldn't verify admin access.",
                     style: QuestTypography.headlineSmall),
@@ -383,24 +371,19 @@ class _ModerationTab extends ConsumerWidget {
     if (_adminInflight.contains(s.id)) return;
     _adminInflight.add(s.id);
     try {
-      // Use the audited RPC (migration 0098) instead of a direct UPDATE
-      // — that path also grants XP, fires the submission_approved
-      // notification, syncs user_quests.status, and writes the admin
-      // audit log row. Direct UPDATE skipped every one of those.
-      final client = ref.read(supabaseClientProvider);
-      await client.rpc(
-        RpcNames.adminApproveSubmission,
-        params: {AdminApproveSubmissionParams.submissionId: s.id},
-      );
+      // The API grants XP once, fires the submission_approved
+      // notification, syncs user_quests.status and writes the audit row —
+      // all in one transaction.
+      await AppBackend.repositories.moderation.approveSubmission(s.id, '');
       ref.invalidate(_pendingSubmissionsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-          SnackBar(
-              content: Text(AppLocalizations.of(context)!.submissionApproved),
-              backgroundColor: QuestColors.highlight(context)),
-        );
+            SnackBar(
+                content: Text(AppLocalizations.of(context)!.submissionApproved),
+                backgroundColor: QuestColors.highlight(context)),
+          );
       }
     } catch (e) {
       if (context.mounted) {
@@ -451,8 +434,8 @@ class _ModerationTab extends ConsumerWidget {
                 hintStyle: QuestTypography.bodySmall
                     .copyWith(color: QuestColors.textMuted.withAlpha(80)),
                 enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                      color: QuestColors.softRed.withAlpha(80)),
+                  borderSide:
+                      BorderSide(color: QuestColors.softRed.withAlpha(80)),
                 ),
                 focusedBorder: const OutlineInputBorder(
                   borderSide: BorderSide(color: QuestColors.softRed),
@@ -483,27 +466,23 @@ class _ModerationTab extends ConsumerWidget {
     if (_adminInflight.contains(s.id)) return;
     _adminInflight.add(s.id);
     try {
-      // Audited RPC — fires submission_rejected notification, syncs
-      // user_quests.status, requires a non-empty note server-side
-      // (matches the user-facing UX of "Reason optional" by passing
-      // a placeholder if blank).
-      final client = ref.read(supabaseClientProvider);
+      // The API requires a non-empty note; the UI advertises the reason as
+      // optional, so a blank one becomes an explicit placeholder.
       final note = controller.text.trim();
-      await client.rpc(
-        RpcNames.adminRejectSubmission,
-        params: {
-          AdminRejectSubmissionParams.submissionId: s.id,
-          AdminRejectSubmissionParams.reviewNote:
-              note.isEmpty ? 'No reason provided' : note,
-        },
+      await AppBackend.repositories.moderation.rejectSubmission(
+        s.id,
+        '',
+        note: note.isEmpty ? 'No reason provided' : note,
       );
       ref.invalidate(_pendingSubmissionsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.submissionRejected)),
-        );
+            SnackBar(
+                content:
+                    Text(AppLocalizations.of(context)!.submissionRejected)),
+          );
       }
     } catch (e) {
       if (context.mounted) {
@@ -553,10 +532,12 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
     final body = _bodyCtrl.text.trim();
     if (title.isEmpty || body.isEmpty) {
       ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.titleAndBodyRequired)),
-      );
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+              content:
+                  Text(AppLocalizations.of(context)!.titleAndBodyRequired)),
+        );
       return;
     }
     // UX-212: confirm before broadcasting to every user. The button used
@@ -600,41 +581,14 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
     setState(() => _isSending = true);
 
     try {
-      final client = ref.read(supabaseClientProvider);
-
-      // 1. Send push via Supabase Edge Function (calls FCM topic API)
-      await client.functions.invoke(
-        'send-push',
-        body: {
-          'topic': 'all_users',
-          'title': title,
-          'body': body,
-        },
+      // One request: the API inserts an inbox row per active user and
+      // enqueues push delivery through the outbox worker, in the same
+      // transaction. The old path fanned out client-side in 1000-row
+      // chunks and could half-broadcast if a chunk failed.
+      await AppBackend.repositories.admin.sendNotification(
+        title: title,
+        body: body,
       );
-
-      // 2. Also store as in-app notification for all users. Chunked
-      // bulk insert: a single insert for 10k+ rows can exceed
-      // PostgREST's body limit and adds tail-latency we can't recover
-      // from cleanly. 1000 rows / chunk is well under any practical
-      // limit and gives the user partial progress on a mid-broadcast
-      // failure.
-      final profiles =
-          await client.from(Tables.profiles).select(ProfileColumns.id);
-      final rows = (profiles as List)
-          .map((p) => {
-                NotificationColumns.userId: p[ProfileColumns.id],
-                NotificationColumns.title: title,
-                NotificationColumns.body: body,
-                NotificationColumns.type: NotificationType.announcement,
-              })
-          .toList();
-      const chunkSize = 1000;
-      for (var i = 0; i < rows.length; i += chunkSize) {
-        final end = (i + chunkSize > rows.length) ? rows.length : i + chunkSize;
-        await client
-            .from(Tables.notifications)
-            .insert(rows.sublist(i, end));
-      }
 
       if (!mounted) return;
       setState(() {
@@ -648,21 +602,21 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
         _isSending = false;
       });
       ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.pushSent),
-          backgroundColor: QuestColors.highlight(context),
-        ),
-      );
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.pushSent),
+            backgroundColor: QuestColors.highlight(context),
+          ),
+        );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSending = false);
       ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
-      );
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
     }
   }
 
@@ -698,7 +652,8 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
           const SizedBox(height: QuestSpacing.xs),
           TextField(
             controller: _titleCtrl,
-            style: QuestTypography.labelMedium.copyWith(color: QuestColors.text(context)),
+            style: QuestTypography.labelMedium
+                .copyWith(color: QuestColors.text(context)),
             decoration: InputDecoration(
               hintText: AppLocalizations.of(context)!.notificationTitleHint,
               hintStyle: QuestTypography.labelMedium
@@ -734,7 +689,8 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
           const SizedBox(height: QuestSpacing.xs),
           TextField(
             controller: _bodyCtrl,
-            style: QuestTypography.bodyMedium.copyWith(color: QuestColors.text(context)),
+            style: QuestTypography.bodyMedium
+                .copyWith(color: QuestColors.text(context)),
             maxLines: 4,
             // UX-211: FCM truncates push bodies past ~240 chars on most
             // OS lock screens. Stop the user from typing past the cap +
@@ -775,9 +731,8 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
                     : QuestColors.xpGold.withAlpha(20),
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 border: Border.all(
-                  color: _isSending
-                      ? QuestColors.textMuted
-                      : QuestColors.xpGold,
+                  color:
+                      _isSending ? QuestColors.textMuted : QuestColors.xpGold,
                   width: 2,
                 ),
                 boxShadow: _isSending
@@ -1056,7 +1011,6 @@ class _DeletedPostsTab extends ConsumerWidget {
       ],
     );
   }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1095,7 +1049,8 @@ class _SubmissionCard extends StatelessWidget {
                     submission.mediaUrls.first,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => DecoratedBox(
-                      decoration: BoxDecoration(color: QuestColors.surfaceBg(context)),
+                      decoration:
+                          BoxDecoration(color: QuestColors.surfaceBg(context)),
                       child: Center(
                         child: Icon(Icons.image_outlined,
                             color: QuestColors.textDim(context), size: 32),
@@ -1108,8 +1063,8 @@ class _SubmissionCard extends StatelessWidget {
             if (submission.caption?.isNotEmpty == true)
               Text(
                 submission.caption!,
-                style:
-                    QuestTypography.bodyMedium.copyWith(color: QuestColors.text(context)),
+                style: QuestTypography.bodyMedium
+                    .copyWith(color: QuestColors.text(context)),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1181,8 +1136,8 @@ class _SubmissionCard extends StatelessWidget {
                         color: QuestColors.softRed.withAlpha(20),
                         borderRadius:
                             BorderRadius.circular(QuestSpacing.radiusSm),
-                        border: Border.all(
-                            color: QuestColors.softRed, width: 1.5),
+                        border:
+                            Border.all(color: QuestColors.softRed, width: 1.5),
                       ),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),

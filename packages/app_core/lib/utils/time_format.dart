@@ -28,4 +28,3 @@ String timeAgo(DateTime when, {DateTime? now}) {
 /// submission status, admin).
 String timeAgoLong(DateTime when, {DateTime? now}) =>
     '${timeAgo(when, now: now)} ago';
-

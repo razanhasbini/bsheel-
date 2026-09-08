@@ -1,10 +1,12 @@
 import '../api/api_client.dart';
+import '../media/api_media_signer.dart';
 import 'admin_repository.dart';
 
 class ApiAdminRepository implements AdminRepository {
-  const ApiAdminRepository(this._client);
+  ApiAdminRepository(this._client) : _media = ApiMediaSigner(_client);
 
   final ApiClient _client;
+  final ApiMediaSigner _media;
 
   @override
   Future<AdminRoleEnum?> getCurrentUserRole() async {
@@ -17,16 +19,30 @@ class ApiAdminRepository implements AdminRepository {
     }
   }
 
+  /// Admin user list: profile fields plus email, account status and admin
+  /// role in one round-trip. Avatars are private objects, so they come back
+  /// as signed URLs ready to render.
   Future<List<Map<String, dynamic>>> users({
     String? query,
     int limit = 50,
     int offset = 0,
-  }) async =>
-      apiObjectList(await _client.get('admin/users', query: {
-        'q': query,
-        'limit': limit,
-        'offset': offset,
-      },),);
+  }) async {
+    final rows = apiObjectList(
+      await _client.get(
+        'admin/users',
+        query: {
+          'q': query,
+          'limit': limit,
+          'offset': offset,
+        },
+      ),
+    );
+    return Future.wait(rows.map((row) async {
+      final avatar = row['avatar_url']?.toString();
+      if (avatar == null || avatar.isEmpty) return row;
+      return {...row, 'avatar_url': await _media.signNullable(avatar)};
+    }));
+  }
 
   Future<String> createUser({
     required String email,
@@ -34,12 +50,17 @@ class ApiAdminRepository implements AdminRepository {
     required String username,
     String? displayName,
   }) async {
-    final data = apiObject(await _client.post('admin/users', body: {
-      'email': email,
-      'password': password,
-      'username': username,
-      'displayName': displayName,
-    },),);
+    final data = apiObject(
+      await _client.post(
+        'admin/users',
+        body: {
+          'email': email,
+          'password': password,
+          'username': username,
+          'displayName': displayName,
+        },
+      ),
+    );
     return data['userId'] as String;
   }
 
@@ -58,10 +79,13 @@ class ApiAdminRepository implements AdminRepository {
       );
 
   Future<void> forceResetPassword(String userId, String newPassword) =>
-      _client.post('admin/users/$userId/password', body: {
-        'newPassword': newPassword,
-        'confirm': true,
-      },);
+      _client.post(
+        'admin/users/$userId/password',
+        body: {
+          'newPassword': newPassword,
+          'confirm': true,
+        },
+      );
 
   Future<void> requestPasswordRecovery(String userId) =>
       _client.post('admin/users/$userId/password-recovery');
@@ -71,10 +95,38 @@ class ApiAdminRepository implements AdminRepository {
     String status,
     String reason,
   ) =>
-      _client.patch('admin/users/$userId/status', body: {
-        'status': status,
-        'reason': reason,
-      },);
+      _client.patch(
+        'admin/users/$userId/status',
+        body: {
+          'status': status,
+          'reason': reason,
+        },
+      );
+
+  /// Edits the admin-editable profile fields in one audited request.
+  /// Throws with code `USERNAME_TAKEN` when the new username is in use.
+  Future<void> updateUserProfile(
+    String userId, {
+    String? username,
+    String? displayName,
+    String? bio,
+    int? xp,
+    int? level,
+    int? questsCompleted,
+    required String reason,
+  }) =>
+      _client.patch(
+        'admin/users/$userId/profile',
+        body: {
+          if (username != null) 'username': username,
+          if (displayName != null) 'displayName': displayName,
+          if (bio != null) 'bio': bio,
+          if (xp != null) 'xp': xp,
+          if (level != null) 'level': level,
+          if (questsCompleted != null) 'questsCompleted': questsCompleted,
+          'reason': reason,
+        },
+      );
 
   Future<void> setXp({
     required String userId,
@@ -83,12 +135,15 @@ class ApiAdminRepository implements AdminRepository {
     required int questsCompleted,
     required String reason,
   }) =>
-      _client.patch('admin/users/$userId/xp', body: {
-        'xp': xp,
-        'level': level,
-        'questsCompleted': questsCompleted,
-        'reason': reason,
-      },);
+      _client.patch(
+        'admin/users/$userId/xp',
+        body: {
+          'xp': xp,
+          'level': level,
+          'questsCompleted': questsCompleted,
+          'reason': reason,
+        },
+      );
 
   Future<int> sendNotification({
     String? targetUserId,
@@ -96,52 +151,100 @@ class ApiAdminRepository implements AdminRepository {
     required String body,
     String type = 'announcement',
   }) async {
-    final data = apiObject(await _client.post('admin/notifications', body: {
-      'targetUserId': targetUserId,
-      'title': title,
-      'body': body,
-      'type': type,
-    },),);
+    // Omitting the target broadcasts to every active user in one
+    // transaction, with push fanout handled by the outbox worker.
+    final data = apiObject(
+      await _client.post(
+        'admin/notifications',
+        body: {
+          if (targetUserId != null) 'targetUserId': targetUserId,
+          'title': title,
+          'body': body,
+          'type': type,
+        },
+      ),
+    );
     return (data['recipients'] as num).toInt();
   }
 
+  /// Recent automatic notifications for the admin activity view.
+  /// Announcements are excluded — they have their own page.
+  Future<List<Map<String, dynamic>>> notifications({
+    int limit = 50,
+    int offset = 0,
+  }) async =>
+      apiObjectList(
+        await _client.get(
+          'admin/notifications',
+          query: {'limit': limit, 'offset': offset},
+        ),
+      );
+
   Future<Map<String, dynamic>> stats() async =>
       apiObject(await _client.get('admin/stats'));
+
+  /// XP reconciliation rows: stored profile totals beside what the
+  /// approved quest history implies.
+  Future<List<Map<String, dynamic>>> xpAudit({
+    int limit = 500,
+    int offset = 0,
+  }) async =>
+      apiObjectList(
+        await _client.get(
+          'admin/xp-audit',
+          query: {'limit': limit, 'offset': offset},
+        ),
+      );
 
   Future<List<Map<String, dynamic>>> reports({
     String status = 'pending',
     int limit = 50,
     int offset = 0,
   }) async =>
-      apiObjectList(await _client.get('admin/reports', query: {
-        'status': status,
-        'limit': limit,
-        'offset': offset,
-      },),);
+      apiObjectList(
+        await _client.get(
+          'admin/reports',
+          query: {
+            'status': status,
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
 
   Future<void> reviewReport(
     String reportId, {
     required String status,
     String? adminNote,
   }) =>
-      _client.patch('admin/reports/$reportId', body: {
-        'status': status,
-        if (adminNote != null) 'adminNote': adminNote,
-      },);
+      _client.patch(
+        'admin/reports/$reportId',
+        body: {
+          'status': status,
+          if (adminNote != null) 'adminNote': adminNote,
+        },
+      );
 
-  Future<void> removePost(String submissionId, String reason) =>
-      _client.post('admin/submissions/$submissionId/remove', body: {
-        'reason': reason,
-      },);
+  Future<void> removePost(String submissionId, String reason) => _client.post(
+        'admin/submissions/$submissionId/remove',
+        body: {
+          'reason': reason,
+        },
+      );
 
   Future<List<Map<String, dynamic>>> injections({
     int limit = 50,
     int offset = 0,
   }) async =>
-      apiObjectList(await _client.get('admin/injections', query: {
-        'limit': limit,
-        'offset': offset,
-      },),);
+      apiObjectList(
+        await _client.get(
+          'admin/injections',
+          query: {
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
 
   Future<Map<String, dynamic>> injectQuest({
     required String targetUserId,
@@ -152,15 +255,20 @@ class ApiAdminRepository implements AdminRepository {
     required int xpReward,
     required int durationHours,
   }) async =>
-      apiObject(await _client.post('admin/injections', body: {
-        'targetUserId': targetUserId,
-        'title': title,
-        'description': description,
-        'category': category,
-        'difficulty': difficulty,
-        'xpReward': xpReward,
-        'durationHours': durationHours,
-      },),);
+      apiObject(
+        await _client.post(
+          'admin/injections',
+          body: {
+            'targetUserId': targetUserId,
+            'title': title,
+            'description': description,
+            'category': category,
+            'difficulty': difficulty,
+            'xpReward': xpReward,
+            'durationHours': durationHours,
+          },
+        ),
+      );
 
   Future<void> cancelInjection(String injectionId) =>
       _client.delete('admin/injections/$injectionId');
@@ -174,20 +282,30 @@ class ApiAdminRepository implements AdminRepository {
     String? description,
     bool isPublic = false,
   }) async =>
-      apiObject(await _client.put('admin/config/$key', body: {
-        'value': value,
-        if (description != null) 'description': description,
-        'isPublic': isPublic,
-      },),);
+      apiObject(
+        await _client.put(
+          'admin/config/$key',
+          body: {
+            'value': value,
+            if (description != null) 'description': description,
+            'isPublic': isPublic,
+          },
+        ),
+      );
 
   Future<List<Map<String, dynamic>>> questOfTheDay({
     int limit = 50,
     int offset = 0,
   }) async =>
-      apiObjectList(await _client.get('admin/qotd', query: {
-        'limit': limit,
-        'offset': offset,
-      },),);
+      apiObjectList(
+        await _client.get(
+          'admin/qotd',
+          query: {
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
 
   Future<Map<String, dynamic>> setQuestOfTheDay({
     required String questId,
@@ -196,13 +314,18 @@ class ApiAdminRepository implements AdminRepository {
     int bonusXp = 0,
     String? note,
   }) async =>
-      apiObject(await _client.put('admin/qotd', body: {
-        'questId': questId,
-        'displayDate': displayDate,
-        if (ticketNo != null) 'ticketNo': ticketNo,
-        'bonusXp': bonusXp,
-        if (note != null) 'note': note,
-      },),);
+      apiObject(
+        await _client.put(
+          'admin/qotd',
+          body: {
+            'questId': questId,
+            'displayDate': displayDate,
+            if (ticketNo != null) 'ticketNo': ticketNo,
+            'bonusXp': bonusXp,
+            if (note != null) 'note': note,
+          },
+        ),
+      );
 
   Future<void> deleteQuestOfTheDay(String id) =>
       _client.delete('admin/qotd/$id');
@@ -211,21 +334,31 @@ class ApiAdminRepository implements AdminRepository {
     int limit = 50,
     int offset = 0,
   }) async =>
-      apiObjectList(await _client.get('admin/waitlist', query: {
-        'limit': limit,
-        'offset': offset,
-      },),);
+      apiObjectList(
+        await _client.get(
+          'admin/waitlist',
+          query: {
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
 
   Future<List<Map<String, dynamic>>> suggestions({
     String status = 'pending',
     int limit = 50,
     int offset = 0,
   }) async =>
-      apiObjectList(await _client.get('admin/suggestions', query: {
-        'status': status,
-        'limit': limit,
-        'offset': offset,
-      },),);
+      apiObjectList(
+        await _client.get(
+          'admin/suggestions',
+          query: {
+            'status': status,
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
 
   Future<Map<String, dynamic>> reviewSuggestion(
     String id, {
@@ -233,9 +366,14 @@ class ApiAdminRepository implements AdminRepository {
     int xpReward = 50,
     int durationHours = 4,
   }) async =>
-      apiObject(await _client.patch('admin/suggestions/$id', body: {
-        'status': status,
-        'xpReward': xpReward,
-        'durationHours': durationHours,
-      },),);
+      apiObject(
+        await _client.patch(
+          'admin/suggestions/$id',
+          body: {
+            'status': status,
+            'xpReward': xpReward,
+            'durationHours': durationHours,
+          },
+        ),
+      );
 }

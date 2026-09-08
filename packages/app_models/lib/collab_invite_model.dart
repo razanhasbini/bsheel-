@@ -1,3 +1,6 @@
+import 'src/json_coercions.dart';
+import 'src/value_equality.dart';
+
 /// Preview of a collab group before joining (returned by get_collab_group_details).
 class CollabGroupPreviewModel {
   final String groupId;
@@ -45,23 +48,77 @@ class CollabGroupPreviewModel {
       code: json['code'] as String,
       mode: json['mode'] as String,
       status: json['status'] as String,
-      memberCount: (json['member_count'] as num?)?.toInt() ?? 0,
-      maxMembers: (json['max_members'] as num?)?.toInt() ?? 5,
-      expiresAt: DateTime.parse(json['expires_at'] as String),
+      // `coerceInt`, not `as num?`: this used to be a hard cast that threw
+      // on the '2' PostgREST sends for a bigint count, where QuestModel
+      // would have parsed it.
+      memberCount: coerceInt(json['member_count']),
+      // 5 is the party-size cap the join screen assumes.
+      maxMembers: coerceInt(json['max_members'], defaultValue: 5),
+      expiresAt: coerceTimestamp(json['expires_at']),
       members: membersList
-          .map((m) => CollabGroupPreviewMember.fromJson(m as Map<String, dynamic>))
+          .map((m) =>
+              CollabGroupPreviewMember.fromJson(m as Map<String, dynamic>))
           .toList(),
       questTitle: json['quest_title'] as String? ?? '',
       questDescription: json['quest_description'] as String? ?? '',
       questCategory: json['quest_category'] as String? ?? '',
       questDifficulty: json['quest_difficulty'] as String? ?? '',
-      questXpReward: (json['quest_xp_reward'] as num?)?.toInt() ?? 10,
-      questDurationHours: (json['quest_duration_hours'] as num?)?.toInt() ?? 4,
+      questXpReward: coerceInt(json['quest_xp_reward'], defaultValue: 10),
+      // Clamped to the same 1..168 range as QuestModel — see
+      // [normalizeQuestDurationHours]. This model used to apply no bounds.
+      questDurationHours:
+          normalizeQuestDurationHours(json['quest_duration_hours']),
       creatorUsername: json['creator_username'] as String? ?? '',
       creatorDisplayName: json['creator_display_name'] as String? ?? '',
       creatorAvatarUrl: json['creator_avatar_url'] as String?,
     );
   }
+
+  /// The [members] list is bounded by [maxMembers] (a handful), so
+  /// element-wise equality stays cheap.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CollabGroupPreviewModel &&
+        other.groupId == groupId &&
+        other.code == code &&
+        other.mode == mode &&
+        other.status == status &&
+        other.memberCount == memberCount &&
+        other.maxMembers == maxMembers &&
+        other.expiresAt == expiresAt &&
+        other.questTitle == questTitle &&
+        other.questDescription == questDescription &&
+        other.questCategory == questCategory &&
+        other.questDifficulty == questDifficulty &&
+        other.questXpReward == questXpReward &&
+        other.questDurationHours == questDurationHours &&
+        other.creatorUsername == creatorUsername &&
+        other.creatorDisplayName == creatorDisplayName &&
+        other.creatorAvatarUrl == creatorAvatarUrl &&
+        listEquals(other.members, members);
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+        groupId,
+        code,
+        mode,
+        status,
+        memberCount,
+        maxMembers,
+        expiresAt,
+        questTitle,
+        questDescription,
+        questCategory,
+        questDifficulty,
+        questXpReward,
+        questDurationHours,
+        creatorUsername,
+        creatorDisplayName,
+        creatorAvatarUrl,
+        ...members,
+      ]);
 }
 
 class CollabGroupPreviewMember {
@@ -85,4 +142,17 @@ class CollabGroupPreviewMember {
       avatarUrl: json['avatar_url'] as String?,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CollabGroupPreviewMember &&
+        other.userId == userId &&
+        other.username == username &&
+        other.displayName == displayName &&
+        other.avatarUrl == avatarUrl;
+  }
+
+  @override
+  int get hashCode => Object.hash(userId, username, displayName, avatarUrl);
 }

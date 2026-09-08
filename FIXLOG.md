@@ -6,6 +6,55 @@ is already written down.
 
 ---
 
+## 2026-09-08 — Supabase removed from both clients; six latent defects surfaced
+
+**Commit:** this session.
+
+**What changed.** The applications now talk to exactly one backend. The
+dual-mode strangler machinery is gone: 60 `BackendConfig.usesNest` branches
+across 36 files, 16 `Supabase*Repository` implementations (1,634 lines), both
+`supabase_provider.dart` files, the override lists, and the
+`supabase_flutter` dependency itself. All 61 files that reached Supabase
+directly were ported to the API. All seven packages analyse with zero issues.
+
+**The load-bearing piece was the auth contract.** `AuthRepository` — the
+*interface* — was typed entirely in Supabase types (`AuthState`,
+`AuthResponse`, `UserResponse`, `User`), so `ApiAuthRepository` was
+fabricating Supabase objects out of our own JSON just to satisfy it. That is
+why the dependency could not simply be dropped. It was replaced with a plain
+Dart auth model (`AuthUser`, `AuthSession`, `AuthState`, `AuthResult`,
+`AuthException`) whose member names match what the UI already read, so most
+call sites needed only an import change.
+
+### Defects found on the way, none of them visible from the code alone
+
+| Defect | Why nobody saw it |
+|---|---|
+| `npm run test:e2e` could not run: `vitest.config.e2e.ts` imported `vite-tsconfig-paths`, which is declared nowhere — not in `package.json`, not in the lockfile | `ci.yml` ran lint, test and build, but never `test:e2e`. The suite it would have run was still the Nest scaffold's `GET / → "Hello World!"`, which this app could never answer |
+| The env schema rejected an empty optional variable, so the documented `cp backend/.env.example backend/.env` produced a config the app refused to boot with | `.env.example` ships `EMAIL_DELIVERY_WEBHOOK_URL=` empty, and `z.string().url().optional()` rejects `''` — `.optional()` only permits `undefined` |
+| `admin_web` did not compile: `repositories.profile` where the bundle exposes `profiles` | The last recorded checkpoint claimed "admin analysis with zero issues". It was stale |
+| Registration collapsed both conflicts into one `ACCOUNT_CONFLICT`, so the signup form could not tell which field to blame | Legacy routed a taken username and an already-registered email to *different* inputs. Now `EMAIL_TAKEN` / `USERNAME_TAKEN`, distinguished by the violated constraint name |
+| `app_config` was created but **never seeded**, so `GET /config` returned nothing: the force-update gate had no row to read and the social-login kill switch defaulted to ON when absent | The rotation runbook had already flagged this as "wired up and disconnected", and as fail-open on a kill switch. Migration `0014` seeds the six public keys; the client now requires an explicit `'true'` |
+| 109 of 258 Dart files were not `dart format` clean, so `format_and_analyze.yml` could not have passed | Consistent with the Actions-billing history below — nobody saw it fail. The `require_trailing_commas` lint also *contradicts* the formatter that CI enforces, so no tree could satisfy both. The lint is now removed and the formatter owns comma placement |
+
+**CI now runs what it claimed to.** The backend job gained Postgres 17 and
+Redis 7.4 service containers, a migration replay from an empty database, the
+checksum ledger check, and the integration suite.
+
+**Lesson worth keeping.** `flutter analyze` passing is not the same as
+compiling. Leftover `RealtimeChannel?` field declarations analysed clean and
+failed the moment `flutter test` actually built the app, because the analyzer
+was resolving against a cached package graph. Run the tests, not just the
+analyzer.
+
+**Second lesson, the same trap the migration docs warn about.** While checking
+whether `quest_suggestions` was missing its `category` column, reading only
+`0001_initial_domain_schema.sql` said yes. Migration `0005` adds it. Never
+conclude from the first definition of a table or function — read every later
+one.
+
+---
+
 ## 2026-09-01 — Six production bugs sat fixed-but-unmerged for four weeks
 
 **Commit:** `b15697d` (merge of PR #56, branch `fix/prod-repairs-and-secret-guard`)

@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class ReactionModel {
   final String id;
   final String submissionId;
@@ -21,7 +23,7 @@ class ReactionModel {
       submissionId: (json[ReactionColumns.submissionId] ?? '').toString(),
       userId: (json[ReactionColumns.userId] ?? '').toString(),
       type: (json[ReactionColumns.type] ?? '').toString(),
-      createdAt: _toDateTime(json[ReactionColumns.createdAt]),
+      createdAt: coerceTimestamp(json[ReactionColumns.createdAt]),
     );
   }
 
@@ -35,8 +37,17 @@ class ReactionModel {
     };
   }
 
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ReactionModel &&
+        other.id == id &&
+        other.submissionId == submissionId &&
+        other.userId == userId &&
+        other.type == type &&
+        other.createdAt == createdAt;
   }
+
+  @override
+  int get hashCode => Object.hash(id, submissionId, userId, type, createdAt);
 }

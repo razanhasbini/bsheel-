@@ -27,6 +27,15 @@ export declare class AdminRepository {
         expiresAt: Date;
     }): Promise<void>;
     setStatus(actorId: string, userId: string, status: string, reason: string): Promise<void>;
+    updateUserProfile(actorId: string, userId: string, input: {
+        username?: string;
+        displayName?: string;
+        bio?: string;
+        xp?: number;
+        level?: number;
+        questsCompleted?: number;
+        reason: string;
+    }): Promise<void>;
     setXp(actorId: string, userId: string, xp: number, level: number, completed: number, reason: string): Promise<void>;
     reports(status: string, limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;
     reviewReport(actorId: string, id: string, status: string, note?: string): Promise<void>;
@@ -37,6 +46,8 @@ export declare class AdminRepository {
         recipients: number;
     }>;
     config(): Promise<import("pg").QueryResultRow[]>;
+    xpAudit(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;
+    notifications(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;
     publicConfig(): Promise<import("pg").QueryResultRow[]>;
     setConfig(actorId: string, key: string, value: unknown, description: string | undefined, isPublic: boolean): Promise<import("pg").QueryResultRow>;
     qotd(limit: number, offset: number): Promise<import("pg").QueryResultRow[]>;

@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart';
+import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 import '../../../moderation/presentation/widgets/inline_video.dart';
+
 // ARC-014: cap to the 200 most-recent approved submissions. The full
 // list grows unbounded as users post; without a limit this stalls the
 // page once a few thousand approved posts exist (each with joined
@@ -18,30 +18,15 @@ import '../../../moderation/presentation/widgets/inline_video.dart';
 // review needs; the search field is the path for older rows.
 const int _adminFeedListLimit = 200;
 
+/// Approved posts, newest first. Media keys are private R2 objects; the
+/// adapter signs them so the UI's img tags can fetch the bytes. The page
+/// limit is preserved so a 10k+ feed table cannot OOM the browser.
 final _feedPostsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.submissions)
-      .select(
-        '*, profiles!submissions_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName}), ${Tables.userQuests}(${Tables.quests}(${QuestColumns.title}, ${QuestColumns.category}))',
-      )
-      .eq(SubmissionColumns.status, SubmissionStatus.approved)
-      .order(SubmissionColumns.submittedAt, ascending: false)
-      .limit(_adminFeedListLimit);
-  // Security PR #52: media URLs in the DB are now private R2 keys.
-  // Sign each one before handing to the UI so the existing img tags
-  // can fetch the bytes via the worker's /media/* endpoint. The page
-  // limit is preserved so a 10k+ feed table doesn't OOM the browser.
-  return Future.wait(
-    List<Map<String, dynamic>>.from(data as List).map((post) async {
-      final rawMedia = post[SubmissionColumns.mediaUrl]?.toString() ?? '';
-      return {
-        ...post,
-        SubmissionColumns.mediaUrl:
-            await SignedMediaUrls.signJsonOrSingle(client, rawMedia),
-      };
-    }),
+  return AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: 'approved',
+    order: 'desc',
+    limit: _adminFeedListLimit,
   );
 });
 
@@ -49,8 +34,7 @@ class FeedManagementPage extends ConsumerStatefulWidget {
   const FeedManagementPage({super.key});
 
   @override
-  ConsumerState<FeedManagementPage> createState() =>
-      _FeedManagementPageState();
+  ConsumerState<FeedManagementPage> createState() => _FeedManagementPageState();
 }
 
 class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
@@ -78,8 +62,7 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
               Text(
                 'Manage approved feed posts. Remove anything that breaks '
                 'community guidelines.',
-                style: BsheelType.bodyMd
-                    .copyWith(color: BsheelColors.inkSoft),
+                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
               ),
             ],
           ),
@@ -94,7 +77,8 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
               hintStyle: BsheelType.bodySm.copyWith(
                 color: BsheelColors.inkMuted,
               ),
-              prefixIcon: const Icon(Icons.search, color: BsheelColors.inkMuted),
+              prefixIcon:
+                  const Icon(Icons.search, color: BsheelColors.inkMuted),
               filled: true,
               fillColor: BsheelColors.paper,
               isDense: true,
@@ -117,62 +101,55 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
         ),
         Expanded(
           child: postsAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Error: $e',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.hot,
-                  ),
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
+            ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.hot,
                 ),
               ),
-              data: (posts) {
-                final filtered = posts.where((p) {
-                  if (_search.isEmpty) return true;
-                  final profile = p[Tables.profiles] as Map<String, dynamic>? ?? {};
-                  final username = (profile[ProfileColumns.username] ?? '')
-                      .toString()
-                      .toLowerCase();
-                  final caption = (p[SubmissionColumns.caption] ?? '')
-                      .toString()
-                      .toLowerCase();
-                  return username.contains(_search) ||
-                      caption.contains(_search);
-                }).toList();
+            ),
+            data: (posts) {
+              final filtered = posts.where((p) {
+                if (_search.isEmpty) return true;
+                final username = (p['username'] ?? '').toString().toLowerCase();
+                final caption = (p['caption'] ?? '').toString().toLowerCase();
+                return username.contains(_search) || caption.contains(_search);
+              }).toList();
 
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No feed posts found.',
-                      style: BsheelType.bodyMd.copyWith(
-                        color: BsheelColors.inkMuted,
-                      ),
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No feed posts found.',
+                    style: BsheelType.bodyMd.copyWith(
+                      color: BsheelColors.inkMuted,
                     ),
-                  );
-                }
-
-                return ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: QuestSpacing.sm),
-                  itemBuilder: (_, i) => _FeedPostTile(
-                    post: filtered[i],
-                    onRemove: () => _removePost(filtered[i]),
                   ),
                 );
-              },
-            ),
+              }
+
+              return ListView.separated(
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: QuestSpacing.sm),
+                itemBuilder: (_, i) => _FeedPostTile(
+                  post: filtered[i],
+                  onRemove: () => _removePost(filtered[i]),
+                ),
+              );
+            },
           ),
+        ),
       ],
     );
   }
 
   Future<void> _removePost(Map<String, dynamic> post) async {
-    final id = post[SubmissionColumns.id].toString();
-    final profile = post[Tables.profiles] as Map<String, dynamic>? ?? {};
-    final username = profile[ProfileColumns.username] ?? 'user';
+    final id = post['id'].toString();
+    final username = post['username'] ?? 'user';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -220,8 +197,7 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
                       backgroundColor: BsheelColors.hot,
                       foregroundColor: BsheelColors.ink,
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.sm),
+                        borderRadius: BorderRadius.circular(BsheelRadii.sm),
                       ),
                     ),
                     onPressed: () => Navigator.pop(ctx, true),
@@ -242,15 +218,11 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
 
     if (confirmed != true) return;
 
-    // SEC-009: route through admin_remove_post so the action is captured
-    // in admin_audit_log with actor + previous_status. The previous
-    // direct .update() bypassed the audit pipeline added in 0098.
-    final client = ref.read(supabaseClientProvider);
+    // SEC-009: the API captures the actor and previous status in the audit
+    // log. A direct visibility update would bypass that.
     try {
-      await client.rpc(RpcNames.adminRemovePost, params: {
-        AdminRemovePostParams.submissionId: id,
-        AdminRemovePostParams.reason: 'Removed from feed by admin',
-      },);
+      await AppBackend.repositories.admin
+          .removePost(id, 'Removed from feed by admin');
 
       ref.invalidate(_feedPostsProvider);
       if (mounted) {
@@ -275,7 +247,7 @@ class _FeedPostTile extends ConsumerWidget {
   const _FeedPostTile({required this.post, required this.onRemove});
 
   String get _firstMediaUrl {
-    final raw = (post[SubmissionColumns.mediaUrl]?.toString() ?? '').trim();
+    final raw = (post['media_url']?.toString() ?? '').trim();
     if (raw.startsWith('[')) {
       try {
         final list = (jsonDecode(raw) as List).cast<String>();
@@ -287,16 +259,13 @@ class _FeedPostTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = post[Tables.profiles] as Map<String, dynamic>? ?? {};
-    final userQuest = post[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-    final username = profile[ProfileColumns.username] ?? 'Unknown';
-    final caption = post[SubmissionColumns.caption]?.toString() ?? '';
+    final username = post['username'] ?? 'Unknown';
+    final caption = post['caption']?.toString() ?? '';
     final mediaUrl = _firstMediaUrl;
-    final mediaType = post[SubmissionColumns.mediaType]?.toString() ?? 'image';
-    final questTitle = quest?[QuestColumns.title] ?? '';
+    final mediaType = post['media_type']?.toString() ?? 'image';
+    final questTitle = post['quest_title'] ?? '';
     final submittedAt = DateTime.tryParse(
-      post[SubmissionColumns.submittedAt]?.toString() ?? '',
+      post['submitted_at']?.toString() ?? '',
     );
 
     return Container(
@@ -412,7 +381,8 @@ class _FeedPostTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: QuestSpacing.md),
-              const Icon(Icons.chevron_right, color: BsheelColors.inkMuted, size: 20),
+              const Icon(Icons.chevron_right,
+                  color: BsheelColors.inkMuted, size: 20),
               const SizedBox(width: QuestSpacing.xs),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: BsheelColors.hot),
@@ -427,240 +397,237 @@ class _FeedPostTile extends ConsumerWidget {
   }
 
   Future<void> _showPostDetail(BuildContext context, WidgetRef ref) async {
-    final submissionId = post[SubmissionColumns.id]?.toString() ?? '';
-    final profile = post[Tables.profiles] as Map<String, dynamic>? ?? {};
-    final userQuest = post[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-    final username = profile[ProfileColumns.username] ?? 'Unknown';
-    final caption = post[SubmissionColumns.caption]?.toString() ?? '';
+    final submissionId = post['id']?.toString() ?? '';
+    final username = post['username'] ?? 'Unknown';
+    final caption = post['caption']?.toString() ?? '';
     final mediaUrl = _firstMediaUrl;
-    final mediaType = post[SubmissionColumns.mediaType]?.toString() ?? 'image';
-    final questTitle = quest?[QuestColumns.title] ?? '';
+    final mediaType = post['media_type']?.toString() ?? 'image';
+    final questTitle = post['quest_title'] ?? '';
     final submittedAt = DateTime.tryParse(
-      post[SubmissionColumns.submittedAt]?.toString() ?? '',
+      post['submitted_at']?.toString() ?? '',
     );
 
-    // Fetch comments for this submission
-    final client = ref.read(supabaseClientProvider);
-    List<Map<String, dynamic>> comments = [];
+    // Comments come back as models with replies already grouped and
+    // avatars signed.
+    var comments = const <CommentModel>[];
     try {
-      final data = await client
-          .from(Tables.comments)
-          .select('*, profiles!comments_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName})')
-          .eq(CommentColumns.submissionId, submissionId)
-          .order(CommentColumns.createdAt, ascending: true);
-      comments = List<Map<String, dynamic>>.from(data as List);
-    } catch (_) {}
+      comments =
+          await AppBackend.repositories.comments.getComments(submissionId);
+    } catch (_) {
+      // Non-fatal: the dialog still shows the post without its thread.
+    }
 
     if (!context.mounted) return;
 
-    unawaited(showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: BsheelColors.paper,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          side: const BorderSide(color: BsheelColors.ink, width: 1),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-          child: Padding(
-            padding: const EdgeInsets.all(QuestSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Row(
-                  children: [
-                    Text(
-                      'POST DETAILS',
-                      style: BsheelType.displaySm.copyWith(
-                        color: BsheelColors.ink,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: BsheelColors.inkMuted),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                // User + quest
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: BsheelColors.cool.withAlpha(50),
-                      child: Text(
-                        username.isNotEmpty ? username[0].toUpperCase() : '?',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.cool,
-                          fontWeight: FontWeight.bold,
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: BsheelColors.paper,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(BsheelRadii.md),
+            side: const BorderSide(color: BsheelColors.ink, width: 1),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+            child: Padding(
+              padding: const EdgeInsets.all(QuestSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Text(
+                        'POST DETAILS',
+                        style: BsheelType.displaySm.copyWith(
+                          color: BsheelColors.ink,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: QuestSpacing.sm),
-                    Text(
-                      '@$username',
-                      style: BsheelType.bodyMd.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: BsheelColors.ink,
-                      ),
-                    ),
-                    if (questTitle.isNotEmpty) ...[
-                      const SizedBox(width: QuestSpacing.sm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.sm,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: BsheelColors.cool.withAlpha(30),
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                          border: Border.all(color: BsheelColors.cool.withAlpha(80)),
-                        ),
-                        child: Text(
-                          questTitle,
-                          style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.cool,
-                            fontSize: 10,
-                          ),
-                        ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: BsheelColors.inkMuted),
+                        onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
-                    const Spacer(),
-                    if (submittedAt != null)
-                      Text(
-                        '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')}',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted,
+                  ),
+                  const SizedBox(height: QuestSpacing.md),
+                  // User + quest
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: BsheelColors.cool.withAlpha(50),
+                        child: Text(
+                          username.isNotEmpty ? username[0].toUpperCase() : '?',
+                          style: BsheelType.labelSm.copyWith(
+                            color: BsheelColors.cool,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                // Media — inline-playable video (no download) or image.
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                  child: mediaType == 'video'
-                      ? InlineVideo(url: mediaUrl, aspectRatio: 16 / 9)
-                      : Image.network(
-                          mediaUrl,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: double.infinity,
-                            height: 200,
-                            color: BsheelColors.ink,
-                            child: const Icon(Icons.broken_image, color: BsheelColors.inkMuted),
-                          ),
+                      const SizedBox(width: QuestSpacing.sm),
+                      Text(
+                        '@$username',
+                        style: BsheelType.bodyMd.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: BsheelColors.ink,
                         ),
-                ),
-                // Caption
-                if (caption.isNotEmpty) ...[
-                  const SizedBox(height: QuestSpacing.md),
-                  Text(
-                    caption,
-                    style: BsheelType.bodyMd.copyWith(
-                      color: BsheelColors.ink,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: QuestSpacing.md),
-                const Divider(color: BsheelColors.ink, thickness: 2),
-                const SizedBox(height: QuestSpacing.sm),
-                // Comments header
-                Text(
-                  'COMMENTS (${comments.length})',
-                  style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.inkMuted,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: QuestSpacing.sm),
-                // Comments list
-                Flexible(
-                  child: comments.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(QuestSpacing.lg),
-                            child: Text(
-                              'No comments yet.',
-                              style: BsheelType.bodySm.copyWith(
-                                color: BsheelColors.inkMuted,
-                              ),
+                      ),
+                      if (questTitle.isNotEmpty) ...[
+                        const SizedBox(width: QuestSpacing.sm),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: QuestSpacing.sm,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: BsheelColors.cool.withAlpha(30),
+                            borderRadius:
+                                BorderRadius.circular(BsheelRadii.full),
+                            border: Border.all(
+                                color: BsheelColors.cool.withAlpha(80)),
+                          ),
+                          child: Text(
+                            questTitle,
+                            style: BsheelType.labelSm.copyWith(
+                              color: BsheelColors.cool,
+                              fontSize: 10,
                             ),
                           ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: comments.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: QuestSpacing.sm),
-                          itemBuilder: (_, i) {
-                            final comment = comments[i];
-                            final cProfile = comment[Tables.profiles] as Map<String, dynamic>? ?? {};
-                            final cUsername = cProfile[ProfileColumns.username]?.toString() ?? 'user';
-                            final cBody = comment[CommentColumns.body]?.toString() ?? '';
-                            final cCreatedAt = DateTime.tryParse(
-                              comment[CommentColumns.createdAt]?.toString() ?? '',
-                            );
-                            final timeAgo = cCreatedAt != null
-                                ? _formatTimeAgo(cCreatedAt)
-                                : '';
-
-                            return Container(
-                              padding: const EdgeInsets.all(QuestSpacing.sm),
-                              decoration: BoxDecoration(
-                                color: BsheelColors.surface,
-                                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        '@$cUsername',
-                                        style: BsheelType.labelSm.copyWith(
-                                          color: BsheelColors.cool,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        timeAgo,
-                                        style: BsheelType.labelSm.copyWith(
-                                          color: BsheelColors.inkMuted,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cBody,
-                                    style: BsheelType.bodySm.copyWith(
-                                      color: BsheelColors.ink,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
                         ),
-                ),
-              ],
+                      ],
+                      const Spacer(),
+                      if (submittedAt != null)
+                        Text(
+                          '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')}',
+                          style: BsheelType.labelSm.copyWith(
+                            color: BsheelColors.inkMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: QuestSpacing.md),
+                  // Media — inline-playable video (no download) or image.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(BsheelRadii.sm),
+                    child: mediaType == 'video'
+                        ? InlineVideo(url: mediaUrl, aspectRatio: 16 / 9)
+                        : Image.network(
+                            mediaUrl,
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: BsheelColors.ink,
+                              child: const Icon(Icons.broken_image,
+                                  color: BsheelColors.inkMuted),
+                            ),
+                          ),
+                  ),
+                  // Caption
+                  if (caption.isNotEmpty) ...[
+                    const SizedBox(height: QuestSpacing.md),
+                    Text(
+                      caption,
+                      style: BsheelType.bodyMd.copyWith(
+                        color: BsheelColors.ink,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: QuestSpacing.md),
+                  const Divider(color: BsheelColors.ink, thickness: 2),
+                  const SizedBox(height: QuestSpacing.sm),
+                  // Comments header
+                  Text(
+                    'COMMENTS (${comments.length})',
+                    style: BsheelType.labelSm.copyWith(
+                      color: BsheelColors.inkMuted,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: QuestSpacing.sm),
+                  // Comments list
+                  Flexible(
+                    child: comments.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(QuestSpacing.lg),
+                              child: Text(
+                                'No comments yet.',
+                                style: BsheelType.bodySm.copyWith(
+                                  color: BsheelColors.inkMuted,
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: comments.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: QuestSpacing.sm),
+                            itemBuilder: (_, i) {
+                              final comment = comments[i];
+                              final cUsername = comment.username;
+                              final cBody = comment.body;
+                              final timeAgo = _formatTimeAgo(comment.createdAt);
+
+                              return Container(
+                                padding: const EdgeInsets.all(QuestSpacing.sm),
+                                decoration: BoxDecoration(
+                                  color: BsheelColors.surface,
+                                  borderRadius:
+                                      BorderRadius.circular(BsheelRadii.sm),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '@$cUsername',
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: BsheelColors.cool,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          timeAgo,
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: BsheelColors.inkMuted,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      cBody,
+                                      style: BsheelType.bodySm.copyWith(
+                                        color: BsheelColors.ink,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),);
+    );
   }
 
   static String _formatTimeAgo(DateTime dt) => '${timeAgo(dt)} ago';

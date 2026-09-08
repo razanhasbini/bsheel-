@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
+import 'package:app_repositories/app_repositories.dart' show AuthException;
 import 'package:shared_ui/shared_ui.dart';
 
 import '../../../../core/router/route_names.dart';
@@ -22,7 +23,8 @@ class SignupPage extends ConsumerStatefulWidget {
 }
 
 // H9 (2026-05-17): block screenshots while a password is being typed.
-class _SignupPageState extends ConsumerState<SignupPage> with SecureScreenMixin {
+class _SignupPageState extends ConsumerState<SignupPage>
+    with SecureScreenMixin {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -108,32 +110,32 @@ class _SignupPageState extends ConsumerState<SignupPage> with SecureScreenMixin 
       );
       if (!mounted) return;
 
-      // With email confirmations enabled, Supabase deliberately does NOT
-      // error when the email is already registered (anti-enumeration) —
-      // it returns a fake user whose `identities` list is empty. Without
-      // this check the user would be told "check your email" and wait for
-      // a confirmation that never arrives.
-      final identities = response.user?.identities;
-      if (response.session == null &&
-          identities != null &&
-          identities.isEmpty) {
-        setState(() => _emailError =
-            'That email is already registered. Log in instead — or use '
-            'FORGOT PASSWORD if you don\'t remember your password.');
-        return;
-      }
-
       ref.read(analyticsProvider).signup();
       if (response.session == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Account created — check your email to confirm, then log in.'),
+            content: Text(
+                'Account created — check your email to confirm, then log in.'),
           ),
         );
         if (!mounted) return;
         context.goNamed(RouteNames.login);
       }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      // The API distinguishes which value collided so the message
+      // lands on the field the user has to change.
+      setState(() {
+        switch (e.code) {
+          case 'EMAIL_TAKEN':
+            _emailError = 'That email is already registered. Log in '
+                'instead — or use FORGOT PASSWORD.';
+          case 'USERNAME_TAKEN':
+            _usernameError = 'That username is already taken.';
+          default:
+            _emailError = mapAuthError(e.toString());
+        }
+      });
     } catch (e) {
       AppLogger.error('[Signup] Signup failed', e);
       if (!mounted) return;

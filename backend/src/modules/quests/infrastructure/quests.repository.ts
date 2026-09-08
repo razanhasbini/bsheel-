@@ -198,13 +198,27 @@ export class QuestsRepository {
     return result.rows;
   }
 
+  /// Assigns a specific quest.
+  ///
+  /// `displaceActive` is for admin assignment only: a moderator picking a
+  /// quest for a user is an override, so any in-flight quest is expired in
+  /// the same transaction rather than rejecting the request. A user
+  /// assigning their own quest still cannot bypass the one-active rule.
   async assignSpecific(
     userId: string,
     questId: string,
+    displaceActive = false,
   ): Promise<UserQuestRecord> {
     return this.database.transaction(async (transaction) => {
       await this.lockUser(userId, transaction);
       await this.expireOverdueForUser(userId, transaction);
+      if (displaceActive) {
+        await transaction.query(
+          `UPDATE user_quests SET status = 'expired', version = version + 1
+           WHERE user_id = $1 AND status IN ('assigned', 'submitted')`,
+          [userId],
+        );
+      }
       const active = await transaction.query(
         `SELECT 1 FROM user_quests WHERE user_id = $1 AND status IN ('assigned', 'submitted') LIMIT 1`,
         [userId],

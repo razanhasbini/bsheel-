@@ -5,6 +5,17 @@ const booleanFromString = z
   .default('true')
   .transform((value) => value === 'true');
 
+// An unset env var and one present but empty (`FOO=`) mean the same thing: the
+// optional feature is not configured. dotenv and docker-compose both yield ''
+// rather than undefined, so normalise before validation — otherwise an empty
+// optional URL fails `.url()` instead of reading as absent, and the documented
+// `cp .env.example .env` quick start cannot boot.
+const emptyToUndefined = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const optionalString = z.preprocess(emptyToUndefined, z.string().optional());
+const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().optional());
+
 const environmentSchema = z
   .object({
     NODE_ENV: z
@@ -44,7 +55,7 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
-    FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
+    FIREBASE_SERVICE_ACCOUNT: optionalString,
     FIREBASE_PROJECT_ID: z.string().min(1).default('bitsheel'),
     FIREBASE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     OAUTH_GOOGLE_CLIENT_IDS: z.string().default(''),
@@ -56,25 +67,32 @@ const environmentSchema = z
       .default('true')
       .transform((value) => value === 'true'),
     APP_PUBLIC_URL: z.string().url().default('https://admin.bsheel.app'),
-    EMAIL_DELIVERY_WEBHOOK_URL: z.string().url().optional(),
-    EMAIL_DELIVERY_WEBHOOK_SECRET: z.string().optional(),
+    EMAIL_DELIVERY_WEBHOOK_URL: optionalUrl,
+    EMAIL_DELIVERY_WEBHOOK_SECRET: optionalString,
     EMAIL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     TELEGRAM_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
-    TELEGRAM_BOT_TOKEN: z.string().optional(),
-    TELEGRAM_ADMIN_CHAT_ID: z.string().optional(),
-    TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+    TELEGRAM_BOT_TOKEN: optionalString,
+    TELEGRAM_ADMIN_CHAT_ID: optionalString,
+    TELEGRAM_WEBHOOK_SECRET: optionalString,
     TELEGRAM_ALLOWED_CHAT_IDS: z.string().default(''),
     TELEGRAM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     TELEGRAM_API_BASE_URL: z.string().url().default('https://api.telegram.org'),
-    R2_ENDPOINT: z.string().url().optional(),
+    R2_ENDPOINT: optionalUrl,
     R2_REGION: z.string().default('auto'),
-    R2_ACCESS_KEY_ID: z.string().optional(),
-    R2_SECRET_ACCESS_KEY: z.string().optional(),
-    R2_BUCKET: z.string().optional(),
-    R2_PUBLIC_BASE_URL: z.string().url().optional(),
+    // MinIO (and any self-hosted S3) addresses buckets as a path segment
+    // rather than a subdomain, because there is no wildcard DNS in front of
+    // it. Cloudflare R2 accepts both, so this is safe to leave on.
+    S3_FORCE_PATH_STYLE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    R2_ACCESS_KEY_ID: optionalString,
+    R2_SECRET_ACCESS_KEY: optionalString,
+    R2_BUCKET: optionalString,
+    R2_PUBLIC_BASE_URL: optionalUrl,
     SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])

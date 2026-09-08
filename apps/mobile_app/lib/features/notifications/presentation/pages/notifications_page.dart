@@ -40,9 +40,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       final unread = ref.read(unreadCountProvider).valueOrNull ?? 0;
       if (unread == 0 || isAccountLocked(ref)) return;
       try {
-        await ref
-            .read(notificationsRepositoryProvider)
-            .markAllAsRead(user.id);
+        await ref.read(notificationsRepositoryProvider).markAllAsRead(user.id);
         if (!mounted) return;
         ref.invalidate(unreadCountProvider);
         ref.invalidate(notificationsProvider);
@@ -128,8 +126,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         ),
                       ],
                     ),
-                    child: Icon(Icons.arrow_back_rounded,
-                        color: ink, size: 20),
+                    child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -171,8 +168,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 return GestureDetector(
                   onTap: () => setState(() => _filterIndex = i),
                   child: Padding(
-                    padding: EdgeInsets.only(
-                        right: i < filters.length - 1 ? 8 : 0),
+                    padding:
+                        EdgeInsets.only(right: i < filters.length - 1 ? 8 : 0),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
                       padding: const EdgeInsets.symmetric(
@@ -232,8 +229,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 return RefreshIndicator(
                   color: QuestColors.softRed,
                   backgroundColor: QuestColors.cardBg(context),
-                  onRefresh: () async =>
-                      ref.invalidate(notificationsProvider),
+                  onRefresh: () async => ref.invalidate(notificationsProvider),
                   child: ListView.separated(
                     // Keyed by the active filter so scroll position is
                     // preserved when the user toggles ALL ↔ SOCIAL etc.,
@@ -285,7 +281,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             }
                           }
                           if (context.mounted) {
-                            ref.read(analyticsProvider).notificationTapped(n.type);
+                            ref
+                                .read(analyticsProvider)
+                                .notificationTapped(n.type);
                             _navigateForNotification(context, n);
                           }
                         },
@@ -501,7 +499,8 @@ class _ArcadeNotificationTile extends StatelessWidget {
   }
 
   Widget _buildLeadingWidget(Color ink) {
-    if (_isSocialType(type) && (actorAvatarUrl != null || actorUsername != null)) {
+    if (_isSocialType(type) &&
+        (actorAvatarUrl != null || actorUsername != null)) {
       return GestureDetector(
         onTap: onActorTap,
         child: PixelAvatar(
@@ -708,8 +707,7 @@ class _ErrorState extends StatelessWidget {
           GestureDetector(
             onTap: onRetry,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 22, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
               decoration: BoxDecoration(
                 color: QuestColors.accentYellow,
                 borderRadius: BorderRadius.circular(12),

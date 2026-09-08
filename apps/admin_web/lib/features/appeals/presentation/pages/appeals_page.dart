@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
+/// Submissions awaiting a second review after the user appealed: pending
+/// AND already appealed, oldest first so the longest wait is actioned next.
 final appealsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.submissions)
-      .select(
-        '*, profiles!submissions_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName}, ${ProfileColumns.avatarUrl}), ${Tables.userQuests}(${Tables.quests}(${QuestColumns.title}, ${QuestColumns.category}))',
-      )
-      .eq(SubmissionColumns.status, SubmissionStatus.pending)
-      .eq(SubmissionColumns.appealed, true)
-      .order(SubmissionColumns.submittedAt, ascending: true);
-
-  return List<Map<String, dynamic>>.from(data as List);
+  return AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: 'pending',
+    appealed: true,
+    order: 'asc',
+  );
 });
 
 class AppealsPage extends ConsumerWidget {
@@ -81,7 +75,7 @@ class AppealsPage extends ConsumerWidget {
                       data: a,
                       onReview: () => context.goNamed(
                         AdminRouteNames.submissionReview,
-                        pathParameters: {'id': a[SubmissionColumns.id]},
+                        pathParameters: {'id': a['id'].toString()},
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -129,15 +123,12 @@ class _AppealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = data[Tables.profiles] as Map<String, dynamic>?;
-    final username = profile?[ProfileColumns.username] ?? 'unknown';
-    final displayName = profile?[ProfileColumns.displayName] ?? username;
-    final userQuest = data[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-    final questTitle = quest?[QuestColumns.title] ?? 'Unknown Quest';
-    final category = quest?[QuestColumns.category] ?? '';
-    final appealNote = data[SubmissionColumns.appealNote]?.toString() ?? '';
-    final submittedAt = data[SubmissionColumns.submittedAt]?.toString() ?? '';
+    final username = data['username'] ?? 'unknown';
+    final displayName = data['display_name'] ?? username;
+    final questTitle = data['quest_title'] ?? 'Unknown Quest';
+    final category = data['quest_category'] ?? '';
+    final appealNote = data['appeal_note']?.toString() ?? '';
+    final submittedAt = data['submitted_at']?.toString() ?? '';
 
     return BsheelCard(
       child: Column(

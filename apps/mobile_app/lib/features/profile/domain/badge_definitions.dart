@@ -58,7 +58,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.emoji_events_outlined,
     isUnlocked: _firstQuest,
     targetValue: 1,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => profile.questsCompleted,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        profile.questsCompleted,
   ),
   BadgeDefinition(
     id: 'fire_starter',
@@ -68,7 +70,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.local_fire_department,
     isUnlocked: _fireStarter,
     targetValue: 5,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => profile.questsCompleted,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        profile.questsCompleted,
   ),
   BadgeDefinition(
     id: 'level_10',
@@ -78,7 +82,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.shield_outlined,
     isUnlocked: _level10,
     targetValue: 10,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => profile.level,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        profile.level,
   ),
   BadgeDefinition(
     id: 'streak_master',
@@ -88,7 +94,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.bolt,
     isUnlocked: _streakMaster,
     targetValue: 7,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => streak,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        streak,
   ),
   BadgeDefinition(
     id: 'social_butterfly',
@@ -98,7 +106,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.people_outline,
     isUnlocked: _socialButterfly,
     targetValue: 3,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => socialQuestCount,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        socialQuestCount,
   ),
   BadgeDefinition(
     id: 'xp_hunter',
@@ -108,7 +118,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.star_outline,
     isUnlocked: _xpHunter,
     targetValue: 500,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => profile.xp,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        profile.xp,
   ),
   BadgeDefinition(
     id: 'legend',
@@ -118,7 +130,9 @@ final _badges = <BadgeDefinition>[
     icon: Icons.military_tech,
     isUnlocked: _legend,
     targetValue: 36,
-    currentValue: ({required profile, required streak, required socialQuestCount}) => profile.level,
+    currentValue: (
+            {required profile, required streak, required socialQuestCount}) =>
+        profile.level,
   ),
 ];
 

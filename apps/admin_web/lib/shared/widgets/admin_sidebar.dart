@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/backend/app_backend.dart';
 
 import '../../core/providers/admin_counts_provider.dart';
 import '../../core/router/admin_route_names.dart';
@@ -438,14 +438,12 @@ class _NavLinkState extends State<_NavLink> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: active
-                          ? BsheelColors.pureWhite
-                          : Colors.transparent,
+                      color:
+                          active ? BsheelColors.pureWhite : Colors.transparent,
                       borderRadius: BorderRadius.circular(BsheelRadii.full),
                       border: Border.all(
-                        color: active
-                            ? BsheelColors.pureWhite
-                            : BsheelColors.line,
+                        color:
+                            active ? BsheelColors.pureWhite : BsheelColors.line,
                         width: BsheelBorders.thin,
                       ),
                     ),
@@ -454,8 +452,7 @@ class _NavLinkState extends State<_NavLink> {
                       style: BsheelType.labelSm.copyWith(
                         fontSize: 9.5,
                         letterSpacing: 0.5,
-                        color:
-                            active ? BsheelColors.ink : BsheelColors.hot,
+                        color: active ? BsheelColors.ink : BsheelColors.hot,
                         height: 1.2,
                       ),
                     ),
@@ -518,7 +515,7 @@ class _LogoutButton extends StatelessWidget {
       ),
     );
     if (confirmed != true) return;
-    await Supabase.instance.client.auth.signOut();
+    await AppBackend.repositories.auth.signOut();
   }
 
   @override

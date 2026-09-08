@@ -22,7 +22,17 @@ let SubmissionsService = class SubmissionsService {
         return row;
     }
     listUser(userId, viewerId, limit, offset) { return this.repository.listUser(userId, viewerId, limit, offset); }
-    listPending(limit, offset) { return this.repository.listPending(limit, offset); }
+    async adminDetail(id) {
+        const submission = await this.repository.adminDetail(id);
+        if (!submission) {
+            throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Submission not found' });
+        }
+        return submission;
+    }
+    reviewQueue(limit, offset) { return this.repository.reviewQueue(limit, offset); }
+    listForAdmin(filter) {
+        return this.repository.listForAdmin(filter);
+    }
     appeal(userId, id, note) { return this.repository.appeal(userId, id, note); }
     approve(actorId, id, note, source) {
         return this.repository.approve(actorId, id, note, source);

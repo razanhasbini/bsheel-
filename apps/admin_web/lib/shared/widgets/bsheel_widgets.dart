@@ -96,23 +96,47 @@ class BsheelPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, border) = switch (tone) {
       // Emphasis = inversion.
-      BsheelPillTone.ink =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
-      BsheelPillTone.gold =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
-      BsheelPillTone.violet =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
+      BsheelPillTone.ink => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.gold => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.violet => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
       // Status = hairline pill, semantic colour only on the text.
-      BsheelPillTone.coral =>
-        (BsheelColors.paper, BsheelColors.hot, BsheelColors.line),
-      BsheelPillTone.green =>
-        (BsheelColors.paper, BsheelColors.success, BsheelColors.line),
-      BsheelPillTone.sky =>
-        (BsheelColors.paper, BsheelColors.cool, BsheelColors.line),
-      BsheelPillTone.ghost =>
-        (Colors.transparent, BsheelColors.inkMuted, BsheelColors.line),
-      BsheelPillTone.paper =>
-        (BsheelColors.paper, BsheelColors.ink, BsheelColors.line),
+      BsheelPillTone.coral => (
+          BsheelColors.paper,
+          BsheelColors.hot,
+          BsheelColors.line
+        ),
+      BsheelPillTone.green => (
+          BsheelColors.paper,
+          BsheelColors.success,
+          BsheelColors.line
+        ),
+      BsheelPillTone.sky => (
+          BsheelColors.paper,
+          BsheelColors.cool,
+          BsheelColors.line
+        ),
+      BsheelPillTone.ghost => (
+          Colors.transparent,
+          BsheelColors.inkMuted,
+          BsheelColors.line
+        ),
+      BsheelPillTone.paper => (
+          BsheelColors.paper,
+          BsheelColors.ink,
+          BsheelColors.line
+        ),
     };
     return Container(
       padding: EdgeInsets.symmetric(
@@ -234,24 +258,48 @@ class _BsheelButtonState extends State<BsheelButton> {
     final disabled = widget.onPressed == null || widget.loading;
     final (bg, fg, border) = switch (widget.tone) {
       // Emphasis tones — inversion.
-      BsheelPillTone.ink =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
-      BsheelPillTone.gold =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
-      BsheelPillTone.violet =>
-        (BsheelColors.ink, BsheelColors.pureWhite, BsheelColors.ink),
+      BsheelPillTone.ink => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.gold => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.violet => (
+          BsheelColors.ink,
+          BsheelColors.pureWhite,
+          BsheelColors.ink
+        ),
       // Semantic actions.
-      BsheelPillTone.coral =>
-        (BsheelColors.hot, BsheelColors.pureWhite, BsheelColors.hot),
-      BsheelPillTone.green =>
-        (BsheelColors.success, BsheelColors.pureWhite, BsheelColors.success),
+      BsheelPillTone.coral => (
+          BsheelColors.hot,
+          BsheelColors.pureWhite,
+          BsheelColors.hot
+        ),
+      BsheelPillTone.green => (
+          BsheelColors.success,
+          BsheelColors.pureWhite,
+          BsheelColors.success
+        ),
       // Quiet variants — hairline outline, ink text.
-      BsheelPillTone.sky =>
-        (BsheelColors.paper, BsheelColors.ink, BsheelColors.ink),
-      BsheelPillTone.paper =>
-        (BsheelColors.paper, BsheelColors.ink, BsheelColors.ink),
-      BsheelPillTone.ghost =>
-        (Colors.transparent, BsheelColors.ink, BsheelColors.ink),
+      BsheelPillTone.sky => (
+          BsheelColors.paper,
+          BsheelColors.ink,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.paper => (
+          BsheelColors.paper,
+          BsheelColors.ink,
+          BsheelColors.ink
+        ),
+      BsheelPillTone.ghost => (
+          Colors.transparent,
+          BsheelColors.ink,
+          BsheelColors.ink
+        ),
     };
 
     final hPad = widget.small ? 16.0 : 20.0;
@@ -262,8 +310,7 @@ class _BsheelButtonState extends State<BsheelButton> {
       cursor: disabled ? MouseCursor.defer : SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown:
-            disabled ? null : (_) => setState(() => _down = true),
+        onTapDown: disabled ? null : (_) => setState(() => _down = true),
         onTapUp: disabled
             ? null
             : (_) {
@@ -564,8 +611,7 @@ class BsheelSegmented extends StatelessWidget {
                 child: Text(
                   options[i].toUpperCase(),
                   style: BsheelType.labelMd.copyWith(
-                    color:
-                        on ? BsheelColors.pureWhite : BsheelColors.inkMuted,
+                    color: on ? BsheelColors.pureWhite : BsheelColors.inkMuted,
                   ),
                 ),
               ),
@@ -744,13 +790,11 @@ class BsheelTextField extends StatelessWidget {
         isDense: isDense,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide:
-              BorderSide(color: borderColor, width: BsheelBorders.thin),
+          borderSide: BorderSide(color: borderColor, width: BsheelBorders.thin),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide:
-              BorderSide(color: borderColor, width: BsheelBorders.thin),
+          borderSide: BorderSide(color: borderColor, width: BsheelBorders.thin),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
@@ -872,10 +916,9 @@ class BsheelDialog extends StatelessWidget {
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
-              children: actions
-                  .expand((w) => [w, const SizedBox(width: 8)])
-                  .toList()
-                ..removeLast(),
+              children:
+                  actions.expand((w) => [w, const SizedBox(width: 8)]).toList()
+                    ..removeLast(),
             ),
           ],
         ),
@@ -920,9 +963,8 @@ class _PressableState extends State<_Pressable> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: widget.onTap == null
-          ? MouseCursor.defer
-          : SystemMouseCursors.click,
+      cursor:
+          widget.onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,

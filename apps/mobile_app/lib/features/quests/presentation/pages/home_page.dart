@@ -16,8 +16,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../../core/providers/account_status_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/utils/streak_utils.dart';
 import '../../../notifications/presentation/providers/notifications_provider.dart';
@@ -1714,14 +1713,12 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
 
     final pruned = _pruneHistory(history);
     int? serverRemaining;
-    if (BackendConfig.usesNest) {
-      try {
-        serverRemaining =
-            await MobileNestBackend.repositories.quests.getRerollsRemaining();
-      } on Object {
-        // Preserve the local rolling-window UX while offline. The server still
-        // enforces the authoritative limit when a reroll is recorded.
-      }
+    try {
+      serverRemaining =
+          await AppBackend.repositories.quests.getRerollsRemaining();
+    } on Object {
+      // Preserve the local rolling-window UX while offline. The server still
+      // enforces the authoritative limit when a reroll is recorded.
     }
     if (!mounted) return;
     setState(() {
@@ -1808,9 +1805,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
   }
 
   Future<void> _recordReroll() async {
-    final serverRemaining = BackendConfig.usesNest
-        ? await MobileNestBackend.repositories.quests.recordReroll()
-        : null;
+    final serverRemaining = await AppBackend.repositories.quests.recordReroll();
     final now = DateTime.now();
     final next = _pruneHistory([..._rerollHistory, now]);
     final key = _rerollStorageKey;

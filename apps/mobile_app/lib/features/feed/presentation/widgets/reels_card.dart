@@ -98,10 +98,14 @@ class ReelsCard extends ConsumerStatefulWidget {
 }
 
 class _ReelsCardState extends ConsumerState<ReelsCard> {
-  static const Color _scrimStop0 = Color(0x00000000); // Screen-specific colour — not a theme token.
-  static const Color _scrimStop20 = Color(0x33000000); // Screen-specific colour — not a theme token.
-  static const Color _scrimStop60 = Color(0x99000000); // Screen-specific colour — not a theme token.
-  static const Color _scrimStop85 = Color(0xD9000000); // Screen-specific colour — not a theme token.
+  static const Color _scrimStop0 =
+      Color(0x00000000); // Screen-specific colour — not a theme token.
+  static const Color _scrimStop20 =
+      Color(0x33000000); // Screen-specific colour — not a theme token.
+  static const Color _scrimStop60 =
+      Color(0x99000000); // Screen-specific colour — not a theme token.
+  static const Color _scrimStop85 =
+      Color(0xD9000000); // Screen-specific colour — not a theme token.
 
   final _hController = PageController();
   int _hIndex = 0;
@@ -179,9 +183,9 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
     // bottom-meta flip to that person's avatar / handle / caption.
     // DB convention: collab modes are 'versus' and 'with' (the latter is
     // what the UI calls "coop"). The original 'coop' string was wrong.
-    final isCollab = (widget.collabMode == 'versus' ||
-            widget.collabMode == 'with') &&
-        _members.isNotEmpty;
+    final isCollab =
+        (widget.collabMode == 'versus' || widget.collabMode == 'with') &&
+            _members.isNotEmpty;
 
     // Visible team — every member who hasn't been hidden from the feed,
     // whether they've uploaded yet or not. Members without media still
@@ -209,17 +213,15 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
       slots = [for (final u in urls) _CarouselSlot(member: null, url: u)];
     }
 
-    final clampedIndex = slots.isEmpty
-        ? 0
-        : _hIndex.clamp(0, slots.length - 1);
+    final clampedIndex = slots.isEmpty ? 0 : _hIndex.clamp(0, slots.length - 1);
     final activeSlot = slots.isEmpty ? null : slots[clampedIndex];
     final activeMember = activeSlot?.member;
 
     // The post-owner's quest deadline applies to the whole collab group
     // (members joined into the same active window), so we use it for the
     // "WAITING FOR" → "DIDN'T POST" copy switch.
-    final hasExpired = widget.expiresAt != null &&
-        DateTime.now().isAfter(widget.expiresAt!);
+    final hasExpired =
+        widget.expiresAt != null && DateTime.now().isAfter(widget.expiresAt!);
 
     Widget buildSlot(int i, {required bool isActiveSlot}) {
       final slot = slots[i];
@@ -428,9 +430,7 @@ class _ReelsMediaItemState extends ConsumerState<_ReelsMediaItem> {
   Timer? _flashTimer;
 
   bool get _shouldPlay =>
-      widget.isActive &&
-      !_userPaused &&
-      !ref.read(feedVideosPausedProvider);
+      widget.isActive && !_userPaused && !ref.read(feedVideosPausedProvider);
 
   @override
   void initState() {
@@ -755,7 +755,8 @@ class _BufferingGlyph extends StatelessWidget {
             padding: EdgeInsets.all(18),
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(QuestColors.textPrimary),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(QuestColors.textPrimary),
             ),
           ),
         ),
@@ -880,23 +881,20 @@ class _ActionRail extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (_isVersus)
-          ..._buildVersusVotes()
-        else
-          ..._buildSoloVotes(),
+        if (_isVersus) ..._buildVersusVotes() else ..._buildSoloVotes(),
         const SizedBox(height: 10),
         _RailButton(
           icon: Icons.chat_bubble_outline_rounded,
           label: '',
-          centerLabel:
-              commentCount > 0 ? _formatCount(commentCount) : null,
+          centerLabel: commentCount > 0 ? _formatCount(commentCount) : null,
           activeColor: QuestColors.textPrimary,
           isActive: false,
           onTap: onComment,
         ),
         const SizedBox(height: 10),
         _RailButton(
-          icon: isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          icon:
+              isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
           label: '',
           activeColor: QuestColors.accentYellow,
           isActive: isSaved,
@@ -1244,7 +1242,12 @@ class _BottomMeta extends StatelessWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.3,
-                        shadows: [Shadow(color: QuestColors.pureBlack, blurRadius: 8, offset: Offset(0, 1))],
+                        shadows: [
+                          Shadow(
+                              color: QuestColors.pureBlack,
+                              blurRadius: 8,
+                              offset: Offset(0, 1))
+                        ],
                       ),
                     ),
                     // Sub-line shows EITHER the displayName (solo) OR a
@@ -1265,7 +1268,10 @@ class _BottomMeta extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.0,
                           shadows: const [
-                            Shadow(color: QuestColors.pureBlack, blurRadius: 8, offset: Offset(0, 1)),
+                            Shadow(
+                                color: QuestColors.pureBlack,
+                                blurRadius: 8,
+                                offset: Offset(0, 1)),
                           ],
                         ),
                       )
@@ -1279,7 +1285,10 @@ class _BottomMeta extends StatelessWidget {
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                           shadows: const [
-                            Shadow(color: QuestColors.pureBlack, blurRadius: 8, offset: Offset(0, 1)),
+                            Shadow(
+                                color: QuestColors.pureBlack,
+                                blurRadius: 8,
+                                offset: Offset(0, 1)),
                           ],
                         ),
                       ),
@@ -1326,7 +1335,12 @@ class _BottomMeta extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
-                    shadows: [Shadow(color: QuestColors.pureBlack, blurRadius: 8, offset: Offset(0, 1))],
+                    shadows: [
+                      Shadow(
+                          color: QuestColors.pureBlack,
+                          blurRadius: 8,
+                          offset: Offset(0, 1))
+                    ],
                   ),
                 ),
               ),
@@ -1344,7 +1358,12 @@ class _BottomMeta extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w500,
               height: 1.3,
-              shadows: const [Shadow(color: QuestColors.pureBlack, blurRadius: 8, offset: Offset(0, 1))],
+              shadows: const [
+                Shadow(
+                    color: QuestColors.pureBlack,
+                    blurRadius: 8,
+                    offset: Offset(0, 1))
+              ],
             ),
           ),
         ],
@@ -1352,7 +1371,6 @@ class _BottomMeta extends StatelessWidget {
     );
   }
 }
-
 
 // ── Carousel slot ───────────────────────────────────────────────────────────
 
@@ -1387,17 +1405,16 @@ class _WaitingForMember extends StatelessWidget {
   final CollabFeedMember member;
   final bool hasExpired;
 
-  static const Color _waitingBg = Color(0xFF111111); // Screen-specific colour — not a theme token.
+  static const Color _waitingBg =
+      Color(0xFF111111); // Screen-specific colour — not a theme token.
 
   @override
   Widget build(BuildContext context) {
-    final name = member.username.isNotEmpty
-        ? member.username
-        : member.displayName;
+    final name =
+        member.username.isNotEmpty ? member.username : member.displayName;
     final headline = hasExpired ? "DIDN'T POST" : 'WAITING FOR';
-    final subline = hasExpired
-        ? 'ran out of time on this quest'
-        : "hasn't posted yet";
+    final subline =
+        hasExpired ? 'ran out of time on this quest' : "hasn't posted yet";
     return Container(
       color: _waitingBg,
       child: Center(

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:app_repositories/nest_api_repositories.dart';
+import 'package:app_repositories/app_repositories.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
@@ -21,17 +21,21 @@ http.Response envelope(Object? data, {int status = 200}) => http.Response(
 void main() {
   test('unwraps the response envelope and attaches the access token', () async {
     final tokens = InMemoryApiTokenStore();
-    await tokens.write(const ApiTokenPair(
-      accessToken: 'access-one',
-      refreshToken: 'refresh-one',
-      expiresIn: 900,
-    ),);
+    await tokens.write(
+      const ApiTokenPair(
+        accessToken: 'access-one',
+        refreshToken: 'refresh-one',
+        expiresIn: 900,
+      ),
+    );
     final client = ApiClient(
       baseUrl: Uri.parse('https://api.example.test/api/v1'),
       tokenStore: tokens,
       httpClient: MockClient((request) async {
-        expect(request.url.toString(),
-            'https://api.example.test/api/v1/profiles/me',);
+        expect(
+          request.url.toString(),
+          'https://api.example.test/api/v1/profiles/me',
+        );
         expect(request.headers['authorization'], 'Bearer access-one');
         return envelope({'id': 'user-one'});
       }),
@@ -44,37 +48,43 @@ void main() {
     final client = ApiClient(
       baseUrl: Uri.parse('https://api.example.test/api/v1/'),
       tokenStore: InMemoryApiTokenStore(),
-      httpClient: MockClient((_) async => http.Response(
-            jsonEncode({
-              'success': false,
-              'error': {
-                'code': 'QUEST_NOT_FOUND',
-                'message': 'Quest not found',
-                'details': {'field': 'questId'},
-              },
-              'meta': {'requestId': 'request-42'},
-            }),
-            404,
-          ),),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'success': false,
+            'error': {
+              'code': 'QUEST_NOT_FOUND',
+              'message': 'Quest not found',
+              'details': {'field': 'questId'},
+            },
+            'meta': {'requestId': 'request-42'},
+          }),
+          404,
+        ),
+      ),
     );
 
     await expectLater(
       client.get('quests/missing'),
-      throwsA(isA<ApiException>()
-          .having((error) => error.statusCode, 'statusCode', 404)
-          .having((error) => error.code, 'code', 'QUEST_NOT_FOUND')
-          .having((error) => error.requestId, 'requestId', 'request-42'),),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 404)
+            .having((error) => error.code, 'code', 'QUEST_NOT_FOUND')
+            .having((error) => error.requestId, 'requestId', 'request-42'),
+      ),
     );
   });
 
   test('rotates a refresh token once and retries the original request',
       () async {
     final tokens = InMemoryApiTokenStore();
-    await tokens.write(const ApiTokenPair(
-      accessToken: 'expired-access',
-      refreshToken: 'refresh-one',
-      expiresIn: 900,
-    ),);
+    await tokens.write(
+      const ApiTokenPair(
+        accessToken: 'expired-access',
+        refreshToken: 'refresh-one',
+        expiresIn: 900,
+      ),
+    );
     var protectedCalls = 0;
     var refreshCalls = 0;
     final client = ApiClient(
@@ -93,11 +103,12 @@ void main() {
         protectedCalls++;
         if (request.headers['authorization'] == 'Bearer expired-access') {
           return http.Response(
-              jsonEncode({
-                'success': false,
-                'error': {'code': 'UNAUTHORIZED', 'message': 'Expired'},
-              }),
-              401,);
+            jsonEncode({
+              'success': false,
+              'error': {'code': 'UNAUTHORIZED', 'message': 'Expired'},
+            }),
+            401,
+          );
         }
         expect(request.headers['authorization'], 'Bearer fresh-access');
         return envelope({'ok': true});

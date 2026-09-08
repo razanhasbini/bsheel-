@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class NotificationModel {
   final String id;
   final String userId;
@@ -28,8 +30,11 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    final actorProfile =
-        (json['actor_profile'] ?? json[Tables.profiles]) as Map<String, dynamic>?;
+    // `coerceEmbed` so the array-shaped PostgREST embed parses too — this
+    // used to be a hard `as Map<String, dynamic>?` cast that threw on it
+    // while SubmissionModel tolerated both shapes.
+    final actorProfile = coerceEmbed(json['actor_profile']) ??
+        coerceEmbed(json[Tables.profiles]);
     return NotificationModel(
       id: (json[NotificationColumns.id] ?? '').toString(),
       userId: (json[NotificationColumns.userId] ?? '').toString(),
@@ -37,14 +42,19 @@ class NotificationModel {
       body: (json[NotificationColumns.body] ?? '').toString(),
       type: (json[NotificationColumns.type] ?? '').toString(),
       referenceId: json[NotificationColumns.referenceId] as String?,
-      isRead: (json[NotificationColumns.isRead] as bool?) ?? false,
-      createdAt: _toDateTime(json[NotificationColumns.createdAt]),
+      isRead: coerceBool(json[NotificationColumns.isRead], ifMissing: false),
+      createdAt: coerceTimestamp(json[NotificationColumns.createdAt]),
       actorId: json[NotificationColumns.actorId] as String?,
-      actorAvatarUrl: actorProfile?['avatar_url'] as String?,
-      actorUsername: actorProfile?['username'] as String?,
+      actorAvatarUrl: actorProfile?[ProfileColumns.avatarUrl] as String?,
+      actorUsername: actorProfile?[ProfileColumns.username] as String?,
     );
   }
 
+  /// Serialises every own column [fromJson] reads, `actor_id` included — it
+  /// used to be dropped, so a notification cached through `toJson` came
+  /// back with no actor and rendered without an avatar. The joined
+  /// `actorUsername` / `actorAvatarUrl` are deliberately absent: they live
+  /// on `profiles`, not on this row.
   Map<String, dynamic> toJson() {
     return {
       NotificationColumns.id: id,
@@ -55,6 +65,7 @@ class NotificationModel {
       NotificationColumns.referenceId: referenceId,
       NotificationColumns.isRead: isRead,
       NotificationColumns.createdAt: createdAt.toIso8601String(),
+      NotificationColumns.actorId: actorId,
     };
   }
 
@@ -74,8 +85,35 @@ class NotificationModel {
     );
   }
 
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is NotificationModel &&
+        other.id == id &&
+        other.userId == userId &&
+        other.title == title &&
+        other.body == body &&
+        other.type == type &&
+        other.referenceId == referenceId &&
+        other.isRead == isRead &&
+        other.createdAt == createdAt &&
+        other.actorId == actorId &&
+        other.actorAvatarUrl == actorAvatarUrl &&
+        other.actorUsername == actorUsername;
   }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        userId,
+        title,
+        body,
+        type,
+        referenceId,
+        isRead,
+        createdAt,
+        actorId,
+        actorAvatarUrl,
+        actorUsername,
+      );
 }

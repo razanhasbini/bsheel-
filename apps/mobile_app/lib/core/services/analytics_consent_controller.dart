@@ -1,13 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 
 import '../providers/auth_session_provider.dart';
 import '../providers/current_profile_provider.dart';
 import 'analytics_service.dart';
-import '../backend/backend_config.dart';
-import '../backend/mobile_nest_backend.dart';
+import '../backend/app_backend.dart';
 
 /// Bridges `profiles.analytics_consent_at` (migration 0142) to
 /// `AnalyticsService.setConsent()` so Mixpanel is gated by the user's
@@ -46,15 +43,7 @@ Future<void> setAnalyticsConsent(WidgetRef ref, {required bool granted}) async {
     return;
   }
   try {
-    if (BackendConfig.usesNest) {
-      await MobileNestBackend.repositories.account.setAnalyticsConsent(granted);
-      ref.invalidate(currentProfileProvider);
-      return;
-    }
-    await Supabase.instance.client.from(Tables.profiles).update({
-      ProfileColumns.analyticsConsentAt:
-          granted ? DateTime.now().toUtc().toIso8601String() : null,
-    }).eq(ProfileColumns.id, user.id);
+    await AppBackend.repositories.account.setAnalyticsConsent(granted);
     ref.invalidate(currentProfileProvider);
   } catch (e) {
     AppLogger.error('[Analytics] Failed to persist consent', e);

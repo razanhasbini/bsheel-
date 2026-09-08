@@ -61,5 +61,5 @@ export declare class AuthRepository {
     touchLastLogin(userId: string): Promise<void>;
     transaction<T>(work: (transaction: DatabaseTransaction) => Promise<T>): Promise<T>;
     private mapAccount;
-    private isUniqueViolation;
+    private uniqueViolationConstraint;
 }

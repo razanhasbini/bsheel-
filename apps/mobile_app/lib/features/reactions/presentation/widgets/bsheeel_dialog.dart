@@ -28,8 +28,10 @@ Future<void> showBsheeelDialog({
 
   final repo = ref.read(savedPostsRepositoryProvider);
   final isSaved = ref
-      .read(isPostSavedProvider((submissionId: submissionId, userId: userId)))
-      .valueOrNull ?? false;
+          .read(
+              isPostSavedProvider((submissionId: submissionId, userId: userId)))
+          .valueOrNull ??
+      false;
 
   // Already saved → toggle OFF immediately. No dialog.
   if (isSaved) {
@@ -145,7 +147,8 @@ Future<void> assignQuestFlow({
     } else if (msg.contains('already has an active quest')) {
       userMsg = "Can't — there is already an active quest";
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(userMsg)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(userMsg)));
   }
 }
 
@@ -339,8 +342,7 @@ class _BsheeelTakeOnDialog extends StatelessWidget {
             // Quest title chip
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: QuestColors.bg(context),
                 borderRadius: BorderRadius.circular(12),

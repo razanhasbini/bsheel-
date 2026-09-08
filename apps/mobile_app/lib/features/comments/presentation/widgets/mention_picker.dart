@@ -41,8 +41,8 @@ class MentionTextEditingController extends TextEditingController {
     var lastEnd = 0;
     for (final match in _mentionRegex.allMatches(text)) {
       if (match.start > lastEnd) {
-        children.add(TextSpan(
-            text: text.substring(lastEnd, match.start), style: style));
+        children.add(
+            TextSpan(text: text.substring(lastEnd, match.start), style: style));
       }
       children.add(TextSpan(text: match.group(0), style: mentionStyle));
       lastEnd = match.end;

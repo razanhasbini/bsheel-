@@ -4,6 +4,7 @@ export declare class ProfilesService {
     private readonly repository;
     constructor(repository: ProfilesRepository);
     publicProfile(id: string): Promise<PublicProfileRecord>;
+    publicProfileByUsername(username: string): Promise<PublicProfileRecord>;
     ownProfile(id: string): Promise<OwnProfileRecord>;
     list(limit: number): Promise<readonly PublicProfileRecord[]>;
     xpStats(id: string): Promise<UserXpStatsRecord>;

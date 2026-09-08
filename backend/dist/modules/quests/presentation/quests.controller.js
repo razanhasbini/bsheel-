@@ -12,10 +12,23 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import { QuestsService } from '../application/quests.service.js';
 import { BulkCreateQuestsDto, CreateQuestDto, DeleteAllQuestsDto, FollowingActiveQueryDto, QuestHistoryQueryDto, QuestIdDto, QuestPickerQueryDto, UpdateQuestDto, UserQuestIdDto } from './quest.dto.js';
+class AdminAssignQuestDto {
+    userId;
+    questId;
+}
+__decorate([
+    IsUUID(),
+    __metadata("design:type", String)
+], AdminAssignQuestDto.prototype, "userId", void 0);
+__decorate([
+    IsUUID(),
+    __metadata("design:type", String)
+], AdminAssignQuestDto.prototype, "questId", void 0);
 let QuestsController = class QuestsController {
     service;
     constructor(service) {
@@ -35,6 +48,9 @@ let QuestsController = class QuestsController {
     assign(user, body) { return this.service.assign(user.id, body.questId); }
     expire(user, body) { return this.service.expire(user.id, body.userQuestId); }
     get(id) { return this.service.getQuest(id); }
+    assignForUser(body) {
+        return this.service.assignForUser(body.userId, body.questId);
+    }
     allAdmin() { return this.service.listAll(); }
     create(user, body) { return this.service.create(body, user.id); }
     createBulk(user, body) {
@@ -124,6 +140,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], QuestsController.prototype, "get", null);
+__decorate([
+    Roles('moderator', 'super_admin'),
+    Post('admin/assign'),
+    __param(0, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [AdminAssignQuestDto]),
+    __metadata("design:returntype", void 0)
+], QuestsController.prototype, "assignForUser", null);
 __decorate([
     Roles('super_admin'),
     Get('admin/all'),

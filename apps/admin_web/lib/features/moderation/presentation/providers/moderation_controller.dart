@@ -1,8 +1,7 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import 'pending_submissions_provider.dart';
 
 class ModerationController extends AutoDisposeAsyncNotifier<void> {
@@ -16,16 +15,12 @@ class ModerationController extends AutoDisposeAsyncNotifier<void> {
   Future<bool> approve(PendingSubmission submission) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final client = ref.read(supabaseClientProvider);
-      // Atomic: the RPC re-verifies admin status, asserts current state is
-      // 'pending' under FOR UPDATE, performs the status update, and writes
-      // an admin_audit_log entry — all in one transaction. Replaces the
-      // previous direct table UPDATE that relied solely on RLS.
+      // Atomic on the API: it re-checks the moderator's role, asserts the
+      // submission is still pending under FOR UPDATE, awards XP once,
+      // notifies the author and writes an audit record in one transaction.
       try {
-        await client.rpc(
-          RpcNames.adminApproveSubmission,
-          params: {'p_submission_id': submission.id},
-        );
+        await AppBackend.repositories.moderation
+            .approveSubmission(submission.id, '');
       } catch (e) {
         throw ModerationException(mapModerationError(e, action: 'approve'));
       }
@@ -44,14 +39,11 @@ class ModerationController extends AutoDisposeAsyncNotifier<void> {
         throw ModerationException('At least one rejection reason is required.');
       }
 
-      final client = ref.read(supabaseClientProvider);
       try {
-        await client.rpc(
-          RpcNames.adminRejectSubmission,
-          params: {
-            'p_submission_id': submission.id,
-            'p_review_note': rejectionNote,
-          },
+        await AppBackend.repositories.moderation.rejectSubmission(
+          submission.id,
+          '',
+          note: rejectionNote,
         );
       } catch (e) {
         throw ModerationException(mapModerationError(e, action: 'reject'));
@@ -87,5 +79,5 @@ class ModerationException implements Exception {
 
 final moderationControllerProvider =
     AsyncNotifierProvider.autoDispose<ModerationController, void>(
-      ModerationController.new,
-    );
+  ModerationController.new,
+);

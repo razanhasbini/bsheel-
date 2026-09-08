@@ -115,7 +115,9 @@ class _PendingSubmissionsPageState
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.xl),
           side: const BorderSide(
-              color: BsheelColors.line, width: BsheelBorders.thin,),
+            color: BsheelColors.line,
+            width: BsheelBorders.thin,
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -170,8 +172,7 @@ class _PendingSubmissionsPageState
                         backgroundColor: BsheelColors.success,
                         foregroundColor: BsheelColors.pureWhite,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                       ),
                       child: Text(
@@ -252,7 +253,9 @@ class _PendingSubmissionsPageState
       if (!_allMediaViewed(selected)) return;
       final note = await _showDenyDialog(context, selected);
       if (note == null || note.isEmpty) return;
-      await ref.read(moderationControllerProvider.notifier).deny(selected, note);
+      await ref
+          .read(moderationControllerProvider.notifier)
+          .deny(selected, note);
     }
 
     void openSelected() {
@@ -287,8 +290,7 @@ class _PendingSubmissionsPageState
               _Header(
                 submissions: list,
                 busy: busy,
-                onRefresh: () =>
-                    ref.invalidate(pendingSubmissionsProvider),
+                onRefresh: () => ref.invalidate(pendingSubmissionsProvider),
                 onApproveAll: () => _approveAll(list),
               ),
               const SizedBox(height: QuestSpacing.xs),
@@ -318,7 +320,8 @@ class _PendingSubmissionsPageState
                 child: submissionsAsync.when(
                   loading: () => const Center(
                     child: CircularProgressIndicator(
-                        color: BsheelColors.ink,),
+                      color: BsheelColors.ink,
+                    ),
                   ),
                   error: (e, _) => Center(
                     child: Text(
@@ -339,10 +342,11 @@ class _PendingSubmissionsPageState
                       itemBuilder: (context, i) {
                         final sub = submissions[i];
                         final key = _itemKeys.putIfAbsent(
-                            sub.id, () => GlobalKey(),);
+                          sub.id,
+                          () => GlobalKey(),
+                        );
                         final viewed = _allMediaViewed(sub);
-                        final viewedSet =
-                            _viewed[sub.id] ?? const <int>{};
+                        final viewedSet = _viewed[sub.id] ?? const <int>{};
                         return KeyedSubtree(
                           key: key,
                           child: _SubmissionCard(
@@ -350,15 +354,14 @@ class _PendingSubmissionsPageState
                             isSelected: i == _selectedIndex,
                             allMediaViewed: viewed,
                             viewedIndices: viewedSet,
-                            onTapCard: () =>
-                                setState(() => _selectedIndex = i),
-                            onMediaViewed: (idx) =>
-                                _markViewed(sub.id, idx),
+                            onTapCard: () => setState(() => _selectedIndex = i),
+                            onMediaViewed: (idx) => _markViewed(sub.id, idx),
                             onApprove: (busy || !viewed)
                                 ? null
                                 : () => ref
-                                    .read(moderationControllerProvider
-                                        .notifier,)
+                                    .read(
+                                      moderationControllerProvider.notifier,
+                                    )
                                     .approve(sub),
                             onDeny: (busy || !viewed)
                                 ? null
@@ -367,8 +370,9 @@ class _PendingSubmissionsPageState
                                         await _showDenyDialog(context, sub);
                                     if (note == null || note.isEmpty) return;
                                     await ref
-                                        .read(moderationControllerProvider
-                                            .notifier,)
+                                        .read(
+                                          moderationControllerProvider.notifier,
+                                        )
                                         .deny(sub, note);
                                   },
                           ),
@@ -422,8 +426,8 @@ class _Header extends StatelessWidget {
                 Text(
                   '${submissions.length} submissions waiting · use '
                   'A approve · D deny · ↑↓ to navigate.',
-                  style: BsheelType.bodyMd
-                      .copyWith(color: BsheelColors.inkSoft),
+                  style:
+                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
                 ),
               ],
             ),
@@ -475,8 +479,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: QuestSpacing.sm),
           Text(
             'All caught up! Check back later.',
-            style:
-                BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+            style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
           ),
         ],
       ),
@@ -518,29 +521,35 @@ class _SubmissionCard extends StatelessWidget {
 
     final flags = <Widget>[];
     if (submission.isDuplicate) {
-      flags.add(const _FlagBadge(
-        label: 'DUPLICATE',
-        color: BsheelColors.hot,
-        icon: Icons.content_copy,
-      ),);
+      flags.add(
+        const _FlagBadge(
+          label: 'DUPLICATE',
+          color: BsheelColors.hot,
+          icon: Icons.content_copy,
+        ),
+      );
     }
     for (final f in submission.captionFlags) {
-      flags.add(_FlagBadge(
-        label: f,
-        color: f == CaptionFlags.inappropriate
-            ? BsheelColors.hot
-            : BsheelColors.pureWhite,
-        icon: f == CaptionFlags.inappropriate
-            ? Icons.warning_amber_rounded
-            : Icons.report_gmailerrorred,
-      ),);
+      flags.add(
+        _FlagBadge(
+          label: f,
+          color: f == CaptionFlags.inappropriate
+              ? BsheelColors.hot
+              : BsheelColors.pureWhite,
+          icon: f == CaptionFlags.inappropriate
+              ? Icons.warning_amber_rounded
+              : Icons.report_gmailerrorred,
+        ),
+      );
     }
     if (_isStale) {
-      flags.add(const _FlagBadge(
-        label: 'STALE',
-        color: BsheelColors.hot,
-        icon: Icons.schedule,
-      ),);
+      flags.add(
+        const _FlagBadge(
+          label: 'STALE',
+          color: BsheelColors.hot,
+          icon: Icons.schedule,
+        ),
+      );
     }
 
     final hasHistory =
@@ -580,8 +589,7 @@ class _SubmissionCard extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor:
-                              BsheelColors.pureWhite.withAlpha(30),
+                          backgroundColor: BsheelColors.pureWhite.withAlpha(30),
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : '?',
                             style: BsheelType.labelSm.copyWith(
@@ -622,8 +630,7 @@ class _SubmissionCard extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                           border: Border.all(
                             color: _mediaPanelBorder,
                           ),
@@ -666,9 +673,8 @@ class _SubmissionCard extends StatelessWidget {
                     Text(
                       'Submitted ${_formatTime(submission.submittedAt)}',
                       style: BsheelType.labelSm.copyWith(
-                        color: _isStale
-                            ? BsheelColors.hot
-                            : BsheelColors.inkMuted,
+                        color:
+                            _isStale ? BsheelColors.hot : BsheelColors.inkMuted,
                         fontSize: 11,
                         fontWeight: _isStale ? FontWeight.w500 : null,
                       ),
@@ -691,8 +697,7 @@ class _SubmissionCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: BsheelColors.pureWhite.withAlpha(25),
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.md),
+                          borderRadius: BorderRadius.circular(BsheelRadii.md),
                           border: Border.all(
                             color: BsheelColors.pureWhite.withAlpha(120),
                           ),
@@ -728,8 +733,7 @@ class _SubmissionCard extends StatelessWidget {
                             BsheelColors.success.withAlpha(50),
                         disabledForegroundColor: Colors.white54,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: QuestSpacing.md,
@@ -755,8 +759,7 @@ class _SubmissionCard extends StatelessWidget {
                           width: BsheelBorders.thin,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: QuestSpacing.md,
@@ -785,8 +788,7 @@ class _SubmissionCard extends StatelessWidget {
                           width: BsheelBorders.thin,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
@@ -812,7 +814,9 @@ class _SubmissionCard extends StatelessWidget {
 // ── Deny dialog (chip-based reasons + optional custom note) ──────────────────
 
 Future<String?> _showDenyDialog(
-    BuildContext context, PendingSubmission sub,) async {
+  BuildContext context,
+  PendingSubmission sub,
+) async {
   return showDialog<String>(
     context: context,
     builder: (_) => _DenyDialog(submission: sub),
@@ -870,8 +874,7 @@ class _DenyDialogState extends State<_DenyDialog> {
     return BsheelDialog(
       title: 'DENY SUBMISSION',
       backgroundColor: _mediaPanelDeep,
-      titleStyle:
-          BsheelType.displaySm.copyWith(color: BsheelColors.pureWhite),
+      titleStyle: BsheelType.displaySm.copyWith(color: BsheelColors.pureWhite),
       content: SizedBox(
         width: 460,
         child: Column(
@@ -880,8 +883,7 @@ class _DenyDialogState extends State<_DenyDialog> {
           children: [
             Text(
               'Pick one or more reasons. Users see these as bullet points.',
-              style: BsheelType.bodySm
-                  .copyWith(color: BsheelColors.inkMuted),
+              style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
             ),
             const SizedBox(height: QuestSpacing.md),
             Wrap(
@@ -906,8 +908,7 @@ class _DenyDialogState extends State<_DenyDialog> {
                     width: BsheelBorders.thin,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(BsheelRadii.full),
+                    borderRadius: BorderRadius.circular(BsheelRadii.full),
                   ),
                   onSelected: (v) => setState(() {
                     if (v) {
@@ -925,10 +926,9 @@ class _DenyDialogState extends State<_DenyDialog> {
               label: 'OTHER (OPTIONAL)',
               onChanged: (_) => setState(() {}),
               maxLines: 3,
-              style: BsheelType.bodyMd
-                  .copyWith(color: BsheelColors.pureWhite),
-              labelStyle: BsheelType.labelSm
-                  .copyWith(color: BsheelColors.inkMuted),
+              style: BsheelType.bodyMd.copyWith(color: BsheelColors.pureWhite),
+              labelStyle:
+                  BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
               fillColor: BsheelColors.pureBlack,
               borderColor: _mediaPanelBorder,
               focusedBorderColor: BsheelColors.pureWhite,
@@ -941,8 +941,7 @@ class _DenyDialogState extends State<_DenyDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             'CANCEL',
-            style:
-                BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
+            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
           ),
         ),
         ElevatedButton(

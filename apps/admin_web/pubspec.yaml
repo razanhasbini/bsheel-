@@ -31,7 +31,6 @@ dependencies:
   go_router: ^13.0.0
 
   # Backend
-  supabase_flutter: ^2.3.0
   url_launcher: ^6.3.2
   http: ^1.2.0
 

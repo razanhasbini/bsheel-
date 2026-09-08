@@ -4,11 +4,10 @@ import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/auth_session_provider.dart';
-import '../../../core/providers/supabase_provider.dart';
+import '../../../core/backend/app_backend.dart';
 
 final submissionsRepositoryProvider = Provider<SubmissionsRepository>((ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return SupabaseSubmissionsRepository(client);
+  return AppBackend.repositories.submissions;
 });
 
 // SWR cache so a transient fetch failure keeps last known submissions

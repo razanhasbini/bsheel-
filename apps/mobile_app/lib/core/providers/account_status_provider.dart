@@ -1,9 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'auth_session_provider.dart';
-import '../backend/backend_config.dart';
-import '../backend/mobile_nest_backend.dart';
+import '../backend/app_backend.dart';
 
 /// Checks the user's account status (active, suspended, banned).
 /// Returns null if not logged in, the status string otherwise.
@@ -12,14 +10,10 @@ final accountStatusProvider = FutureProvider<String?>((ref) async {
   if (user == null) return null;
 
   try {
-    if (BackendConfig.usesNest) {
-      return MobileNestBackend.repositories.account.accountStatus();
-    }
-    final result =
-        await Supabase.instance.client.rpc(RpcNames.getMyAccountStatus);
-    return result as String?;
+    return await AppBackend.repositories.account.accountStatus();
   } catch (_) {
-    // If the RPC doesn't exist yet (migration not applied), assume active
+    // Treat an unreadable status as active rather than locking the user out
+    // of the app on a transient failure.
     return 'active';
   }
 });

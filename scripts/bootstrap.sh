@@ -10,7 +10,7 @@ melos bootstrap
 if [ ! -f .env ]; then
   echo "Copying .env.example to .env..."
   cp .env.example .env
-  echo "Please update .env with your Supabase credentials."
+  echo "Please set API_URL in .env (see .env.example)."
 fi
 
 echo "Bootstrap complete!"

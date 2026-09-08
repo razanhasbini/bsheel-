@@ -7,19 +7,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
 
 import '../../../../core/providers/admin_role_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
+/// Quest bank, newest first. Rows stay maps because the table, the edit
+/// dialog and the CSV export all read them by column name.
 final _questsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.quests)
-      .select('*')
-      .order(QuestColumns.createdAt, ascending: false);
-  return List<Map<String, dynamic>>.from(data as List);
+  final quests = await AppBackend.repositories.quests.listAllQuestsAdmin();
+  final rows = quests
+      .map((quest) => <String, dynamic>{
+            'id': quest.id,
+            'title': quest.title,
+            'description': quest.description,
+            'category': quest.category,
+            'difficulty': quest.difficulty,
+            'xp_reward': quest.xpReward,
+            'duration_hours': quest.durationHours,
+            'is_active': quest.isActive,
+            'created_by': quest.createdBy,
+            'created_at': quest.createdAt.toIso8601String(),
+            'updated_at': quest.updatedAt?.toIso8601String(),
+          })
+      .toList();
+  rows.sort((a, b) =>
+      (b['created_at'] as String).compareTo(a['created_at'] as String));
+  return rows;
 });
 
 class QuestManagementPage extends ConsumerStatefulWidget {
@@ -36,8 +51,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
   @override
   Widget build(BuildContext context) {
     final questsAsync = ref.watch(_questsProvider);
-    final isSuperAdmin =
-        ref.watch(isSuperAdminProvider).valueOrNull ?? false;
+    final isSuperAdmin = ref.watch(isSuperAdminProvider).valueOrNull ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -55,8 +69,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                     const SizedBox(height: 14),
                     BsheelDisplay(
                       'The {quest bank.}',
-                      baseStyle:
-                          BsheelType.displayXl.copyWith(fontSize: 44),
+                      baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -106,7 +119,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
               hintStyle: BsheelType.bodySm.copyWith(
                 color: BsheelColors.inkMuted,
               ),
-              prefixIcon: const Icon(Icons.search, color: BsheelColors.inkMuted),
+              prefixIcon:
+                  const Icon(Icons.search, color: BsheelColors.inkMuted),
               filled: true,
               fillColor: BsheelColors.paper,
               isDense: true,
@@ -117,89 +131,92 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.md),
                 borderSide: const BorderSide(
-                    color: BsheelColors.line, width: BsheelBorders.thin,),
+                  color: BsheelColors.line,
+                  width: BsheelBorders.thin,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.md),
                 borderSide: const BorderSide(
-                    color: BsheelColors.ink, width: BsheelBorders.thin,),
+                  color: BsheelColors.ink,
+                  width: BsheelBorders.thin,
+                ),
               ),
             ),
             onChanged: (v) => setState(() => _search = v.toLowerCase()),
           ),
         ),
         Expanded(
-            child: questsAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Error: $e',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.hot,
-                  ),
+          child: questsAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
+            ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.hot,
                 ),
               ),
-              data: (quests) {
-                final filtered = quests.where((q) {
-                  if (_search.isEmpty) return true;
-                  final title =
-                      (q[QuestColumns.title] ?? '').toString().toLowerCase();
-                  final desc = (q[QuestColumns.description] ?? '')
-                      .toString()
-                      .toLowerCase();
-                  return title.contains(_search) || desc.contains(_search);
-                }).toList();
+            ),
+            data: (quests) {
+              final filtered = quests.where((q) {
+                if (_search.isEmpty) return true;
+                final title =
+                    (q[QuestColumns.title] ?? '').toString().toLowerCase();
+                final desc = (q[QuestColumns.description] ?? '')
+                    .toString()
+                    .toLowerCase();
+                return title.contains(_search) || desc.contains(_search);
+              }).toList();
 
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.assignment_outlined,
-                          size: 64,
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.assignment_outlined,
+                        size: 64,
+                        color: BsheelColors.inkMuted,
+                      ),
+                      const SizedBox(height: QuestSpacing.md),
+                      Text(
+                        'NO QUESTS FOUND',
+                        style: BsheelType.labelMd.copyWith(
                           color: BsheelColors.inkMuted,
                         ),
-                        const SizedBox(height: QuestSpacing.md),
-                        Text(
-                          'NO QUESTS FOUND',
-                          style: BsheelType.labelMd.copyWith(
-                            color: BsheelColors.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth < 600) {
-                      return ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: QuestSpacing.sm),
-                        itemBuilder: (context, i) =>
-                            _buildMobileCard(context, filtered[i]),
-                      );
-                    }
-                    return Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: BsheelColors.paper,
-                        border: Border.all(
-                          color: BsheelColors.line,
-                          width: BsheelBorders.thin,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.lg),
                       ),
-                      child: SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: DataTable(
+                    ],
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 600) {
+                    return ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: QuestSpacing.sm),
+                      itemBuilder: (context, i) =>
+                          _buildMobileCard(context, filtered[i]),
+                    );
+                  }
+                  return Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: BsheelColors.paper,
+                      border: Border.all(
+                        color: BsheelColors.line,
+                        width: BsheelBorders.thin,
+                      ),
+                      borderRadius: BorderRadius.circular(BsheelRadii.lg),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: DataTable(
                           headingRowColor: WidgetStateProperty.all(
                             BsheelColors.surface,
                           ),
@@ -227,14 +244,14 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                               .map((e) => _buildRow(context, e.value, e.key))
                               .toList(),
                         ),
-                        ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
+        ),
       ],
     );
   }
@@ -253,7 +270,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
       decoration: BoxDecoration(
         color: BsheelColors.paper,
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
       ),
       child: Column(
@@ -293,8 +312,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                 ),
                 decoration: BoxDecoration(
                   color: BsheelColors.surface,
-                  borderRadius:
-                      BorderRadius.circular(BsheelRadii.full),
+                  borderRadius: BorderRadius.circular(BsheelRadii.full),
                   border: Border.all(color: BsheelColors.line),
                 ),
                 child: Text(
@@ -350,8 +368,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
         ? DateTime.tryParse(quest[QuestColumns.createdAt].toString())
         : null;
 
-    final rowColor =
-        index.isEven ? BsheelColors.paper : BsheelColors.surface;
+    final rowColor = index.isEven ? BsheelColors.paper : BsheelColors.surface;
 
     return DataRow(
       color: WidgetStateProperty.all(rowColor),
@@ -428,11 +445,10 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
   }
 
   Future<void> _toggleActive(String id, bool active) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client
-          .from(Tables.quests)
-          .update({QuestColumns.isActive: active}).eq(QuestColumns.id, id);
+      final quest = await AppBackend.repositories.quests.getQuest(id);
+      await AppBackend.repositories.quests
+          .updateQuest(quest.copyWith(isActive: active));
       ref.invalidate(_questsProvider);
     } catch (e) {
       if (mounted) {
@@ -485,9 +501,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
   }
 
   Future<void> _deleteQuest(String id) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client.from(Tables.quests).delete().eq(QuestColumns.id, id);
+      await AppBackend.repositories.quests.deleteQuest(id);
       ref.invalidate(_questsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -533,7 +548,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(BsheelRadii.xl),
             side: const BorderSide(
-                color: BsheelColors.line, width: BsheelBorders.thin,),
+              color: BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -559,16 +576,18 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                           BsheelFormField(
                             controller: titleCtrl,
                             label: 'TITLE',
-                            validator: (v) =>
-                                v == null || v.trim().isEmpty ? 'Required' : null,
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Required'
+                                : null,
                           ),
                           const SizedBox(height: QuestSpacing.md),
                           BsheelFormField(
                             controller: descCtrl,
                             label: 'DESCRIPTION',
                             maxLines: 3,
-                            validator: (v) =>
-                                v == null || v.trim().isEmpty ? 'Required' : null,
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Required'
+                                : null,
                           ),
                           const SizedBox(height: QuestSpacing.md),
                           Row(
@@ -725,8 +744,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                         backgroundColor: BsheelColors.primary,
                         foregroundColor: BsheelColors.pureWhite,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                       ),
                       child: Text(
@@ -756,26 +774,32 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     required int durationHours,
     required bool isActive,
   }) async {
-    final client = ref.read(supabaseClientProvider);
-    final payload = {
-      QuestColumns.title: title,
-      QuestColumns.description: description,
-      QuestColumns.category: category,
-      QuestColumns.difficulty: difficulty,
-      QuestColumns.xpReward: xpReward,
-      QuestColumns.durationHours: durationHours,
-      QuestColumns.isActive: isActive,
-    };
-
     try {
+      final quests = AppBackend.repositories.quests;
       if (id != null) {
-        await client
-            .from(Tables.quests)
-            .update(payload)
-            .eq(QuestColumns.id, id);
+        final existing = await quests.getQuest(id);
+        await quests.updateQuest(
+          existing.copyWith(
+            title: title,
+            description: description,
+            category: category,
+            difficulty: difficulty,
+            xpReward: xpReward,
+            durationHours: durationHours,
+            isActive: isActive,
+          ),
+        );
       } else {
-        payload[QuestColumns.createdBy] = client.auth.currentUser!.id;
-        await client.from(Tables.quests).insert(payload);
+        // The API records the creating admin from the access token.
+        await quests.createQuest(
+          title: title,
+          description: description,
+          category: category,
+          difficulty: difficulty,
+          xpReward: xpReward,
+          durationHours: durationHours,
+          isActive: isActive,
+        );
       }
       ref.invalidate(_questsProvider);
       if (mounted) {
@@ -851,7 +875,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(BsheelRadii.xl),
             side: const BorderSide(
-                color: BsheelColors.line, width: BsheelBorders.thin,),
+              color: BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -883,34 +909,48 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                       'social, learning, adventure}. difficulty ∈ {easy, medium, '
                       'hard}. is_active is "true" / "false" (defaults to true).',
                       style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted, height: 1.4,),
+                        color: BsheelColors.inkMuted,
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: QuestSpacing.md),
                     Row(
                       children: [
                         OutlinedButton.icon(
-                          icon: const Icon(Icons.description_outlined,
-                              size: 16, color: BsheelColors.primary,),
-                          label: Text('COPY HEADER ROW',
-                              style: BsheelType.labelSm
-                                  .copyWith(color: BsheelColors.primary),),
+                          icon: const Icon(
+                            Icons.description_outlined,
+                            size: 16,
+                            color: BsheelColors.primary,
+                          ),
+                          label: Text(
+                            'COPY HEADER ROW',
+                            style: BsheelType.labelSm
+                                .copyWith(color: BsheelColors.primary),
+                          ),
                           onPressed: () async {
-                            await Clipboard.setData(ClipboardData(
-                                text: _importHeaders.join('\t'),),);
+                            await Clipboard.setData(
+                              ClipboardData(
+                                text: _importHeaders.join('\t'),
+                              ),
+                            );
                             if (!ctx.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text(
-                                      'Header row copied — paste into Excel row 1.',),),
+                                content: Text(
+                                  'Header row copied — paste into Excel row 1.',
+                                ),
+                              ),
                             );
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
-                                color: BsheelColors.ink,
-                                width: BsheelBorders.thin,),
+                              color: BsheelColors.ink,
+                              width: BsheelBorders.thin,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                  BsheelRadii.full,),
+                                BsheelRadii.full,
+                              ),
                             ),
                           ),
                         ),
@@ -922,10 +962,10 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                       decoration: BoxDecoration(
                         color: BsheelColors.surface,
                         border: Border.all(
-                            color: BsheelColors.line,
-                            width: BsheelBorders.thin,),
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.md),
+                          color: BsheelColors.line,
+                          width: BsheelBorders.thin,
+                        ),
+                        borderRadius: BorderRadius.circular(BsheelRadii.md),
                       ),
                       child: Row(
                         children: [
@@ -972,11 +1012,12 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                       return;
                                     }
                                     try {
-                                      final rowsCount =
-                                          _countDataRows(bytes);
+                                      final rowsCount = _countDataRows(bytes);
                                       setDialogState(() {
                                         picked = _PickedFile(
-                                            name: f.name, bytes: bytes,);
+                                          name: f.name,
+                                          bytes: bytes,
+                                        );
                                         parsedCount = rowsCount;
                                         error = null;
                                       });
@@ -993,7 +1034,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                               foregroundColor: BsheelColors.pureWhite,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
-                                    BsheelRadii.full,),
+                                  BsheelRadii.full,
+                                ),
                               ),
                             ),
                           ),
@@ -1004,8 +1046,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                       const SizedBox(height: QuestSpacing.sm),
                       Text(
                         error!,
-                        style: BsheelType.bodySm
-                            .copyWith(color: BsheelColors.hot),
+                        style:
+                            BsheelType.bodySm.copyWith(color: BsheelColors.hot),
                       ),
                     ],
                     const SizedBox(height: QuestSpacing.md),
@@ -1030,9 +1072,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                     error = null;
                                     importing = true;
                                   });
-                                  final result =
-                                      await _importQuestsFromXlsx(
-                                          picked!.bytes,);
+                                  final result = await _importQuestsFromXlsx(
+                                    picked!.bytes,
+                                  );
                                   if (!ctx.mounted) return;
                                   if (result.error != null) {
                                     setDialogState(() {
@@ -1045,7 +1087,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                          'Imported ${result.inserted} quest(s).',),
+                                        'Imported ${result.inserted} quest(s).',
+                                      ),
                                     ),
                                   );
                                 },
@@ -1056,7 +1099,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                 BsheelColors.primary.withAlpha(50),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                  BsheelRadii.full,),
+                                BsheelRadii.full,
+                              ),
                             ),
                           ),
                           child: importing
@@ -1064,8 +1108,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                   width: 14,
                                   height: 14,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: BsheelColors.pureWhite,),
+                                    strokeWidth: 2,
+                                    color: BsheelColors.pureWhite,
+                                  ),
                                 )
                               : Text(
                                   'IMPORT',
@@ -1091,14 +1136,17 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
       decoration: BoxDecoration(
         color: BsheelColors.bg,
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
         borderRadius: BorderRadius.circular(BsheelRadii.md),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
           headingRowColor: WidgetStateProperty.all(
-              BsheelColors.surface,),
+            BsheelColors.surface,
+          ),
           dataRowMaxHeight: 36,
           dataRowMinHeight: 30,
           headingRowHeight: 32,
@@ -1165,7 +1213,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     var count = 0;
     for (var i = 1; i < sheet.rows.length; i++) {
       if (sheet.rows[i].any(
-          (c) => (c?.value?.toString().trim().isNotEmpty ?? false),)) {
+        (c) => (c?.value?.toString().trim().isNotEmpty ?? false),
+      )) {
         count++;
       }
     }
@@ -1185,9 +1234,6 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
       QuestDifficulty.medium,
       QuestDifficulty.hard,
     };
-
-    final uid = ref.read(supabaseClientProvider).auth.currentUser?.id;
-    if (uid == null) return _ImportResult(error: 'Not signed in.');
 
     xl.Excel book;
     try {
@@ -1210,7 +1256,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     for (var i = 1; i < sheet.rows.length; i++) {
       final r = sheet.rows[i];
       final isEmpty = r.every(
-          (c) => (c?.value?.toString().trim().isEmpty ?? true),);
+        (c) => (c?.value?.toString().trim().isEmpty ?? true),
+      );
       if (isEmpty) continue;
 
       final displayRow = i + 1; // 1-indexed row number for error messages
@@ -1224,44 +1271,50 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
 
       if (title.length < 3 || title.length > 100) {
         return _ImportResult(
-            error: 'Row $displayRow: title must be 3-100 chars.',);
+          error: 'Row $displayRow: title must be 3-100 chars.',
+        );
       }
       if (desc.length < 10 || desc.length > 500) {
         return _ImportResult(
-            error: 'Row $displayRow: description must be 10-500 chars.',);
+          error: 'Row $displayRow: description must be 10-500 chars.',
+        );
       }
       if (!validCategories.contains(category)) {
         return _ImportResult(
-            error: 'Row $displayRow: invalid category "$category".',);
+          error: 'Row $displayRow: invalid category "$category".',
+        );
       }
       if (!validDifficulties.contains(difficulty)) {
         return _ImportResult(
-            error: 'Row $displayRow: invalid difficulty "$difficulty".',);
+          error: 'Row $displayRow: invalid difficulty "$difficulty".',
+        );
       }
       final xp = int.tryParse(xpStr);
       if (xp == null || xp < 5 || xp > 100) {
         return _ImportResult(
-            error: 'Row $displayRow: xp_reward must be 5-100.',);
+          error: 'Row $displayRow: xp_reward must be 5-100.',
+        );
       }
-      final duration =
-          int.tryParse(durationStr.isEmpty ? '4' : durationStr);
+      final duration = int.tryParse(durationStr.isEmpty ? '4' : durationStr);
       if (duration == null || duration < 1 || duration > 168) {
         return _ImportResult(
-            error: 'Row $displayRow: duration_hours must be 1-168.',);
+          error: 'Row $displayRow: duration_hours must be 1-168.',
+        );
       }
       final isActive = isActiveStr.isEmpty
           ? true
-          : (isActiveStr == 'true' || isActiveStr == '1' || isActiveStr == 'yes');
+          : (isActiveStr == 'true' ||
+              isActiveStr == '1' ||
+              isActiveStr == 'yes');
 
       rows.add({
-        QuestColumns.title: title,
-        QuestColumns.description: desc,
-        QuestColumns.category: category,
-        QuestColumns.difficulty: difficulty,
-        QuestColumns.xpReward: xp,
-        QuestColumns.durationHours: duration,
-        QuestColumns.isActive: isActive,
-        QuestColumns.createdBy: uid,
+        'title': title,
+        'description': desc,
+        'category': category,
+        'difficulty': difficulty,
+        'xpReward': xp,
+        'durationHours': duration,
+        'isActive': isActive,
       });
     }
 
@@ -1270,9 +1323,10 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     }
 
     try {
-      await ref.read(supabaseClientProvider).from(Tables.quests).insert(rows);
+      final created =
+          await AppBackend.repositories.quests.createQuestsBulk(rows);
       ref.invalidate(_questsProvider);
-      return _ImportResult(inserted: rows.length);
+      return _ImportResult(inserted: created.length);
     } catch (e) {
       return _ImportResult(error: 'Insert failed: $e');
     }
@@ -1292,7 +1346,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.xl),
               side: const BorderSide(
-                  color: BsheelColors.hot, width: BsheelBorders.thin,),
+                color: BsheelColors.hot,
+                width: BsheelBorders.thin,
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(QuestSpacing.lg),
@@ -1304,13 +1360,17 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            color: BsheelColors.hot, size: 24,),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: BsheelColors.hot,
+                          size: 24,
+                        ),
                         const SizedBox(width: QuestSpacing.sm),
                         Text(
                           'DELETE ALL QUESTS',
                           style: BsheelType.displaySm.copyWith(
-                              color: BsheelColors.hot,),
+                            color: BsheelColors.hot,
+                          ),
                         ),
                       ],
                     ),
@@ -1339,24 +1399,23 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                         filled: true,
                         fillColor: BsheelColors.bg,
                         border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.md),
+                          borderRadius: BorderRadius.circular(BsheelRadii.md),
                           borderSide:
                               const BorderSide(color: BsheelColors.line),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.md),
+                          borderRadius: BorderRadius.circular(BsheelRadii.md),
                           borderSide: const BorderSide(
-                              color: BsheelColors.line,
-                              width: BsheelBorders.thin,),
+                            color: BsheelColors.line,
+                            width: BsheelBorders.thin,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.md),
+                          borderRadius: BorderRadius.circular(BsheelRadii.md),
                           borderSide: const BorderSide(
-                              color: BsheelColors.hot,
-                              width: BsheelBorders.thin,),
+                            color: BsheelColors.hot,
+                            width: BsheelBorders.thin,
+                          ),
                         ),
                       ),
                     ),
@@ -1387,7 +1446,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                 BsheelColors.hot.withAlpha(70),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                  BsheelRadii.full,),
+                                BsheelRadii.full,
+                              ),
                             ),
                           ),
                           child: Text(
@@ -1410,12 +1470,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
 
   Future<void> _deleteAllQuests() async {
     try {
-      // PostgREST requires a filter on delete — use a non-null uuid filter.
-      await ref
-          .read(supabaseClientProvider)
-          .from(Tables.quests)
-          .delete()
-          .not(QuestColumns.id, 'is', null);
+      await AppBackend.repositories.quests.deleteAllQuests();
       ref.invalidate(_questsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1461,12 +1516,14 @@ class _CategoryChip extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(BsheelRadii.full),
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
       ),
       child: Text(
         category.toUpperCase(),
-        style: BsheelType.labelSm
-            .copyWith(color: BsheelColors.ink, fontSize: 10),
+        style:
+            BsheelType.labelSm.copyWith(color: BsheelColors.ink, fontSize: 10),
       ),
     );
   }
@@ -1493,7 +1550,9 @@ class _DifficultyChip extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(BsheelRadii.full),
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
       ),
       child: Text(
         label,

@@ -48,8 +48,7 @@ class AdminTopbar extends ConsumerWidget implements PreferredSizeWidget {
     final isMobile = MediaQuery.of(context).size.width < 860;
     final counts =
         ref.watch(adminCountsProvider).valueOrNull ?? const AdminCounts.zero();
-    final pendingTotal =
-        counts.pending + counts.appeals + counts.reports;
+    final pendingTotal = counts.pending + counts.appeals + counts.reports;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: const BoxDecoration(
@@ -237,8 +236,7 @@ class _IconBtn extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: BsheelColors.ink,
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.full),
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
                         border: Border.all(
                           color: BsheelColors.pureWhite,
                           width: BsheelBorders.thin,

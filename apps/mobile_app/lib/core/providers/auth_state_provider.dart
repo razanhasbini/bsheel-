@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
-import 'package:supabase_flutter/supabase_flutter.dart'
-    show AuthChangeEvent, AuthState, User;
 import '../services/sign_out_service.dart' show resetAllModuleCaches;
 import '../services/device_token_service.dart';
 import 'auth_repository_provider.dart';
@@ -80,7 +78,7 @@ class AuthNotifier extends ChangeNotifier {
 
   late final StreamSubscription<AuthState> _subscription;
 
-  void _syncSessionState(Ref ref, User? nextUser) {
+  void _syncSessionState(Ref ref, AuthUser? nextUser) {
     final currentUser = ref.read(authSessionProvider);
     if (currentUser?.id != nextUser?.id) {
       ref.read(authSessionProvider.notifier).state = nextUser;

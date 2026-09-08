@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class ProfileModel {
   final String id;
   final String username;
@@ -12,8 +14,10 @@ class ProfileModel {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool profileCompleted;
+
   /// Migration 0142: signup self-attestation that the user is 13+.
   final bool ageVerified;
+
   /// Migration 0142: timestamp the user accepted analytics opt-in.
   /// NULL = no consent yet — keep Mixpanel disabled until non-null.
   final DateTime? analyticsConsentAt;
@@ -25,7 +29,7 @@ class ProfileModel {
     this.avatarUrl,
     this.bio,
     this.xp = 0,
-    this.level = 1,
+    this.level = defaultLevel,
     this.questsCompleted = 0,
     required this.createdAt,
     this.updatedAt,
@@ -41,26 +45,23 @@ class ProfileModel {
       displayName: json[ProfileColumns.displayName] as String,
       avatarUrl: json[ProfileColumns.avatarUrl] as String?,
       bio: json[ProfileColumns.bio] as String?,
-      xp: _toInt(json[ProfileColumns.xp]),
-      level: _toInt(json[ProfileColumns.level], defaultValue: 1),
-      questsCompleted: _toInt(json[ProfileColumns.questsCompleted]),
-      createdAt: DateTime.parse(json[ProfileColumns.createdAt] as String),
-      updatedAt: json[ProfileColumns.updatedAt] != null
-          ? DateTime.parse(json[ProfileColumns.updatedAt] as String)
-          : null,
-      profileCompleted: json[ProfileColumns.profileCompleted] as bool? ?? false,
-      ageVerified: json[ProfileColumns.ageVerified] as bool? ?? false,
-      analyticsConsentAt: json[ProfileColumns.analyticsConsentAt] != null
-          ? DateTime.parse(json[ProfileColumns.analyticsConsentAt] as String)
-          : null,
+      xp: coerceInt(json[ProfileColumns.xp]),
+      level: coerceInt(json[ProfileColumns.level], defaultValue: defaultLevel),
+      questsCompleted: coerceInt(json[ProfileColumns.questsCompleted]),
+      createdAt: coerceTimestamp(json[ProfileColumns.createdAt]),
+      updatedAt: coerceNullableTimestamp(json[ProfileColumns.updatedAt]),
+      profileCompleted: coerceBool(
+        json[ProfileColumns.profileCompleted],
+        ifMissing: false,
+      ),
+      ageVerified: coerceBool(
+        json[ProfileColumns.ageVerified],
+        ifMissing: false,
+      ),
+      analyticsConsentAt: coerceNullableTimestamp(
+        json[ProfileColumns.analyticsConsentAt],
+      ),
     );
-  }
-
-  static int _toInt(dynamic value, {int defaultValue = 0}) {
-    if (value == null) return defaultValue;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value.toString()) ?? defaultValue;
   }
 
   Map<String, dynamic> toJson() {
@@ -117,4 +118,40 @@ class ProfileModel {
           : analyticsConsentAt as DateTime?,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ProfileModel &&
+        other.id == id &&
+        other.username == username &&
+        other.displayName == displayName &&
+        other.avatarUrl == avatarUrl &&
+        other.bio == bio &&
+        other.xp == xp &&
+        other.level == level &&
+        other.questsCompleted == questsCompleted &&
+        other.createdAt == createdAt &&
+        other.updatedAt == updatedAt &&
+        other.profileCompleted == profileCompleted &&
+        other.ageVerified == ageVerified &&
+        other.analyticsConsentAt == analyticsConsentAt;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        username,
+        displayName,
+        avatarUrl,
+        bio,
+        xp,
+        level,
+        questsCompleted,
+        createdAt,
+        updatedAt,
+        profileCompleted,
+        ageVerified,
+        analyticsConsentAt,
+      );
 }

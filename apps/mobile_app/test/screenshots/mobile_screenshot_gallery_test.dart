@@ -55,18 +55,16 @@ import 'package:mobile_app/features/submissions/presentation/pages/submit_proof_
 import 'package:mobile_app/l10n/app_localizations.dart';
 import 'package:mobile_app/shared/navigation/bottom_nav_shell.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
-  const url = String.fromEnvironment('SUPABASE_URL');
-  const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-  if (url.isEmpty || anonKey.isEmpty) {
-    // Dev utility — only runs when credentials are supplied explicitly.
+  // Dev utility: every repository is faked, so this needs no backend — but
+  // it writes PNGs to disk, so it stays opt-in rather than running in CI.
+  const enabled = bool.fromEnvironment('SCREENSHOTS');
+  if (!enabled) {
     test(
       'screenshot gallery',
       () {},
-      skip: 'Pass --dart-define=SUPABASE_URL and --dart-define='
-          'SUPABASE_ANON_KEY to generate the screenshot gallery.',
+      skip: 'Pass --dart-define=SCREENSHOTS=true to generate the gallery.',
     );
     return;
   }
@@ -75,7 +73,6 @@ void main() {
   final outputDir = Directory('screenshots/mobile_app');
 
   setUpAll(() async {
-    await Supabase.initialize(url: url, anonKey: anonKey);
     await outputDir.create(recursive: true);
   });
 
@@ -747,20 +744,20 @@ class _FakeAuthRepository implements AuthRepository {
   Stream<AuthState> get authStateChanges => _controller.stream;
 
   @override
-  User? get currentUser => null;
+  AuthUser? get currentUser => null;
 
   @override
-  Future<AuthResponse> signInWithEmail(String email, String password) async {
-    return AuthResponse();
+  Future<AuthResult> signInWithEmail(String email, String password) async {
+    return const AuthResult();
   }
 
   @override
-  Future<AuthResponse> signUpWithEmail(
+  Future<AuthResult> signUpWithEmail(
     String email,
     String password, {
     Map<String, dynamic>? data,
   }) async {
-    return AuthResponse();
+    return const AuthResult();
   }
 
   @override
@@ -773,15 +770,15 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> resendSignupConfirmation(String email) async {}
 
   @override
-  Future<UserResponse> updatePassword(String newPassword) {
+  Future<AuthUser> updatePassword(String newPassword) {
     throw UnimplementedError();
   }
 
   @override
-  Future<AuthResponse> signInWithApple() async => AuthResponse();
+  Future<AuthResult> signInWithApple() async => const AuthResult();
 
   @override
-  Future<AuthResponse> signInWithGoogle() async => AuthResponse();
+  Future<AuthResult> signInWithGoogle() async => const AuthResult();
 }
 
 class _FakeQuestsRepository implements QuestsRepository {

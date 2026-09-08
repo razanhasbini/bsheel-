@@ -2,8 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 
 import '../providers/auth_repository_provider.dart';
@@ -28,8 +26,7 @@ import '../../features/reactions/presentation/providers/reaction_controller.dart
 import '../../features/submissions/data/submission_providers.dart'
     show resetSubmissionsCache;
 import 'analytics_service.dart';
-import '../backend/backend_config.dart';
-import '../backend/mobile_nest_backend.dart';
+import '../backend/app_backend.dart';
 
 /// Single sign-out entry point. Clears every device-scoped cache,
 /// resets analytics identity, removes the FCM token from this device's
@@ -97,21 +94,12 @@ void _resetPersistentFeedState(WidgetRef ref) {
 Future<void> _deleteFcmTokenServerSide() async {
   if (kIsWeb) return;
   if (Firebase.apps.isEmpty) return;
-  final user = BackendConfig.usesNest
-      ? MobileNestBackend.repositories.auth.currentUser
-      : Supabase.instance.client.auth.currentUser;
+  final user = AppBackend.repositories.auth.currentUser;
   if (user == null) return;
   try {
     final token = await FirebaseMessaging.instance.getToken();
     if (token == null) return;
-    if (BackendConfig.usesNest) {
-      await MobileNestBackend.repositories.account.deleteDeviceToken(token);
-    } else {
-      await Supabase.instance.client.rpc(
-        RpcNames.deleteOwnFcmToken,
-        params: {'p_token': token},
-      );
-    }
+    await AppBackend.repositories.account.deleteDeviceToken(token);
     AppLogger.info('[SignOut] FCM token removed from profile');
   } catch (e) {
     AppLogger.warning('[SignOut] FCM RPC failed (continuing): $e');

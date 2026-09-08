@@ -4,7 +4,7 @@ import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/auth_session_provider.dart';
-import '../../../core/providers/supabase_provider.dart';
+import '../../../core/backend/app_backend.dart';
 
 // Stale-while-revalidate caches. A transient network failure on a refetch
 // keeps the last good data on screen instead of rendering an empty state.
@@ -20,14 +20,13 @@ void resetQuestCaches() {
 }
 
 final questsRepositoryProvider = Provider<QuestsRepository>((ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return SupabaseQuestsRepository(client);
+  return AppBackend.repositories.quests;
 });
 
 /// Per-user wishlist of quests they've BSHEEEL'd from search / discover.
 /// Mirrors `savedPostsRepositoryProvider`.
 final savedQuestsRepositoryProvider = Provider<SavedQuestsRepository>((ref) {
-  return SupabaseSavedQuestsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.savedQuests;
 });
 
 /// Whether the current user has BSHEEEL'd a quest. Used by the search

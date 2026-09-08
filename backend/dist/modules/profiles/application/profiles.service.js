@@ -20,6 +20,12 @@ let ProfilesService = class ProfilesService {
             throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' });
         return profile;
     }
+    async publicProfileByUsername(username) {
+        const profile = await this.repository.findPublicByUsername(username);
+        if (!profile)
+            throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' });
+        return profile;
+    }
     async ownProfile(id) {
         const profile = await this.repository.findOwn(id);
         if (!profile)

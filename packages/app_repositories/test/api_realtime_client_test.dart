@@ -1,4 +1,4 @@
-import 'package:app_repositories/nest_api_repositories.dart';
+import 'package:app_repositories/app_repositories.dart';
 import 'package:test/test.dart';
 
 void main() {

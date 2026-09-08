@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class QuestModel {
   final String id;
   final String title;
@@ -20,7 +22,7 @@ class QuestModel {
     required this.category,
     required this.difficulty,
     required this.xpReward,
-    this.durationHours = 4,
+    this.durationHours = defaultQuestDurationHours,
     this.isActive = true,
     this.createdBy,
     required this.createdAt,
@@ -34,18 +36,43 @@ class QuestModel {
       description: (json[QuestColumns.description] ?? '').toString(),
       category: (json[QuestColumns.category] ?? '').toString(),
       difficulty: (json[QuestColumns.difficulty] ?? '').toString(),
-      xpReward: _toInt(json[QuestColumns.xpReward]),
-      durationHours: _normalizeDurationHours(
-        _toInt(json[QuestColumns.durationHours]),
+      xpReward: coerceInt(json[QuestColumns.xpReward]),
+      durationHours: normalizeQuestDurationHours(
+        json[QuestColumns.durationHours],
       ),
-      isActive: json[QuestColumns.isActive] as bool? ?? true,
+      isActive: coerceBool(json[QuestColumns.isActive], ifMissing: true),
       createdBy: json[QuestColumns.createdBy] as String?,
-      createdAt: _toDateTime(
-        json[QuestColumns.createdAt],
-      ),
-      updatedAt: _toNullableDateTime(
-        json[QuestColumns.updatedAt],
-      ),
+      createdAt: coerceTimestamp(json[QuestColumns.createdAt]),
+      updatedAt: coerceNullableTimestamp(json[QuestColumns.updatedAt]),
+    );
+  }
+
+  QuestModel copyWith({
+    String? title,
+    String? description,
+    String? category,
+    String? difficulty,
+    int? xpReward,
+    int? durationHours,
+    bool? isActive,
+  }) {
+    return QuestModel(
+      id: id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      difficulty: difficulty ?? this.difficulty,
+      xpReward: xpReward ?? this.xpReward,
+      // Re-normalised here too, not only in fromJson: a caller that passed
+      // 0 (or 100000) used to be able to build a quest the wire could
+      // never produce and the DB CHECK would have rejected.
+      durationHours: durationHours == null
+          ? this.durationHours
+          : normalizeQuestDurationHours(durationHours),
+      isActive: isActive ?? this.isActive,
+      createdBy: createdBy,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
@@ -65,25 +92,35 @@ class QuestModel {
     };
   }
 
-  static int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is QuestModel &&
+        other.id == id &&
+        other.title == title &&
+        other.description == description &&
+        other.category == category &&
+        other.difficulty == difficulty &&
+        other.xpReward == xpReward &&
+        other.durationHours == durationHours &&
+        other.isActive == isActive &&
+        other.createdBy == createdBy &&
+        other.createdAt == createdAt &&
+        other.updatedAt == updatedAt;
   }
 
-  static int _normalizeDurationHours(int value) {
-    if (value < 1) return 4;
-    return value;
-  }
-
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
-  }
-
-  static DateTime? _toNullableDateTime(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
-  }
+  @override
+  int get hashCode => Object.hash(
+        id,
+        title,
+        description,
+        category,
+        difficulty,
+        xpReward,
+        durationHours,
+        isActive,
+        createdBy,
+        createdAt,
+        updatedAt,
+      );
 }

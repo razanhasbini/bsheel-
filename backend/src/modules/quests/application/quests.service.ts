@@ -30,6 +30,12 @@ export class QuestsService {
     return this.repository.history(userId, limit, offset);
   }
   assign(userId: string, questId: string): Promise<UserQuestRecord> { return this.repository.assignSpecific(userId, questId); }
+
+  /// Admin override: assigns a quest to another user, displacing whatever
+  /// they currently have in flight.
+  assignForUser(userId: string, questId: string): Promise<UserQuestRecord> {
+    return this.repository.assignSpecific(userId, questId, true);
+  }
   expire(userId: string, userQuestId: string): Promise<void> { return this.repository.expire(userId, userQuestId); }
   picker(userId: string, count: number): Promise<readonly QuestRecord[]> { return this.repository.pickerOptions(userId, count); }
   qotd(): Promise<Record<string, unknown> | null> { return this.repository.questOfTheDay(); }

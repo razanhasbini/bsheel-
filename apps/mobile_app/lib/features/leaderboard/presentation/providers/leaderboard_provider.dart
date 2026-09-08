@@ -1,19 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 
 final leaderboardRepositoryProvider = Provider<LeaderboardRepository>((ref) {
-  return SupabaseLeaderboardRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.leaderboard;
 });
 
 // Stale-while-revalidate caches. A transient refetch failure keeps the
@@ -93,44 +88,20 @@ final leaderboardRealtimeProvider = Provider.autoDispose<void>((ref) {
     });
   }
 
-  if (BackendConfig.usesNest) {
-    final realtime = MobileNestBackend.repositories.realtime;
-    final subscription = realtime.events.where((event) {
-      return event.type == 'profile.updated' ||
-          event.type == 'social.follow.changed';
-    }).listen((_) => scheduleInvalidate());
-    unawaited(() async {
-      try {
-        await realtime.connect();
-      } catch (error) {
-        AppLogger.warning('[Realtime] Leaderboard connection failed: $error');
-      }
-    }());
-    ref.onDispose(() {
-      throttle?.cancel();
-      unawaited(subscription.cancel());
-    });
-    return;
-  }
-
-  final client = Supabase.instance.client;
-
-  final channel = client.channel('leaderboard_realtime')
-    ..onPostgresChanges(
-      event: PostgresChangeEvent.update,
-      schema: 'public',
-      table: Tables.profiles,
-      callback: (_) {
-        if (kDebugMode) {
-          debugPrint('[Realtime] profile change → leaderboard refresh queued');
-        }
-        scheduleInvalidate();
-      },
-    )
-    ..subscribe();
-
+  final realtime = AppBackend.repositories.realtime;
+  final subscription = realtime.events.where((event) {
+    return event.type == 'profile.updated' ||
+        event.type == 'social.follow.changed';
+  }).listen((_) => scheduleInvalidate());
+  unawaited(() async {
+    try {
+      await realtime.connect();
+    } catch (error) {
+      AppLogger.warning('[Realtime] Leaderboard connection failed: $error');
+    }
+  }());
   ref.onDispose(() {
     throttle?.cancel();
-    client.removeChannel(channel);
+    unawaited(subscription.cancel());
   });
 });

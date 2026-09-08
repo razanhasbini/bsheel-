@@ -18,6 +18,35 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # PostgreSQL and Redis are required by the migration runner and the
+    # platform e2e suite. Versions track backend/README.md.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: bsheel
+          POSTGRES_PASSWORD: bsheel
+          POSTGRES_DB: bsheel_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bsheel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://bsheel:bsheel@127.0.0.1:5432/bsheel_ci
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -29,6 +58,16 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+      # Proves migrations replay from an empty database, then that the
+      # checksum ledger accepts the tree it just applied. Previously neither
+      # this nor test:e2e ran in CI, so a broken e2e config went unnoticed.
+      - name: Replay migrations from zero
+        run: npm run db:migrate
+      - name: Verify migration checksums
+        run: npm run db:migrate:check
+      - name: Platform e2e
+        run: npm run test:e2e
 
   analyze-and-test:
     runs-on: ubuntu-latest
@@ -67,5 +106,19 @@ jobs:
       - name: Analyze
         run: melos run analyze
 
-      - name: Test
-        run: melos run test
+      # Run the two leaf test scripts explicitly rather than the `test`
+      # aggregate, so a failure names which side broke and the log has two
+      # clearly-delimited sections. `melos run test` runs both and stays the
+      # local entrypoint.
+      #
+      # Until 2026-09 the single `test` script carried
+      # --ignore="app_models,app_repositories,supabase_contracts", so the
+      # wire-contract suite in packages/app_repositories/test — including
+      # api_repository_contract_test.dart, the whole Flutter-side contract
+      # evidence layer — never executed in CI. Both pure-Dart packages are
+      # now covered too.
+      - name: Test (pure-Dart packages)
+        run: melos run test:dart
+
+      - name: Test (Flutter packages and apps)
+        run: melos run test:flutter

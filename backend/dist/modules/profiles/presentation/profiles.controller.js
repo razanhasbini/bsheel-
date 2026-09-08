@@ -44,6 +44,9 @@ let ProfilesController = class ProfilesController {
     }
     accountStatus(user) { return this.service.accountStatus(user.id); }
     list(query) { return this.service.list(query.limit); }
+    getByUsername(username) {
+        return this.service.publicProfileByUsername(username);
+    }
     get(id) { return this.service.publicProfile(id); }
 };
 __decorate([
@@ -97,6 +100,13 @@ __decorate([
     __metadata("design:paramtypes", [ProfileListQuery]),
     __metadata("design:returntype", void 0)
 ], ProfilesController.prototype, "list", null);
+__decorate([
+    Get('by-username/:username'),
+    __param(0, Param('username')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProfilesController.prototype, "getByUsername", null);
 __decorate([
     Get(':id'),
     __param(0, Param('id')),

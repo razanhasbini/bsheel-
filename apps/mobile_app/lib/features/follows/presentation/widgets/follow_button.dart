@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/services/analytics_service.dart';
-import '../../../../core/services/notification_sender.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/follows_providers.dart';
@@ -120,36 +118,18 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
         if (mounted) setState(() => _busy = false);
         // Fire-and-forget notification — must not block the UI flip
         // back to "FOLLOWED" if FCM is slow or down.
-        unawaited(_sendFollowNotification());
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[Follow] Error: $e');
       if (mounted) {
         setState(() => _busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isFollowing
-              ? "Couldn't unfollow. Check your connection."
-              : "Couldn't follow. Check your connection.")),
+          SnackBar(
+              content: Text(isFollowing
+                  ? "Couldn't unfollow. Check your connection."
+                  : "Couldn't follow. Check your connection.")),
         );
       }
-    }
-  }
-
-  Future<void> _sendFollowNotification() async {
-    try {
-      final followerProfile = ref.read(currentProfileProvider).valueOrNull;
-      final followerName = followerProfile != null &&
-              followerProfile.displayName.isNotEmpty
-          ? followerProfile.displayName
-          : followerProfile?.username ?? 'Someone';
-      await sendNotificationToUser(
-        targetUserId: widget.targetUserId,
-        title: '$followerName is in your corner now. 👀',
-        body: 'Tap to see who just hit follow.',
-        type: NotificationType.newFollower,
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('[Follow] Notification failed: $e');
     }
   }
 
@@ -162,7 +142,8 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
     final isFollowing = followingAsync.valueOrNull ?? false;
     final loading = _busy || followingAsync.isLoading;
 
-    final bg = isFollowing ? QuestColors.cardBg(context) : QuestColors.osPrimary;
+    final bg =
+        isFollowing ? QuestColors.cardBg(context) : QuestColors.osPrimary;
     final fg = isFollowing ? ink : QuestColors.osTextOnPrimary;
     final icon =
         isFollowing ? Icons.check_rounded : Icons.person_add_alt_1_rounded;

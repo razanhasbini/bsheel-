@@ -15,7 +15,7 @@ export declare class QuestsRepository {
     }>;
     findActiveForUser(userId: string): Promise<UserQuestRecord | null>;
     history(userId: string, limit: number, offset: number): Promise<readonly UserQuestRecord[]>;
-    assignSpecific(userId: string, questId: string): Promise<UserQuestRecord>;
+    assignSpecific(userId: string, questId: string, displaceActive?: boolean): Promise<UserQuestRecord>;
     expire(userId: string, userQuestId: string): Promise<void>;
     pickerOptions(userId: string, requestedCount: number): Promise<readonly QuestRecord[]>;
     questOfTheDay(): Promise<Record<string, unknown> | null>;

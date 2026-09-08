@@ -11,11 +11,11 @@ import 'package:flutter/material.dart';
 /// This file is the single source of truth for the admin look: reskin the
 /// dashboard by editing values here (+ admin_theme.dart), nothing else.
 abstract final class BsheelColors {
-  static const Color bg = Color(0xFFFFFFFF);      // page — pure white
+  static const Color bg = Color(0xFFFFFFFF); // page — pure white
   static const Color surface = Color(0xFFF7F7F7); // quiet panel gray
-  static const Color paper = Color(0xFFFFFFFF);   // cards sit flush on white
+  static const Color paper = Color(0xFFFFFFFF); // cards sit flush on white
 
-  static const Color ink = Color(0xFF000000);     // text + lines
+  static const Color ink = Color(0xFF000000); // text + lines
   static const Color inkSoft = Color(0xFF4D4D4D);
   static const Color inkMuted = Color(0xFF8F8F8F);
 
@@ -25,9 +25,9 @@ abstract final class BsheelColors {
   static const Color primary = Color(0xFF000000);
 
   // Semantic states — desaturated so they read as status, not decoration.
-  static const Color hot = Color(0xFFC03434);     // destructive / danger
+  static const Color hot = Color(0xFFC03434); // destructive / danger
   static const Color error = hot;
-  static const Color cool = Color(0xFF6E6E6E);    // informational
+  static const Color cool = Color(0xFF6E6E6E); // informational
   static const Color success = Color(0xFF2F7A54); // approve / positive
 
   // Heatmap stops — grayscale ramp (light → black).

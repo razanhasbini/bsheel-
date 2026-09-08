@@ -1,68 +1,33 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 // ── Providers ────────────────────────────────────────────────────────────────
 
+/// One aggregate query returns stored totals beside expected totals for
+/// every profile — the page previously fetched every profile and every
+/// approved user_quest and reconciled them in the browser.
 final _xpAuditProvider =
     FutureProvider.autoDispose<List<_UserXpAudit>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-
-  final profiles = await client
-      .from(Tables.profiles)
-      .select(
-        '${ProfileColumns.id}, ${ProfileColumns.username}, ${ProfileColumns.displayName}, ${ProfileColumns.xp}, ${ProfileColumns.level}, ${ProfileColumns.questsCompleted}',
-      )
-      .order(ProfileColumns.xp, ascending: false);
-
-  // One batched query for every profile's approved quests instead of a
-  // round-trip per profile (was N+1). Same pattern as the enrichment
-  // batching in pending_submissions_provider.
-  final profileIds =
-      (profiles as List).map((p) => p[ProfileColumns.id].toString()).toList();
-
-  final expectedXpByUser = <String, int>{};
-  final expectedQuestsByUser = <String, int>{};
-  if (profileIds.isNotEmpty) {
-    final approved = await client
-        .from(Tables.userQuests)
-        .select(
-          '${UserQuestColumns.userId}, ${Tables.quests}(${QuestColumns.xpReward})',
-        )
-        .inFilter(UserQuestColumns.userId, profileIds)
-        .eq(UserQuestColumns.status, UserQuestStatus.approved);
-
-    for (final uq in approved as List) {
-      final userId = uq[UserQuestColumns.userId].toString();
-      final quest = uq[Tables.quests] as Map<String, dynamic>?;
-      expectedQuestsByUser[userId] = (expectedQuestsByUser[userId] ?? 0) + 1;
-      expectedXpByUser[userId] = (expectedXpByUser[userId] ?? 0) +
-          ((quest?[QuestColumns.xpReward] as int?) ?? 0);
-    }
-  }
-
-  return profiles.map((p) {
-    final userId = p[ProfileColumns.id].toString();
-    final expectedXp = expectedXpByUser[userId] ?? 0;
-    final expectedQuests = expectedQuestsByUser[userId] ?? 0;
-    final expectedLevel = expectedXp ~/ 100 + 1;
-
-    return _UserXpAudit(
-      userId: userId,
-      username: p[ProfileColumns.username]?.toString() ?? '',
-      displayName: p[ProfileColumns.displayName]?.toString() ?? '',
-      currentXp: p[ProfileColumns.xp] as int? ?? 0,
-      currentLevel: p[ProfileColumns.level] as int? ?? 1,
-      currentQuests: p[ProfileColumns.questsCompleted] as int? ?? 0,
-      expectedXp: expectedXp,
-      expectedLevel: expectedLevel,
-      expectedQuests: expectedQuests,
-    );
-  }).toList();
+  final rows = await AppBackend.repositories.admin.xpAudit();
+  int value(Map<String, dynamic> row, String key) =>
+      (row[key] as num?)?.toInt() ?? 0;
+  return rows
+      .map((row) => _UserXpAudit(
+            userId: row['user_id']?.toString() ?? '',
+            username: row['username']?.toString() ?? '',
+            displayName: row['display_name']?.toString() ?? '',
+            currentXp: value(row, 'current_xp'),
+            currentLevel: value(row, 'current_level'),
+            currentQuests: value(row, 'current_quests'),
+            expectedXp: value(row, 'expected_xp'),
+            expectedLevel: value(row, 'expected_level'),
+            expectedQuests: value(row, 'expected_quests'),
+          ))
+      .toList();
 });
 
 class _UserXpAudit {
@@ -122,8 +87,8 @@ class XpManagementPage extends ConsumerWidget {
                 Text(
                   'Audit XP values against approved quests. Reconcile any '
                   'inconsistencies before they show up on the leaderboard.',
-                  style: BsheelType.bodyMd
-                      .copyWith(color: BsheelColors.inkSoft),
+                  style:
+                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
                 ),
               ],
             ),
@@ -195,8 +160,7 @@ class XpManagementPage extends ConsumerWidget {
               ),
             ),
             data: (users) {
-              final inconsistent =
-                  users.where((u) => !u.isConsistent).toList();
+              final inconsistent = users.where((u) => !u.isConsistent).toList();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,8 +184,7 @@ class XpManagementPage extends ConsumerWidget {
                         backgroundColor: BsheelColors.hot,
                         foregroundColor: BsheelColors.pureWhite,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.full),
+                          borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                       ),
                     ),
@@ -269,11 +232,10 @@ class XpManagementPage extends ConsumerWidget {
                                       Expanded(
                                         child: Text(
                                           '@${u.username}',
-                                          style: BsheelType.bodySm
-                                              .copyWith(
-                                                color: BsheelColors.ink,
-                                                fontWeight: FontWeight.w500,
-                                              ),
+                                          style: BsheelType.bodySm.copyWith(
+                                            color: BsheelColors.ink,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                       u.isConsistent
@@ -309,10 +271,9 @@ class XpManagementPage extends ConsumerWidget {
                                         onPressed: () => _fixUser(ref, u),
                                         child: Text(
                                           'FIX',
-                                          style: BsheelType.labelSm
-                                              .copyWith(
-                                                color: BsheelColors.primary,
-                                              ),
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: BsheelColors.primary,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -330,8 +291,7 @@ class XpManagementPage extends ConsumerWidget {
                             color: BsheelColors.line,
                             width: BsheelBorders.thin,
                           ),
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.lg),
+                          borderRadius: BorderRadius.circular(BsheelRadii.lg),
                         ),
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -350,7 +310,8 @@ class XpManagementPage extends ConsumerWidget {
                             columns: const [
                               DataColumn(label: Text('USER')),
                               DataColumn(label: Text('XP'), numeric: true),
-                              DataColumn(label: Text('EXPECTED'), numeric: true),
+                              DataColumn(
+                                  label: Text('EXPECTED'), numeric: true),
                               DataColumn(label: Text('LEVEL'), numeric: true),
                               DataColumn(label: Text('EXP LVL'), numeric: true),
                               DataColumn(label: Text('QUESTS'), numeric: true),
@@ -372,75 +333,69 @@ class XpManagementPage extends ConsumerWidget {
                                       DataCell(
                                         Text(
                                           '@${e.value.username}',
-                                          style: BsheelType.bodySm
-                                              .copyWith(color: BsheelColors.ink),
+                                          style: BsheelType.bodySm.copyWith(
+                                              color: BsheelColors.ink),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.currentXp}',
-                                          style: BsheelType.labelSm
-                                              .copyWith(
-                                                color: e.value.currentXp !=
-                                                        e.value.expectedXp
-                                                    ? BsheelColors.hot
-                                                    : BsheelColors.accent,
-                                                fontWeight: e.value.currentXp !=
-                                                        e.value.expectedXp
-                                                    ? FontWeight.w500
-                                                    : null,
-                                              ),
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: e.value.currentXp !=
+                                                    e.value.expectedXp
+                                                ? BsheelColors.hot
+                                                : BsheelColors.accent,
+                                            fontWeight: e.value.currentXp !=
+                                                    e.value.expectedXp
+                                                ? FontWeight.w500
+                                                : null,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.expectedXp}',
-                                          style: BsheelType.bodySm
-                                              .copyWith(
-                                                color: BsheelColors.inkMuted,
-                                              ),
+                                          style: BsheelType.bodySm.copyWith(
+                                            color: BsheelColors.inkMuted,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.currentLevel}',
-                                          style: BsheelType.labelSm
-                                              .copyWith(
-                                                color: e.value.currentLevel !=
-                                                        e.value.expectedLevel
-                                                    ? BsheelColors.hot
-                                                    : BsheelColors.primary,
-                                              ),
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: e.value.currentLevel !=
+                                                    e.value.expectedLevel
+                                                ? BsheelColors.hot
+                                                : BsheelColors.primary,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.expectedLevel}',
-                                          style: BsheelType.bodySm
-                                              .copyWith(
-                                                color: BsheelColors.inkMuted,
-                                              ),
+                                          style: BsheelType.bodySm.copyWith(
+                                            color: BsheelColors.inkMuted,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.currentQuests}',
-                                          style: BsheelType.labelSm
-                                              .copyWith(
-                                                color: e.value.currentQuests !=
-                                                        e.value.expectedQuests
-                                                    ? BsheelColors.hot
-                                                    : BsheelColors.ink,
-                                              ),
+                                          style: BsheelType.labelSm.copyWith(
+                                            color: e.value.currentQuests !=
+                                                    e.value.expectedQuests
+                                                ? BsheelColors.hot
+                                                : BsheelColors.ink,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
                                         Text(
                                           '${e.value.expectedQuests}',
-                                          style: BsheelType.bodySm
-                                              .copyWith(
-                                                color: BsheelColors.inkMuted,
-                                              ),
+                                          style: BsheelType.bodySm.copyWith(
+                                            color: BsheelColors.inkMuted,
+                                          ),
                                         ),
                                       ),
                                       DataCell(
@@ -466,8 +421,7 @@ class XpManagementPage extends ConsumerWidget {
                                                   'FIX',
                                                   style: BsheelType.labelSm
                                                       .copyWith(
-                                                    color:
-                                                        BsheelColors.primary,
+                                                    color: BsheelColors.primary,
                                                   ),
                                                 ),
                                               ),
@@ -481,7 +435,6 @@ class XpManagementPage extends ConsumerWidget {
                       );
                     },
                   ),
-
                   const SizedBox(height: QuestSpacing.xl),
                   Text(
                     'MANUAL XP ADJUSTMENT',
@@ -506,27 +459,27 @@ class XpManagementPage extends ConsumerWidget {
   // direct .update() relied on the profiles_update_admin RLS policy
   // and bypassed the audit trail entirely.
   Future<void> _fixUser(WidgetRef ref, _UserXpAudit user) async {
-    final client = ref.read(supabaseClientProvider);
-    await client.rpc(RpcNames.adminSetUserXp, params: {
-      AdminSetUserXpParams.userId: user.userId,
-      AdminSetUserXpParams.xp: user.expectedXp,
-      AdminSetUserXpParams.level: user.expectedLevel,
-      AdminSetUserXpParams.questsCompleted: user.expectedQuests,
-      AdminSetUserXpParams.reason: 'XP audit auto-fix (single user)',
-    },);
+    await AppBackend.repositories.admin.setXp(
+      userId: user.userId,
+      xp: user.expectedXp,
+      level: user.expectedLevel,
+      questsCompleted: user.expectedQuests,
+      reason: 'XP audit auto-fix (single user)',
+    );
     ref.invalidate(_xpAuditProvider);
   }
 
   Future<void> _fixAll(WidgetRef ref, List<_UserXpAudit> users) async {
-    final client = ref.read(supabaseClientProvider);
+    // Sequential on purpose: each fix is its own audited transaction, and
+    // a bulk correction should stay legible in the audit log.
     for (final u in users) {
-      await client.rpc(RpcNames.adminSetUserXp, params: {
-        AdminSetUserXpParams.userId: u.userId,
-        AdminSetUserXpParams.xp: u.expectedXp,
-        AdminSetUserXpParams.level: u.expectedLevel,
-        AdminSetUserXpParams.questsCompleted: u.expectedQuests,
-        AdminSetUserXpParams.reason: 'XP audit auto-fix (bulk)',
-      },);
+      await AppBackend.repositories.admin.setXp(
+        userId: u.userId,
+        xp: u.expectedXp,
+        level: u.expectedLevel,
+        questsCompleted: u.expectedQuests,
+        reason: 'XP audit auto-fix (bulk)',
+      );
     }
     ref.invalidate(_xpAuditProvider);
   }
@@ -568,8 +521,9 @@ class _AuditCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: BsheelColors.hot.withAlpha(15),
         border: Border.all(
-            color: BsheelColors.hot.withAlpha(80),
-            width: BsheelBorders.thin,),
+          color: BsheelColors.hot.withAlpha(80),
+          width: BsheelBorders.thin,
+        ),
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
       ),
       child: Row(
@@ -650,7 +604,9 @@ class _ManualXpAdjusterState extends ConsumerState<_ManualXpAdjuster> {
       decoration: BoxDecoration(
         color: BsheelColors.paper,
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
       ),
       child: Column(
@@ -791,28 +747,25 @@ class _ManualXpAdjusterState extends ConsumerState<_ManualXpAdjuster> {
     // SEC-009: route through audited RPC. Pull current state first
     // (read-only) then call admin_set_user_xp so a delta becomes a
     // properly-logged "set" with reason.
-    final client = ref.read(supabaseClientProvider);
-    final profile = await client
-        .from(Tables.profiles)
-        .select('${ProfileColumns.xp}, ${ProfileColumns.questsCompleted}')
-        .eq(ProfileColumns.id, _selectedUserId!)
-        .single();
+    final profile =
+        await AppBackend.repositories.profiles.getProfile(_selectedUserId!);
+    if (profile == null) return;
 
-    final currentXp = profile[ProfileColumns.xp] as int? ?? 0;
-    final currentDone = profile[ProfileColumns.questsCompleted] as int? ?? 0;
+    final currentXp = profile.xp;
+    final currentDone = profile.questsCompleted;
     final newXp = (currentXp + amount).clamp(0, 999999);
     final newLevel = (newXp ~/ 100) + 1;
     final reason = _reasonCtrl.text.trim().isEmpty
         ? (amount > 0 ? 'Manual XP grant' : 'Manual XP deduction')
         : _reasonCtrl.text.trim();
 
-    await client.rpc(RpcNames.adminSetUserXp, params: {
-      AdminSetUserXpParams.userId: _selectedUserId!,
-      AdminSetUserXpParams.xp: newXp,
-      AdminSetUserXpParams.level: newLevel,
-      AdminSetUserXpParams.questsCompleted: currentDone,
-      AdminSetUserXpParams.reason: reason,
-    },);
+    await AppBackend.repositories.admin.setXp(
+      userId: _selectedUserId!,
+      xp: newXp,
+      level: newLevel,
+      questsCompleted: currentDone,
+      reason: reason,
+    );
 
     ref.invalidate(_xpAuditProvider);
     if (mounted) {

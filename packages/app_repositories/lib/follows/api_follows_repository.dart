@@ -37,14 +37,16 @@ class ApiFollowsRepository implements FollowsRepository {
     final rows = <Map<String, dynamic>>[];
     const pageSize = 100;
     for (var offset = 0;; offset += pageSize) {
-      final page = apiObjectList(await _client.get(
-        'social/users/$userId/connections',
-        query: {
-          'followers': isFollowers,
-          'limit': pageSize,
-          'offset': offset,
-        },
-      ),);
+      final page = apiObjectList(
+        await _client.get(
+          'social/users/$userId/connections',
+          query: {
+            'followers': isFollowers,
+            'limit': pageSize,
+            'offset': offset,
+          },
+        ),
+      );
       rows.addAll(page);
       if (page.length < pageSize) break;
     }

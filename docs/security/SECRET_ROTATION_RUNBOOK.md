@@ -4,6 +4,21 @@
 > with key access leaves the team, or (c) on the routine rotation cadence
 > (every 6 months).
 
+> **Scope: the legacy stack.** Every secret inventoried below belongs to the
+> self-hosted Supabase deployment and the Cloudflare R2 workers — anon and
+> service-role JWTs, `JWT_SECRET`/`JWT_JWKS`, edge-function secrets, and the
+> R2 media signing secret. That stack's *source* is no longer in this
+> repository: the `supabase` and `cloudflare` trees were deleted when the
+> NestJS backend in `backend/` replaced them, and no shipped client reaches
+> any of it any more.
+>
+> The runbook is kept because those secrets may still be live on the Contabo
+> box and in the Cloudflare account, and a leaked one still has to be rotated
+> there. Do all of it against the running infrastructure — server-side files,
+> the Cloudflare dashboard, the `wrangler` CLI pointed at a config you supply
+> yourself. Nothing below can be driven from a file in this repo. Secrets for
+> the current backend live in `backend/.env.example`.
+
 ## Inventory
 
 | Secret | Where it lives | Who can rotate | Rotation cost |
@@ -27,11 +42,10 @@
      `{"role":"anon","iss":"supabase","iat":<now>,"exp":<far-future>}`.
    - Update the repo-root `.env` `SUPABASE_ANON_KEY` (and any CI secret / build define of the same name).
    - Bump the version in `apps/mobile_app/pubspec.yaml`, ship a release IPA + APK, push the admin web build.
-   - Update the worker secret:
-     ```
-     npx wrangler@latest secret put SUPABASE_ANON_KEY \
-       --config cloudflare/wrangler-upload.toml
-     ```
+   - Update the worker secret `SUPABASE_ANON_KEY` on the `quest-media-upload`
+     worker. The `wrangler` config that used to live in this repo was deleted
+     with the legacy stack, so do this from the Cloudflare dashboard, or with
+     `wrangler secret put` against a config you reconstruct locally.
    - Caveat: minting a new anon JWT does NOT disable the old one — JWTs aren't
      individually revocable, so the old key works until its `exp`. To actually
      invalidate a leaked anon key, rotate `JWT_SECRET` (emergency step 3).
@@ -43,8 +57,8 @@
 3. **Admin dashboard Basic Auth** (`DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`)
    - Auth is enforced by **Caddy** (`basic_auth`) on the Contabo server, not by
      the app and not by the "Deploy to server" workflow. The dashboard is a
-     static Flutter web build; CI / `scripts/server-deploy.sh` only rsyncs those
-     files and never touches auth — rotating the password is a server-side change.
+     static Flutter web build; publishing it never touches auth — rotating the
+     password is a server-side change.
    - Generate: `openssl rand -base64 18 | tr -d '/+=' | head -c 24`.
    - SSH to the server and edit `/root/supabase-docker/.env`: set
      `DASHBOARD_PASSWORD=<new>` (and `DASHBOARD_USERNAME` too if rotating the

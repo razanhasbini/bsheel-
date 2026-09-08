@@ -1,6 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
 import 'quest_model.dart';
+import 'src/json_coercions.dart';
 
 class UserQuestModel {
   final String id;
@@ -29,13 +30,11 @@ class UserQuestModel {
       userId: (json[UserQuestColumns.userId] ?? '').toString(),
       questId: (json[UserQuestColumns.questId] ?? '').toString(),
       status: (json[UserQuestColumns.status] ?? '').toString(),
-      assignedAt: _toDateTime(
-        json[UserQuestColumns.assignedAt],
-      ),
-      completedAt: _toNullableDateTime(
+      assignedAt: coerceTimestamp(json[UserQuestColumns.assignedAt]),
+      completedAt: coerceNullableTimestamp(
         json[UserQuestColumns.completedAt],
       ),
-      expiresAt: _toNullableDateTime(
+      expiresAt: coerceNullableTimestamp(
         json[UserQuestColumns.expiresAt],
       ),
       quest: _parseQuest(json),
@@ -56,27 +55,33 @@ class UserQuestModel {
   }
 
   static QuestModel? _parseQuest(Map<String, dynamic> json) {
-    final joinedQuest = json[Tables.quests];
-    if (joinedQuest is Map<String, dynamic>) {
-      return QuestModel.fromJson(joinedQuest);
-    }
-    if (joinedQuest is List && joinedQuest.isNotEmpty) {
-      final first = joinedQuest.first;
-      if (first is Map<String, dynamic>) {
-        return QuestModel.fromJson(first);
-      }
-    }
-    return null;
+    final joinedQuest = coerceEmbed(json[Tables.quests]);
+    return joinedQuest == null ? null : QuestModel.fromJson(joinedQuest);
   }
 
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is UserQuestModel &&
+        other.id == id &&
+        other.userId == userId &&
+        other.questId == questId &&
+        other.status == status &&
+        other.assignedAt == assignedAt &&
+        other.completedAt == completedAt &&
+        other.expiresAt == expiresAt &&
+        other.quest == quest;
   }
 
-  static DateTime? _toNullableDateTime(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
-  }
+  @override
+  int get hashCode => Object.hash(
+        id,
+        userId,
+        questId,
+        status,
+        assignedAt,
+        completedAt,
+        expiresAt,
+        quest,
+      );
 }

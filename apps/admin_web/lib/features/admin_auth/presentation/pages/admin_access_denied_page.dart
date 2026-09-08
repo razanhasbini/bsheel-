@@ -51,15 +51,14 @@ class AdminAccessDeniedPage extends ConsumerWidget {
                     "Your account is signed in but isn't on the admins table. "
                     'Ask a super admin to add your user in Supabase.',
                     textAlign: TextAlign.center,
-                    style: BsheelType.bodyMd
-                        .copyWith(color: BsheelColors.inkSoft),
+                    style:
+                        BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
                   ),
                   const SizedBox(height: 24),
                   BsheelButton.primary(
                     label: 'SIGN OUT',
                     icon: Icons.logout,
-                    onPressed: () =>
-                        ref.read(authRepositoryProvider).signOut(),
+                    onPressed: () => ref.read(authRepositoryProvider).signOut(),
                   ),
                 ],
               ),

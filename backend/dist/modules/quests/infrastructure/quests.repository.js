@@ -139,10 +139,14 @@ let QuestsRepository = class QuestsRepository {
        LIMIT $2 OFFSET $3`, [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)]);
         return result.rows;
     }
-    async assignSpecific(userId, questId) {
+    async assignSpecific(userId, questId, displaceActive = false) {
         return this.database.transaction(async (transaction) => {
             await this.lockUser(userId, transaction);
             await this.expireOverdueForUser(userId, transaction);
+            if (displaceActive) {
+                await transaction.query(`UPDATE user_quests SET status = 'expired', version = version + 1
+           WHERE user_id = $1 AND status IN ('assigned', 'submitted')`, [userId]);
+            }
             const active = await transaction.query(`SELECT 1 FROM user_quests WHERE user_id = $1 AND status IN ('assigned', 'submitted') LIMIT 1`, [userId]);
             if (active.rowCount) {
                 throw new ConflictException({

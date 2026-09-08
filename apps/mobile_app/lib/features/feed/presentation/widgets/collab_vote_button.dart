@@ -317,15 +317,15 @@ class _CrownPainter extends CustomPainter {
 
     // Crown silhouette: 3 spikes + a base band.
     final body = Path()
-      ..moveTo(w * 0.10, h * 0.85)        // bottom-left of band
-      ..lineTo(w * 0.10, h * 0.55)        // up to left spike base
-      ..lineTo(w * 0.27, h * 0.20)        // up to left spike tip
-      ..lineTo(w * 0.43, h * 0.55)        // down between spikes
-      ..lineTo(w * 0.50, h * 0.10)        // up to centre tip
-      ..lineTo(w * 0.57, h * 0.55)        // down between spikes
-      ..lineTo(w * 0.73, h * 0.20)        // up to right spike tip
-      ..lineTo(w * 0.90, h * 0.55)        // down to right spike base
-      ..lineTo(w * 0.90, h * 0.85)        // bottom-right of band
+      ..moveTo(w * 0.10, h * 0.85) // bottom-left of band
+      ..lineTo(w * 0.10, h * 0.55) // up to left spike base
+      ..lineTo(w * 0.27, h * 0.20) // up to left spike tip
+      ..lineTo(w * 0.43, h * 0.55) // down between spikes
+      ..lineTo(w * 0.50, h * 0.10) // up to centre tip
+      ..lineTo(w * 0.57, h * 0.55) // down between spikes
+      ..lineTo(w * 0.73, h * 0.20) // up to right spike tip
+      ..lineTo(w * 0.90, h * 0.55) // down to right spike base
+      ..lineTo(w * 0.90, h * 0.85) // bottom-right of band
       ..close();
 
     // Yellow fill — Arcade-Pop accent.

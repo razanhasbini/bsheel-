@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:app_repositories/app_repositories.dart' show AuthUser;
 import 'package:app_core/app_core.dart';
-import '../../../../core/backend/backend_config.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/auth_repository_provider.dart';
 import '../../../../core/services/analytics_service.dart';
@@ -28,7 +26,6 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
     setState(() => _appleLoading = true);
     try {
       final response = await ref.read(authRepositoryProvider).signInWithApple();
-      await _persistAgeVerifiedPostAuth();
       _trackLogin(response.user);
       // Router redirect handles navigation to complete-profile or home
     } catch (e) {
@@ -45,7 +42,6 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
     try {
       final response =
           await ref.read(authRepositoryProvider).signInWithGoogle();
-      await _persistAgeVerifiedPostAuth();
       _trackLogin(response.user);
       // Router redirect handles navigation to complete-profile or home
     } catch (e) {
@@ -91,28 +87,10 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
     return confirmed == true;
   }
 
-  /// OAuth bypasses the `handle_new_user` metadata path, so the trigger
-  /// can't set `age_verified=true` on its own. Write it directly via
-  /// PostgREST after the OAuth callback resolves. Best-effort — if it
-  /// fails, RLS keeps the row at default `false` and an admin can fix.
-  Future<void> _persistAgeVerifiedPostAuth() async {
-    // The Nest OAuth command receives `ageVerified: true` as part of the
-    // authenticated server request and persists it transactionally.
-    if (BackendConfig.usesNest) return;
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-    try {
-      await Supabase.instance.client.from(Tables.profiles).update(
-          {ProfileColumns.ageVerified: true}).eq(ProfileColumns.id, user.id);
-    } catch (e) {
-      AppLogger.warning('[SocialAuth] Could not persist age_verified: $e');
-    }
-  }
-
-  void _trackLogin(User? user) {
+  void _trackLogin(AuthUser? user) {
     if (user != null) {
       ref.read(analyticsProvider).identify(user.id,
-          username: user.userMetadata?['username'] as String?);
+          username: user.userMetadata['username'] as String?);
       ref.read(analyticsProvider).track('login');
     }
   }

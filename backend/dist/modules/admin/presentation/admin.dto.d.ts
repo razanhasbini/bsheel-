@@ -38,6 +38,15 @@ export declare class SetUserXpDto {
     questsCompleted: number;
     reason: string;
 }
+export declare class UpdateUserProfileDto {
+    username?: string;
+    displayName?: string;
+    bio?: string;
+    xp?: number;
+    level?: number;
+    questsCompleted?: number;
+    reason: string;
+}
 export declare class ReviewReportDto {
     status: 'reviewed' | 'dismissed' | 'actioned';
     adminNote?: string;

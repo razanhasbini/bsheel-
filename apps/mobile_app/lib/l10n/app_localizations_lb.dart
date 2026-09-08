@@ -135,7 +135,8 @@ class AppLocalizationsLb extends AppLocalizations {
   String get version => 'Version 1.0.0';
 
   @override
-  String get aboutDescription => 'App BYETLA3LAK FE QUESTS BESALO BTAAMELON LAHALAK AW MAA REFATAK WLEKL BESHOOFON WBYETLA3LAK XP';
+  String get aboutDescription =>
+      'App BYETLA3LAK FE QUESTS BESALO BTAAMELON LAHALAK AW MAA REFATAK WLEKL BESHOOFON WBYETLA3LAK XP';
 
   @override
   String get ok => 'OK';
@@ -153,13 +154,15 @@ class AppLocalizationsLb extends AppLocalizations {
   String get deleteAccountTitle => 'DELETE L ACCOUNT';
 
   @override
-  String get deleteAccountWarning => 'Hayda rah yem7e kel shi. Ma fi rje3a, m2akad?';
+  String get deleteAccountWarning =>
+      'Hayda rah yem7e kel shi. Ma fi rje3a, m2akad?';
 
   @override
   String get typeDeleteConfirm => 'Ktob DELETE la t2akked:';
 
   @override
-  String get deletionRequested => 'Talabak enba3at. Rah yenma7a kel shi bi 48 se3a max.';
+  String get deletionRequested =>
+      'Talabak enba3at. Rah yenma7a kel shi bi 48 se3a max.';
 
   @override
   String get language => 'LANGUAGE';
@@ -249,25 +252,29 @@ class AppLocalizationsLb extends AppLocalizations {
   String get onboarding1Title => 'AHLA\nB QUEST';
 
   @override
-  String get onboarding1Subtitle => 'YOUR QUEST ENGINE.\nKAMMIL CHALLENGES.\nLEVEL UP.';
+  String get onboarding1Subtitle =>
+      'YOUR QUEST ENGINE.\nKAMMIL CHALLENGES.\nLEVEL UP.';
 
   @override
   String get onboarding2Title => 'KIF L QUESTS\nBTESHTEGHIL';
 
   @override
-  String get onboarding2Subtitle => 'GET QUEST.\nACCEPT.\nSUBMIT PROOF 2ABEL MA YKHALAS L WA2IT.';
+  String get onboarding2Subtitle =>
+      'GET QUEST.\nACCEPT.\nSUBMIT PROOF 2ABEL MA YKHALAS L WA2IT.';
 
   @override
   String get onboarding3Title => 'JMA3 XP &\nLEVEL UP';
 
   @override
-  String get onboarding3Subtitle => 'KELL QUEST BTA3TIK XP.\nETLA3 3AL LEADERBOARD.\nFTA7 LEVELS JDED.';
+  String get onboarding3Subtitle =>
+      'KELL QUEST BTA3TIK XP.\nETLA3 3AL LEADERBOARD.\nFTA7 LEVELS JDED.';
 
   @override
   String get onboarding4Title => 'JAHEZ 7ALAK';
 
   @override
-  String get onboarding4Subtitle => 'L QUESTS BE BALSHO HALLA2.\nGET YOUR FIRST QUEST!';
+  String get onboarding4Subtitle =>
+      'L QUESTS BE BALSHO HALLA2.\nGET YOUR FIRST QUEST!';
 
   @override
   String get activeQuest => 'ACTIVE QUEST';
@@ -525,10 +532,12 @@ class AppLocalizationsLb extends AppLocalizations {
   String get deleteFromProfile => 'MA77E MEN L PROFILE';
 
   @override
-  String get deleteFromFeedDesc => 'Hayda rah ysheel l post men l feed. Ba3da btbayen 3a profilk.';
+  String get deleteFromFeedDesc =>
+      'Hayda rah ysheel l post men l feed. Ba3da btbayen 3a profilk.';
 
   @override
-  String get deleteFromProfileDesc => 'Hayda rah yma77e l post men l feed w men profilk. Ma fi rje3a.';
+  String get deleteFromProfileDesc =>
+      'Hayda rah yma77e l post men l feed w men profilk. Ma fi rje3a.';
 
   @override
   String get addToFeed => 'DEEF 3AL FEED';
@@ -667,5 +676,4 @@ class AppLocalizationsLb extends AppLocalizations {
 
   @override
   String get passwordsDoNotMatch => 'Passwords ma byetwafa2ou.';
-
 }

@@ -29,7 +29,7 @@ declare const environmentSchema: z.ZodObject<{
         true: "true";
         false: "false";
     }>>, z.ZodTransform<boolean, "true" | "false">>;
-    FIREBASE_SERVICE_ACCOUNT: z.ZodOptional<z.ZodString>;
+    FIREBASE_SERVICE_ACCOUNT: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     FIREBASE_PROJECT_ID: z.ZodDefault<z.ZodString>;
     FIREBASE_TIMEOUT_MS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     OAUTH_GOOGLE_CLIENT_IDS: z.ZodDefault<z.ZodString>;
@@ -41,25 +41,29 @@ declare const environmentSchema: z.ZodObject<{
         false: "false";
     }>>, z.ZodTransform<boolean, "true" | "false">>;
     APP_PUBLIC_URL: z.ZodDefault<z.ZodString>;
-    EMAIL_DELIVERY_WEBHOOK_URL: z.ZodOptional<z.ZodString>;
-    EMAIL_DELIVERY_WEBHOOK_SECRET: z.ZodOptional<z.ZodString>;
+    EMAIL_DELIVERY_WEBHOOK_URL: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    EMAIL_DELIVERY_WEBHOOK_SECRET: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     EMAIL_TIMEOUT_MS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     TELEGRAM_ENABLED: z.ZodPipe<z.ZodDefault<z.ZodEnum<{
         true: "true";
         false: "false";
     }>>, z.ZodTransform<boolean, "true" | "false">>;
-    TELEGRAM_BOT_TOKEN: z.ZodOptional<z.ZodString>;
-    TELEGRAM_ADMIN_CHAT_ID: z.ZodOptional<z.ZodString>;
-    TELEGRAM_WEBHOOK_SECRET: z.ZodOptional<z.ZodString>;
+    TELEGRAM_BOT_TOKEN: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    TELEGRAM_ADMIN_CHAT_ID: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    TELEGRAM_WEBHOOK_SECRET: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     TELEGRAM_ALLOWED_CHAT_IDS: z.ZodDefault<z.ZodString>;
     TELEGRAM_TIMEOUT_MS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     TELEGRAM_API_BASE_URL: z.ZodDefault<z.ZodString>;
-    R2_ENDPOINT: z.ZodOptional<z.ZodString>;
+    R2_ENDPOINT: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     R2_REGION: z.ZodDefault<z.ZodString>;
-    R2_ACCESS_KEY_ID: z.ZodOptional<z.ZodString>;
-    R2_SECRET_ACCESS_KEY: z.ZodOptional<z.ZodString>;
-    R2_BUCKET: z.ZodOptional<z.ZodString>;
-    R2_PUBLIC_BASE_URL: z.ZodOptional<z.ZodString>;
+    S3_FORCE_PATH_STYLE: z.ZodPipe<z.ZodDefault<z.ZodEnum<{
+        true: "true";
+        false: "false";
+    }>>, z.ZodTransform<boolean, "true" | "false">>;
+    R2_ACCESS_KEY_ID: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    R2_SECRET_ACCESS_KEY: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    R2_BUCKET: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    R2_PUBLIC_BASE_URL: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     SIGNED_URL_TTL_SECONDS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     LOG_LEVEL: z.ZodDefault<z.ZodEnum<{
         error: "error";

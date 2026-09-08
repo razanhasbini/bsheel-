@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBooleanString, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
@@ -44,6 +44,49 @@ __decorate([
     IsUUID(),
     __metadata("design:type", String)
 ], SubmissionIdParam.prototype, "id", void 0);
+class AdminSubmissionListQuery {
+    status = 'pending';
+    appealed;
+    visibility;
+    order = 'asc';
+    limit = 50;
+    offset = 0;
+}
+__decorate([
+    IsOptional(),
+    IsIn(['pending', 'approved', 'rejected', 'all']),
+    __metadata("design:type", String)
+], AdminSubmissionListQuery.prototype, "status", void 0);
+__decorate([
+    IsOptional(),
+    IsBooleanString(),
+    __metadata("design:type", String)
+], AdminSubmissionListQuery.prototype, "appealed", void 0);
+__decorate([
+    IsOptional(),
+    IsIn(['visible', 'hidden_from_feed', 'deleted', 'not_visible']),
+    __metadata("design:type", String)
+], AdminSubmissionListQuery.prototype, "visibility", void 0);
+__decorate([
+    IsOptional(),
+    IsIn(['asc', 'desc']),
+    __metadata("design:type", String)
+], AdminSubmissionListQuery.prototype, "order", void 0);
+__decorate([
+    IsOptional(),
+    Type(() => Number),
+    IsInt(),
+    Min(1),
+    Max(100),
+    __metadata("design:type", Object)
+], AdminSubmissionListQuery.prototype, "limit", void 0);
+__decorate([
+    IsOptional(),
+    Type(() => Number),
+    IsInt(),
+    Min(0),
+    __metadata("design:type", Object)
+], AdminSubmissionListQuery.prototype, "offset", void 0);
 let SubmissionsController = class SubmissionsController {
     service;
     constructor(service) {
@@ -53,7 +96,30 @@ let SubmissionsController = class SubmissionsController {
     listUser(user, params, query) {
         return this.service.listUser(params.id, user.id, query.limit, query.offset);
     }
-    pending(query) { return this.service.listPending(query.limit, query.offset); }
+    pending(query) {
+        return this.service.listForAdmin({
+            status: 'pending',
+            order: query.order,
+            limit: query.limit,
+            offset: query.offset,
+        });
+    }
+    reviewQueue(query) {
+        return this.service.reviewQueue(query.limit, query.offset);
+    }
+    adminList(query) {
+        return this.service.listForAdmin({
+            status: query.status,
+            appealed: query.appealed === undefined ? undefined : query.appealed === 'true',
+            visibility: query.visibility,
+            order: query.order,
+            limit: query.limit,
+            offset: query.offset,
+        });
+    }
+    adminDetail(params) {
+        return this.service.adminDetail(params.id);
+    }
     detail(user, params) { return this.service.detail(params.id, user.id); }
     appeal(user, params, body) {
         return this.service.appeal(user.id, params.id, body.appealNote);
@@ -90,9 +156,33 @@ __decorate([
     Get('admin/pending'),
     __param(0, Query()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [SubmissionListQuery]),
+    __metadata("design:paramtypes", [AdminSubmissionListQuery]),
     __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "pending", null);
+__decorate([
+    Roles('moderator', 'super_admin'),
+    Get('admin/review-queue'),
+    __param(0, Query()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [AdminSubmissionListQuery]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "reviewQueue", null);
+__decorate([
+    Roles('moderator', 'super_admin'),
+    Get('admin'),
+    __param(0, Query()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [AdminSubmissionListQuery]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "adminList", null);
+__decorate([
+    Roles('moderator', 'super_admin'),
+    Get('admin/:id'),
+    __param(0, Param()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [SubmissionIdParam]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "adminDetail", null);
 __decorate([
     Get(':id'),
     __param(0, CurrentUser()),

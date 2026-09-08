@@ -16,6 +16,7 @@ export declare class QuestsService {
     active(userId: string): Promise<UserQuestRecord | null>;
     history(userId: string, limit: number, offset: number): Promise<readonly UserQuestRecord[]>;
     assign(userId: string, questId: string): Promise<UserQuestRecord>;
+    assignForUser(userId: string, questId: string): Promise<UserQuestRecord>;
     expire(userId: string, userQuestId: string): Promise<void>;
     picker(userId: string, count: number): Promise<readonly QuestRecord[]>;
     qotd(): Promise<Record<string, unknown> | null>;

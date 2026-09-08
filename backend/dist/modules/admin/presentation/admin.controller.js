@@ -17,7 +17,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Public } from '../../../common/auth/public.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import { AdminService } from '../application/admin.service.js';
-import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
+import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, UpdateUserProfileDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
 let PublicConfigController = class PublicConfigController {
     service;
     constructor(service) {
@@ -45,6 +45,7 @@ let AdminController = class AdminController {
     }
     me(user) { return this.service.me(user.id); }
     stats() { return this.service.stats(); }
+    xpAudit(query) { return this.service.xpAudit(query.limit, query.offset); }
     users(query) { return this.service.users(query.q, query.limit, query.offset); }
     createUser(user, body) {
         return this.service.createUser(user.id, body);
@@ -62,6 +63,9 @@ let AdminController = class AdminController {
         return this.service.requestPasswordRecovery(user.id, param.id);
     }
     setStatus(user, param, body) { return this.service.setStatus(user.id, param.id, body.status, body.reason); }
+    updateUserProfile(user, param, body) {
+        return this.service.updateUserProfile(user.id, param.id, body);
+    }
     setXp(user, param, body) { return this.service.setXp(user.id, param.id, body.xp, body.level, body.questsCompleted, body.reason); }
     reports(query) { return this.service.reports(query.status, query.limit, query.offset); }
     reviewReport(user, param, body) { return this.service.reviewReport(user.id, param.id, body.status, body.adminNote); }
@@ -72,6 +76,9 @@ let AdminController = class AdminController {
     inject(user, body) { return this.service.inject(user.id, body); }
     cancelInjection(user, param) { return this.service.cancelInjection(user.id, param.id); }
     notify(user, body) { return this.service.notify(user.id, body.targetUserId, body.title, body.body, body.type); }
+    notifications(query) {
+        return this.service.notifications(query.limit, query.offset);
+    }
     config() { return this.service.config(); }
     setConfig(user, param, body) { return this.service.setConfig(user.id, param.key, body.value, body.description, body.isPublic); }
     qotd(query) { return this.service.qotd(query.limit, query.offset); }
@@ -94,6 +101,14 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "stats", null);
+__decorate([
+    Roles('super_admin'),
+    Get('xp-audit'),
+    __param(0, Query()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [AdminListQueryDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "xpAudit", null);
 __decorate([
     Get('users'),
     __param(0, Query()),
@@ -170,6 +185,17 @@ __decorate([
 __decorate([
     Roles('super_admin'),
     HttpCode(204),
+    Patch('users/:id/profile'),
+    __param(0, CurrentUser()),
+    __param(1, Param()),
+    __param(2, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, UserIdParam, UpdateUserProfileDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "updateUserProfile", null);
+__decorate([
+    Roles('super_admin'),
+    HttpCode(204),
     Patch('users/:id/xp'),
     __param(0, CurrentUser()),
     __param(1, Param()),
@@ -237,6 +263,13 @@ __decorate([
     __metadata("design:paramtypes", [Object, SendNotificationDto]),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "notify", null);
+__decorate([
+    Get('notifications'),
+    __param(0, Query()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [AdminListQueryDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "notifications", null);
 __decorate([
     Roles('super_admin'),
     Get('config'),

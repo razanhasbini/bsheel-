@@ -1,10 +1,16 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { QuestsService } from '../application/quests.service.js';
 import { BulkCreateQuestsDto, CreateQuestDto, DeleteAllQuestsDto, FollowingActiveQueryDto, QuestHistoryQueryDto, QuestIdDto, QuestPickerQueryDto, UpdateQuestDto, UserQuestIdDto } from './quest.dto.js';
+
+class AdminAssignQuestDto {
+  @IsUUID() userId!: string;
+  @IsUUID() questId!: string;
+}
 
 @ApiTags('quests')
 @Controller({ path: 'quests', version: '1' })
@@ -46,6 +52,12 @@ export class QuestsController {
 
   @Get(':id')
   get(@Param('id') id: string) { return this.service.getQuest(id); }
+
+  @Roles('moderator', 'super_admin')
+  @Post('admin/assign')
+  assignForUser(@Body() body: AdminAssignQuestDto) {
+    return this.service.assignForUser(body.userId, body.questId);
+  }
 
   @Roles('super_admin')
   @Get('admin/all')

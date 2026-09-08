@@ -214,6 +214,47 @@ let AdminRepository = class AdminRepository {
             await this.audit(actorId, 'user.set_status', 'user', userId, { status: before.rows[0].status }, { status, reason }, transaction);
         });
     }
+    async updateUserProfile(actorId, userId, input) {
+        const assignments = [];
+        const parameters = [userId];
+        const push = (column, value) => {
+            parameters.push(value);
+            assignments.push(`${column} = $${parameters.length}`);
+        };
+        if (input.username !== undefined)
+            push('username', input.username.trim().toLowerCase());
+        if (input.displayName !== undefined)
+            push('display_name', input.displayName.trim());
+        if (input.bio !== undefined)
+            push('bio', input.bio.trim() === '' ? null : input.bio.trim());
+        if (input.xp !== undefined)
+            push('xp', input.xp);
+        if (input.level !== undefined)
+            push('level', input.level);
+        if (input.questsCompleted !== undefined)
+            push('quests_completed', input.questsCompleted);
+        if (assignments.length === 0) {
+            throw new ConflictException({ code: 'NO_PROFILE_CHANGES', message: 'No fields to update' });
+        }
+        await this.database.transaction(async (transaction) => {
+            const before = await transaction.query(`SELECT username::text, display_name, bio, xp, level, quests_completed
+         FROM profiles WHERE id = $1 FOR UPDATE`, [userId]);
+            if (!before.rows[0]) {
+                throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' });
+            }
+            try {
+                await transaction.query(`UPDATE profiles SET ${assignments.join(', ')}, updated_at = now() WHERE id = $1`, parameters);
+            }
+            catch (error) {
+                if (typeof error === 'object' && error !== null && 'code' in error &&
+                    error.code === '23505') {
+                    throw new ConflictException({ code: 'USERNAME_TAKEN', message: 'That username is already taken' });
+                }
+                throw error;
+            }
+            await this.audit(actorId, 'user.update_profile', 'profile', userId, before.rows[0], { ...input }, transaction);
+        });
+    }
     async setXp(actorId, userId, xp, level, completed, reason) {
         await this.database.transaction(async (transaction) => {
             const before = await transaction.query('SELECT xp, level, quests_completed FROM profiles WHERE id = $1 FOR UPDATE', [userId]);
@@ -335,6 +376,34 @@ let AdminRepository = class AdminRepository {
     }
     async config() {
         return (await this.database.query('SELECT key, value, description, is_public, updated_at FROM app_config ORDER BY key')).rows;
+    }
+    async xpAudit(limit, offset) {
+        return (await this.database.query(`SELECT p.id AS user_id, p.username::text, p.display_name,
+                p.xp AS current_xp, p.level AS current_level,
+                p.quests_completed AS current_quests,
+                coalesce(e.expected_xp, 0)::int AS expected_xp,
+                coalesce(e.expected_quests, 0)::int AS expected_quests,
+                ((coalesce(e.expected_xp, 0) / 100) + 1)::int AS expected_level
+         FROM profiles p
+         LEFT JOIN (
+           SELECT uq.user_id,
+                  sum(q.xp_reward)::int AS expected_xp,
+                  count(*)::int AS expected_quests
+           FROM user_quests uq JOIN quests q ON q.id = uq.quest_id
+           WHERE uq.status = 'approved'
+           GROUP BY uq.user_id
+         ) e ON e.user_id = p.id
+         ORDER BY p.xp DESC, p.id
+         LIMIT $1 OFFSET $2`, [Math.min(Math.max(limit, 1), 500), Math.max(offset, 0)])).rows;
+    }
+    async notifications(limit, offset) {
+        return (await this.database.query(`SELECT n.id, n.user_id, n.title, n.body, n.type, n.created_at,
+                p.username::text AS username
+         FROM notifications n
+         LEFT JOIN profiles p ON p.id = n.user_id
+         WHERE n.type <> 'announcement'
+         ORDER BY n.created_at DESC
+         LIMIT $1 OFFSET $2`, [Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)])).rows;
     }
     async publicConfig() {
         return (await this.database.query('SELECT key, value FROM app_config WHERE is_public ORDER BY key')).rows;

@@ -1,31 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/backend/admin_nest_backend.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 final reportsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  if (BackendConfig.usesNest) {
-    return AdminNestBackend.repositories.admin.reports(
-      status: 'all',
-      limit: 100,
-    );
-  }
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.reports)
-      .select(
-        '*, profiles!reports_reporter_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName})',
-      )
-      .order('created_at', ascending: false)
-      .limit(100);
-  return List<Map<String, dynamic>>.from(data as List);
+  return AppBackend.repositories.admin.reports(
+    status: 'all',
+    limit: 100,
+  );
 });
 
 class ReportsPage extends ConsumerStatefulWidget {
@@ -122,80 +108,36 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 
   Future<void> _updateReportStatus(String id, String status) async {
-    if (BackendConfig.usesNest) {
-      await AdminNestBackend.repositories.admin.reviewReport(
-        id,
-        status: status,
-      );
-    } else {
-      final client = ref.read(supabaseClientProvider);
-      final adminId = client.auth.currentUser!.id;
-      await client.from(Tables.reports).update({
-        'status': status,
-        'reviewed_at': DateTime.now().toIso8601String(),
-        'reviewed_by': adminId,
-      }).eq('id', id);
-    }
+    await AppBackend.repositories.admin.reviewReport(
+      id,
+      status: status,
+    );
     ref.invalidate(reportsProvider);
     if (mounted) _toast('Report marked $status.');
   }
 
   Future<void> _banReportedUser(Map<String, dynamic> r) async {
-    final reportedId = r['reported_id']?.toString();
-    final reportedType = r['reported_type']?.toString();
-    if (reportedId == null) return;
+    if (r['reported_id'] == null) return;
 
-    String? userId;
-    if (BackendConfig.usesNest) {
-      userId = r['reported_user_id']?.toString();
-    } else if (reportedType == 'user') {
-      userId = reportedId;
-    } else if (reportedType == 'submission') {
-      final client = ref.read(supabaseClientProvider);
-      final sub = await client
-          .from(Tables.submissions)
-          .select(SubmissionColumns.userId)
-          .eq(SubmissionColumns.id, reportedId)
-          .maybeSingle();
-      userId = sub?[SubmissionColumns.userId]?.toString();
-    }
+    // The API resolves the reported user for both user and submission
+    // reports, so the client no longer needs a second lookup.
+    final userId = r['reported_user_id']?.toString();
     if (userId == null) return;
 
     // Resolve a human-readable name so the admin confirms the right target
     // before an account-level action fires. Falls back to the raw id.
-    String username = r['reported_username']?.toString() ?? userId;
-    if (!BackendConfig.usesNest) {
-      try {
-        final client = ref.read(supabaseClientProvider);
-        final profile = await client
-            .from(Tables.profiles)
-            .select(ProfileColumns.username)
-            .eq(ProfileColumns.id, userId)
-            .maybeSingle();
-        final resolved = profile?[ProfileColumns.username]?.toString();
-        if (resolved != null && resolved.isNotEmpty) username = resolved;
-      } catch (_) {
-        // Non-fatal — the confirm dialog shows the id instead.
-      }
-    }
+    final username = r['reported_username']?.toString() ?? userId;
 
     if (!mounted) return;
     final confirmed = await _confirmBan(username);
     if (confirmed != true || !mounted) return;
 
     try {
-      if (BackendConfig.usesNest) {
-        await AdminNestBackend.repositories.admin.setAccountStatus(
-          userId,
-          'banned',
-          'Banned while actioning content report ${r['id']}',
-        );
-      } else {
-        await Supabase.instance.client.rpc(
-          RpcNames.setUserAccountStatus,
-          params: {'p_user_id': userId, 'p_status': 'banned'},
-        );
-      }
+      await AppBackend.repositories.admin.setAccountStatus(
+        userId,
+        'banned',
+        'Banned while actioning content report ${r['id']}',
+      );
       await _updateReportStatus(r['id'], 'actioned');
       if (mounted) _toast('User banned.');
     } catch (e) {
@@ -222,8 +164,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.block_rounded,
-                        color: BsheelColors.hot, size: 24,),
+                    const Icon(
+                      Icons.block_rounded,
+                      color: BsheelColors.hot,
+                      size: 24,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       'BAN USER',
@@ -259,8 +204,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         backgroundColor: BsheelColors.hot,
                         foregroundColor: BsheelColors.pureWhite,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(BsheelRadii.sm),
+                          borderRadius: BorderRadius.circular(BsheelRadii.sm),
                         ),
                       ),
                       child: Text(

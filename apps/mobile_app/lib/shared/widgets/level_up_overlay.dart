@@ -192,8 +192,8 @@ class _PixelConfettiPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (final p in _particles) {
       // Each particle starts after its delay
-      final adjustedProgress = ((progress - p.delay) / (1.0 - p.delay))
-          .clamp(0.0, 1.0);
+      final adjustedProgress =
+          ((progress - p.delay) / (1.0 - p.delay)).clamp(0.0, 1.0);
       if (adjustedProgress <= 0) continue;
 
       final currentY = p.startY + (p.endY - p.startY) * adjustedProgress;

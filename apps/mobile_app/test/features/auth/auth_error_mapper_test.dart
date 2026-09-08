@@ -12,8 +12,7 @@ void main() {
         'wrong password entered',
         'user not found',
       ]) {
-        expect(mapAuthError(raw), 'Incorrect email or password.',
-            reason: raw);
+        expect(mapAuthError(raw), 'Incorrect email or password.', reason: raw);
       }
     });
 
@@ -82,8 +81,8 @@ void main() {
     });
 
     test('banned account', () {
-      expect(mapAuthError('User is banned'),
-          'This account has been suspended.');
+      expect(
+          mapAuthError('User is banned'), 'This account has been suspended.');
     });
 
     test('short unknown errors pass through with prefixes stripped', () {

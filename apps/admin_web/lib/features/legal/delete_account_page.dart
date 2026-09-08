@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app_core/app_core.dart';
 
 import '../../core/theme/bsheel_design.dart';
+
 class DeleteAccountPage extends StatefulWidget {
   const DeleteAccountPage({super.key});
 
@@ -63,8 +64,11 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 60),
-        const Icon(Icons.check_circle_outline,
-            size: 80, color: BsheelColors.success,),
+        const Icon(
+          Icons.check_circle_outline,
+          size: 80,
+          color: BsheelColors.success,
+        ),
         const SizedBox(height: 24),
         Text(
           'REQUEST SUBMITTED',
@@ -84,7 +88,9 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(
-              horizontal: QuestSpacing.lg, vertical: QuestSpacing.md,),
+            horizontal: QuestSpacing.lg,
+            vertical: QuestSpacing.md,
+          ),
           decoration: BoxDecoration(
             color: BsheelColors.accent.withAlpha(30),
             borderRadius: BorderRadius.circular(BsheelRadii.md),
@@ -209,44 +215,48 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                     hintStyle: BsheelType.bodySm.copyWith(
                       color: BsheelColors.inkMuted,
                     ),
-                    prefixIcon: const Icon(Icons.email_outlined,
-                        size: 18, color: BsheelColors.inkMuted,),
+                    prefixIcon: const Icon(
+                      Icons.email_outlined,
+                      size: 18,
+                      color: BsheelColors.inkMuted,
+                    ),
                     filled: true,
                     fillColor: BsheelColors.bg,
                     border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.md),
+                      borderRadius: BorderRadius.circular(BsheelRadii.md),
                       borderSide: const BorderSide(
-                          color: BsheelColors.ink, width: 1,),
+                        color: BsheelColors.ink,
+                        width: 1,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.md),
+                      borderRadius: BorderRadius.circular(BsheelRadii.md),
                       borderSide: const BorderSide(
-                          color: BsheelColors.ink, width: 1,),
+                        color: BsheelColors.ink,
+                        width: 1,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.md),
+                      borderRadius: BorderRadius.circular(BsheelRadii.md),
                       borderSide:
                           const BorderSide(color: BsheelColors.hot, width: 1),
                     ),
                     errorBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.md),
+                      borderRadius: BorderRadius.circular(BsheelRadii.md),
                       borderSide:
                           const BorderSide(color: BsheelColors.hot, width: 1),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14,),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter your email address';
                     }
-                    final emailRegex =
-                        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
                     if (!emailRegex.hasMatch(value.trim())) {
                       return 'Please enter a valid email address';
                     }
@@ -267,10 +277,11 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                       foregroundColor: BsheelColors.pureWhite,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.md),
+                        borderRadius: BorderRadius.circular(BsheelRadii.md),
                         side: const BorderSide(
-                            color: BsheelColors.ink, width: 1,),
+                          color: BsheelColors.ink,
+                          width: 1,
+                        ),
                       ),
                       elevation: 0,
                     ),

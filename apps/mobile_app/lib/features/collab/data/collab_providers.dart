@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
-import '../../../core/providers/supabase_provider.dart';
+import '../../../core/backend/app_backend.dart';
 
 final collabRepositoryProvider = Provider<CollabRepository>((ref) {
-  return SupabaseCollabRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.collab;
 });
 
 final collabGroupStatusProvider =

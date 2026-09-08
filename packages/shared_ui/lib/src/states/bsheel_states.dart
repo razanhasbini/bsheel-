@@ -57,8 +57,8 @@ class BsheelEmptyState extends StatelessWidget {
                 onTap: action,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
                     color: QuestColors.osPrimary,
                     borderRadius: BorderRadius.circular(10),
@@ -113,16 +113,16 @@ class BsheelErrorState extends StatelessWidget {
             Text(
               mapDbError(error, action: action),
               textAlign: TextAlign.center,
-              style: QuestTypography.bodyMedium
-                  .copyWith(color: ink, height: 1.4),
+              style:
+                  QuestTypography.bodyMedium.copyWith(color: ink, height: 1.4),
             ),
             const SizedBox(height: QuestSpacing.lg),
             GestureDetector(
               onTap: onRetry,
               behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 18, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                 decoration: BoxDecoration(
                   color: QuestColors.accentYellow,
                   borderRadius: BorderRadius.circular(10),
@@ -165,8 +165,7 @@ class BsheelLoading extends StatelessWidget {
         height: size,
         child: const CircularProgressIndicator(
           strokeWidth: 2.5,
-          valueColor:
-              AlwaysStoppedAnimation<Color>(QuestColors.osPrimary),
+          valueColor: AlwaysStoppedAnimation<Color>(QuestColors.osPrimary),
         ),
       ),
     );
@@ -224,9 +223,8 @@ Future<bool> showBsheelConfirm(
             child: Text(
               confirmLabel.toUpperCase(),
               style: QuestTypography.labelSmall.copyWith(
-                color: destructive
-                    ? QuestColors.softRed
-                    : QuestColors.osPrimary,
+                color:
+                    destructive ? QuestColors.softRed : QuestColors.osPrimary,
               ),
             ),
           ),

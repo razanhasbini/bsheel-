@@ -6,7 +6,16 @@ export declare class SubmissionsService {
     create(userId: string, input: CreateSubmissionDto): Promise<SubmissionRecord>;
     detail(id: string, viewerId: string): Promise<Record<string, unknown>>;
     listUser(userId: string, viewerId: string, limit: number, offset: number): Promise<readonly SubmissionRecord[]>;
-    listPending(limit: number, offset: number): Promise<readonly Record<string, unknown>[]>;
+    adminDetail(id: string): Promise<Record<string, unknown>>;
+    reviewQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]>;
+    listForAdmin(filter: {
+        status?: 'pending' | 'approved' | 'rejected' | 'all';
+        appealed?: boolean;
+        visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
+        order?: 'asc' | 'desc';
+        limit?: number;
+        offset?: number;
+    }): Promise<readonly Record<string, unknown>[]>;
     appeal(userId: string, id: string, note: string): Promise<void>;
     approve(actorId: string | null, id: string, note?: string, source?: Record<string, unknown>): Promise<void>;
     reject(actorId: string | null, id: string, note: string, source?: Record<string, unknown>): Promise<void>;

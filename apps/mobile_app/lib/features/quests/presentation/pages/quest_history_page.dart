@@ -51,8 +51,8 @@ class QuestHistoryPage extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      child: Icon(Icons.arrow_back_rounded,
-                          color: ink, size: 20),
+                      child:
+                          Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -173,9 +173,7 @@ class QuestHistoryPage extends ConsumerWidget {
                                 onTap: quest != null
                                     ? () => context.pushNamed(
                                           RouteNames.questDetails,
-                                          pathParameters: {
-                                            'id': uq.questId
-                                          },
+                                          pathParameters: {'id': uq.questId},
                                         )
                                     : null,
                               );
@@ -247,8 +245,9 @@ class _ArcadeCountTileState extends State<_ArcadeCountTile>
           AnimatedBuilder(
             animation: _ac,
             builder: (_, __) {
-              final v = (widget.value * Curves.easeOutCubic.transform(_ac.value))
-                  .round();
+              final v =
+                  (widget.value * Curves.easeOutCubic.transform(_ac.value))
+                      .round();
               return Text(
                 '$v',
                 style: QuestTypography.headlineLarge.copyWith(
@@ -323,8 +322,8 @@ class _ArcadeHistoryCard extends StatelessWidget {
               children: [
                 // Status pill
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor,
                     borderRadius: BorderRadius.circular(8),
@@ -343,13 +342,13 @@ class _ArcadeHistoryCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 if (category.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: QuestColors.osPrimary.withAlpha(40),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: QuestColors.osPrimary, width: 1.5),
+                      border:
+                          Border.all(color: QuestColors.osPrimary, width: 1.5),
                     ),
                     child: Text(
                       category.toUpperCase(),
@@ -364,8 +363,8 @@ class _ArcadeHistoryCard extends StatelessWidget {
                 const Spacer(),
                 if (xpReward > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: QuestColors.accentYellow,
                       borderRadius: BorderRadius.circular(8),
@@ -541,8 +540,7 @@ class _ErrorState extends StatelessWidget {
           child: GestureDetector(
             onTap: onRetry,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 22, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
               decoration: BoxDecoration(
                 color: QuestColors.accentYellow,
                 borderRadius: BorderRadius.circular(12),

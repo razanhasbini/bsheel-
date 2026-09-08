@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'src/json_coercions.dart';
 
 /// Represents one member's data in a collab feed post.
 class CollabFeedMember {
@@ -55,16 +55,9 @@ class CollabFeedMember {
     );
   }
 
-  List<String> get mediaUrls {
-    if (mediaUrl == null || mediaUrl!.isEmpty) return [];
-    final trimmed = mediaUrl!.trim();
-    if (trimmed.startsWith('[')) {
-      try {
-        return List<String>.from(jsonDecode(trimmed) as List);
-      } catch (_) {}
-    }
-    return [mediaUrl!];
-  }
+  /// All of this member's media URLs — `[]` when there is no media, so a
+  /// "waiting for member" slot renders as truly empty.
+  List<String> get mediaUrls => decodeMediaUrls(mediaUrl);
 
   factory CollabFeedMember.fromJson(Map<String, dynamic> json) {
     return CollabFeedMember(
@@ -78,9 +71,52 @@ class CollabFeedMember {
       mediaType: json['media_type'] as String?,
       submissionStatus: json['submission_status'] as String?,
       caption: json['caption'] as String?,
-      showInFeed: json['show_in_feed'] as bool? ?? true,
-      voteCount: (json['vote_count'] as num?)?.toInt() ?? 0,
-      viewerVoted: json['viewer_voted'] as bool? ?? false,
+      // Same rule as SubmissionModel.showInFeed: absent means the RPC did
+      // not project the column (DB default is true), an unrecognisable
+      // value fails closed to hidden.
+      showInFeed: coerceBool(
+        json['show_in_feed'],
+        ifMissing: true,
+        ifUnrecognised: false,
+      ),
+      voteCount: coerceInt(json['vote_count']),
+      viewerVoted: coerceBool(json['viewer_voted'], ifMissing: false),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CollabFeedMember &&
+        other.userId == userId &&
+        other.username == username &&
+        other.displayName == displayName &&
+        other.avatarUrl == avatarUrl &&
+        other.bio == bio &&
+        other.submissionId == submissionId &&
+        other.mediaUrl == mediaUrl &&
+        other.mediaType == mediaType &&
+        other.submissionStatus == submissionStatus &&
+        other.caption == caption &&
+        other.showInFeed == showInFeed &&
+        other.voteCount == voteCount &&
+        other.viewerVoted == viewerVoted;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        userId,
+        username,
+        displayName,
+        avatarUrl,
+        bio,
+        submissionId,
+        mediaUrl,
+        mediaType,
+        submissionStatus,
+        caption,
+        showInFeed,
+        voteCount,
+        viewerVoted,
+      );
 }

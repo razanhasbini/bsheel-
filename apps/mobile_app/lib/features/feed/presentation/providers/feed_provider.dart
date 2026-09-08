@@ -2,11 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/foundation.dart';
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 
 final feedRepositoryProvider = Provider<FeedRepository>((ref) {
-  return SupabaseFeedRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.feed;
 });
 
 /// Current feed sort mode, changed by the filter tabs.

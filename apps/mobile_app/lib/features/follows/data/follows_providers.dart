@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_repositories/app_repositories.dart';
 
-import '../../../core/providers/supabase_provider.dart';
+import '../../../core/backend/app_backend.dart';
 
 final followsRepositoryProvider = Provider<FollowsRepository>((ref) {
-  return SupabaseFollowsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.follows;
 });
 
 /// Follower + following counts for a given user. Family-keyed so the
@@ -19,7 +19,7 @@ final followCountsProvider = FutureProvider.autoDispose
 /// previous local `_isFollowing` state in FollowButton so the shell-level
 /// follows realtime channel can invalidate it and every visible follow
 /// button updates without a manual re-check.
-final isFollowingProvider = FutureProvider.autoDispose
-    .family<bool, String>((ref, targetUserId) async {
+final isFollowingProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, targetUserId) async {
   return ref.watch(followsRepositoryProvider).isFollowing(targetUserId);
 });

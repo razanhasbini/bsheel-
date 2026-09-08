@@ -12,8 +12,10 @@ abstract final class ProfileColumns {
   static const String fcmToken = 'fcm_token';
   static const String updatedAt = 'updated_at';
   static const String profileCompleted = 'profile_completed';
+
   /// Migration 0142: signup checkbox confirming 13+. Default false.
   static const String ageVerified = 'age_verified';
+
   /// Migration 0142: timestamp the user accepted analytics opt-in.
   /// NULL = no consent yet — Mixpanel must stay disabled until set.
   static const String analyticsConsentAt = 'analytics_consent_at';

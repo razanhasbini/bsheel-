@@ -1,33 +1,22 @@
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+
+/// Every submission, newest first. Media keys are signed by the adapter.
 final _allSubmissionsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from(Tables.submissions)
-      .select(
-        '*, profiles!submissions_user_id_fkey(${ProfileColumns.username}, ${ProfileColumns.displayName}), ${Tables.userQuests}(${Tables.quests}(${QuestColumns.title}))',
-      )
-      .order(SubmissionColumns.submittedAt, ascending: false);
-  return Future.wait(
-    List<Map<String, dynamic>>.from(data as List).map((submission) async {
-      final rawMedia = submission[SubmissionColumns.mediaUrl]?.toString() ?? '';
-      return {
-        ...submission,
-        SubmissionColumns.mediaUrl:
-            await SignedMediaUrls.signJsonOrSingle(client, rawMedia),
-      };
-    }),
+  return AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: 'all',
+    order: 'desc',
   );
 });
 
@@ -65,179 +54,174 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
               Text(
                 'Every submission, every status. Use filters to narrow down '
                 'when an old call needs revisiting.',
-                style: BsheelType.bodyMd
-                    .copyWith(color: BsheelColors.inkSoft),
+                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
               ),
             ],
           ),
         ),
         const SizedBox(height: 18),
-          // Filters row — on mobile, wrap chips and search vertically
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 600;
-              final chips = [
-                _FilterChip(
-                  label: 'ALL',
-                  value: 'all',
-                  current: _filter,
-                  onTap: () => setState(() => _filter = 'all'),
+        // Filters row — on mobile, wrap chips and search vertically
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 600;
+            final chips = [
+              _FilterChip(
+                label: 'ALL',
+                value: 'all',
+                current: _filter,
+                onTap: () => setState(() => _filter = 'all'),
+              ),
+              _FilterChip(
+                label: 'PENDING',
+                value: SubmissionStatus.pending,
+                current: _filter,
+                color: BsheelColors.cool,
+                onTap: () => setState(() => _filter = SubmissionStatus.pending),
+              ),
+              _FilterChip(
+                label: 'APPROVED',
+                value: SubmissionStatus.approved,
+                current: _filter,
+                color: BsheelColors.success,
+                onTap: () =>
+                    setState(() => _filter = SubmissionStatus.approved),
+              ),
+              _FilterChip(
+                label: 'REJECTED',
+                value: SubmissionStatus.rejected,
+                current: _filter,
+                color: BsheelColors.hot,
+                onTap: () =>
+                    setState(() => _filter = SubmissionStatus.rejected),
+              ),
+            ];
+            final searchField = TextField(
+              style: BsheelType.bodySm,
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                hintStyle: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.inkMuted,
                 ),
-                _FilterChip(
-                  label: 'PENDING',
-                  value: SubmissionStatus.pending,
-                  current: _filter,
-                  color: BsheelColors.cool,
-                  onTap: () =>
-                      setState(() => _filter = SubmissionStatus.pending),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: BsheelColors.inkMuted,
                 ),
-                _FilterChip(
-                  label: 'APPROVED',
-                  value: SubmissionStatus.approved,
-                  current: _filter,
-                  color: BsheelColors.success,
-                  onTap: () =>
-                      setState(() => _filter = SubmissionStatus.approved),
+                filled: true,
+                fillColor: BsheelColors.paper,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(BsheelRadii.md),
+                  borderSide: const BorderSide(color: BsheelColors.line),
                 ),
-                _FilterChip(
-                  label: 'REJECTED',
-                  value: SubmissionStatus.rejected,
-                  current: _filter,
-                  color: BsheelColors.hot,
-                  onTap: () =>
-                      setState(() => _filter = SubmissionStatus.rejected),
-                ),
-              ];
-              final searchField = TextField(
-                style: BsheelType.bodySm,
-                decoration: InputDecoration(
-                  hintText: 'Search...',
-                  hintStyle: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkMuted,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: BsheelColors.inkMuted,
-                  ),
-                  filled: true,
-                  fillColor: BsheelColors.paper,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(color: BsheelColors.line),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(
-                      color: BsheelColors.line,
-                      width: BsheelBorders.thin,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(
-                      color: BsheelColors.ink,
-                      width: BsheelBorders.thin,
-                    ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(BsheelRadii.md),
+                  borderSide: const BorderSide(
+                    color: BsheelColors.line,
+                    width: BsheelBorders.thin,
                   ),
                 ),
-                onChanged: (v) => setState(() => _search = v.toLowerCase()),
-              );
-              if (isMobile) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: QuestSpacing.sm,
-                      runSpacing: QuestSpacing.sm,
-                      children: chips,
-                    ),
-                    const SizedBox(height: QuestSpacing.sm),
-                    searchField,
-                  ],
-                );
-              }
-              return Row(
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(BsheelRadii.md),
+                  borderSide: const BorderSide(
+                    color: BsheelColors.ink,
+                    width: BsheelBorders.thin,
+                  ),
+                ),
+              ),
+              onChanged: (v) => setState(() => _search = v.toLowerCase()),
+            );
+            if (isMobile) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ...chips.expand((c) => [c, const SizedBox(width: QuestSpacing.sm)]),
-                  const SizedBox(width: QuestSpacing.sm),
-                  Expanded(child: searchField),
+                  Wrap(
+                    spacing: QuestSpacing.sm,
+                    runSpacing: QuestSpacing.sm,
+                    children: chips,
+                  ),
+                  const SizedBox(height: QuestSpacing.sm),
+                  searchField,
                 ],
               );
-            },
-          ),
-          const SizedBox(height: QuestSpacing.md),
-          Expanded(
-            child: subsAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Error: $e',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.hot,
-                  ),
+            }
+            return Row(
+              children: [
+                ...chips
+                    .expand((c) => [c, const SizedBox(width: QuestSpacing.sm)]),
+                const SizedBox(width: QuestSpacing.sm),
+                Expanded(child: searchField),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: QuestSpacing.md),
+        Expanded(
+          child: subsAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
+            ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.hot,
                 ),
               ),
-              data: (subs) {
-                final filtered = subs.where((s) {
-                  if (_filter != 'all' &&
-                      s[SubmissionColumns.status] != _filter) {
-                    return false;
-                  }
-                  if (_search.isNotEmpty) {
-                    final profile =
-                        s[Tables.profiles] as Map<String, dynamic>? ?? {};
-                    final username = (profile[ProfileColumns.username] ?? '')
-                        .toString()
-                        .toLowerCase();
-                    final caption = (s[SubmissionColumns.caption] ?? '')
-                        .toString()
-                        .toLowerCase();
-                    return username.contains(_search) ||
-                        caption.contains(_search);
-                  }
-                  return true;
-                }).toList();
-
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No submissions found.',
-                      style: BsheelType.bodyMd.copyWith(
-                        color: BsheelColors.inkMuted,
-                      ),
-                    ),
-                  );
+            ),
+            data: (subs) {
+              final filtered = subs.where((s) {
+                if (_filter != 'all' &&
+                    s[SubmissionColumns.status] != _filter) {
+                  return false;
                 }
+                if (_search.isNotEmpty) {
+                  final username =
+                      (s['username'] ?? '').toString().toLowerCase();
+                  final caption = (s[SubmissionColumns.caption] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  return username.contains(_search) ||
+                      caption.contains(_search);
+                }
+                return true;
+              }).toList();
 
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth < 600) {
-                      return ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: QuestSpacing.sm),
-                        itemBuilder: (context, i) =>
-                            _buildMobileCard(context, filtered[i]),
-                      );
-                    }
-                    return Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: BsheelColors.paper,
-                        border: Border.all(
-                          color: BsheelColors.line,
-                          width: BsheelBorders.thin,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.lg),
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No submissions found.',
+                    style: BsheelType.bodyMd.copyWith(
+                      color: BsheelColors.inkMuted,
+                    ),
+                  ),
+                );
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 600) {
+                    return ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: QuestSpacing.sm),
+                      itemBuilder: (context, i) =>
+                          _buildMobileCard(context, filtered[i]),
+                    );
+                  }
+                  return Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: BsheelColors.paper,
+                      border: Border.all(
+                        color: BsheelColors.line,
+                        width: BsheelBorders.thin,
                       ),
-                      child: SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: DataTable(
+                      borderRadius: BorderRadius.circular(BsheelRadii.lg),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: DataTable(
                           headingRowColor: WidgetStateProperty.all(
                             BsheelColors.surface,
                           ),
@@ -267,24 +251,21 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                               .map((e) => _buildRow(context, e.value, e.key))
                               .toList(),
                         ),
-                        ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
+        ),
       ],
     );
   }
 
   Widget _buildMobileCard(BuildContext context, Map<String, dynamic> sub) {
-    final profile = sub[Tables.profiles] as Map<String, dynamic>? ?? {};
-    final userQuest = sub[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-    final username = profile[ProfileColumns.username] ?? '-';
-    final questTitle = quest?[QuestColumns.title] ?? '-';
+    final username = sub['username'] ?? '-';
+    final questTitle = sub['quest_title'] ?? '-';
     final caption = sub[SubmissionColumns.caption]?.toString() ?? '';
     final status = sub[SubmissionColumns.status]?.toString() ?? '';
     final mediaUrl = sub[SubmissionColumns.mediaUrl]?.toString() ?? '';
@@ -296,21 +277,23 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
 
     final (Color statusBg, Color statusFg) = switch (status) {
       'approved' => (
-        BsheelColors.success.withAlpha(30),
-        BsheelColors.success,
-      ),
+          BsheelColors.success.withAlpha(30),
+          BsheelColors.success,
+        ),
       'rejected' => (BsheelColors.hot.withAlpha(30), BsheelColors.hot),
       _ => (
-        BsheelColors.cool.withAlpha(30),
-        BsheelColors.cool,
-      ),
+          BsheelColors.cool.withAlpha(30),
+          BsheelColors.cool,
+        ),
     };
 
     return Container(
       decoration: BoxDecoration(
         color: BsheelColors.paper,
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
       ),
       padding: const EdgeInsets.all(QuestSpacing.md),
@@ -388,8 +371,7 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                       ),
                       decoration: BoxDecoration(
                         color: statusBg,
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.full),
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
                         border: Border.all(color: statusFg.withAlpha(80)),
                       ),
                       child: Text(
@@ -435,11 +417,8 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
   }
 
   DataRow _buildRow(BuildContext context, Map<String, dynamic> sub, int index) {
-    final profile = sub[Tables.profiles] as Map<String, dynamic>? ?? {};
-    final userQuest = sub[Tables.userQuests] as Map<String, dynamic>?;
-    final quest = userQuest?[Tables.quests] as Map<String, dynamic>?;
-    final username = profile[ProfileColumns.username] ?? '-';
-    final questTitle = quest?[QuestColumns.title] ?? '-';
+    final username = sub['username'] ?? '-';
+    final questTitle = sub['quest_title'] ?? '-';
     final caption = sub[SubmissionColumns.caption]?.toString() ?? '';
     final status = sub[SubmissionColumns.status]?.toString() ?? '';
     final mediaUrl = sub[SubmissionColumns.mediaUrl]?.toString() ?? '';

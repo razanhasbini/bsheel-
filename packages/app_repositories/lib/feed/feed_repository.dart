@@ -5,6 +5,7 @@ import 'package:app_models/app_models.dart';
 enum FeedScope {
   /// Global public feed across all approved posts.
   all,
+
   /// Only posts authored by users the caller follows.
   following,
 }

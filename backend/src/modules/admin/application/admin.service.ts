@@ -59,6 +59,21 @@ export class AdminService {
   cancelInjection(actorId: string, id: string) { return this.repository.cancelInjection(actorId, id); }
   notify(actorId: string, targetId: string | undefined, title: string, body: string, type: string) { return this.repository.notify(actorId, targetId, title, body, type); }
   config() { return this.repository.config(); }
+  updateUserProfile(actorId: string, userId: string, input: {
+    username?: string;
+    displayName?: string;
+    bio?: string;
+    xp?: number;
+    level?: number;
+    questsCompleted?: number;
+    reason: string;
+  }) {
+    return this.repository.updateUserProfile(actorId, userId, input);
+  }
+
+  xpAudit(limit: number, offset: number) { return this.repository.xpAudit(limit, offset); }
+
+  notifications(limit: number, offset: number) { return this.repository.notifications(limit, offset); }
   publicConfig() { return this.repository.publicConfig(); }
   setConfig(actorId: string, key: string, value: unknown, description: string | undefined, isPublic: boolean) { return this.repository.setConfig(actorId, key, value, description, isPublic); }
   qotd(limit: number, offset: number) { return this.repository.qotd(limit, offset); }

@@ -26,15 +26,82 @@ class ApiModerationRepository implements ModerationRepository {
     final rows = <Map<String, dynamic>>[];
     const pageSize = 100;
     for (var offset = 0;; offset += pageSize) {
-      final page = apiObjectList(await _client.get(
-        'submissions/admin/pending',
-        query: {'limit': pageSize, 'offset': offset},
-      ),);
+      final page = apiObjectList(
+        await _client.get(
+          'submissions/admin/pending',
+          query: {'limit': pageSize, 'offset': offset},
+        ),
+      );
       rows.addAll(page);
       if (page.length < pageSize) break;
     }
     return Future.wait(
-        rows.map((row) => _signed(SubmissionModel.fromJson(row))),);
+      rows.map((row) => _signed(SubmissionModel.fromJson(row))),
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>?> reviewDetail(String submissionId) async {
+    try {
+      final row = apiObject(
+        await _client.get('submissions/admin/$submissionId'),
+      );
+      final signed = await _withSignedMedia(row);
+      final avatar = signed['avatar_url']?.toString();
+      if (avatar == null || avatar.isEmpty) return signed;
+      return {...signed, 'avatar_url': await _media.signNullable(avatar)};
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> reviewQueue({
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final rows = apiObjectList(
+      await _client.get(
+        'submissions/admin/review-queue',
+        query: {'limit': limit, 'offset': offset},
+      ),
+    );
+    return Future.wait(rows.map(_withSignedMedia));
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listSubmissionsForAdmin({
+    String status = 'pending',
+    bool? appealed,
+    String? visibility,
+    String order = 'asc',
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final rows = apiObjectList(
+      await _client.get(
+        'submissions/admin',
+        query: {
+          'status': status,
+          if (appealed != null) 'appealed': appealed.toString(),
+          if (visibility != null) 'visibility': visibility,
+          'order': order,
+          'limit': limit,
+          'offset': offset,
+        },
+      ),
+    );
+    // Media keys are private; sign them before the table renders them.
+    return Future.wait(rows.map(_withSignedMedia));
+  }
+
+  Future<Map<String, dynamic>> _withSignedMedia(
+    Map<String, dynamic> row,
+  ) async {
+    final raw = row['media_url']?.toString();
+    if (raw == null || raw.isEmpty) return row;
+    return {...row, 'media_url': await _media.signJsonOrSingle(raw)};
   }
 
   @override

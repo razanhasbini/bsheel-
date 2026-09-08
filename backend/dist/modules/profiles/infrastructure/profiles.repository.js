@@ -20,6 +20,10 @@ let ProfilesRepository = class ProfilesRepository {
         const result = await this.database.query(`SELECT ${publicColumns} FROM profiles WHERE id = $1`, [id]);
         return result.rows[0] ?? null;
     }
+    async findPublicByUsername(username) {
+        const result = await this.database.query(`SELECT ${publicColumns} FROM profiles WHERE username = $1`, [username.trim()]);
+        return result.rows[0] ?? null;
+    }
     async findOwn(id) {
         const result = await this.database.query(`SELECT ${publicColumns}, age_verified, analytics_consent_at FROM profiles WHERE id = $1`, [id]);
         return result.rows[0] ?? null;

@@ -15,10 +15,12 @@ class ApiCommentsRepository implements CommentsRepository {
     final rows = <Map<String, dynamic>>[];
     const pageSize = 200;
     for (var offset = 0;; offset += pageSize) {
-      final page = apiObjectList(await _client.get(
-        'social/posts/$submissionId/comments',
-        query: {'limit': pageSize, 'offset': offset},
-      ),);
+      final page = apiObjectList(
+        await _client.get(
+          'social/posts/$submissionId/comments',
+          query: {'limit': pageSize, 'offset': offset},
+        ),
+      );
       rows.addAll(page);
       if (page.length < pageSize) break;
     }
@@ -43,8 +45,9 @@ class ApiCommentsRepository implements CommentsRepository {
       }
     }
     return topLevel
-        .map((comment) =>
-            comment.copyWithReplies(replies[comment.id] ?? const []),)
+        .map(
+          (comment) => comment.copyWithReplies(replies[comment.id] ?? const []),
+        )
         .toList(growable: false);
   }
 
@@ -54,10 +57,13 @@ class ApiCommentsRepository implements CommentsRepository {
     String text, {
     String? parentId,
   }) async {
-    await _client.post('social/posts/$submissionId/comments', body: {
-      'body': text,
-      if (parentId != null) 'parentId': parentId,
-    },);
+    await _client.post(
+      'social/posts/$submissionId/comments',
+      body: {
+        'body': text,
+        if (parentId != null) 'parentId': parentId,
+      },
+    );
   }
 
   @override

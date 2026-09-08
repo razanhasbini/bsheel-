@@ -101,8 +101,7 @@ class _ArcadeSplashScreenState extends State<ArcadeSplashScreen>
           // tracks the pill's progress and gives the bar a soft thickness
           // wobble around the leading edge.
           final loaderFill = (_loop.value * 6) % 1.0;
-          final loaderPulse =
-              0.85 + math.sin(loaderFill * math.pi) * 0.15;
+          final loaderPulse = 0.85 + math.sin(loaderFill * math.pi) * 0.15;
           return Stack(
             fit: StackFit.expand,
             children: [

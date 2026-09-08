@@ -46,6 +46,11 @@ export class ProfilesController {
   @Get()
   list(@Query() query: ProfileListQuery) { return this.service.list(query.limit); }
 
+  @Get('by-username/:username')
+  getByUsername(@Param('username') username: string) {
+    return this.service.publicProfileByUsername(username);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) { return this.service.publicProfile(id); }
 }

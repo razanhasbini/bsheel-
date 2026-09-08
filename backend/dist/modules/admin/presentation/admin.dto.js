@@ -153,6 +153,56 @@ __decorate([
     Length(3, 500),
     __metadata("design:type", String)
 ], SetUserXpDto.prototype, "reason", void 0);
+export class UpdateUserProfileDto {
+    username;
+    displayName;
+    bio;
+    xp;
+    level;
+    questsCompleted;
+    reason;
+}
+__decorate([
+    IsOptional(),
+    IsString(),
+    Matches(/^[a-z0-9_]{3,30}$/i),
+    __metadata("design:type", String)
+], UpdateUserProfileDto.prototype, "username", void 0);
+__decorate([
+    IsOptional(),
+    IsString(),
+    Length(1, 50),
+    __metadata("design:type", String)
+], UpdateUserProfileDto.prototype, "displayName", void 0);
+__decorate([
+    IsOptional(),
+    IsString(),
+    MaxLength(300),
+    __metadata("design:type", String)
+], UpdateUserProfileDto.prototype, "bio", void 0);
+__decorate([
+    IsOptional(),
+    IsInt(),
+    Min(0),
+    __metadata("design:type", Number)
+], UpdateUserProfileDto.prototype, "xp", void 0);
+__decorate([
+    IsOptional(),
+    IsInt(),
+    Min(1),
+    __metadata("design:type", Number)
+], UpdateUserProfileDto.prototype, "level", void 0);
+__decorate([
+    IsOptional(),
+    IsInt(),
+    Min(0),
+    __metadata("design:type", Number)
+], UpdateUserProfileDto.prototype, "questsCompleted", void 0);
+__decorate([
+    IsString(),
+    Length(3, 500),
+    __metadata("design:type", String)
+], UpdateUserProfileDto.prototype, "reason", void 0);
 export class ReviewReportDto {
     status;
     adminNote;

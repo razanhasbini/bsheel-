@@ -6,17 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 
-import '../../../../core/providers/current_profile_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
-import '../../../../core/backend/backend_config.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../comments/application/comment_notifications.dart';
 import '../../../comments/application/mention_controller.dart';
 import '../../../comments/presentation/widgets/comments_section.dart';
 import '../../../comments/presentation/widgets/mention_picker.dart';
-import '../providers/feed_post_details_provider.dart';
 import '../providers/post_realtime_provider.dart';
 
 /// Slides up an Instagram-style comments bottom sheet for [submissionId].
@@ -143,36 +138,6 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
       final repo = ref.read(commentsRepositoryProvider);
       await repo.addComment(widget.submissionId, body, parentId: parentId);
       ref.read(analyticsProvider).commentAdded(widget.submissionId);
-      if (!BackendConfig.usesNest) {
-        // The Nest comment transaction creates thread/mention notifications
-        // server-side. Keep this legacy pipeline only for Supabase mode so a
-        // Nest comment never generates duplicate notifications.
-        final client = ref.read(supabaseClientProvider);
-        final commenterProfile = ref.read(currentProfileProvider).valueOrNull;
-        final mentioned = await resolveMentionedUsers(
-          client,
-          body,
-          selectedMentions: _mention.selectedMentions,
-        );
-        unawaited(sendCommentThreadNotifications(
-          client: client,
-          submissionId: widget.submissionId,
-          body: body,
-          commenterProfile: commenterProfile,
-          excludedUserIds: mentioned.keys.toSet(),
-          logContext: 'CommentsSheet',
-        ));
-        unawaited(sendMentionNotifications(
-          client: client,
-          submissionId: widget.submissionId,
-          body: body,
-          commenterProfile: commenterProfile,
-          mentioned: mentioned,
-          post: ref
-              .read(feedPostDetailsProvider(widget.submissionId))
-              .valueOrNull,
-        ));
-      }
       _controller.clear();
       _mention.clearSelectedMentions();
       _focus.unfocus();

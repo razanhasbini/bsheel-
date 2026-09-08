@@ -2,13 +2,9 @@ import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/shared_ui.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/router/safe_back.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 
 /// UX-003: in-app surface to review and undo blocks.
 /// The block dialog in feed_post_details promised a Settings page that
@@ -23,50 +19,15 @@ final _blockedUsersProvider = FutureProvider.autoDispose<
           String? avatarUrl
         })>>(
   (ref) async {
-    if (BackendConfig.usesNest) {
-      final users = await MobileNestBackend.repositories.account.blockedUsers();
-      return users
-          .map((user) => (
-                userId: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                avatarUrl: user.avatarUrl,
-              ))
-          .toList(growable: false);
-    }
-    final client = ref.watch(supabaseClientProvider);
-    final me = client.auth.currentUser;
-    if (me == null) return const [];
-
-    // Two-step: read the block rows for the current user, then resolve
-    // the blocked profiles. Inline FK joins via PostgREST hints work too
-    // but are noisier in error paths.
-    final blocks = await client
-        .from(Tables.blockedUsers)
-        .select(BlockedUserColumns.blockedId)
-        .eq(BlockedUserColumns.blockerId, me.id)
-        .order(BlockedUserColumns.createdAt, ascending: false);
-    final blockedIds = (blocks as List<dynamic>)
-        .map((row) => (row
-            as Map<String, dynamic>)[BlockedUserColumns.blockedId] as String)
-        .toList();
-    if (blockedIds.isEmpty) return const [];
-
-    final profiles = await client
-        .from(Tables.profiles)
-        .select(
-          '${ProfileColumns.id}, ${ProfileColumns.username}, ${ProfileColumns.displayName}, ${ProfileColumns.avatarUrl}',
-        )
-        .inFilter(ProfileColumns.id, blockedIds);
-    return (profiles as List<dynamic>).map((row) {
-      final m = row as Map<String, dynamic>;
-      return (
-        userId: (m[ProfileColumns.id] ?? '') as String,
-        username: (m[ProfileColumns.username] ?? '') as String,
-        displayName: (m[ProfileColumns.displayName] ?? '') as String,
-        avatarUrl: m[ProfileColumns.avatarUrl] as String?,
-      );
-    }).toList();
+    final users = await AppBackend.repositories.account.blockedUsers();
+    return users
+        .map((user) => (
+              userId: user.id,
+              username: user.username,
+              displayName: user.displayName,
+              avatarUrl: user.avatarUrl,
+            ))
+        .toList(growable: false);
   },
 );
 
@@ -234,14 +195,7 @@ class _BlockedRowState extends ConsumerState<_BlockedRow> {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      if (BackendConfig.usesNest) {
-        await MobileNestBackend.repositories.account
-            .unblockUser(widget.user.userId);
-      } else {
-        await Supabase.instance.client.rpc(RpcNames.unblockUser, params: {
-          'p_user_id': widget.user.userId,
-        });
-      }
+      await AppBackend.repositories.account.unblockUser(widget.user.userId);
       ref.invalidate(_blockedUsersProvider);
     } catch (e) {
       if (!mounted) return;

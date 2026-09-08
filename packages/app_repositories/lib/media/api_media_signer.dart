@@ -16,9 +16,14 @@ class ApiMediaSigner {
         .toList(growable: false);
     if (values.isEmpty) return const {};
     try {
-      final data = apiObject(await _client.post('media/sign', body: {
-        'urls': values,
-      },),);
+      final data = apiObject(
+        await _client.post(
+          'media/sign',
+          body: {
+            'urls': values,
+          },
+        ),
+      );
       final urls = data['urls'];
       if (urls is! Map) return const {};
       final result = urls.map(
@@ -47,7 +52,8 @@ class ApiMediaSigner {
         final values = List<String>.from(jsonDecode(trimmed) as List);
         final signed = await signMany(values);
         return jsonEncode(
-            values.map((value) => signed[value] ?? value).toList(),);
+          values.map((value) => signed[value] ?? value).toList(),
+        );
       } catch (_) {
         // Treat malformed legacy JSON as one opaque media value.
       }

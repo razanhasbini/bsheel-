@@ -1,9 +1,8 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
@@ -12,15 +11,10 @@ import '../../../../shared/widgets/bsheel_widgets.dart';
 final webQuestSuggestionsProvider =
     FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>(
   (ref, statusFilter) async {
-    final client = ref.watch(supabaseClientProvider);
-    var query = client.from('quest_suggestions').select(
-          'id, title, description, category, difficulty, suggested_by_name, suggested_by_handle, status, created_at',
-        );
-    if (statusFilter != 'all') {
-      query = query.eq('status', statusFilter);
-    }
-    final data = await query.order('created_at', ascending: false).limit(500);
-    return List<Map<String, dynamic>>.from(data as List);
+    return AppBackend.repositories.admin.suggestions(
+      status: statusFilter,
+      limit: 500,
+    );
   },
 );
 
@@ -59,8 +53,7 @@ class _WebQuestSuggestionsPageState
               Text(
                 'Quest ideas submitted from the marketing site. Approve '
                 'to copy into the live quest bank, or dismiss.',
-                style: BsheelType.bodyMd
-                    .copyWith(color: BsheelColors.inkSoft),
+                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
               ),
             ],
           ),
@@ -74,47 +67,53 @@ class _WebQuestSuggestionsPageState
           ),
         ),
         Expanded(
-            child: async.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text('Error: $e',
-                    style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),),
-              ),
-              data: (rows) {
-                if (rows.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.inbox_outlined,
-                            size: 64,
-                            color: BsheelColors.primary.withAlpha(100),),
-                        const SizedBox(height: QuestSpacing.md),
-                        Text('NO ${_filter.toUpperCase()} SUGGESTIONS',
-                            style: BsheelType.displaySm
-                                .copyWith(color: BsheelColors.inkMuted),),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: QuestSpacing.sm),
-                  itemBuilder: (context, index) {
-                    final r = rows[index];
-                    return _SuggestionCard(
-                      data: r,
-                      onApprove: () => _approve(r),
-                      onReject: () => _setStatus(r['id'] as String, 'rejected'),
-                    );
-                  },
-                );
-              },
+          child: async.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
             ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+              ),
+            ),
+            data: (rows) {
+              if (rows.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 64,
+                        color: BsheelColors.primary.withAlpha(100),
+                      ),
+                      const SizedBox(height: QuestSpacing.md),
+                      Text(
+                        'NO ${_filter.toUpperCase()} SUGGESTIONS',
+                        style: BsheelType.displaySm
+                            .copyWith(color: BsheelColors.inkMuted),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.separated(
+                itemCount: rows.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: QuestSpacing.sm),
+                itemBuilder: (context, index) {
+                  final r = rows[index];
+                  return _SuggestionCard(
+                    data: r,
+                    onApprove: () => _approve(r),
+                    onReject: () => _setStatus(r['id'] as String, 'rejected'),
+                  );
+                },
+              );
+            },
           ),
+        ),
       ],
     );
   }
@@ -130,33 +129,11 @@ class _WebQuestSuggestionsPageState
   Future<void> _approve(Map<String, dynamic> suggestion) async {
     final id = suggestion['id'] as String;
     final title = (suggestion['title'] ?? '').toString().trim();
-    final description = (suggestion['description'] ?? '').toString().trim();
-
-    // The marketing site sends free-form category/difficulty text; the
-    // quests table enforces CHECK constraints, so normalise to the same
-    // allowed sets (and dialog defaults) used by quest management.
-    const allowedCategories = {
-      QuestCategory.fitness,
-      QuestCategory.creativity,
-      QuestCategory.social,
-      QuestCategory.learning,
-      QuestCategory.adventure,
-    };
-    const allowedDifficulties = {
-      QuestDifficulty.easy,
-      QuestDifficulty.medium,
-      QuestDifficulty.hard,
-    };
-    final rawCategory =
-        (suggestion['category'] ?? '').toString().trim().toLowerCase();
-    final category = allowedCategories.contains(rawCategory)
-        ? rawCategory
-        : QuestCategory.fitness;
-    final rawDifficulty =
-        (suggestion['difficulty'] ?? '').toString().trim().toLowerCase();
-    final difficulty = allowedDifficulties.contains(rawDifficulty)
-        ? rawDifficulty
-        : QuestDifficulty.easy;
+    // Category and difficulty need no client-side normalisation: the
+    // intake endpoint only accepts the allowed values, and
+    // `quest_suggestions` carries the same CHECK constraints as `quests`.
+    final category = (suggestion['category'] ?? '').toString();
+    final difficulty = (suggestion['difficulty'] ?? '').toString();
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -196,8 +173,7 @@ class _WebQuestSuggestionsPageState
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'APPROVE',
-              style:
-                  BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
             ),
           ),
         ],
@@ -205,40 +181,16 @@ class _WebQuestSuggestionsPageState
     );
     if (confirmed != true) return;
 
-    final client = ref.read(supabaseClientProvider);
-
-    // 1) Copy into the quest bank — same column set as quest management's
-    //    _saveQuest insert.
+    // One audited transaction on the API creates the quest and flips the
+    // suggestion together. The old two-step client version could leave a
+    // quest in the bank with the suggestion still pending, or the reverse.
     try {
-      await client.from(Tables.quests).insert({
-        QuestColumns.title: title,
-        QuestColumns.description: description,
-        QuestColumns.category: category,
-        QuestColumns.difficulty: difficulty,
-        QuestColumns.xpReward: _approvedXpReward,
-        QuestColumns.durationHours: _approvedDurationHours,
-        QuestColumns.isActive: true,
-        QuestColumns.createdBy: client.auth.currentUser!.id,
-      });
-    } catch (e) {
-      // Quest insert failed → the suggestion must NOT be marked approved.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not add quest to the bank — suggestion left pending: $e',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    // 2) Only now flip the suggestion's status.
-    try {
-      await client
-          .from('quest_suggestions')
-          .update({'status': 'approved'}).eq('id', id);
+      await AppBackend.repositories.admin.reviewSuggestion(
+        id,
+        status: 'approved',
+        xpReward: _approvedXpReward,
+        durationHours: _approvedDurationHours,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -249,12 +201,7 @@ class _WebQuestSuggestionsPageState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Quest was added, but marking the suggestion approved '
-              'failed: $e',
-            ),
-          ),
+          SnackBar(content: Text('Approve failed — suggestion unchanged: $e')),
         );
       }
     }
@@ -262,16 +209,19 @@ class _WebQuestSuggestionsPageState
   }
 
   Future<void> _setStatus(String id, String status) async {
-    final client = ref.read(supabaseClientProvider);
     try {
-      await client
-          .from('quest_suggestions')
-          .update({'status': status}).eq('id', id);
+      await AppBackend.repositories.admin.reviewSuggestion(
+        id,
+        status: status,
+        xpReward: _approvedXpReward,
+        durationHours: _approvedDurationHours,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                status == 'approved' ? 'Marked approved.' : 'Marked rejected.',),
+              status == 'approved' ? 'Marked approved.' : 'Marked rejected.',
+            ),
           ),
         );
       }
@@ -438,8 +388,7 @@ class _SuggestionCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: BsheelColors.hot, width: 1),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.sm),
+                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
                     ),
                   ),
                 ),
@@ -458,8 +407,7 @@ class _SuggestionCard extends StatelessWidget {
                     backgroundColor: BsheelColors.success,
                     foregroundColor: BsheelColors.pureBlack,
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.sm),
+                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
                     ),
                   ),
                 ),

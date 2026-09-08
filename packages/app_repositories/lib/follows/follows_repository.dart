@@ -11,6 +11,7 @@ typedef FollowCounts = ({int followers, int following});
 
 abstract class FollowsRepository {
   Future<bool> isFollowing(String targetUserId);
+
   /// Returns the new follow row ID.
   Future<String> follow(String targetUserId);
   Future<void> unfollow(String targetUserId);

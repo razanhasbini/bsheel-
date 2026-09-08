@@ -2,7 +2,7 @@ import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
@@ -10,13 +10,7 @@ import '../../../../shared/widgets/bsheel_widgets.dart';
 
 final webSignupsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-  final data = await client
-      .from('waitlist')
-      .select('id, email, source, created_at')
-      .order('created_at', ascending: false)
-      .limit(500);
-  return List<Map<String, dynamic>>.from(data as List);
+  return AppBackend.repositories.admin.waitlist(limit: 500);
 });
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -45,77 +39,81 @@ class WebSignupsPage extends ConsumerWidget {
               const SizedBox(height: 12),
               Text(
                 'Email addresses captured from the marketing site waitlist.',
-                style: BsheelType.bodyMd
-                    .copyWith(color: BsheelColors.inkSoft),
+                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         Expanded(
-            child: async.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Center(
-                child: Text('Error: $e',
-                    style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),),
-              ),
-              data: (rows) {
-                if (rows.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.inbox_outlined,
-                            size: 64,
-                            color: BsheelColors.primary.withAlpha(100),),
-                        const SizedBox(height: QuestSpacing.md),
-                        Text('NO SIGNUPS YET',
-                            style: BsheelType.displaySm
-                                .copyWith(color: BsheelColors.inkMuted),),
-                      ],
-                    ),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.md,
-                        vertical: QuestSpacing.sm,
-                      ),
-                      decoration: BoxDecoration(
-                        color: BsheelColors.ink,
-                        borderRadius:
-                            BorderRadius.circular(BsheelRadii.sm),
-                      ),
-                      child: Text(
-                        '${rows.length} TOTAL',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.paper,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: rows.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: QuestSpacing.xs),
-                        itemBuilder: (context, index) {
-                          final r = rows[index];
-                          return _SignupRow(data: r);
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
+          child: async.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: BsheelColors.primary),
             ),
+            error: (e, _) => Center(
+              child: Text(
+                'Error: $e',
+                style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+              ),
+            ),
+            data: (rows) {
+              if (rows.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 64,
+                        color: BsheelColors.primary.withAlpha(100),
+                      ),
+                      const SizedBox(height: QuestSpacing.md),
+                      Text(
+                        'NO SIGNUPS YET',
+                        style: BsheelType.displaySm
+                            .copyWith(color: BsheelColors.inkMuted),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: QuestSpacing.md,
+                      vertical: QuestSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: BsheelColors.ink,
+                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
+                    ),
+                    child: Text(
+                      '${rows.length} TOTAL',
+                      style: BsheelType.labelSm.copyWith(
+                        color: BsheelColors.paper,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: QuestSpacing.md),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: QuestSpacing.xs),
+                      itemBuilder: (context, index) {
+                        final r = rows[index];
+                        return _SignupRow(data: r);
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
+        ),
       ],
     );
   }

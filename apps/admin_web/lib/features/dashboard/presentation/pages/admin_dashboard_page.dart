@@ -1,70 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/providers/admin_counts_provider.dart';
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Providers ────────────────────────────────────────────────────────
 
+/// All seven dashboard counters come from one `/admin/stats` query — the
+/// page previously issued seven separate count round-trips.
 final _dashboardStatsProvider =
     FutureProvider.autoDispose<Map<String, int>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-
-  final users = await client
-      .from(Tables.profiles)
-      .select()
-      .count(CountOption.exact);
-  final pending = await client
-      .from(Tables.submissions)
-      .select()
-      .eq(SubmissionColumns.status, SubmissionStatus.pending)
-      .count(CountOption.exact);
-  final quests = await client
-      .from(Tables.quests)
-      .select()
-      .count(CountOption.exact);
-  final approvedToday = await client
-      .from(Tables.submissions)
-      .select()
-      .eq(SubmissionColumns.status, SubmissionStatus.approved)
-      .gte(
-        SubmissionColumns.submittedAt,
-        DateTime.now()
-            .subtract(const Duration(hours: 24))
-            .toIso8601String(),
-      )
-      .count(CountOption.exact);
-  final activeQuests = await client
-      .from(Tables.userQuests)
-      .select()
-      .eq(UserQuestColumns.status, UserQuestStatus.assigned)
-      .count(CountOption.exact);
-  final appeals = await client
-      .from(Tables.submissions)
-      .select()
-      .eq(SubmissionColumns.status, SubmissionStatus.pending)
-      .eq(SubmissionColumns.appealed, true)
-      .count(CountOption.exact);
-  final pendingReports = await client
-      .from(Tables.reports)
-      .select()
-      .eq('status', 'pending')
-      .count(CountOption.exact);
-
+  final stats = await AppBackend.repositories.admin.stats();
+  int count(String key) => (stats[key] as num?)?.toInt() ?? 0;
   return {
-    'users': users.count,
-    'pending': pending.count,
-    'quests': quests.count,
-    'approvedToday': approvedToday.count,
-    'activeQuests': activeQuests.count,
-    'appeals': appeals.count,
-    'pendingReports': pendingReports.count,
+    'users': count('users'),
+    'pending': count('pending'),
+    'quests': count('quests'),
+    'approvedToday': count('approvedToday'),
+    'activeQuests': count('activeQuests'),
+    'appeals': count('appeals'),
+    'pendingReports': count('pendingReports'),
   };
 });
 
@@ -160,8 +119,7 @@ class AdminDashboardPage extends ConsumerWidget {
                   value: '${s['activeQuests']}',
                   color: BsheelColors.primary,
                   foreground: BsheelColors.paper,
-                  onTap: () =>
-                      context.goNamed(AdminRouteNames.questManagement),
+                  onTap: () => context.goNamed(AdminRouteNames.questManagement),
                 ),
               ],
             ),
@@ -206,8 +164,18 @@ class AdminDashboardPage extends ConsumerWidget {
   String _dateLabel() {
     final now = DateTime.now();
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     const wk = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     return '${wk[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
@@ -252,7 +220,9 @@ class _TilesSkeleton extends StatelessWidget {
             color: BsheelColors.paper,
             borderRadius: BorderRadius.circular(BsheelRadii.lg),
             border: Border.all(
-                color: BsheelColors.line, width: BsheelBorders.thin,),
+              color: BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
           ),
         );
     return LayoutBuilder(

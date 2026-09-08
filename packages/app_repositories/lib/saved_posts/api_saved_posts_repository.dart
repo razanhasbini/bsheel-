@@ -14,10 +14,12 @@ class ApiSavedPostsRepository implements SavedPostsRepository {
     final rows = <Map<String, dynamic>>[];
     const pageSize = 100;
     for (var offset = 0;; offset += pageSize) {
-      final page = apiObjectList(await _client.get(
-        'social/saved/posts',
-        query: {'limit': pageSize, 'offset': offset},
-      ),);
+      final page = apiObjectList(
+        await _client.get(
+          'social/saved/posts',
+          query: {'limit': pageSize, 'offset': offset},
+        ),
+      );
       rows.addAll(page);
       if (page.length < pageSize) return rows;
     }
@@ -26,31 +28,36 @@ class ApiSavedPostsRepository implements SavedPostsRepository {
   @override
   Future<List<SavedPostModel>> getSavedPosts(String userId) async {
     return (await _rows())
-        .map((row) => SavedPostModel.fromJson({
-              'id': row['saved_id'],
-              'user_id': userId,
-              'submission_id': row['submission_id'],
-              'created_at': row['saved_at'],
-            }),)
+        .map(
+          (row) => SavedPostModel.fromJson({
+            'id': row['saved_id'],
+            'user_id': userId,
+            'submission_id': row['submission_id'],
+            'created_at': row['saved_at'],
+          }),
+        )
         .toList(growable: false);
   }
 
   @override
   Future<List<SavedPostWithQuest>> getSavedPostsWithQuests(
-      String userId,) async {
+    String userId,
+  ) async {
     final rows = await _rows();
     final signed = await _media.signMany([
       ...rows.map((row) => row['author_avatar_url']?.toString() ?? ''),
     ]);
-    return Future.wait(rows.map((row) async {
-      final media = row['media_url']?.toString() ?? '';
-      final avatar = row['author_avatar_url']?.toString();
-      return SavedPostWithQuest.fromRpc({
-        ...row,
-        'media_url': await _media.signJsonOrSingle(media),
-        'author_avatar_url': avatar == null ? null : signed[avatar] ?? avatar,
-      });
-    }),);
+    return Future.wait(
+      rows.map((row) async {
+        final media = row['media_url']?.toString() ?? '';
+        final avatar = row['author_avatar_url']?.toString();
+        return SavedPostWithQuest.fromRpc({
+          ...row,
+          'media_url': await _media.signJsonOrSingle(media),
+          'author_avatar_url': avatar == null ? null : signed[avatar] ?? avatar,
+        });
+      }),
+    );
   }
 
   @override

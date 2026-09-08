@@ -1,8 +1,8 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
+
+import '../../../../core/backend/app_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
@@ -17,8 +17,7 @@ class QotdManagementPage extends ConsumerStatefulWidget {
   const QotdManagementPage({super.key});
 
   @override
-  ConsumerState<QotdManagementPage> createState() =>
-      _QotdManagementPageState();
+  ConsumerState<QotdManagementPage> createState() => _QotdManagementPageState();
 }
 
 class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
@@ -28,40 +27,44 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
     // Pull the full list joined with quests so the admin sees the quest
     // title without a second round-trip. Show 60 days back + every queued
     // future entry — admins occasionally queue weeks ahead.
-    final rows = await Supabase.instance.client
-        .from(Tables.questOfTheDay)
-        .select(
-            'id, display_date, ticket_no, bonus_xp, note, created_at, quest_id, quests(title, category, xp_reward, difficulty)',)
-        .gte('display_date',
-            DateTime.now().toUtc().subtract(const Duration(days: 60)).toIso8601String().split('T').first,)
-        .order('display_date', ascending: false);
-    return (rows as List).map((r) {
-      final m = r as Map<String, dynamic>;
+    // Newest first, which puts queued future entries at the top. The window
+    // is trimmed client-side so admins still see ~60 days of history plus
+    // everything they have queued ahead.
+    final rows = await AppBackend.repositories.admin.questOfTheDay(limit: 200);
+    final earliest = DateTime.now().toUtc().subtract(const Duration(days: 60));
+    return rows.where((row) {
+      final date = DateTime.tryParse(row['display_date']?.toString() ?? '');
+      return date == null || !date.isBefore(earliest);
+    }).map((m) {
       final q = (m['quests'] as Map<String, dynamic>?) ?? {};
       return _QotdEntry(
         id: m['id'] as String,
         displayDate: DateTime.parse(m['display_date'] as String),
         ticketNo: m['ticket_no'] as String?,
-        bonusXp: (m['bonus_xp'] as int?) ?? 0,
+        bonusXp: (m['bonus_xp'] as num?)?.toInt() ?? 0,
         note: m['note'] as String?,
         questId: m['quest_id'] as String,
         questTitle: (q['title'] as String?) ?? '(quest deleted)',
         questCategory: (q['category'] as String?) ?? '',
-        questXp: (q['xp_reward'] as int?) ?? 0,
+        questXp: (q['xp_reward'] as num?)?.toInt() ?? 0,
         questDifficulty: (q['difficulty'] as String?) ?? 'medium',
       );
     }).toList();
   }
 
   Future<List<_QuestRow>> _loadQuests() async {
-    final rows = await Supabase.instance.client
-        .from(Tables.quests)
-        .select('id, title, category, xp_reward, difficulty, is_active')
-        .eq('is_active', true)
-        .order('title');
-    return (rows as List)
-        .map((r) => _QuestRow.fromMap(r as Map<String, dynamic>))
-        .toList();
+    final quests = await AppBackend.repositories.quests.listAllQuestsAdmin();
+    return (quests
+        .where((quest) => quest.isActive)
+        .map((quest) => _QuestRow(
+              id: quest.id,
+              title: quest.title,
+              category: quest.category,
+              xpReward: quest.xpReward,
+              difficulty: quest.difficulty,
+            ))
+        .toList()
+      ..sort((a, b) => a.title.compareTo(b.title)));
   }
 
   Future<void> _save({
@@ -74,24 +77,18 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
   }) async {
     setState(() => _busy = true);
     try {
-      final payload = {
-        'display_date':
-            DateTime.utc(date.year, date.month, date.day).toIso8601String().split('T').first,
-        'quest_id': questId,
-        'ticket_no': (ticketNo == null || ticketNo.isEmpty) ? null : ticketNo,
-        'bonus_xp': bonusXp,
-        'note': (note == null || note.isEmpty) ? null : note,
-        'created_by': Supabase.instance.client.auth.currentUser?.id,
-      };
-      if (existingId != null) payload['id'] = existingId;
-
-      // ON CONFLICT on display_date so admins can fix a typo without
-      // first deleting the row. The unique index in migration 0139 backs
-      // this behavior.
-      await Supabase.instance.client.from(Tables.questOfTheDay).upsert(
-            payload,
-            onConflict: 'display_date',
-          );
+      // Upserts on display_date so an admin can fix a typo without first
+      // deleting the row. The actor is taken from the access token.
+      await AppBackend.repositories.admin.setQuestOfTheDay(
+        questId: questId,
+        displayDate: DateTime.utc(date.year, date.month, date.day)
+            .toIso8601String()
+            .split('T')
+            .first,
+        ticketNo: (ticketNo == null || ticketNo.isEmpty) ? null : ticketNo,
+        bonusXp: bonusXp,
+        note: (note == null || note.isEmpty) ? null : note,
+      );
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
@@ -136,10 +133,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
     if (confirmed != true) return;
     setState(() => _busy = true);
     try {
-      await Supabase.instance.client
-          .from(Tables.questOfTheDay)
-          .delete()
-          .eq('id', id);
+      await AppBackend.repositories.admin.deleteQuestOfTheDay(id);
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
@@ -187,8 +181,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           BsheelCard(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -196,8 +189,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Stack a {ticket} per day.',
-                  baseStyle:
-                      BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -206,19 +198,23 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
                       BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
                 ),
                 const SizedBox(height: 18),
-                Row(children: [
-                  ElevatedButton.icon(
-                    onPressed: _busy ? null : () => _openEditor(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('QUEUE NEW QOTD'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BsheelColors.ink,
-                      foregroundColor: BsheelColors.paper,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 14,),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _busy ? null : () => _openEditor(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('QUEUE NEW QOTD'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: BsheelColors.ink,
+                        foregroundColor: BsheelColors.paper,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                      ),
                     ),
-                  ),
-                ],),
+                  ],
+                ),
               ],
             ),
           ),
@@ -230,7 +226,8 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),);
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  );
                 }
                 if (snap.hasError) {
                   return Text(
@@ -251,7 +248,10 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
                 }
                 final todayUtc = DateTime.now().toUtc();
                 final todayKey = DateTime.utc(
-                    todayUtc.year, todayUtc.month, todayUtc.day,);
+                  todayUtc.year,
+                  todayUtc.month,
+                  todayUtc.day,
+                );
                 return Column(
                   children: [
                     for (final e in entries) ...[
@@ -319,14 +319,6 @@ class _QuestRow {
   final String category;
   final int xpReward;
   final String difficulty;
-
-  factory _QuestRow.fromMap(Map<String, dynamic> m) => _QuestRow(
-        id: m['id'] as String,
-        title: (m['title'] as String?) ?? '',
-        category: (m['category'] as String?) ?? '',
-        xpReward: (m['xp_reward'] as int?) ?? 0,
-        difficulty: (m['difficulty'] as String?) ?? 'medium',
-      );
 }
 
 class _QotdRow extends StatelessWidget {
@@ -359,9 +351,7 @@ class _QotdRow extends StatelessWidget {
         color: BsheelColors.paper,
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
         border: Border.all(
-          color: isToday
-              ? BsheelColors.ink
-              : BsheelColors.line,
+          color: isToday ? BsheelColors.ink : BsheelColors.line,
           width: BsheelBorders.thin,
         ),
       ),
@@ -374,7 +364,9 @@ class _QotdRow extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BsheelRadii.full),
               border: Border.all(
-                  color: accent, width: BsheelBorders.thin,),
+                color: accent,
+                width: BsheelBorders.thin,
+              ),
             ),
             child: Text(
               isToday
@@ -418,8 +410,8 @@ class _QotdRow extends StatelessWidget {
                   '${entry.questCategory.toUpperCase()} · ${entry.questXp + entry.bonusXp} XP'
                   '${entry.bonusXp > 0 ? " (+${entry.bonusXp} bonus)" : ""}'
                   '${entry.ticketNo != null && entry.ticketNo!.isNotEmpty ? "  ·  №${entry.ticketNo}" : ""}',
-                  style: BsheelType.bodySm
-                      .copyWith(color: BsheelColors.inkSoft),
+                  style:
+                      BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
                 ),
               ],
             ),
@@ -481,9 +473,10 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
     final existing = widget.existing;
     _date = existing?.displayDate ??
         DateTime.utc(
-            DateTime.now().toUtc().year,
-            DateTime.now().toUtc().month,
-            DateTime.now().toUtc().day,);
+          DateTime.now().toUtc().year,
+          DateTime.now().toUtc().month,
+          DateTime.now().toUtc().day,
+        );
     _questId = existing?.questId;
     _ticketCtrl = TextEditingController(text: existing?.ticketNo ?? '');
     _bonusCtrl =
@@ -507,7 +500,8 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
       lastDate: DateTime.utc(DateTime.now().year + 2, 12, 31),
     );
     if (picked != null) {
-      setState(() => _date = DateTime.utc(picked.year, picked.month, picked.day));
+      setState(
+          () => _date = DateTime.utc(picked.year, picked.month, picked.day));
     }
   }
 
@@ -527,22 +521,31 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              const Text('Date:',
+            Row(
+              children: [
+                const Text(
+                  'Date:',
                   style: TextStyle(
-                      color: BsheelColors.ink, fontWeight: FontWeight.w500,),),
-              const SizedBox(width: 12),
-              TextButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today,
-                    size: 16, color: BsheelColors.ink,),
-                label: Text(
-                  dateStr,
-                  style:
-                      const TextStyle(color: BsheelColors.ink, fontSize: 14),
+                    color: BsheelColors.ink,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-            ],),
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(
+                    Icons.calendar_today,
+                    size: 16,
+                    color: BsheelColors.ink,
+                  ),
+                  label: Text(
+                    dateStr,
+                    style:
+                        const TextStyle(color: BsheelColors.ink, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _questId,
@@ -564,31 +567,32 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
               onChanged: (v) => setState(() => _questId = v),
             ),
             const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _ticketCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Ticket № (optional)',
-                    helperText:
-                        'Defaults to MMDD if left empty.',
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ticketCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Ticket № (optional)',
+                      helperText: 'Defaults to MMDD if left empty.',
+                    ),
+                    style: const TextStyle(color: BsheelColors.ink),
                   ),
-                  style: const TextStyle(color: BsheelColors.ink),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _bonusCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Bonus XP',
-                    helperText: 'Above quest base reward.',
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _bonusCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Bonus XP',
+                      helperText: 'Above quest base reward.',
+                    ),
+                    style: const TextStyle(color: BsheelColors.ink),
                   ),
-                  style: const TextStyle(color: BsheelColors.ink),
                 ),
-              ),
-            ],),
+              ],
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _noteCtrl,

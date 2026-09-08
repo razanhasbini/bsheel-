@@ -12,6 +12,12 @@ export class ProfilesService {
     return profile;
   }
 
+  async publicProfileByUsername(username: string): Promise<PublicProfileRecord> {
+    const profile = await this.repository.findPublicByUsername(username);
+    if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' });
+    return profile;
+  }
+
   async ownProfile(id: string): Promise<OwnProfileRecord> {
     const profile = await this.repository.findOwn(id);
     if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' });

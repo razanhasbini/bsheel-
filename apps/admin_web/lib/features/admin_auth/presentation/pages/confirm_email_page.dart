@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/backend/admin_nest_backend.dart';
-import '../../../../core/backend/backend_config.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
@@ -32,7 +31,7 @@ class _ConfirmEmailPageState extends State<ConfirmEmailPage> {
   }
 
   Future<void> _confirm() async {
-    if (!BackendConfig.usesNest || !_isValidToken(widget.token)) {
+    if (!_isValidToken(widget.token)) {
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -46,7 +45,7 @@ class _ConfirmEmailPageState extends State<ConfirmEmailPage> {
       _error = null;
     });
     try {
-      await AdminNestBackend.repositories.auth
+      await AppBackend.repositories.auth
           .completeEmailConfirmation(widget.token!);
       if (!mounted) return;
       setState(() {

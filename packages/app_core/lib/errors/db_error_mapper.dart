@@ -20,13 +20,16 @@ String mapDbError(Object error, {String action = 'continue'}) {
   final msg = error.toString();
 
   // Auth / authorization
-  if (_has(msg, '42501') || _has(msg, 'Not authorized') ||
-      _has(msg, 'permission denied') || _has(msg, 'Not authenticated')) {
+  if (_has(msg, '42501') ||
+      _has(msg, 'Not authorized') ||
+      _has(msg, 'permission denied') ||
+      _has(msg, 'Not authenticated')) {
     return 'You don\'t have permission to do that — please sign in again.';
   }
 
   // Not-found family
-  if (_has(msg, 'P0002') || _has(msg, 'not found') ||
+  if (_has(msg, 'P0002') ||
+      _has(msg, 'not found') ||
       _has(msg, 'No rows returned')) {
     return 'Couldn\'t find what you were looking for. It may have been removed.';
   }
@@ -36,8 +39,8 @@ String mapDbError(Object error, {String action = 'continue'}) {
     // Try to extract the actual exception message after "MESSAGE:" or
     // after the SQLSTATE. PostgrestException stringifies as
     // "PostgrestException(message: ..., code: P0001, ...)".
-    final extracted = _extractAfter(msg, 'message:') ??
-        _extractAfter(msg, 'ERROR:');
+    final extracted =
+        _extractAfter(msg, 'message:') ?? _extractAfter(msg, 'ERROR:');
     if (extracted != null && extracted.length < 200) {
       return extracted;
     }
@@ -71,8 +74,10 @@ String mapDbError(Object error, {String action = 'continue'}) {
   }
 
   // Networking / timeouts
-  if (_has(msg, 'SocketException') || _has(msg, 'Failed host lookup') ||
-      _has(msg, 'TimeoutException') || _has(msg, 'connection closed')) {
+  if (_has(msg, 'SocketException') ||
+      _has(msg, 'Failed host lookup') ||
+      _has(msg, 'TimeoutException') ||
+      _has(msg, 'connection closed')) {
     return 'Network error — check your connection and try again.';
   }
 

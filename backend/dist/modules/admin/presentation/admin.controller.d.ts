@@ -1,6 +1,6 @@
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { AdminService } from '../application/admin.service.js';
-import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
+import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, UpdateUserProfileDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
 export declare class PublicConfigController {
     private readonly service;
     constructor(service: AdminService);
@@ -11,6 +11,7 @@ export declare class AdminController {
     constructor(service: AdminService);
     me(user: AuthUser): Promise<import("pg").QueryResultRow>;
     stats(): Promise<import("pg").QueryResultRow>;
+    xpAudit(query: AdminListQueryDto): Promise<import("pg").QueryResultRow[]>;
     users(query: AdminListQueryDto): Promise<import("pg").QueryResultRow[]>;
     createUser(user: AuthUser, body: CreateUserDto): Promise<{
         userId: string;
@@ -20,6 +21,7 @@ export declare class AdminController {
     forceResetPassword(user: AuthUser, param: UserIdParam, body: ForceResetPasswordDto): Promise<void>;
     requestPasswordRecovery(user: AuthUser, param: UserIdParam): Promise<void>;
     setStatus(user: AuthUser, param: UserIdParam, body: SetAccountStatusDto): Promise<void>;
+    updateUserProfile(user: AuthUser, param: UserIdParam, body: UpdateUserProfileDto): Promise<void>;
     setXp(user: AuthUser, param: UserIdParam, body: SetUserXpDto): Promise<void>;
     reports(query: ReportsQueryDto): Promise<import("pg").QueryResultRow[]>;
     reviewReport(user: AuthUser, param: UserIdParam, body: ReviewReportDto): Promise<void>;
@@ -30,6 +32,7 @@ export declare class AdminController {
     notify(user: AuthUser, body: SendNotificationDto): Promise<{
         recipients: number;
     }>;
+    notifications(query: AdminListQueryDto): Promise<import("pg").QueryResultRow[]>;
     config(): Promise<import("pg").QueryResultRow[]>;
     setConfig(user: AuthUser, param: ConfigKeyParam, body: SetConfigDto): Promise<import("pg").QueryResultRow>;
     qotd(query: AdminListQueryDto): Promise<import("pg").QueryResultRow[]>;

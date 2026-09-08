@@ -19,9 +19,27 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<ProfileModel?> getProfile(String userId) async {
     try {
-      return _signed(ProfileModel.fromJson(
-        apiObject(await _client.get('profiles/$userId')),
-      ),);
+      return _signed(
+        ProfileModel.fromJson(
+          apiObject(await _client.get('profiles/$userId')),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ProfileModel?> getProfileByUsername(String username) async {
+    final name = username.trim();
+    if (name.isEmpty) return null;
+    try {
+      return _signed(
+        ProfileModel.fromJson(
+          apiObject(await _client.get('profiles/by-username/$name')),
+        ),
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 404) return null;
       rethrow;
@@ -42,13 +60,18 @@ class ApiProfileRepository implements ProfileRepository {
 
   @override
   Future<ProfileModel> updateProfile(ProfileModel profile) async {
-    final row = apiObject(await _client.patch('profiles/me', body: {
-      'username': profile.username,
-      'displayName': profile.displayName,
-      'avatarUrl': _media.storageReference(profile.avatarUrl),
-      'bio': profile.bio,
-      if (profile.profileCompleted) 'profileCompleted': true,
-    },),);
+    final row = apiObject(
+      await _client.patch(
+        'profiles/me',
+        body: {
+          'username': profile.username,
+          'displayName': profile.displayName,
+          'avatarUrl': _media.storageReference(profile.avatarUrl),
+          'bio': profile.bio,
+          if (profile.profileCompleted) 'profileCompleted': true,
+        },
+      ),
+    );
     return _signed(ProfileModel.fromJson(row));
   }
 

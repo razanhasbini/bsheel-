@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/backend/app_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
@@ -41,7 +41,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.xl),
           side: const BorderSide(
-              color: BsheelColors.line, width: BsheelBorders.thin,),
+            color: BsheelColors.line,
+            width: BsheelBorders.thin,
+          ),
         ),
         title: const BsheelDisplay(
           'Send to {everyone?}',
@@ -73,9 +75,11 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
 
     setState(() => _isSending = true);
     try {
-      await Supabase.instance.client.rpc(
-        RpcNames.broadcastAnnouncement,
-        params: {'p_title': title, 'p_body': body},
+      // No target user: the API writes one inbox row per active user and
+      // enqueues push delivery in the same transaction.
+      await AppBackend.repositories.admin.sendNotification(
+        title: title,
+        body: body,
       );
       if (mounted) {
         setState(() {
@@ -160,7 +164,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                 _Field(
                   controller: _bodyCtrl,
                   label: 'MESSAGE',
-                  hint: 'Tell users what just happened. iOS truncates ~80 chars.',
+                  hint:
+                      'Tell users what just happened. iOS truncates ~80 chars.',
                   maxLines: 4,
                 ),
                 const SizedBox(height: 18),
@@ -190,8 +195,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         color: BsheelColors.success,
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: BsheelColors.line,
-                            width: BsheelBorders.thin,),
+                          color: BsheelColors.line,
+                          width: BsheelBorders.thin,
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: const Icon(
@@ -265,8 +271,7 @@ class _Field extends StatelessWidget {
           style: BsheelType.bodyMd,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                BsheelType.bodyMd.copyWith(color: BsheelColors.inkMuted),
+            hintStyle: BsheelType.bodyMd.copyWith(color: BsheelColors.inkMuted),
             filled: true,
             fillColor: BsheelColors.paper,
             contentPadding:
@@ -274,17 +279,23 @@ class _Field extends StatelessWidget {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.md),
               borderSide: const BorderSide(
-                  color: BsheelColors.line, width: BsheelBorders.thin,),
+                color: BsheelColors.line,
+                width: BsheelBorders.thin,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.md),
               borderSide: const BorderSide(
-                  color: BsheelColors.line, width: BsheelBorders.thin,),
+                color: BsheelColors.line,
+                width: BsheelBorders.thin,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.md),
               borderSide: const BorderSide(
-                  color: BsheelColors.ink, width: BsheelBorders.thin,),
+                color: BsheelColors.ink,
+                width: BsheelBorders.thin,
+              ),
             ),
           ),
         ),

@@ -62,7 +62,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     navigate();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
@@ -141,20 +140,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         if (_tabIndex == 0) {
                           return _UserResultsList(
                             users: users,
-                            onTap: (u) => _onResultTapped(() => context.pushNamed(
-                                  RouteNames.userProfile,
-                                  pathParameters: {'userId': u.id},
-                                )),
+                            onTap: (u) =>
+                                _onResultTapped(() => context.pushNamed(
+                                      RouteNames.userProfile,
+                                      pathParameters: {'userId': u.id},
+                                    )),
                           );
                         }
                         if (_tabIndex == 1) {
                           return _QuestResultsList(
                             quests: quests,
-                            onTap: (q) => _onResultTapped(() =>
-                                context.pushNamed(
-                                  RouteNames.questDetails,
-                                  pathParameters: {'id': q.id},
-                                )),
+                            onTap: (q) =>
+                                _onResultTapped(() => context.pushNamed(
+                                      RouteNames.questDetails,
+                                      pathParameters: {'id': q.id},
+                                    )),
                           );
                         }
                         return _PostResultsList(
@@ -357,7 +357,10 @@ class _UserResultTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _Avatar(url: profile.avatarUrl, fallback: profile.displayName, ink: ink),
+            _Avatar(
+                url: profile.avatarUrl,
+                fallback: profile.displayName,
+                ink: ink),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -535,8 +538,8 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(SnackBar(
-            content: Text(mapDbError(e, action: 'save quest'))));
+        ..showSnackBar(
+            SnackBar(content: Text(mapDbError(e, action: 'save quest'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -575,8 +578,8 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: QuestColors.softRed,
                     borderRadius: BorderRadius.circular(6),
@@ -594,8 +597,8 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: QuestColors.accentYellow,
                     borderRadius: BorderRadius.circular(6),
@@ -643,8 +646,8 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: saved
                         ? QuestColors.accentYellow
@@ -653,7 +656,9 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                     border: Border.all(color: ink, width: 1.6),
                     boxShadow: [
                       BoxShadow(
-                          color: ink, offset: const Offset(2, 3), blurRadius: 0),
+                          color: ink,
+                          offset: const Offset(2, 3),
+                          blurRadius: 0),
                     ],
                   ),
                   child: Row(
@@ -753,7 +758,8 @@ class _PostResultTile extends StatelessWidget {
       thumbWidget = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
-        placeholder: (_, __) => ColoredBox(color: QuestColors.surfaceBg(context)),
+        placeholder: (_, __) =>
+            ColoredBox(color: QuestColors.surfaceBg(context)),
         errorWidget: (_, __, ___) => ColoredBox(
           color: QuestColors.surfaceBg(context),
           child: Icon(Icons.image_outlined, color: ink.withAlpha(140)),
@@ -830,7 +836,6 @@ class _PostResultTile extends StatelessWidget {
   }
 }
 
-
 // ── Empty / prompt / error states ───────────────────────────────────────────
 
 class _PromptState extends ConsumerWidget {
@@ -865,8 +870,7 @@ class _PromptState extends ConsumerWidget {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: () =>
-                    ref.read(recentSearchesProvider.notifier).clear(),
+                onTap: () => ref.read(recentSearchesProvider.notifier).clear(),
                 child: Text(
                   l.searchClearRecent,
                   style: TextStyle(
@@ -905,8 +909,7 @@ class _PromptState extends ConsumerWidget {
         Text(
           l.searchPromptSubtitle,
           textAlign: TextAlign.center,
-          style: QuestTypography.bodyMedium
-              .copyWith(color: ink.withAlpha(160)),
+          style: QuestTypography.bodyMedium.copyWith(color: ink.withAlpha(160)),
         ),
       ],
     );
@@ -1017,8 +1020,8 @@ class _ErrorState extends ConsumerWidget {
             GestureDetector(
               onTap: onRetry,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                 decoration: BoxDecoration(
                   color: QuestColors.accentYellow,
                   borderRadius: BorderRadius.circular(12),

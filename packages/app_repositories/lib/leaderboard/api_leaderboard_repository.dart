@@ -15,16 +15,22 @@ class ApiLeaderboardRepository implements LeaderboardRepository {
       _list('global', limit);
 
   @override
-  Future<List<LeaderboardUserModel>> getFollowingLeaderboard(
-          {int limit = 50,}) =>
+  Future<List<LeaderboardUserModel>> getFollowingLeaderboard({
+    int limit = 50,
+  }) =>
       _list('following', limit);
 
   Future<List<LeaderboardUserModel>> _list(String scope, int limit) async {
-    final rows = apiObjectList(await _client.get('leaderboard', query: {
-      'scope': scope,
-      'limit': limit,
-      'offset': 0,
-    },),);
+    final rows = apiObjectList(
+      await _client.get(
+        'leaderboard',
+        query: {
+          'scope': scope,
+          'limit': limit,
+          'offset': 0,
+        },
+      ),
+    );
     final signed = await _media.signMany(
       rows.map((row) => row['avatar_url']?.toString() ?? ''),
     );

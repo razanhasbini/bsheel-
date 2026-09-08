@@ -22,12 +22,17 @@ class ApiMediaUploader {
     );
     final contentType =
         detected ?? (fallbackMediaType == 'video' ? 'video/mp4' : 'image/jpeg');
-    final intent = apiObject(await _client.post('media/upload-intents', body: {
-      'clientRequestId': _uuidV4(),
-      'kind': kind,
-      'contentType': contentType,
-      'sizeBytes': bytes.length,
-    },),);
+    final intent = apiObject(
+      await _client.post(
+        'media/upload-intents',
+        body: {
+          'clientRequestId': _uuidV4(),
+          'kind': kind,
+          'contentType': contentType,
+          'sizeBytes': bytes.length,
+        },
+      ),
+    );
     final headers = <String, String>{};
     final rawHeaders = intent['headers'];
     if (rawHeaders is Map) {
@@ -40,10 +45,12 @@ class ApiMediaUploader {
       bytes,
       headers: headers,
     );
-    final completed = apiObject(await _client.post(
-      'media/uploads/complete',
-      body: {'objectId': intent['objectId']},
-    ),);
+    final completed = apiObject(
+      await _client.post(
+        'media/uploads/complete',
+        body: {'objectId': intent['objectId']},
+      ),
+    );
     return completed['key'] as String;
   }
 

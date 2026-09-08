@@ -3,16 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/providers/supabase_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
-import '../../../../core/backend/backend_config.dart';
-import '../../../../core/backend/mobile_nest_backend.dart';
+import '../../../../core/backend/app_backend.dart';
 
 final notificationsRepositoryProvider =
     Provider<NotificationsRepository>((ref) {
-  return SupabaseNotificationsRepository(ref.watch(supabaseClientProvider));
+  return AppBackend.repositories.notifications;
 });
 
 // SWR caches — keep last-good notifications + unread count on screen if a
@@ -68,55 +64,20 @@ final notificationsRealtimeProvider = Provider.autoDispose<void>((ref) {
     });
   }
 
-  if (BackendConfig.usesNest) {
-    final realtime = MobileNestBackend.repositories.realtime;
-    final subscription = realtime.events
-        .where((event) => event.type.startsWith('notification.'))
-        .listen((_) => scheduleInvalidate());
-    unawaited(() async {
-      try {
-        await realtime.connect();
-      } catch (error) {
-        AppLogger.warning('[Realtime] Notification connection failed: $error');
-      }
-    }());
-    ref.onDispose(() {
-      throttle?.cancel();
-      unawaited(subscription.cancel());
-    });
-    return;
-  }
-
-  final client = ref.watch(supabaseClientProvider);
-
-  final channel = client.channel('notifications_realtime_${user.id}')
-    ..onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: Tables.notifications,
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: NotificationColumns.userId,
-        value: user.id,
-      ),
-      callback: (_) => scheduleInvalidate(),
-    )
-    ..onPostgresChanges(
-      event: PostgresChangeEvent.update,
-      schema: 'public',
-      table: Tables.notifications,
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: NotificationColumns.userId,
-        value: user.id,
-      ),
-      callback: (_) => scheduleInvalidate(),
-    )
-    ..subscribe();
-
+  final realtime = AppBackend.repositories.realtime;
+  final subscription = realtime.events
+      .where((event) => event.type.startsWith('notification.'))
+      .listen((_) => scheduleInvalidate());
+  unawaited(() async {
+    try {
+      await realtime.connect();
+    } catch (error) {
+      AppLogger.warning('[Realtime] Notification connection failed: $error');
+    }
+  }());
   ref.onDispose(() {
     throttle?.cancel();
-    client.removeChannel(channel);
+    unawaited(subscription.cancel());
   });
 });
 

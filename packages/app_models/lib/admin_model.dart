@@ -1,5 +1,7 @@
 import 'package:supabase_contracts/supabase_contracts.dart';
 
+import 'src/json_coercions.dart';
+
 class AdminModel {
   final String id;
   final String userId;
@@ -18,7 +20,7 @@ class AdminModel {
       id: (json[AdminColumns.id] ?? '').toString(),
       userId: (json[AdminColumns.userId] ?? '').toString(),
       role: (json[AdminColumns.role] as String?) ?? AdminRole.moderator,
-      createdAt: _toDateTime(json[AdminColumns.createdAt]),
+      createdAt: coerceTimestamp(json[AdminColumns.createdAt]),
     );
   }
 
@@ -34,8 +36,16 @@ class AdminModel {
   bool get isSuperAdmin => role == AdminRole.superAdmin;
   bool get isModerator => role == AdminRole.moderator;
 
-  static DateTime _toDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    return DateTime.parse(value as String);
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AdminModel &&
+        other.id == id &&
+        other.userId == userId &&
+        other.role == role &&
+        other.createdAt == createdAt;
   }
+
+  @override
+  int get hashCode => Object.hash(id, userId, role, createdAt);
 }

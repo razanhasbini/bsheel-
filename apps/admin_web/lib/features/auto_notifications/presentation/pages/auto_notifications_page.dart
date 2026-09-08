@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_contracts/supabase_contracts.dart';
 
-import '../../../../core/providers/supabase_provider.dart';
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
@@ -11,24 +11,7 @@ import '../../../../shared/widgets/bsheel_widgets.dart';
 
 final _recentAutoNotificationsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final client = ref.watch(supabaseClientProvider);
-
-  final data = await client
-      .from(Tables.notifications)
-      .select(
-        '${NotificationColumns.id},'
-        '${NotificationColumns.userId},'
-        '${NotificationColumns.title},'
-        '${NotificationColumns.body},'
-        '${NotificationColumns.type},'
-        '${NotificationColumns.createdAt},'
-        'profiles!notifications_user_id_fkey(${ProfileColumns.username})',
-      )
-      .neq(NotificationColumns.type, NotificationType.announcement)
-      .order(NotificationColumns.createdAt, ascending: false)
-      .limit(50);
-
-  return List<Map<String, dynamic>>.from(data as List);
+  return AppBackend.repositories.admin.notifications(limit: 50);
 });
 
 // ── Static Rule Model ──────────────────────────────────────────────────────────
@@ -225,8 +208,8 @@ class AutoNotificationsPage extends ConsumerWidget {
                   'Read-only reference of the server-side notification '
                   'triggers, plus a live feed of the most recent '
                   'automatic sends.',
-                  style: BsheelType.bodyMd
-                      .copyWith(color: BsheelColors.inkSoft),
+                  style:
+                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
                 ),
               ],
             ),
@@ -259,9 +242,7 @@ class AutoNotificationsPage extends ConsumerWidget {
               return Wrap(
                 spacing: QuestSpacing.md,
                 runSpacing: QuestSpacing.md,
-                children: _kRules
-                    .map((rule) => _RuleCard(rule: rule))
-                    .toList(),
+                children: _kRules.map((rule) => _RuleCard(rule: rule)).toList(),
               );
             },
           ),
@@ -301,8 +282,7 @@ class AutoNotificationsPage extends ConsumerWidget {
                     padding: const EdgeInsets.all(QuestSpacing.xl),
                     decoration: BoxDecoration(
                       color: BsheelColors.paper,
-                      borderRadius:
-                          BorderRadius.circular(BsheelRadii.lg),
+                      borderRadius: BorderRadius.circular(BsheelRadii.lg),
                       border: Border.all(
                         color: BsheelColors.line,
                         width: BsheelBorders.thin,
@@ -372,7 +352,9 @@ class _RuleCard extends StatelessWidget {
         color: BsheelColors.paper,
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +467,9 @@ class _NotificationTile extends StatelessWidget {
         color: BsheelColors.paper,
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
         border: Border.all(
-            color: BsheelColors.line, width: BsheelBorders.thin,),
+          color: BsheelColors.line,
+          width: BsheelBorders.thin,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {

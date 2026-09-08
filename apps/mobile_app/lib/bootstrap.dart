@@ -3,11 +3,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_core/app_core.dart';
-import 'core/backend/backend_config.dart';
-import 'core/backend/mobile_nest_backend.dart';
-import 'core/config/env.dart';
+import 'package:app_repositories/app_repositories.dart' show AuthUser;
+import 'core/backend/app_backend.dart';
 import 'core/router/app_router.dart' show primeSplashShownFlag;
 import 'core/services/analytics_service.dart';
 import 'core/services/device_token_service.dart';
@@ -72,50 +70,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// Critical init — blocks runApp(). Keep this as small as possible to avoid
 /// the native launch screen staying up while we do background-safe work.
 Future<void> bootstrap() async {
-  // Load the persisted "splash already shown" flag in parallel with
-  // Supabase init — both finish before runApp() so GoRouter can pick the
-  // right initialLocation synchronously (no extra splash on cold start
-  // after the first install).
+  // Load the persisted "splash already shown" flag in parallel with backend
+  // init — both finish before runApp() so GoRouter can pick the right
+  // initialLocation synchronously (no extra splash on cold start after the
+  // first install).
   final splashFuture = primeSplashShownFlag();
 
-  if (BackendConfig.usesNest) {
-    await MobileNestBackend.initialize();
-    AppLogger.info('[Bootstrap] Nest backend initialized successfully');
-  } else {
-    await _initializeLegacyBackend();
-  }
+  await AppBackend.initialize();
+  AppLogger.info('[Bootstrap] API backend initialized');
 
   await splashFuture;
-}
-
-Future<void> _initializeLegacyBackend() async {
-  try {
-    await Supabase.initialize(
-      url: Env.supabaseUrl,
-      anonKey: Env.supabaseAnonKey,
-      authOptions: FlutterAuthClientOptions(
-        autoRefreshToken: true,
-        // F-006 (pentest 2026-05-20): force PKCE. With the implicit /
-        // token-fragment flow, an intercepted reset-password deep link
-        // hands an attacker the access_token directly. With PKCE the
-        // email link only carries a one-shot `code` that must be
-        // exchanged using the code_verifier we generated and stored on
-        // THIS device — so even an intercepted link is useless to a
-        // foreign app. supabase_flutter >= 2.0 defaults to PKCE; we
-        // pin it explicitly here so a future SDK default flip can't
-        // silently regress us.
-        authFlowType: AuthFlowType.pkce,
-        localStorage: kIsWeb
-            ? SharedPreferencesLocalStorage(
-                persistSessionKey: 'sb-4hoursonly-mobile-web-auth-v2',
-              )
-            : null,
-      ),
-    );
-    AppLogger.info('[Bootstrap] Supabase initialized successfully');
-  } on Exception catch (e) {
-    AppLogger.info('[Bootstrap] Supabase init auth event: ${e.toString()}');
-  }
 }
 
 /// Everything else — Firebase, Mixpanel, FCM, notification channels, badge
@@ -129,7 +93,7 @@ Future<void> initDeferredServices() async {
     if (existingUser != null) {
       AnalyticsService.instance.identify(
         existingUser.id,
-        username: existingUser.userMetadata?['username'] as String?,
+        username: existingUser.userMetadata['username'] as String?,
       );
     }
   } catch (e) {
@@ -238,6 +202,4 @@ Future<void> initDeferredServices() async {
   }
 }
 
-User? get _currentUser => BackendConfig.usesNest
-    ? MobileNestBackend.repositories.auth.currentUser
-    : Supabase.instance.client.auth.currentUser;
+AuthUser? get _currentUser => AppBackend.repositories.auth.currentUser;

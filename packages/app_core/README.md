@@ -1,39 +1,34 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# app_core
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Pure-Dart foundations shared by both applications: design tokens, logging and
+small utilities. No Flutter widgets, no networking, no models.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+## What's here
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+| Area | Contents |
+|---|---|
+| `theme/` | `QuestColors`, `QuestSpacing`, `QuestTypography`, `QuestTheme` |
+| `logger` | `AppLogger` — the only logging path; never `print` |
+| `utils/` | date/time formatting, error mapping helpers |
 
-## Features
+## Theme is the single source of truth
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+Every colour, spacing value and text style in the mobile app comes from here.
+Reskinning the app means editing these three files and nothing else.
 
-## Getting started
+Prefer the context helpers in widgets — `QuestColors.bg(context)`,
+`cardBg(context)`, `text(context)`, `textDim(context)` — so a future
+multi-theme setup needs no call-site changes.
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+The app is light-only (Arcade Pop). The `QuestColors.dark*` and `textPrimary`
+tokens are "ink panel" colours used *inside* the light design (splash screen,
+video overlays, arcade cards) — they are not a dark mode.
 
-## Usage
+A genuinely one-off decorative colour (pixel art, a gradient stop) is allowed
+only as a private `static const` in the file that uses it, with a
+`// Screen-specific colour — not a theme token.` comment.
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+## Depends on
 
-```dart
-const like = 'sample';
-```
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+Nothing. This package sits at the bottom of the graph, which is why it must
+stay pure Dart.

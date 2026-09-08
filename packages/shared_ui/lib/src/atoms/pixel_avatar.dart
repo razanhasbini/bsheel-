@@ -19,7 +19,8 @@ class PixelAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultBorder = isDark ? cs.onSurface.withAlpha(51) : QuestColors.osTextPrimary;
+    final defaultBorder =
+        isDark ? cs.onSurface.withAlpha(51) : QuestColors.osTextPrimary;
 
     return Container(
       width: size,
@@ -49,7 +50,9 @@ class PixelAvatar extends StatelessWidget {
       child: Text(
         username.isNotEmpty ? username[0].toUpperCase() : '?',
         style: QuestTypography.headlineSmall.copyWith(
-          color: isDark ? Theme.of(context).colorScheme.primary : QuestColors.osTextPrimary,
+          color: isDark
+              ? Theme.of(context).colorScheme.primary
+              : QuestColors.osTextPrimary,
           fontSize: size * 0.35,
         ),
       ),

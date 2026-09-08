@@ -135,7 +135,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get version => 'Version 1.0.0';
 
   @override
-  String get aboutDescription => 'A gamified quest app that turns real-life challenges into adventures. Complete quests, earn XP, and level up!';
+  String get aboutDescription =>
+      'A gamified quest app that turns real-life challenges into adventures. Complete quests, earn XP, and level up!';
 
   @override
   String get ok => 'OK';
@@ -153,13 +154,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteAccountTitle => 'DELETE ACCOUNT';
 
   @override
-  String get deleteAccountWarning => 'This will permanently delete your account and all data. This cannot be undone.';
+  String get deleteAccountWarning =>
+      'This will permanently delete your account and all data. This cannot be undone.';
 
   @override
   String get typeDeleteConfirm => 'Type DELETE to confirm:';
 
   @override
-  String get deletionRequested => 'Account deletion request sent. Your data will be removed within 48 hours.';
+  String get deletionRequested =>
+      'Account deletion request sent. Your data will be removed within 48 hours.';
 
   @override
   String get language => 'LANGUAGE';
@@ -249,25 +252,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboarding1Title => 'WELCOME TO\nBSHEEL';
 
   @override
-  String get onboarding1Subtitle => 'YOUR REAL-LIFE QUEST ENGINE.\nCOMPLETE CHALLENGES.\nLEVEL UP IRL.';
+  String get onboarding1Subtitle =>
+      'YOUR REAL-LIFE QUEST ENGINE.\nCOMPLETE CHALLENGES.\nLEVEL UP IRL.';
 
   @override
   String get onboarding2Title => 'HOW QUESTS\nWORK';
 
   @override
-  String get onboarding2Subtitle => 'ROLL FOR A QUEST.\nACCEPT THE CHALLENGE.\nSUBMIT PROOF BEFORE\nTIME RUNS OUT.';
+  String get onboarding2Subtitle =>
+      'ROLL FOR A QUEST.\nACCEPT THE CHALLENGE.\nSUBMIT PROOF BEFORE\nTIME RUNS OUT.';
 
   @override
   String get onboarding3Title => 'EARN XP &\nLEVEL UP';
 
   @override
-  String get onboarding3Subtitle => 'EVERY QUEST COMPLETED\nEARNS YOU XP.\nCLIMB THE LEADERBOARD.\nUNLOCK NEW RANKS.';
+  String get onboarding3Subtitle =>
+      'EVERY QUEST COMPLETED\nEARNS YOU XP.\nCLIMB THE LEADERBOARD.\nUNLOCK NEW RANKS.';
 
   @override
   String get onboarding4Title => 'YOU\'RE\nREADY';
 
   @override
-  String get onboarding4Subtitle => 'YOUR ADVENTURE\nSTARTS NOW.\nGO ROLL YOUR\nFIRST QUEST!';
+  String get onboarding4Subtitle =>
+      'YOUR ADVENTURE\nSTARTS NOW.\nGO ROLL YOUR\nFIRST QUEST!';
 
   @override
   String get activeQuest => 'ACTIVE QUEST';
@@ -282,7 +289,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get questExpired => 'QUEST EXPIRED';
 
   @override
-  String get noQuestsYet => 'No quest history yet. Generate and complete quests to see them here.';
+  String get noQuestsYet =>
+      'No quest history yet. Generate and complete quests to see them here.';
 
   @override
   String get missionBriefing => 'MISSION BRIEFING';
@@ -306,19 +314,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timeLeft => 'TIME LEFT';
 
   @override
-  String get criteriaProof => 'Proof clearly shows you completed the quest action.';
+  String get criteriaProof =>
+      'Proof clearly shows you completed the quest action.';
 
   @override
-  String get criteriaQuality => 'Submission content matches the quest intent and quality standards.';
+  String get criteriaQuality =>
+      'Submission content matches the quest intent and quality standards.';
 
   @override
-  String get criteriaCaption => 'Caption provides enough context for moderation review.';
+  String get criteriaCaption =>
+      'Caption provides enough context for moderation review.';
 
   @override
-  String get reqCaptureProof => 'Capture photo or video proof before the timer ends.';
+  String get reqCaptureProof =>
+      'Capture photo or video proof before the timer ends.';
 
   @override
-  String get reqGenerateFirst => 'Generate or accept this quest before submitting proof.';
+  String get reqGenerateFirst =>
+      'Generate or accept this quest before submitting proof.';
 
   @override
   String get reqUploadProof => 'Upload your proof to send it for review.';
@@ -366,7 +379,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usernameLength => 'Username must be 3-30 characters.';
 
   @override
-  String get usernameFormat => 'Username can only contain letters, numbers, and underscores.';
+  String get usernameFormat =>
+      'Username can only contain letters, numbers, and underscores.';
 
   @override
   String get noPostsYet => 'NO POSTS YET';
@@ -525,10 +539,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteFromProfile => 'DELETE FROM PROFILE';
 
   @override
-  String get deleteFromFeedDesc => 'This will remove the post from the feed. It will still be visible on your profile.';
+  String get deleteFromFeedDesc =>
+      'This will remove the post from the feed. It will still be visible on your profile.';
 
   @override
-  String get deleteFromProfileDesc => 'This will permanently delete the post from the feed and your profile. This cannot be undone.';
+  String get deleteFromProfileDesc =>
+      'This will permanently delete the post from the feed and your profile. This cannot be undone.';
 
   @override
   String get addToFeed => 'ADD TO FEED';
@@ -579,7 +595,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchPrompt => 'FIND PEOPLE & QUESTS';
 
   @override
-  String get searchPromptSubtitle => 'Type a username, display name, or quest keyword to begin.';
+  String get searchPromptSubtitle =>
+      'Type a username, display name, or quest keyword to begin.';
 
   @override
   String get searchNoMatches => 'NO MATCHES';
@@ -667,5 +684,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get passwordsDoNotMatch => 'Passwords do not match.';
-
 }

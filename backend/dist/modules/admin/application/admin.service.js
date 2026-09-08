@@ -70,6 +70,11 @@ let AdminService = class AdminService {
     cancelInjection(actorId, id) { return this.repository.cancelInjection(actorId, id); }
     notify(actorId, targetId, title, body, type) { return this.repository.notify(actorId, targetId, title, body, type); }
     config() { return this.repository.config(); }
+    updateUserProfile(actorId, userId, input) {
+        return this.repository.updateUserProfile(actorId, userId, input);
+    }
+    xpAudit(limit, offset) { return this.repository.xpAudit(limit, offset); }
+    notifications(limit, offset) { return this.repository.notifications(limit, offset); }
     publicConfig() { return this.repository.publicConfig(); }
     setConfig(actorId, key, value, description, isPublic) { return this.repository.setConfig(actorId, key, value, description, isPublic); }
     qotd(limit, offset) { return this.repository.qotd(limit, offset); }

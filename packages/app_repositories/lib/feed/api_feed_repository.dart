@@ -17,12 +17,17 @@ class ApiFeedRepository implements FeedRepository {
     String sort = 'recent',
     FeedScope scope = FeedScope.all,
   }) async {
-    final rows = apiObjectList(await _client.get('feed', query: {
-      'limit': limit,
-      'offset': offset,
-      'sort': sort,
-      'scope': scope.rpcValue,
-    },),);
+    final rows = apiObjectList(
+      await _client.get(
+        'feed',
+        query: {
+          'limit': limit,
+          'offset': offset,
+          'sort': sort,
+          'scope': scope.rpcValue,
+        },
+      ),
+    );
     return _signPosts(rows.map(FeedPostModel.fromRpc).toList());
   }
 
@@ -48,22 +53,26 @@ class ApiFeedRepository implements FeedRepository {
   }
 
   Future<List<FeedPostModel>> _signPosts(List<FeedPostModel> posts) async {
-    return Future.wait(posts.map((post) async {
-      final signedMedia = await _media.signJsonOrSingle(post.mediaUrl);
-      final signedAvatar = await _media.signNullable(post.avatarUrl);
-      final members = await Future.wait(post.collabMembers.map((member) async {
-        return member.copyWith(
-          mediaUrl: member.mediaUrl == null
-              ? null
-              : await _media.signJsonOrSingle(member.mediaUrl!),
-          avatarUrl: await _media.signNullable(member.avatarUrl),
+    return Future.wait(
+      posts.map((post) async {
+        final signedMedia = await _media.signJsonOrSingle(post.mediaUrl);
+        final signedAvatar = await _media.signNullable(post.avatarUrl);
+        final members = await Future.wait(
+          post.collabMembers.map((member) async {
+            return member.copyWith(
+              mediaUrl: member.mediaUrl == null
+                  ? null
+                  : await _media.signJsonOrSingle(member.mediaUrl!),
+              avatarUrl: await _media.signNullable(member.avatarUrl),
+            );
+          }),
         );
-      }),);
-      return post.copyWith(
-        mediaUrl: signedMedia,
-        avatarUrl: signedAvatar,
-        collabMembers: members,
-      );
-    }),);
+        return post.copyWith(
+          mediaUrl: signedMedia,
+          avatarUrl: signedAvatar,
+          collabMembers: members,
+        );
+      }),
+    );
   }
 }

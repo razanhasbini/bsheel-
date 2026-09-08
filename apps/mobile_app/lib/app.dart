@@ -45,7 +45,8 @@ class _QuestAppState extends ConsumerState<QuestApp> {
 
     ref.listen(passwordRecoveryProvider, (_, isRecovery) {
       if (isRecovery) {
-        AppLogger.info('[App] passwordRecovery detected → navigating to reset password');
+        AppLogger.info(
+            '[App] passwordRecovery detected → navigating to reset password');
         router.go(RoutePaths.resetPassword);
       }
     });

@@ -97,7 +97,18 @@ export class AuthRepository {
         return this.mapAccount(user);
       });
     } catch (error) {
-      if (this.isUniqueViolation(error)) {
+      const constraint = this.uniqueViolationConstraint(error);
+      if (constraint !== null) {
+        // The signup form routes the message to a specific field, so the
+        // caller has to be able to tell which value collided. `users.email`
+        // and `profiles.username` are both inline UNIQUE constraints, which
+        // PostgreSQL names after the table and column.
+        if (constraint.includes('username')) {
+          throw new ConflictException({ code: 'USERNAME_TAKEN', message: 'That username is already taken' });
+        }
+        if (constraint.includes('email')) {
+          throw new ConflictException({ code: 'EMAIL_TAKEN', message: 'That email is already registered' });
+        }
         throw new ConflictException({ code: 'ACCOUNT_CONFLICT', message: 'Email or username is already in use' });
       }
       throw error;
@@ -479,8 +490,20 @@ export class AuthRepository {
     };
   }
 
-  private isUniqueViolation(error: unknown): boolean {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
+  /// Returns the violated constraint name for a unique-violation error, an
+  /// empty string when PostgreSQL did not report one, or null when the error
+  /// is not a unique violation at all.
+  private uniqueViolationConstraint(error: unknown): string | null {
+    if (
+      typeof error !== 'object' ||
+      error === null ||
+      !('code' in error) ||
+      (error as { code?: unknown }).code !== '23505'
+    ) {
+      return null;
+    }
+    const constraint = (error as { constraint?: unknown }).constraint;
+    return typeof constraint === 'string' ? constraint : '';
   }
 }
 
