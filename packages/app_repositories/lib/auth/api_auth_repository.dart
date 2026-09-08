@@ -28,6 +28,7 @@ class ApiAuthRepository implements AuthRepository {
   final String _googleIosClientId;
   final String _googleWebClientId;
   final StreamController<AuthState> _changes = StreamController.broadcast();
+  Future<void>? _googleInitialization;
   AuthUser? _currentUser;
 
   /// Restores a locally persisted Nest session during application bootstrap.
@@ -192,17 +193,17 @@ class ApiAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResult> signInWithGoogle() async {
-    final provider = GoogleSignIn(
+    final provider = GoogleSignIn.instance;
+    _googleInitialization ??= provider.initialize(
       clientId: _googleIosClientId.isEmpty ? null : _googleIosClientId,
       serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
     );
+    await _googleInitialization;
     try {
       await provider.signOut();
     } catch (_) {}
-    final account = await provider.signIn();
-    if (account == null)
-      throw const AuthException('Google Sign In was cancelled.');
-    final idToken = (await account.authentication).idToken;
+    final account = await provider.authenticate();
+    final idToken = account.authentication.idToken;
     if (idToken == null)
       throw const AuthException('Google Sign In failed — no ID token.');
     return _oauth('google', idToken, displayName: account.displayName ?? '');

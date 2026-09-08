@@ -14,6 +14,7 @@ import type { Environment } from '../../config/environment.js';
       }),
     }),
     BullModule.registerQueue({ name: 'domain-events' }),
+    BullModule.registerQueue({ name: 'media-reclaim' }),
   ],
   exports: [BullModule],
 })

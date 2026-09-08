@@ -1,5 +1,3 @@
-library app_core;
-
 // Utils
 export 'utils/logger.dart';
 export 'utils/media_utils.dart';

@@ -71,6 +71,13 @@ export class SubmissionsRepository {
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
         [input.userQuestId, userId, input.mediaUrl, input.mediaType, input.caption?.trim() || null, input.showInFeed],
       );
+      await transaction.query(
+        `UPDATE media_objects
+         SET submission_id = $1
+         WHERE user_id = $2 AND kind = 'submission' AND status = 'ready'
+           AND object_key = ANY($3::text[]) AND submission_id IS NULL`,
+        [result.rows[0].id, userId, mediaKeys],
+      );
       await transaction.query("UPDATE user_quests SET status = 'submitted', version = version + 1 WHERE id = $1", [input.userQuestId]);
       await transaction.query(
         `UPDATE collab_group_members m SET submission_time_seconds = GREATEST(0,

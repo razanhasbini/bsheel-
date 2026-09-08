@@ -14,6 +14,8 @@ import { TransactionalEmailService } from './modules/auth/infrastructure/transac
 import { RedisModule } from './infrastructure/redis/redis.module.js';
 import { RealtimeEventPublisher } from './infrastructure/realtime/realtime-event.publisher.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
+import { MediaReclaimProcessor } from './modules/media/application/media-reclaim.processor.js';
+import { MediaReclaimScheduler } from './modules/media/application/media-reclaim.scheduler.js';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { TelegramModule } from './integrations/telegram/telegram.module.js';
     AuthActionTokenCipher,
     TransactionalEmailService,
     RealtimeEventPublisher,
+    MediaReclaimProcessor,
+    MediaReclaimScheduler,
   ],
 })
 export class WorkerModule {}

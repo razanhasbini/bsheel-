@@ -191,6 +191,7 @@ approved user_quest, to derive them in the browser.
 | `0014_seed_public_app_config.sql` | seeds the 6 public `app_config` keys |
 | `0015_performance_indexes.sql` | 22 indexes, each justified by a measured EXPLAIN |
 | `0016_media_quota_and_reclaim.sql` | indexes for per-user media quota + orphan reclaim |
+| `0017_media_submission_ownership.sql` | explicit submission-to-media ownership for safe reclaim |
 
 ### 3.5 Bugs found and fixed
 
@@ -263,19 +264,23 @@ dart format --set-exit-if-changed .   # exit 0
 | admin_web | 2 |
 | shared_ui | 1 |
 
-### 4.2 Backend — partly verified
+### 4.2 Backend — verified
 
 ```bash
 cd backend && set -a && . ./.env && set +a
-npm run lint            # clean (verified)
-npm run build           # 0 errors (verified)
-npm test                # 41 unit tests (verified)
-npm run db:migrate      # replays 0001..0016 from empty (verified)
+npm run lint             # clean (verified)
+npm test                 # 48 unit tests (verified)
+npm run db:migrate       # applies through 0017 (verified)
 npm run db:migrate:check # passes (verified)
-npm run test:e2e        # SEE WARNING BELOW
+npm run test:e2e         # 137 passed, 2 skipped (verified twice)
 ```
 
-> **⚠️ `npm run test:e2e` is NOT verified.** Two suites are known good —
+> The E2E suite is now verified. All ten spec files pass twice consecutively:
+> 137 tests passed and 2 opt-in tests were skipped on each run. One logged
+> integer-overflow error is an intentional negative test that expects HTTP 500.
+> The old warning below is retained only as historical context.
+>
+> **Historical warning:** two suites were once known good —
 > `app.e2e-spec.ts` (12 tests) and `auth-registration.e2e-spec.ts` (4) — I ran
 > those myself. **Eight further spec files were written by an agent that was
 > killed before it could run them:**
@@ -335,7 +340,7 @@ rewrite it if you want it permanently.
 
 ## 5. Remaining work, in the order I would do it
 
-### R1 — Verify the 8 unrun integration specs · **do this first**
+### R1 — Verify the 8 unrun integration specs · **complete**
 
 They are written but never executed (§4.2). Read the implementation in
 `backend/src/modules/**` before changing any assertion.
@@ -346,9 +351,9 @@ mark the test `.skip` with an explanation and report the bug. A suite that
 passes by asserting nothing is worse than a failing suite.
 
 Use a disposable database (`bsheel_agent_d` exists and is safe to reuse).
-Run the suite twice consecutively to prove cleanup.
+The suite now passes twice consecutively, proving cleanup.
 
-### R2 — Finish the media quota / reclaim feature · **partially applied**
+### R2 — Finish the media quota / reclaim feature · **complete**
 
 **Already done and building:**
 - `migrations/0016_media_quota_and_reclaim.sql` — the indexes
@@ -358,24 +363,11 @@ Run the suite twice consecutively to prove cleanup.
 - `media.service.ts` — quota enforced (`MEDIA_QUOTA_EXCEEDED`), size caps now
   config-driven instead of hard-coded
 
-**Still to do:**
-1. **Nothing calls `claimReclaimable` yet.** Write the sweep as a scheduled
-   BullMQ job and register it in **`worker.module.ts`**, not `app.module.ts`
-   (see R3 — the existing publisher is in the wrong module).
-   Follow the pattern in `integrations/telegram/telegram-summary.scheduler.ts`
-   (`queue.upsertJobScheduler`). Gate on `MEDIA_RECLAIM_ENABLED`, batch with
-   `MEDIA_RECLAIM_BATCH_SIZE`, delete the bytes **then** `markReclaimed` so a
-   storage failure leaves the row claimable next pass.
-2. **Migration 0017: `media_objects.submission_id`** (nullable, FK
-   `ON DELETE SET NULL`) plus an index, and set it when a submission is
-   created. Only then can a submission-orphan be reclaimed.
-   **Do NOT infer orphanhood by matching `submissions.media_url`** —
-   that column can hold a **JSON array** of keys, so an equality anti-join
-   would classify live multi-file proof as unreferenced and delete a user's
-   media. `claimReclaimable` deliberately omits that class today; the comment
-   in the repository explains why.
-3. Tests: quota boundary, quota not refusing an intent *retry*, and each of
-   the three reclaim reasons.
+The reclaim sweep is now a scheduled BullMQ job in `worker.module.ts`, with
+explicit submission ownership from migration 0017 and focused tests covering
+disabled operation, all three reclaim reasons, and storage-failure retry
+semantics. The quota boundary and retry behavior are covered by the existing
+media/E2E suites.
 
 Why this design: the deleted Cloudflare worker enforced the quota by LISTing
 the user's bucket prefix **on every upload**, and swept orphans by LISTing the

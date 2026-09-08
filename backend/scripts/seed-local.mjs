@@ -70,11 +70,24 @@ async function main() {
   try {
     if (reset) {
       const emails = USERS.map(([email]) => email);
+      // admin_quest_injections.created_by is intentionally RESTRICT: an
+      // audit trail must not disappear when a seeded admin is reset. Remove
+      // only the local fixture's injections before deleting those users.
+      await client.query(
+        `DELETE FROM admin_quest_injections
+         WHERE created_by IN (SELECT id FROM users WHERE email = ANY($1::citext[]))`,
+        [emails],
+      );
       const { rowCount } = await client.query(
         'DELETE FROM users WHERE email = ANY($1::citext[])',
         [emails],
       );
       log(`reset: removed ${rowCount} seeded user(s) and their content`);
+      await client.query(
+        `DELETE FROM quest_of_the_day
+         WHERE quest_id IN (SELECT id FROM quests WHERE title = ANY($1::text[]))`,
+        [QUESTS.map(([title]) => title)],
+      );
       await client.query('DELETE FROM quests WHERE title = ANY($1::text[])', [
         QUESTS.map(([title]) => title),
       ]);

@@ -1,5 +1,3 @@
-library shared_ui;
-
 // Atoms
 export 'src/atoms/pixel_avatar.dart';
 export 'src/atoms/fit_text.dart';
