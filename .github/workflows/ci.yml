@@ -86,7 +86,7 @@ jobs:
       - name: Check for committed secrets
         run: bash scripts/check_secrets.sh
 
-      - uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1  # v2.16.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
           flutter-version: "3.38.5"
           channel: stable
