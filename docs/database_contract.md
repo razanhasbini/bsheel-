@@ -136,5 +136,10 @@ failed silently every hour for a day, having never once succeeded.
 5. Add an integration test that fails without the migration.
 6. Verify a clean replay: `npm run db:migrate` against an empty database, then
    `npm run db:migrate:check`.
-7. Run `npm run test:e2e`.
-8. Note the change and its reason in the commit message.
+7. Regenerate the typed schema with `npm run db:types` and commit the result.
+   `database.types.ts` is generated from the live schema and is what
+   `DatabaseService` type-checks every query against, so a migration that
+   lands without it leaves the compiler agreeing with a schema that no longer
+   exists. `npm run db:types:check` is what CI runs, and it fails the build.
+8. Run `npm run test:e2e`.
+9. Note the change and its reason in the commit message.

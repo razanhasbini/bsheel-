@@ -250,6 +250,7 @@ npm run lint
 npm test                 # unit
 npm run db:migrate       # replay from empty
 npm run db:migrate:check # checksum ledger
+npm run db:types:check   # generated types still match the schema
 npm run test:e2e         # integration, needs Postgres + Redis
 npm run build
 ```
