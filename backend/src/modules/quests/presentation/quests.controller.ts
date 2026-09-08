@@ -12,6 +12,16 @@ class AdminAssignQuestDto {
   @IsUUID() questId!: string;
 }
 
+/// Validates a `:id` path segment as a UUID before it reaches the service.
+///
+/// Without this, `GET /quests/rerolls` matched `@Get(':id')`, passed the
+/// literal string "rerolls" into a uuid-typed query, and Postgres raised
+/// 22P02 — surfacing as a 500 and an error-level log for what is really a
+/// client sending a bad id. Any non-UUID id did the same.
+class QuestIdParam {
+  @IsUUID() id!: string;
+}
+
 @ApiTags('quests')
 @Controller({ path: 'quests', version: '1' })
 export class QuestsController {
@@ -51,7 +61,7 @@ export class QuestsController {
   expire(@CurrentUser() user: AuthUser, @Body() body: UserQuestIdDto) { return this.service.expire(user.id, body.userQuestId); }
 
   @Get(':id')
-  get(@Param('id') id: string) { return this.service.getQuest(id); }
+  get(@Param() param: QuestIdParam) { return this.service.getQuest(param.id); }
 
   @Roles('moderator', 'super_admin')
   @Post('admin/assign')
@@ -75,13 +85,13 @@ export class QuestsController {
 
   @Roles('super_admin')
   @Patch('admin/:id')
-  update(@Param('id') id: string, @Body() body: UpdateQuestDto) { return this.service.update(id, body); }
+  update(@Param() param: QuestIdParam, @Body() body: UpdateQuestDto) { return this.service.update(param.id, body); }
 
   @Roles('super_admin')
   @HttpCode(204)
   @Delete('admin/:id')
-  delete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.delete(id, user.id);
+  delete(@CurrentUser() user: AuthUser, @Param() param: QuestIdParam) {
+    return this.service.delete(param.id, user.id);
   }
 
   @Roles('super_admin')

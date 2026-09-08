@@ -1,11 +1,28 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Length, Matches, Max, Min, IsUUID } from 'class-validator';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { ProfilesService } from '../application/profiles.service.js';
 import { AnalyticsConsentDto, UpdateProfileDto } from './profile.dto.js';
+
+/// Validates `:id` as a UUID before it reaches a uuid-typed query.
+///
+/// An unvalidated id reached Postgres and raised 22P02, which surfaced as a
+/// 500 rather than a 400 — a client's bad id should not read as a server
+/// fault, in the response or in the logs.
+class ProfileIdParam {
+  @IsUUID() id!: string;
+}
+
+/// Validates `:username`. Not a UUID, so it is bounded by the same rule the
+/// registration DTO enforces rather than passed through unchecked.
+class ProfileUsernameParam {
+  @Length(3, 30)
+  @Matches(/^[A-Za-z0-9_]+$/)
+  username!: string;
+}
 
 class ProfileListQuery {
   @IsOptional()
@@ -47,10 +64,10 @@ export class ProfilesController {
   list(@Query() query: ProfileListQuery) { return this.service.list(query.limit); }
 
   @Get('by-username/:username')
-  getByUsername(@Param('username') username: string) {
-    return this.service.publicProfileByUsername(username);
+  getByUsername(@Param() param: ProfileUsernameParam) {
+    return this.service.publicProfileByUsername(param.username);
   }
 
   @Get(':id')
-  get(@Param('id') id: string) { return this.service.publicProfile(id); }
+  get(@Param() param: ProfileIdParam) { return this.service.publicProfile(param.id); }
 }
