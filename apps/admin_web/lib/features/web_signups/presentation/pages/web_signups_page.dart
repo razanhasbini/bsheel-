@@ -1,9 +1,8 @@
-import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
-import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -15,179 +14,161 @@ final webSignupsProvider =
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-class WebSignupsPage extends ConsumerWidget {
+class WebSignupsPage extends ConsumerStatefulWidget {
   const WebSignupsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(webSignupsProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BsheelEyebrow('Web · Signups'),
-              const SizedBox(height: 14),
-              BsheelDisplay(
-                'The {waitlist.}',
-                baseStyle: BsheelType.hero(context),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Email addresses captured from the marketing site waitlist.',
-                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Expanded(
-          child: async.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
-            ),
-            data: (rows) {
-              if (rows.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.inbox_outlined,
-                        size: 64,
-                        color: BsheelColors.primary.withAlpha(100),
-                      ),
-                      const SizedBox(height: QuestSpacing.md),
-                      Text(
-                        'NO SIGNUPS YET',
-                        style: BsheelType.displaySm
-                            .copyWith(color: BsheelColors.inkMuted),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: QuestSpacing.md,
-                      vertical: QuestSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: BsheelColors.ink,
-                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    ),
-                    child: Text(
-                      '${rows.length} TOTAL',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.paper,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: QuestSpacing.md),
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: rows.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.xs),
-                      itemBuilder: (context, index) {
-                        final r = rows[index];
-                        return _SignupRow(data: r);
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+  ConsumerState<WebSignupsPage> createState() => _WebSignupsPageState();
 }
 
-class _SignupRow extends StatelessWidget {
-  final Map<String, dynamic> data;
+class _WebSignupsPageState extends ConsumerState<WebSignupsPage> {
+  /// The size of one invite batch. Named so the label and the (absent)
+  /// call site cannot drift.
+  static const int _inviteBatchSize = 25;
 
-  const _SignupRow({required this.data});
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final email = (data['email'] ?? '') as String;
-    final source = (data['source'] ?? '') as String;
-    final createdAt = DateTime.tryParse((data['created_at'] ?? '') as String);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: QuestSpacing.md,
-        vertical: QuestSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.email_outlined, color: BsheelColors.ink, size: 20),
-          const SizedBox(width: QuestSpacing.sm),
-          Expanded(
-            child: Text(
-              email,
-              style: BsheelType.bodyMd.copyWith(
-                color: BsheelColors.ink,
-                fontWeight: FontWeight.w500,
+    final async = ref.watch(webSignupsProvider);
+    final total = async.valueOrNull?.length;
+
+    return AdminPane(
+      title: 'Web signups',
+      meta: total == null ? 'Waitlist' : 'Waitlist · $total',
+      child: async.when(
+        loading: () => const BsheelLoadingList(rows: 6, rowHeight: 44),
+        error: (e, _) => BsheelErrorState(
+          title: 'Waitlist didn’t load',
+          message: 'The waitlist didn’t come back, so nobody has been invited '
+              'and no address was lost. $e',
+          onRetry: () => ref.invalidate(webSignupsProvider),
+        ),
+        data: (rows) {
+          if (rows.isEmpty) {
+            return BsheelEmptyState(
+              title: 'No signups yet',
+              message:
+                  'Nobody has joined the waitlist from the marketing site. '
+                  'Check the site’s signup form is live, then reload.',
+              actionLabel: 'Reload',
+              onAction: () => ref.invalidate(webSignupsProvider),
+            );
+          }
+
+          final visible = _filter(rows);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: BsheelSearchField(
+                      controller: _search,
+                      hint: 'Search email…',
+                      onChanged: (v) =>
+                          setState(() => _query = v.trim().toLowerCase()),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  // No bulk-invite endpoint exists on the admin repository or
+                  // the API, so the control states the action and stays
+                  // unavailable rather than pretending to send mail.
+                  const BsheelButton.positive(
+                    label: 'Invite $_inviteBatchSize',
+                    onPressed: null,
+                  ),
+                ],
               ),
-            ),
-          ),
-          if (source.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: BsheelColors.bg,
-                border: Border.all(color: BsheelColors.ink),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                source.toUpperCase(),
-                style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.inkMuted,
-                  letterSpacing: 1.2,
+              const SizedBox(height: 12),
+              if (visible.isEmpty)
+                BsheelEmptyState(
+                  title: 'No match',
+                  message:
+                      'No waiting address contains “${_search.text.trim()}”. '
+                      'Clear the search to see the whole waitlist.',
+                  actionLabel: 'Clear search',
+                  onAction: () {
+                    _search.clear();
+                    setState(() => _query = '');
+                  },
+                )
+              else
+                BsheelTable(
+                  depth: 4,
+                  columns: const [
+                    BsheelColumn('Email'),
+                    BsheelColumn('Joined', width: 96),
+                    BsheelColumn('Status', width: 92),
+                  ],
+                  rows: [
+                    for (final r in visible)
+                      BsheelRow([
+                        BsheelCell.mono(_email(r)),
+                        BsheelCell.meta(_joined(r)),
+                        BsheelCell.pill(
+                          BsheelPill.status(_status(r)),
+                        ),
+                      ]),
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(width: QuestSpacing.sm),
-          ],
-          if (createdAt != null)
-            Text(
-              _formatDate(createdAt),
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
+  List<Map<String, dynamic>> _filter(List<Map<String, dynamic>> rows) {
+    if (_query.isEmpty) return rows;
+    return rows
+        .where((r) => _email(r).toLowerCase().contains(_query))
+        .toList(growable: false);
+  }
+
+  static String _email(Map<String, dynamic> row) =>
+      (row['email'] ?? '').toString();
+
+  /// The waitlist table carries no status column, so a row with nothing
+  /// recorded is still waiting on a person — gold. An invited row, once the
+  /// API can mark one, arrives already carrying its own status.
+  static String _status(Map<String, dynamic> row) {
+    final raw = (row['status'] ?? '').toString().trim();
+    return raw.isEmpty ? 'waiting' : raw;
+  }
+
+  static String _joined(Map<String, dynamic> row) {
+    final dt = DateTime.tryParse((row['created_at'] ?? '').toString());
+    return dt == null ? '—' : _formatDate(dt);
+  }
+
+  static const List<String> _months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+
+  /// `11 MAR` — the form the design draws.
   static String _formatDate(DateTime dt) {
     final local = dt.toLocal();
-    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
-        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return '${local.day.toString().padLeft(2, '0')} '
+        '${_months[local.month - 1]}';
   }
 }

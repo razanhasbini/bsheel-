@@ -7,12 +7,15 @@ import '../../core/theme/admin_layout_constants.dart';
 import '../../core/theme/bsheel_design.dart';
 import '../../features/admin_auth/presentation/pages/admin_access_denied_page.dart';
 import '../widgets/admin_sidebar.dart';
-import '../widgets/admin_topbar.dart';
+import '../widgets/bsheel_widgets.dart';
 
-/// "Port" shell — flush white page split by hairline rules: a fixed
-/// sidebar column with a 1px rule on its right, a topbar with a 1px
-/// rule below, then the content scroll area. No floating cards, no
-/// shadows.
+/// Arcade Pop shell — the ink sidebar on the left, the page on the right.
+///
+/// The page owns its own header bar (`BsheelPageHeader`), because the
+/// title, meta line and actions differ per route and the design draws
+/// them as part of the page rather than as a shared topbar. Below the
+/// tablet breakpoint the sidebar becomes a drawer and the page header
+/// grows a hamburger on its left.
 class AdminShell extends ConsumerWidget {
   final Widget child;
 
@@ -21,16 +24,16 @@ class AdminShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gate = ref.watch(isAdminUserProvider);
-    // Subscribe to the sidebar-counts realtime channel for the lifetime
-    // of the shell, so badge numbers update as submissions/reports land.
+    // Hold the sidebar-counts realtime channel open for the life of the
+    // shell, so the badges move as submissions and reports land.
     ref.watch(adminCountsRealtimeProvider);
 
     return gate.when(
       data: (isAdmin) {
         if (!isAdmin) return const AdminAccessDeniedPage();
 
-        final width = MediaQuery.of(context).size.width;
-        final isDesktop = width >= AdminLayoutConstants.tabletBreakpoint;
+        final isDesktop = MediaQuery.of(context).size.width >=
+            AdminLayoutConstants.tabletBreakpoint;
 
         if (isDesktop) {
           return Scaffold(
@@ -39,20 +42,7 @@ class AdminShell extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const AdminSidebar(),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const AdminTopbar(showHamburger: false),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                          child: child,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                Expanded(child: child),
               ],
             ),
           );
@@ -60,54 +50,131 @@ class AdminShell extends ConsumerWidget {
 
         return Scaffold(
           backgroundColor: BsheelColors.bg,
-          drawer: const _AdminDrawer(),
-          body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const AdminTopbar(showHamburger: true),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                    child: child,
-                  ),
-                ),
-              ],
-            ),
+          drawer: const Drawer(
+            backgroundColor: BsheelColors.inkPanel,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            shape: RoundedRectangleBorder(),
+            child: SafeArea(child: AdminSidebar(inDrawer: true)),
           ),
+          body: SafeArea(child: child),
         );
       },
       loading: () => const Scaffold(
         backgroundColor: BsheelColors.bg,
         body: Center(
-          child: CircularProgressIndicator(
-            color: BsheelColors.ink,
-            strokeWidth: 1.5,
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(
+              color: BsheelColors.primary,
+              strokeWidth: 2.5,
+            ),
           ),
         ),
       ),
-      error: (e, _) => const AdminAccessDeniedPage(),
+      error: (_, __) => const AdminAccessDeniedPage(),
     );
   }
 }
 
-class _AdminDrawer extends StatelessWidget {
-  const _AdminDrawer();
+/// The standard page body: a header bar, then a scrolling content area on
+/// the cream ground. Pages that need a custom split (the moderation queue
+/// rail, the users detail rail) build their own Column instead.
+class AdminPage extends StatelessWidget {
+  final String title;
+  final String? meta;
+  final Color? metaColor;
+  final List<Widget> actions;
+
+  /// Rendered directly under the header, outside the scroll area — used
+  /// for a filter-chip row that should stay put while the body scrolls.
+  final Widget? subheader;
+
+  final Widget child;
+
+  /// Set false when [child] manages its own scrolling (a ListView, or a
+  /// table with its own viewport).
+  final bool scrollable;
+
+  final EdgeInsetsGeometry padding;
+
+  const AdminPage({
+    super.key,
+    required this.title,
+    required this.child,
+    this.meta,
+    this.metaColor,
+    this.actions = const [],
+    this.subheader,
+    this.scrollable = true,
+    this.padding = BsheelLayout.pagePadding,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Drawer(
-      backgroundColor: BsheelColors.bg,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      shape: Border(
-        right: BorderSide(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BsheelPageHeader(
+          title: title,
+          meta: meta,
+          metaColor: metaColor,
+          actions: actions,
         ),
-      ),
-      child: SafeArea(
-        child: AdminSidebar(inDrawer: true),
+        if (subheader != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+            child: subheader,
+          ),
+        Expanded(
+          child: scrollable
+              ? SingleChildScrollView(
+                  padding: padding,
+                  child: child,
+                )
+              : Padding(padding: padding, child: child),
+        ),
+      ],
+    );
+  }
+}
+
+/// A 640px-wide content pane centred on the cream ground — the shape the
+/// design uses for every page that isn't a full-width work surface.
+class AdminPane extends StatelessWidget {
+  final String title;
+  final String? meta;
+  final Color? metaColor;
+  final List<Widget> actions;
+  final Widget child;
+  final double maxWidth;
+
+  const AdminPane({
+    super.key,
+    required this.title,
+    required this.child,
+    this.meta,
+    this.metaColor,
+    this.actions = const [],
+    this.maxWidth = BsheelLayout.paneMaxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminPage(
+      title: title,
+      meta: meta,
+      metaColor: metaColor,
+      actions: actions,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [child],
+          ),
+        ),
       ),
     );
   }

@@ -268,6 +268,8 @@ abstract final class BsheelType {
   static const TextStyle displayXl = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 38,
     height: 1.0,
     letterSpacing: -1.5,
@@ -291,6 +293,8 @@ abstract final class BsheelType {
   static const TextStyle displayLg = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 30,
     height: 1.0,
     letterSpacing: -1.05,
@@ -301,6 +305,8 @@ abstract final class BsheelType {
   static const TextStyle displayMd = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 23,
     height: 1.1,
     letterSpacing: -0.7,
@@ -311,6 +317,8 @@ abstract final class BsheelType {
   static const TextStyle displaySm = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 20,
     height: 1.1,
     letterSpacing: -0.55,
@@ -321,6 +329,8 @@ abstract final class BsheelType {
   static const TextStyle displayXs = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 16,
     height: 1.2,
     letterSpacing: -0.3,
@@ -331,6 +341,8 @@ abstract final class BsheelType {
   static const TextStyle titleMd = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 14,
     height: 1.2,
     letterSpacing: -0.1,
@@ -341,6 +353,8 @@ abstract final class BsheelType {
   static const TextStyle titleSm = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 13,
     height: 1.2,
     color: BsheelColors.ink,
@@ -350,6 +364,8 @@ abstract final class BsheelType {
   static const TextStyle bodyLg = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w400,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 400)],
     fontSize: 16,
     height: 1.6,
     color: BsheelColors.ink,
@@ -357,6 +373,8 @@ abstract final class BsheelType {
   static const TextStyle bodyMd = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w400,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 400)],
     fontSize: 14,
     height: 1.55,
     color: BsheelColors.ink,
@@ -364,6 +382,8 @@ abstract final class BsheelType {
   static const TextStyle bodyMdMedium = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w500,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 500)],
     fontSize: 14,
     height: 1.5,
     color: BsheelColors.ink,
@@ -371,6 +391,8 @@ abstract final class BsheelType {
   static const TextStyle bodyMdBold = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w600,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 600)],
     fontSize: 14,
     height: 1.5,
     color: BsheelColors.ink,
@@ -380,6 +402,8 @@ abstract final class BsheelType {
   static const TextStyle bodySm = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w400,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 400)],
     fontSize: 13,
     height: 1.5,
     color: BsheelColors.ink,
@@ -387,6 +411,8 @@ abstract final class BsheelType {
   static const TextStyle bodySmMedium = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w500,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 500)],
     fontSize: 13,
     height: 1.5,
     color: BsheelColors.ink,
@@ -396,6 +422,8 @@ abstract final class BsheelType {
   static const TextStyle bodyXs = TextStyle(
     fontFamily: BsheelFonts.body,
     fontWeight: FontWeight.w400,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 400)],
     fontSize: 12,
     height: 1.45,
     color: BsheelColors.inkSoft,
@@ -407,6 +435,8 @@ abstract final class BsheelType {
   static const TextStyle labelLg = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 11,
     height: 1.3,
     letterSpacing: 1.5,
@@ -417,6 +447,8 @@ abstract final class BsheelType {
   static const TextStyle labelMd = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 10,
     height: 1.3,
     letterSpacing: 1.2,
@@ -427,6 +459,8 @@ abstract final class BsheelType {
   static const TextStyle labelSm = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 9,
     height: 1.3,
     letterSpacing: 0.9,
@@ -439,6 +473,8 @@ abstract final class BsheelType {
   static const TextStyle monoMd = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 12,
     height: 1.3,
     color: BsheelColors.ink,
@@ -448,6 +484,8 @@ abstract final class BsheelType {
   static const TextStyle monoSm = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 11,
     height: 1.3,
     color: BsheelColors.inkSoft,
@@ -457,6 +495,8 @@ abstract final class BsheelType {
   static const TextStyle monoLg = TextStyle(
     fontFamily: BsheelFonts.mono,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 13,
     height: 1.3,
     color: BsheelColors.ink,
@@ -466,6 +506,8 @@ abstract final class BsheelType {
   static const TextStyle buttonLg = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 15,
     height: 1,
     letterSpacing: 0.6,
@@ -474,6 +516,8 @@ abstract final class BsheelType {
   static const TextStyle buttonMd = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w800,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 800)],
     fontSize: 14,
     height: 1,
     letterSpacing: 0.5,
@@ -482,6 +526,8 @@ abstract final class BsheelType {
   static const TextStyle buttonSm = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 13,
     height: 1,
     letterSpacing: 0.2,
@@ -490,6 +536,8 @@ abstract final class BsheelType {
   static const TextStyle buttonXs = TextStyle(
     fontFamily: BsheelFonts.display,
     fontWeight: FontWeight.w700,
+    // Variable font: drive the wght axis explicitly.
+    fontVariations: [FontVariation('wght', 700)],
     fontSize: 12,
     height: 1,
     letterSpacing: 0.2,

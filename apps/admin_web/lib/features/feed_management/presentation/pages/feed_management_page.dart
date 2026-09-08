@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:app_core/app_core.dart';
+
+import 'package:app_contracts/app_contracts.dart';
 import 'package:app_models/app_models.dart';
+import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
-
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 import '../../../moderation/presentation/widgets/inline_video.dart';
 
@@ -18,13 +20,19 @@ import '../../../moderation/presentation/widgets/inline_video.dart';
 // review needs; the search field is the path for older rows.
 const int _adminFeedListLimit = 200;
 
-/// Approved posts, newest first. Media keys are private R2 objects; the
-/// adapter signs them so the UI's img tags can fetch the bytes. The page
-/// limit is preserved so a 10k+ feed table cannot OOM the browser.
-final _feedPostsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+/// Approved posts in one visibility state, newest first. Media keys are
+/// private R2 objects; the adapter signs them so the UI's img tags can
+/// fetch the bytes. The page limit is preserved so a 10k+ feed table
+/// cannot OOM the browser.
+///
+/// Keyed by the `SubmissionVisibility` string the chip row selects, so
+/// switching tabs is a separate cached request rather than a client-side
+/// slice of one unbounded fetch.
+final _feedPostsProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, visibility) async {
   return AppBackend.repositories.moderation.listSubmissionsForAdmin(
-    status: 'approved',
+    status: SubmissionStatus.approved,
+    visibility: visibility,
     order: 'desc',
     limit: _adminFeedListLimit,
   );
@@ -38,182 +46,226 @@ class FeedManagementPage extends ConsumerStatefulWidget {
 }
 
 class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
-  String _search = '';
+  /// The selected visibility state. Never a literal — the three chips are
+  /// the three `SubmissionVisibility` values the database enum allows.
+  String _visibility = SubmissionVisibility.visible;
+
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final postsAsync = ref.watch(_feedPostsProvider);
+    final postsAsync = ref.watch(_feedPostsProvider(_visibility));
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BsheelEyebrow('Content · Feed'),
-              const SizedBox(height: 14),
-              BsheelDisplay(
-                'Curate the {feed.}',
-                baseStyle: BsheelType.hero(context),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Manage approved feed posts. Remove anything that breaks '
-                'community guidelines.',
-                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-              ),
+    return AdminPane(
+      title: 'Feed management',
+      meta: 'Visibility',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BsheelFilterChips(
+            filters: const [
+              BsheelFilter(SubmissionVisibility.visible, 'Visible'),
+              BsheelFilter(SubmissionVisibility.hiddenFromFeed, 'Hidden'),
+              BsheelFilter(SubmissionVisibility.deleted, 'Deleted'),
             ],
+            selected: _visibility,
+            onChanged: (v) => setState(() => _visibility = v),
           ),
-        ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: TextField(
-            style: BsheelType.bodySm,
-            decoration: InputDecoration(
-              hintText: 'Search by username or caption...',
-              hintStyle: BsheelType.bodySm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-              prefixIcon:
-                  const Icon(Icons.search, color: BsheelColors.inkMuted),
-              filled: true,
-              fillColor: BsheelColors.paper,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide: const BorderSide(color: BsheelColors.ink),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide: const BorderSide(color: BsheelColors.ink, width: 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide:
-                    const BorderSide(color: BsheelColors.primary, width: 1),
-              ),
-            ),
-            onChanged: (v) => setState(() => _search = v.toLowerCase()),
+          const SizedBox(height: 12),
+          // ARC-014: the search field is the only path to rows older than
+          // the 200-row window, so it stays even though the design frame
+          // draws the chip row alone.
+          BsheelSearchField(
+            controller: _search,
+            hint: 'Search by username or caption…',
+            onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
           ),
-        ),
-        Expanded(
-          child: postsAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
+          const SizedBox(height: 12),
+          postsAsync.when(
+            loading: () => const BsheelLoadingList(rows: 4, rowHeight: 92),
+            error: (e, _) => BsheelErrorState(
+              title: 'Feed didn’t load',
+              message: 'The feed list didn’t come back. Nothing was hidden, '
+                  'restored or deleted — no post has changed state. $e',
+              onRetry: () => ref.invalidate(_feedPostsProvider),
             ),
             data: (posts) {
-              final filtered = posts.where((p) {
-                if (_search.isEmpty) return true;
-                final username = (p['username'] ?? '').toString().toLowerCase();
-                final caption = (p['caption'] ?? '').toString().toLowerCase();
-                return username.contains(_search) || caption.contains(_search);
-              }).toList();
-
+              final filtered = _filter(posts);
               if (filtered.isEmpty) {
-                return Center(
-                  child: Text(
-                    'No feed posts found.',
-                    style: BsheelType.bodyMd.copyWith(
-                      color: BsheelColors.inkMuted,
-                    ),
-                  ),
-                );
+                return _emptyState(posts.isEmpty);
               }
-
-              return ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: QuestSpacing.sm),
-                itemBuilder: (_, i) => _FeedPostTile(
-                  post: filtered[i],
-                  onRemove: () => _removePost(filtered[i]),
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < filtered.length; i++) ...[
+                    if (i != 0) const SizedBox(height: 12),
+                    _tileFor(filtered[i], _topVotedId(filtered)),
+                  ],
+                ],
               );
             },
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Future<void> _removePost(Map<String, dynamic> post) async {
-    final id = post['id'].toString();
-    final username = post['username'] ?? 'user';
+  Widget _tileFor(Map<String, dynamic> post, String? topVotedId) {
+    final id = _id(post);
+    switch (_visibility) {
+      case SubmissionVisibility.hiddenFromFeed:
+        return _HiddenPostTile(
+          post: post,
+          onOpen: () => _showPostDetail(post),
+          onRestore: () => _restoreToFeed(post),
+        );
+      case SubmissionVisibility.deleted:
+        // Permanent. The row deliberately carries no action at all — not
+        // even a disabled one, because there is nothing to re-enable.
+        return _DeletedPostTile(
+          post: post,
+          onOpen: () => _showPostDetail(post),
+        );
+      default:
+        return _VisiblePostTile(
+          post: post,
+          // A coloured shadow marks the one row that stands out; the rest
+          // stay on ink.
+          topVoted: topVotedId != null && topVotedId == id,
+          onOpen: () => _showPostDetail(post),
+          onHide: () => _hideFromFeed(post),
+          onDelete: () => _deletePost(post),
+        );
+    }
+  }
+
+  /// The id of the single highest-scoring row, or null when the list has
+  /// no scores worth calling out.
+  String? _topVotedId(List<Map<String, dynamic>> rows) {
+    if (_visibility != SubmissionVisibility.visible || rows.isEmpty) {
+      return null;
+    }
+    var best = rows.first;
+    for (final row in rows) {
+      if (_netScore(row) > _netScore(best)) best = row;
+    }
+    return _netScore(best) <= 0 ? null : _id(best);
+  }
+
+  List<Map<String, dynamic>> _filter(List<Map<String, dynamic>> posts) {
+    if (_query.isEmpty) return posts;
+    return posts.where((p) {
+      final username = (p['username'] ?? '').toString().toLowerCase();
+      final caption = (p['caption'] ?? '').toString().toLowerCase();
+      return username.contains(_query) || caption.contains(_query);
+    }).toList(growable: false);
+  }
+
+  Widget _emptyState(bool listWasEmpty) {
+    if (!listWasEmpty) {
+      return BsheelEmptyState(
+        title: 'No match',
+        message: 'No post in this state mentions “${_search.text.trim()}”. '
+            'Clear the search to see the whole list.',
+        actionLabel: 'Clear search',
+        onAction: () {
+          _search.clear();
+          setState(() => _query = '');
+        },
+      );
+    }
+    switch (_visibility) {
+      case SubmissionVisibility.hiddenFromFeed:
+        return BsheelEmptyState(
+          title: 'Nothing hidden',
+          message: 'No approved post is hidden from the feed. Hide one from '
+              'the visible list and it moves here.',
+          actionLabel: 'Show visible posts',
+          onAction: () =>
+              setState(() => _visibility = SubmissionVisibility.visible),
+        );
+      case SubmissionVisibility.deleted:
+        return BsheelEmptyState(
+          title: 'No deleted posts',
+          message: 'No posts have been deleted yet.',
+          actionLabel: 'Show visible posts',
+          onAction: () =>
+              setState(() => _visibility = SubmissionVisibility.visible),
+        );
+      default:
+        return BsheelEmptyState(
+          title: 'Nothing on the feed',
+          message: 'No approved post is live right now. Approve a submission '
+              'in the moderation queue and it lands here.',
+          actionLabel: 'Reload',
+          onAction: () => ref.invalidate(_feedPostsProvider),
+        );
+    }
+  }
+
+  // ── Visibility actions ────────────────────────────────────────────
+
+  /// Hiding is reversible, so it asks for no confirmation — the row it
+  /// produces carries the RESTORE TO FEED button that undoes it.
+  Future<void> _hideFromFeed(Map<String, dynamic> post) async {
+    final username = (post['username'] ?? 'user').toString();
+    try {
+      await AppBackend.repositories.submissions.setSubmissionVisibility(
+        _id(post),
+        SoftDeleteMode.hiddenFromFeed,
+      );
+      ref.invalidate(_feedPostsProvider);
+      _snack('Hidden from the feed. Still on @$username’s profile.');
+    } catch (e) {
+      _snack('Failed to hide: $e', isError: true);
+    }
+  }
+
+  Future<void> _restoreToFeed(Map<String, dynamic> post) async {
+    try {
+      await AppBackend.repositories.submissions.setSubmissionVisibility(
+        _id(post),
+        SoftDeleteMode.visible,
+      );
+      ref.invalidate(_feedPostsProvider);
+      _snack('Restored to the feed.');
+    } catch (e) {
+      _snack('Failed to restore: $e', isError: true);
+    }
+  }
+
+  Future<void> _deletePost(Map<String, dynamic> post) async {
+    final username = (post['username'] ?? 'user').toString();
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: BsheelColors.paper,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          side: const BorderSide(color: BsheelColors.ink, width: 1),
+      builder: (ctx) => BsheelDialog(
+        title: 'Delete this post',
+        content: Text(
+          'Delete @$username’s post? It leaves the feed and the author’s '
+          'profile, the XP it earned is rolled back, and this cannot be '
+          'undone. To take it off the feed reversibly, hide it instead.',
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'REMOVE FROM FEED',
-                style: BsheelType.displaySm.copyWith(
-                  color: BsheelColors.ink,
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.md),
-              Text(
-                'Remove this post by @$username from the feed? This will mark the submission as rejected.',
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.inkMuted,
-                ),
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: Text(
-                      'CANCEL',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: QuestSpacing.sm),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BsheelColors.hot,
-                      foregroundColor: BsheelColors.ink,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: Text(
-                      'REMOVE',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.ink,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        actions: [
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
+            onPressed: () => Navigator.pop(ctx, false),
           ),
-        ),
+          BsheelButton.coral(
+            label: 'Delete',
+            small: true,
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
       ),
     );
 
@@ -223,202 +275,36 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
     // log. A direct visibility update would bypass that.
     try {
       await AppBackend.repositories.admin
-          .removePost(id, 'Removed from feed by admin');
+          .removePost(_id(post), 'Removed from feed by admin');
 
       ref.invalidate(_feedPostsProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post removed from feed.')),
-        );
-      }
+      _snack('Post deleted. The XP it earned was rolled back.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to remove: $e')),
-        );
-      }
+      _snack('Failed to delete: $e', isError: true);
     }
   }
-}
 
-class _FeedPostTile extends ConsumerWidget {
-  final Map<String, dynamic> post;
-  final VoidCallback onRemove;
-
-  const _FeedPostTile({required this.post, required this.onRemove});
-
-  String get _firstMediaUrl {
-    final raw = (post['media_url']?.toString() ?? '').trim();
-    if (raw.startsWith('[')) {
-      try {
-        final list = (jsonDecode(raw) as List).cast<String>();
-        return list.isNotEmpty ? list.first : '';
-      } catch (_) {}
-    }
-    return raw;
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final username = post['username'] ?? 'Unknown';
-    final caption = post['caption']?.toString() ?? '';
-    final mediaUrl = _firstMediaUrl;
-    final mediaType = post['media_type']?.toString() ?? 'image';
-    final questTitle = post['quest_title'] ?? '';
-    final submittedAt = DateTime.tryParse(
-      post['submitted_at']?.toString() ?? '',
-    );
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-        onTap: () => _showPostDetail(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.md),
-          child: Row(
-            children: [
-              // Thumbnail
-              ClipRRect(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                child: mediaType == 'video'
-                    ? Container(
-                        width: 80,
-                        height: 80,
-                        color: BsheelColors.pureBlack,
-                        child: const Icon(
-                          Icons.videocam,
-                          size: 32,
-                          color: BsheelColors.cool,
-                        ),
-                      )
-                    : Image.network(
-                        mediaUrl,
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 80,
-                          height: 80,
-                          color: BsheelColors.ink,
-                          child: const Icon(
-                            Icons.broken_image,
-                            color: BsheelColors.inkMuted,
-                          ),
-                        ),
-                      ),
-              ),
-              const SizedBox(width: QuestSpacing.md),
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // A long handle has to clamp, not push the quest
-                        // chip out of the row.
-                        Flexible(
-                          child: Text(
-                            '@$username',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: BsheelType.bodyMd.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: BsheelColors.ink,
-                            ),
-                          ),
-                        ),
-                        if (questTitle.isNotEmpty) ...[
-                          const SizedBox(width: QuestSpacing.sm),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: QuestSpacing.sm,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: BsheelColors.cool.withAlpha(30),
-                                borderRadius: BorderRadius.circular(
-                                  BsheelRadii.full,
-                                ),
-                                border: Border.all(
-                                  color: BsheelColors.cool.withAlpha(80),
-                                ),
-                              ),
-                              child: Text(
-                                questTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: BsheelType.labelSm.copyWith(
-                                  color:
-                                      BsheelColors.onCream(BsheelColors.cool),
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (caption.isNotEmpty) ...[
-                      const SizedBox(height: QuestSpacing.xs),
-                      Text(
-                        caption,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: BsheelType.bodySm.copyWith(
-                          color: BsheelColors.inkSoft,
-                        ),
-                      ),
-                    ],
-                    if (submittedAt != null) ...[
-                      const SizedBox(height: QuestSpacing.xs),
-                      Text(
-                        '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')} ${submittedAt.hour.toString().padLeft(2, '0')}:${submittedAt.minute.toString().padLeft(2, '0')}',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: QuestSpacing.md),
-              const Icon(Icons.chevron_right,
-                  color: BsheelColors.inkMuted, size: 20),
-              const SizedBox(width: QuestSpacing.xs),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-                tooltip: 'Remove from feed',
-                onPressed: onRemove,
-              ),
-            ],
+  void _snack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    final ground = isError ? BsheelColors.danger : BsheelColors.card;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: ground,
+        content: Text(
+          message,
+          // The snack ground is coral on an error: ink, never white.
+          style: BsheelType.bodySm.copyWith(
+            color: BsheelColors.onAccent(ground),
           ),
         ),
       ),
     );
   }
 
-  Future<void> _showPostDetail(BuildContext context, WidgetRef ref) async {
-    final submissionId = post['id']?.toString() ?? '';
-    final username = post['username'] ?? 'Unknown';
-    final caption = post['caption']?.toString() ?? '';
-    final mediaUrl = _firstMediaUrl;
-    final mediaType = post['media_type']?.toString() ?? 'image';
-    final questTitle = post['quest_title'] ?? '';
-    final submittedAt = DateTime.tryParse(
-      post['submitted_at']?.toString() ?? '',
-    );
+  // ── Detail dialog ─────────────────────────────────────────────────
+
+  Future<void> _showPostDetail(Map<String, dynamic> post) async {
+    final submissionId = _id(post);
 
     // Comments come back as models with replies already grouped and
     // avatars signed.
@@ -430,236 +316,413 @@ class _FeedPostTile extends ConsumerWidget {
       // Non-fatal: the dialog still shows the post without its thread.
     }
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     unawaited(
       showDialog<void>(
         context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: BsheelColors.paper,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.md),
-            side: const BorderSide(color: BsheelColors.ink, width: 1),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-            child: Padding(
-              padding: const EdgeInsets.all(QuestSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'POST DETAILS',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: BsheelType.displaySm.copyWith(
-                            color: BsheelColors.ink,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            color: BsheelColors.inkMuted),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: QuestSpacing.md),
-                  // User + quest
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: BsheelColors.cool.withAlpha(50),
-                        child: Text(
-                          username.isNotEmpty ? username[0].toUpperCase() : '?',
-                          style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.onCream(BsheelColors.cool),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: QuestSpacing.sm),
-                      Flexible(
-                        child: Text(
-                          '@$username',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: BsheelType.bodyMd.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: BsheelColors.ink,
-                          ),
-                        ),
-                      ),
-                      if (questTitle.isNotEmpty) ...[
-                        const SizedBox(width: QuestSpacing.sm),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: QuestSpacing.sm,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: BsheelColors.cool.withAlpha(30),
-                              borderRadius:
-                                  BorderRadius.circular(BsheelRadii.full),
-                              border: Border.all(
-                                  color: BsheelColors.cool.withAlpha(80)),
-                            ),
-                            child: Text(
-                              questTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: BsheelType.labelSm.copyWith(
-                                color: BsheelColors.onCream(BsheelColors.cool),
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(width: QuestSpacing.sm),
-                      if (submittedAt != null)
-                        Text(
-                          '${submittedAt.year}-'
-                          '${submittedAt.month.toString().padLeft(2, '0')}-'
-                          '${submittedAt.day.toString().padLeft(2, '0')}',
-                          maxLines: 1,
-                          style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkSoft,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: QuestSpacing.md),
-                  // Media — inline-playable video (no download) or image.
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    child: mediaType == 'video'
-                        ? InlineVideo(url: mediaUrl, aspectRatio: 16 / 9)
-                        : Image.network(
-                            mediaUrl,
-                            width: double.infinity,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: double.infinity,
-                              height: 200,
-                              color: BsheelColors.ink,
-                              child: const Icon(Icons.broken_image,
-                                  color: BsheelColors.inkMuted),
-                            ),
-                          ),
-                  ),
-                  // Caption
-                  if (caption.isNotEmpty) ...[
-                    const SizedBox(height: QuestSpacing.md),
-                    Text(
-                      caption,
-                      style: BsheelType.bodyMd.copyWith(
-                        color: BsheelColors.ink,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: QuestSpacing.md),
-                  const Divider(color: BsheelColors.ink, thickness: 2),
-                  const SizedBox(height: QuestSpacing.sm),
-                  // Comments header
-                  Text(
-                    'COMMENTS (${comments.length})',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.inkMuted,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: QuestSpacing.sm),
-                  // Comments list
-                  Flexible(
-                    child: comments.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(QuestSpacing.lg),
-                              child: Text(
-                                'No comments yet.',
-                                style: BsheelType.bodySm.copyWith(
-                                  color: BsheelColors.inkMuted,
-                                ),
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: comments.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: QuestSpacing.sm),
-                            itemBuilder: (_, i) {
-                              final comment = comments[i];
-                              final cUsername = comment.username;
-                              final cBody = comment.body;
-                              final timeAgo = _formatTimeAgo(comment.createdAt);
-
-                              return Container(
-                                padding: const EdgeInsets.all(QuestSpacing.sm),
-                                decoration: BoxDecoration(
-                                  color: BsheelColors.surface,
-                                  borderRadius:
-                                      BorderRadius.circular(BsheelRadii.sm),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          '@$cUsername',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: BsheelColors.onCream(
-                                              BsheelColors.cool,
-                                            ),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          timeAgo,
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: BsheelColors.inkMuted,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      cBody,
-                                      style: BsheelType.bodySm.copyWith(
-                                        color: BsheelColors.ink,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
+        builder: (ctx) => BsheelDialog(
+          title: 'Post details',
+          maxWidth: 600,
+          content: _PostDetail(post: post, comments: comments),
+          actions: [
+            BsheelButton.ghost(
+              label: 'Close',
+              small: true,
+              onPressed: () => Navigator.pop(ctx),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+}
 
-  static String _formatTimeAgo(DateTime dt) => '${timeAgo(dt)} ago';
+// ── Row shape ───────────────────────────────────────────────────────
+
+/// Live on the feed: white card, ink outline, both actions in reach.
+class _VisiblePostTile extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final bool topVoted;
+  final VoidCallback onOpen;
+  final VoidCallback onHide;
+  final VoidCallback onDelete;
+
+  const _VisiblePostTile({
+    required this.post,
+    required this.topVoted,
+    required this.onOpen,
+    required this.onHide,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BsheelCard(
+      padding: const EdgeInsets.all(13),
+      shadowColor: topVoted ? BsheelColors.success : BsheelColors.ink,
+      onTap: onOpen,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BsheelThumb(url: _firstMediaUrl(post), size: 66),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // A long handle clamps rather than pushing the score
+                    // out of the row.
+                    Flexible(
+                      child: Text(
+                        _username(post),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.titleMd,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(_votes(post), style: BsheelType.monoSm),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _questTitle(post),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: BsheelType.bodySm.copyWith(
+                    color: BsheelColors.inkSoft,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
+                    BsheelButton.ghost(
+                      label: 'Hide from feed',
+                      small: true,
+                      onPressed: onHide,
+                    ),
+                    BsheelButton.coral(
+                      label: 'Delete',
+                      small: true,
+                      onPressed: onDelete,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hidden from the feed: dashed muted card, and the one button that puts
+/// it back. Hiding is reversible and the row says so.
+class _HiddenPostTile extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final VoidCallback onOpen;
+  final VoidCallback onRestore;
+
+  const _HiddenPostTile({
+    required this.post,
+    required this.onOpen,
+    required this.onRestore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BsheelCard.muted(
+      padding: const EdgeInsets.all(13),
+      onTap: onOpen,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BsheelMediaPlaceholder(
+            label: 'Hidden',
+            width: 66,
+            height: 66,
+            radius: BsheelRadii.sm,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _username(post),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.titleMd.copyWith(
+                          color: BsheelColors.inkSoft,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const BsheelPill.muted('Hidden from feed', small: true),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _hiddenProvenance(post),
+                  style: BsheelType.bodySm.copyWith(
+                    color: BsheelColors.inkSoft,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                BsheelButton.ghost(
+                  label: 'Restore to feed',
+                  small: true,
+                  onPressed: onRestore,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Deleted: permanent, so the row offers no action. The absence is the
+/// point — a disabled button would imply something to re-enable.
+class _DeletedPostTile extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final VoidCallback onOpen;
+
+  const _DeletedPostTile({required this.post, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return BsheelCard.muted(
+      padding: const EdgeInsets.all(13),
+      onTap: onOpen,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BsheelMediaPlaceholder(
+            label: 'Deleted',
+            width: 66,
+            height: 66,
+            radius: BsheelRadii.sm,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _username(post),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.titleMd.copyWith(
+                          color: BsheelColors.inkSoft,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    BsheelPill.status(SubmissionVisibility.deleted),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _deletedProvenance(post),
+                  style: BsheelType.bodySm.copyWith(
+                    color: BsheelColors.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Detail body ─────────────────────────────────────────────────────
+
+class _PostDetail extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final List<CommentModel> comments;
+
+  const _PostDetail({required this.post, required this.comments});
+
+  @override
+  Widget build(BuildContext context) {
+    final caption = (post['caption'] ?? '').toString();
+    final mediaUrl = _firstMediaUrl(post);
+    final isVideo = (post['media_type'] ?? '').toString() == MediaType.video;
+    final questTitle = _questTitle(post);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 460),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                BsheelAvatar(
+                  url: post['avatar_url']?.toString(),
+                  initial: _initial(post),
+                  size: 34,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    _username(post),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: BsheelType.titleMd,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  bsheelTimeAgo(post['submitted_at']?.toString()),
+                  style: BsheelType.monoSm,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(BsheelRadii.lg),
+              child: isVideo
+                  ? InlineVideo(url: mediaUrl, aspectRatio: 16 / 9)
+                  : Image.network(
+                      mediaUrl,
+                      width: double.infinity,
+                      height: 210,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const BsheelMediaPlaceholder(
+                        height: 210,
+                        width: double.infinity,
+                      ),
+                    ),
+            ),
+            if (questTitle.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const BsheelLabel('Quest'),
+              const SizedBox(height: 4),
+              Text(questTitle, style: BsheelType.bodySmMedium),
+            ],
+            if (caption.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(caption, style: BsheelType.bodyMd),
+            ],
+            const SizedBox(height: 14),
+            BsheelLabel('Comments ${comments.length}'),
+            const SizedBox(height: 8),
+            if (comments.isEmpty)
+              Text(
+                'No comments yet.',
+                style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
+              )
+            else
+              for (final comment in comments) ...[
+                BsheelCard.flat(
+                  color: BsheelColors.surface,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '@${comment.username}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: BsheelType.monoMd,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            bsheelTimeAgo(comment.createdAt.toIso8601String()),
+                            style: BsheelType.monoSm,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(comment.body, style: BsheelType.bodySm),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Row readers ─────────────────────────────────────────────────────
+
+String _id(Map<String, dynamic> post) => (post['id'] ?? '').toString();
+
+String _username(Map<String, dynamic> post) =>
+    '@${post['username'] ?? 'unknown'}';
+
+String _initial(Map<String, dynamic> post) {
+  final handle = (post['username'] ?? '').toString().trim();
+  return handle.isEmpty ? '?' : handle.substring(0, 1);
+}
+
+String _questTitle(Map<String, dynamic> post) =>
+    (post['quest_title'] ?? '').toString();
+
+/// `submissions.net_score` is maintained by a trigger on `reactions`, so
+/// it is the one vote figure the admin list row carries.
+int _netScore(Map<String, dynamic> post) =>
+    int.tryParse((post['net_score'] ?? '0').toString()) ?? 0;
+
+String _votes(Map<String, dynamic> post) => '${_netScore(post)} ▲';
+
+/// The row records `moderation_removed_at` only when a moderator took the
+/// post down, which is the one provenance signal available — there is no
+/// `hidden_by` / `hidden_at` column to name a person from.
+String _hiddenProvenance(Map<String, dynamic> post) {
+  final removed = post['moderation_removed_at']?.toString();
+  if (removed != null && removed.isNotEmpty) {
+    final when = bsheelTimeAgo(removed, caps: false);
+    return 'Still visible on the author’s profile. Hidden by a moderator'
+        '${when.isEmpty ? '' : ' $when'}.';
+  }
+  return 'Still visible on the author’s profile. Hidden by the author.';
+}
+
+String _deletedProvenance(Map<String, dynamic> post) {
+  final byModerator =
+      (post['moderation_removed_at']?.toString() ?? '').isNotEmpty;
+  final when = bsheelTimeAgo(
+    post['deleted_at']?.toString() ?? post['moderation_removed_at']?.toString(),
+    caps: false,
+  );
+  final actor = byModerator ? 'a moderator' : 'the author';
+  return 'Gone from the feed and the author’s profile, and the XP it earned '
+      'was rolled back. Deleted by $actor${when.isEmpty ? '' : ' $when'}.';
+}
+
+/// `media_url` is either a single signed URL or a JSON array of them.
+String _firstMediaUrl(Map<String, dynamic> post) {
+  final raw = (post['media_url']?.toString() ?? '').trim();
+  if (raw.startsWith('[')) {
+    try {
+      final list = (jsonDecode(raw) as List).cast<String>();
+      return list.isNotEmpty ? list.first : '';
+    } catch (_) {}
+  }
+  return raw;
 }

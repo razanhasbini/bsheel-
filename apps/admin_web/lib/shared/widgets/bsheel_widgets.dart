@@ -3,59 +3,245 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/bsheel_design.dart';
 
-/// "Port" primitives — strict black & white, hairline 1px rules, flat
-/// (zero shadows), sharp radii, light Inter type. Emphasis is inversion
-/// (solid black pill, white text), size and weight — never colour.
-/// Semantic colours (hot / success / cool) appear only on status text.
+/// Arcade Pop primitives for the admin console.
 ///
-/// Naming preserved from the previous direction so existing call sites
-/// keep compiling — they're just restyled.
+/// Every surface here carries a 2px ink outline and, where it matters, a
+/// hard zero-blur offset shadow. Shadow depth is the weight scale:
+/// 3px cards and small buttons · 4px stat tiles and primary buttons ·
+/// 5px tables · 6px hero panels. A *coloured* shadow marks the one item in
+/// a list that needs attention; everything else takes ink.
+///
+/// Pressing a shadowed control slides it into its own shadow, which is the
+/// whole feedback mechanism — there is no ripple.
+///
+/// Colour carries meaning and nothing else: jade approves, coral rejects,
+/// gold marks anything waiting on a person, violet is navigation and the
+/// primary action.
+///
+/// Text on coral, gold, jade and sky is always ink — never white. Use
+/// [BsheelColors.onAccent] rather than choosing by hand.
+
+// ── Pressable ───────────────────────────────────────────────────────
+
+/// Slides [child] into its shadow on press. [depth] must match the
+/// shadow the child draws, so the surface lands exactly where the shadow
+/// was.
+class BsheelPressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double depth;
+  final String? tooltip;
+
+  const BsheelPressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.depth = 3,
+    this.tooltip,
+  });
+
+  @override
+  State<BsheelPressable> createState() => _BsheelPressableState();
+}
+
+class _BsheelPressableState extends State<BsheelPressable> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    Widget out = AnimatedContainer(
+      duration: const Duration(milliseconds: 70),
+      curve: Curves.easeOut,
+      transform: Matrix4.translationValues(
+        _down ? widget.depth : 0,
+        _down ? widget.depth : 0,
+        0,
+      ),
+      child: widget.child,
+    );
+
+    if (widget.tooltip != null) {
+      out = Tooltip(message: widget.tooltip!, child: out);
+    }
+
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        onTapDown: enabled ? (_) => setState(() => _down = true) : null,
+        onTapUp: enabled ? (_) => setState(() => _down = false) : null,
+        onTapCancel: () => setState(() => _down = false),
+        child: out,
+      ),
+    );
+  }
+}
 
 // ── Card ────────────────────────────────────────────────────────────
 
+/// White card, 2px ink outline, hard shadow. Pass [shadowColor] to mark
+/// the one row in a list that needs attention.
 class BsheelCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? color;
   final double radius;
+  final double depth;
+  final Color shadowColor;
+  final VoidCallback? onTap;
+  final bool dashed;
 
   const BsheelCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(22),
+    this.padding = const EdgeInsets.all(16),
     this.color,
-    this.radius = BsheelRadii.lg,
+    this.radius = BsheelRadii.card,
+    this.depth = 4,
+    this.shadowColor = BsheelColors.ink,
+    this.onTap,
+    this.dashed = false,
   });
 
-  /// Tighter padding, slightly sharper corners. Kept for call-site
-  /// compatibility with the old `.card.flat` modifier.
+  /// No shadow — for a card nested inside another shadowed surface.
   const BsheelCard.flat({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(13),
     this.color,
-    this.radius = BsheelRadii.md,
+    this.radius = BsheelRadii.card,
+    this.onTap,
+    this.dashed = false,
+  })  : depth = 0,
+        shadowColor = BsheelColors.ink;
+
+  /// Dashed muted outline, no shadow — hidden, retired or unavailable.
+  const BsheelCard.muted({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(13),
+    this.radius = BsheelRadii.card,
+    this.onTap,
+  })  : color = BsheelColors.surface,
+        depth = 0,
+        shadowColor = BsheelColors.ink,
+        dashed = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = dashed
+        ? _DashedBox(
+            radius: radius,
+            color: color ?? BsheelColors.surface,
+            child: Padding(padding: padding, child: child),
+          )
+        : Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: color ?? BsheelColors.card,
+              borderRadius: BorderRadius.circular(radius),
+              border: const Border.fromBorderSide(BsheelBorders.inkSide),
+              boxShadow: depth > 0
+                  ? BsheelShadows.hard(depth, color: shadowColor)
+                  : null,
+            ),
+            child: child,
+          );
+
+    if (onTap == null) return surface;
+    return BsheelPressable(onTap: onTap, depth: depth, child: surface);
+  }
+}
+
+/// Dashed 2px muted outline. Flutter has no dashed `Border`, so this
+/// paints one.
+class _DashedBox extends StatelessWidget {
+  final Widget child;
+  final double radius;
+  final Color color;
+
+  const _DashedBox({
+    required this.child,
+    required this.radius,
+    this.color = BsheelColors.surface,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: color ?? BsheelColors.paper,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
+    return CustomPaint(
+      painter: _DashedBorderPainter(
+        radius: radius,
+        color: BsheelColors.inkMuted,
       ),
-      child: child,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        child: child,
+      ),
     );
   }
 }
 
-// ── Eyebrow ─────────────────────────────────────────────────────────
+class _DashedBorderPainter extends CustomPainter {
+  final double radius;
+  final Color color;
 
+  const _DashedBorderPainter({required this.radius, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = BsheelBorders.thick
+      ..style = PaintingStyle.stroke;
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    // 6-on / 4-off, walked along the rounded rect.
+    for (final metric in (Path()..addRRect(rrect)).computeMetrics()) {
+      double d = 0;
+      while (d < metric.length) {
+        final end = (d + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(d, end), paint);
+        d += 10;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) =>
+      old.radius != radius || old.color != color;
+}
+
+// ── Labels ──────────────────────────────────────────────────────────
+
+/// Tracked mono label. ALL CAPS, four words or fewer.
+class BsheelLabel extends StatelessWidget {
+  final String text;
+  final Color? color;
+  final double? size;
+
+  const BsheelLabel(this.text, {super.key, this.color, this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: BsheelType.labelMd.copyWith(
+        color: color ?? BsheelColors.inkSoft,
+        fontSize: size,
+      ),
+    );
+  }
+}
+
+/// Section eyebrow. Kept under the old name; the em-dash prefix the port
+/// direction used is gone — Arcade Pop tracks the caps instead.
 class BsheelEyebrow extends StatelessWidget {
   final String text;
   final Color? color;
@@ -63,335 +249,12 @@ class BsheelEyebrow extends StatelessWidget {
   const BsheelEyebrow(this.text, {super.key, this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      '— ${text.toUpperCase()}',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: BsheelType.labelMd.copyWith(
-        color: color ?? BsheelColors.inkMuted,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BsheelLabel(text, color: color);
 }
 
-// ── Pill ────────────────────────────────────────────────────────────
-
-/// Tone names kept from the old palette; they now resolve to the port
-/// system — solid black for emphasis, hairline outline with a semantic
-/// text colour for status.
-enum BsheelPillTone { ink, gold, coral, violet, green, sky, ghost, paper }
-
-class BsheelPill extends StatelessWidget {
-  final String label;
-  final BsheelPillTone tone;
-  final bool small;
-
-  const BsheelPill(
-    this.label, {
-    super.key,
-    this.tone = BsheelPillTone.ink,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg, border) = switch (tone) {
-      // Emphasis = inversion.
-      BsheelPillTone.ink => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.gold => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.violet => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      // Status = hairline pill, semantic colour only on the text. The
-      // accent *fills* fail 4.5:1 as 10–11px type on paper, so each takes
-      // its darkened text-only twin via `onCream`.
-      BsheelPillTone.coral => (
-          BsheelColors.paper,
-          BsheelColors.onCream(BsheelColors.danger),
-          BsheelColors.line
-        ),
-      BsheelPillTone.green => (
-          BsheelColors.paper,
-          BsheelColors.onCream(BsheelColors.success),
-          BsheelColors.line
-        ),
-      BsheelPillTone.sky => (
-          BsheelColors.paper,
-          BsheelColors.onCream(BsheelColors.cool),
-          BsheelColors.line
-        ),
-      BsheelPillTone.ghost => (
-          Colors.transparent,
-          BsheelColors.inkMuted,
-          BsheelColors.line
-        ),
-      BsheelPillTone.paper => (
-          BsheelColors.paper,
-          BsheelColors.ink,
-          BsheelColors.line
-        ),
-    };
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: small ? 9 : 12,
-        vertical: small ? 4 : 6,
-      ),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(color: border, width: BsheelBorders.thin),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: BsheelType.labelMd.copyWith(
-          color: fg,
-          fontSize: small ? 10 : 11,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Button ──────────────────────────────────────────────────────────
-
-class BsheelButton extends StatefulWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  final IconData? icon;
-  final BsheelPillTone tone;
-  final bool small;
-  final bool loading;
-  final bool ghost;
-  final double? height;
-
-  /// `background`/`foreground` are kept for backwards compatibility with
-  /// older call sites; they're ignored when [tone] resolves the colour.
-  final Color? background;
-  final Color? foreground;
-
-  const BsheelButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
-    this.tone = BsheelPillTone.ink,
-    this.small = false,
-    this.loading = false,
-    this.ghost = false,
-    this.height,
-    this.background,
-    this.foreground,
-  });
-
-  /// Primary action — solid black pill, white text.
-  const BsheelButton.primary({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
-    this.small = false,
-    this.loading = false,
-    this.height,
-  })  : tone = BsheelPillTone.ink,
-        ghost = false,
-        background = null,
-        foreground = null;
-
-  /// Destructive action — solid pill in the semantic danger colour.
-  const BsheelButton.coral({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
-    this.small = false,
-    this.loading = false,
-    this.height,
-  })  : tone = BsheelPillTone.coral,
-        ghost = false,
-        background = null,
-        foreground = null;
-
-  /// Legacy secondary-emphasis variant — resolves to solid black.
-  const BsheelButton.violet({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
-    this.small = false,
-    this.loading = false,
-    this.height,
-  })  : tone = BsheelPillTone.violet,
-        ghost = false,
-        background = null,
-        foreground = null;
-
-  /// Hairline-outlined ghost variant.
-  const BsheelButton.ghost({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.icon,
-    this.small = false,
-    this.loading = false,
-    this.height,
-  })  : tone = BsheelPillTone.paper,
-        ghost = true,
-        background = null,
-        foreground = null;
-
-  @override
-  State<BsheelButton> createState() => _BsheelButtonState();
-}
-
-class _BsheelButtonState extends State<BsheelButton> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = widget.onPressed == null || widget.loading;
-    final (bg, fg, border) = switch (widget.tone) {
-      // Emphasis tones — inversion.
-      BsheelPillTone.ink => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.gold => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.violet => (
-          BsheelColors.ink,
-          BsheelColors.pureWhite,
-          BsheelColors.ink
-        ),
-      // Semantic actions — ink on the accent, never white. White on coral
-      // measures 3.03:1 and fails AA; `onAccent` picks the passing ink.
-      BsheelPillTone.coral => (
-          BsheelColors.danger,
-          BsheelColors.onAccent(BsheelColors.danger),
-          BsheelColors.ink
-        ),
-      BsheelPillTone.green => (
-          BsheelColors.success,
-          BsheelColors.onAccent(BsheelColors.success),
-          BsheelColors.ink
-        ),
-      // Quiet variants — hairline outline, ink text.
-      BsheelPillTone.sky => (
-          BsheelColors.paper,
-          BsheelColors.ink,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.paper => (
-          BsheelColors.paper,
-          BsheelColors.ink,
-          BsheelColors.ink
-        ),
-      BsheelPillTone.ghost => (
-          Colors.transparent,
-          BsheelColors.ink,
-          BsheelColors.ink
-        ),
-    };
-
-    final hPad = widget.small ? 16.0 : 20.0;
-    final vPad = widget.small ? 8.0 : 11.0;
-    final fontSize = widget.small ? 11.0 : 13.0;
-
-    return MouseRegion(
-      cursor: disabled ? MouseCursor.defer : SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: disabled ? null : (_) => setState(() => _down = true),
-        onTapUp: disabled
-            ? null
-            : (_) {
-                setState(() => _down = false);
-                widget.onPressed?.call();
-              },
-        onTapCancel: () => setState(() => _down = false),
-        // 44px minimum click target (spec §1) without inflating the pill:
-        // the hit box is at least 44 tall, the visual stays centred in it.
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: widget.height ?? BsheelLayout.minTarget,
-          ),
-          child: Align(
-            alignment: Alignment.center,
-            widthFactor: 1,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 90),
-              opacity: disabled ? 0.45 : (_down ? 0.7 : 1.0),
-              child: Container(
-                height: widget.height,
-                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(BsheelRadii.full),
-                  border: Border.all(color: border, width: BsheelBorders.thin),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (widget.loading)
-                      SizedBox(
-                        width: fontSize + 2,
-                        height: fontSize + 2,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          valueColor: AlwaysStoppedAnimation(fg),
-                        ),
-                      )
-                    else if (widget.icon != null) ...[
-                      Icon(widget.icon, size: fontSize + 3, color: fg),
-                      const SizedBox(width: 8),
-                    ],
-                    Flexible(
-                      child: Text(
-                        widget.label.toUpperCase(),
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontFamily: BsheelFonts.body,
-                          fontWeight: FontWeight.w400,
-                          fontSize: fontSize,
-                          letterSpacing: 1.1,
-                          color: fg,
-                          height: 1,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Display headline with italic accent ────────────────────────────
-
-/// Use `{...}` braces in [text] to mark the accent word. It renders as
-/// plain italic in the same ink — never a colour.
+/// Page or card title. `{braces}` in [text] used to mark an italic accent
+/// in the previous direction; Arcade Pop has no italic accent, so the
+/// braces are stripped and the whole title renders in Syne.
 class BsheelDisplay extends StatelessWidget {
   final String text;
   final TextStyle baseStyle;
@@ -399,35 +262,90 @@ class BsheelDisplay extends StatelessWidget {
   const BsheelDisplay(
     this.text, {
     super.key,
-    this.baseStyle = BsheelType.displayLg,
+    this.baseStyle = BsheelType.displayMd,
   });
 
   @override
   Widget build(BuildContext context) {
-    final spans = <InlineSpan>[];
-    final pattern = RegExp(r'\{([^}]+)\}');
-    int cursor = 0;
-    for (final m in pattern.allMatches(text)) {
-      if (m.start > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, m.start)));
-      }
-      spans.add(
-        TextSpan(
-          text: m.group(1)!,
-          style: baseStyle.copyWith(fontStyle: FontStyle.italic),
-        ),
-      );
-      cursor = m.end;
-    }
-    if (cursor < text.length) {
-      spans.add(TextSpan(text: text.substring(cursor)));
-    }
-    return RichText(text: TextSpan(style: baseStyle, children: spans));
+    return Text(
+      text.replaceAll('{', '').replaceAll('}', ''),
+      style: baseStyle,
+    );
   }
 }
 
-// ── Section header (eyebrow + display headline pair) ────────────────
+// ── Page header ─────────────────────────────────────────────────────
 
+/// The bar at the top of every page: cream surface, 2px ink rule beneath,
+/// Syne title on the left, meta and actions on the right.
+class BsheelPageHeader extends StatelessWidget {
+  final String title;
+  final String? meta;
+  final Color? metaColor;
+  final List<Widget> actions;
+
+  const BsheelPageHeader({
+    super.key,
+    required this.title,
+    this.meta,
+    this.metaColor,
+    this.actions = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      constraints: const BoxConstraints(minHeight: BsheelLayout.headerHeight),
+      decoration: const BoxDecoration(
+        color: BsheelColors.surface,
+        border: Border(bottom: BsheelBorders.inkSide),
+      ),
+      child: Row(
+        children: [
+          // The sidebar collapses to a drawer below the tablet breakpoint,
+          // so the header carries the only way back to it.
+          if (Scaffold.maybeOf(context)?.hasDrawer ?? false) ...[
+            Builder(
+              builder: (context) => Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: BsheelIconButton(
+                  icon: Icons.menu_rounded,
+                  tooltip: 'Menu',
+                  size: 40,
+                  onTap: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
+            ),
+          ],
+          Expanded(
+            child: Text(
+              title.toUpperCase(),
+              style: BsheelType.displayMd,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (meta != null) ...[
+            const SizedBox(width: 12),
+            Flexible(
+              child: BsheelLabel(
+                meta!,
+                color: metaColor ?? BsheelColors.inkSoft,
+              ),
+            ),
+          ],
+          for (final action in actions) ...[
+            const SizedBox(width: 10),
+            action,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Eyebrow + display headline pair, for panes that need a heading inside
+/// the scroll area rather than in the header bar.
 class BsheelSectionHeader extends StatelessWidget {
   final String title;
   final String? emphasis;
@@ -452,52 +370,22 @@ class BsheelSectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (eyebrow != null) ...[
-            BsheelEyebrow(eyebrow!),
+            BsheelLabel(eyebrow!),
             const SizedBox(height: 8),
           ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: RichText(
-                  text: TextSpan(
-                    style: BsheelType.displayLg,
-                    children: [
-                      TextSpan(text: title),
-                      if (emphasis != null)
-                        TextSpan(
-                          text: ' $emphasis',
-                          style: BsheelType.displayLg.copyWith(
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                    ],
-                  ),
+                child: Text(
+                  [
+                    title.replaceAll('{', '').replaceAll('}', ''),
+                    if (emphasis != null) emphasis!,
+                  ].join(' ').toUpperCase(),
+                  style: BsheelType.displayMd,
                 ),
               ),
-              if (actionLabel != null)
-                GestureDetector(
-                  onTap: onAction,
-                  behavior: HitTestBehavior.opaque,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    // 44px min target — padding, so the label keeps its
-                    // quiet visual weight.
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minHeight: BsheelLayout.minTarget,
-                      ),
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '$actionLabel  →',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: BsheelType.labelLg,
-                      ),
-                    ),
-                  ),
-                ),
+              if (actionLabel != null) BsheelLink(actionLabel!, onTap: onAction),
             ],
           ),
         ],
@@ -506,14 +394,515 @@ class BsheelSectionHeader extends StatelessWidget {
   }
 }
 
-// ── Tile (dashboard stat block) ────────────────────────────────────
+/// Violet tracked-mono text link.
+class BsheelLink extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final TextAlign? align;
 
+  const BsheelLink(this.label, {super.key, this.onTap, this.align});
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Text(
+          label.toUpperCase(),
+          textAlign: align,
+          style: BsheelType.labelMd.copyWith(color: BsheelColors.primary),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Pills and tags ──────────────────────────────────────────────────
+
+/// Tone names are carried over from the previous direction so existing
+/// call sites keep compiling; they now resolve to Arcade Pop accents.
+enum BsheelPillTone { ink, gold, coral, violet, green, sky, ghost, paper }
+
+extension BsheelPillToneColor on BsheelPillTone {
+  Color get ground => switch (this) {
+        BsheelPillTone.ink => BsheelColors.ink,
+        BsheelPillTone.gold => BsheelColors.accent,
+        BsheelPillTone.coral => BsheelColors.danger,
+        BsheelPillTone.violet => BsheelColors.primary,
+        BsheelPillTone.green => BsheelColors.success,
+        BsheelPillTone.sky => BsheelColors.cool,
+        BsheelPillTone.ghost => BsheelColors.surface,
+        BsheelPillTone.paper => BsheelColors.card,
+      };
+}
+
+/// Status pill — fully round. Shape is what separates it from a category
+/// tag, before you read the text.
+class BsheelPill extends StatelessWidget {
+  final String label;
+  final BsheelPillTone tone;
+  final bool small;
+  final bool dashed;
+
+  const BsheelPill(
+    this.label, {
+    super.key,
+    this.tone = BsheelPillTone.paper,
+    this.small = false,
+    this.dashed = false,
+  });
+
+  /// Expired / retired / unavailable — dashed muted outline on cream.
+  const BsheelPill.muted(this.label, {super.key, this.small = false})
+      : tone = BsheelPillTone.ghost,
+        dashed = true;
+
+  /// Resolves a submission or account status to its pill.
+  factory BsheelPill.status(String status, {bool small = true}) {
+    final tone = switch (status.toLowerCase()) {
+      'approved' || 'active' || 'live' || 'invited' || 'visible' =>
+        BsheelPillTone.green,
+      'rejected' || 'banned' || 'flagged' || 'deleted' => BsheelPillTone.coral,
+      'pending' || 'in review' || 'waiting' || 'suspended' || 'appeal' =>
+        BsheelPillTone.gold,
+      're-rejected' || 'final' => BsheelPillTone.ink,
+      'expired' || 'retired' => BsheelPillTone.ghost,
+      _ => BsheelPillTone.paper,
+    };
+    if (tone == BsheelPillTone.ghost) {
+      return BsheelPill.muted(status, small: small);
+    }
+    return BsheelPill(status, tone: tone, small: small);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ground = tone.ground;
+    final label0 = Text(
+      label.toUpperCase(),
+      style: BsheelType.labelSm.copyWith(
+        color: dashed ? BsheelColors.inkSoft : BsheelColors.onAccent(ground),
+        fontSize: small ? 9 : 10,
+        letterSpacing: 0.7,
+      ),
+    );
+    final padding = EdgeInsets.symmetric(
+      horizontal: small ? 8 : 10,
+      vertical: small ? 3 : 4,
+    );
+
+    if (dashed) {
+      return _DashedBox(
+        radius: BsheelRadii.full,
+        color: BsheelColors.surface,
+        child: Padding(padding: padding, child: label0),
+      );
+    }
+
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(BsheelRadii.full),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      child: label0,
+    );
+  }
+}
+
+/// Category tag — 8px radius square. Tinted by the quest category so the
+/// colour is consistent with the mobile app.
+class BsheelTag extends StatelessWidget {
+  final String label;
+  final Color? ground;
+
+  const BsheelTag(this.label, {super.key, this.ground});
+
+  /// Tag tinted from a quest category string.
+  BsheelTag.category(String category, {super.key})
+      : label = category,
+        ground = BsheelColors.category(category);
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = ground ?? BsheelColors.card;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: BsheelType.labelSm.copyWith(
+          color: BsheelColors.onAccent(bg),
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Buttons ─────────────────────────────────────────────────────────
+
+/// Arcade Pop button. Primary carries a 4px shadow, secondary 3px, and a
+/// disabled button loses its shadow and takes a dashed border so it reads
+/// as unavailable rather than merely dim.
+class BsheelButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final BsheelPillTone tone;
+  final bool small;
+  final bool loading;
+  final bool ghost;
+  final bool expand;
+  final double? height;
+
+  /// Retained for call-site compatibility; [tone] wins when both are set.
+  final Color? background;
+  final Color? foreground;
+
+  const BsheelButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.tone = BsheelPillTone.violet,
+    this.small = false,
+    this.loading = false,
+    this.ghost = false,
+    this.expand = false,
+    this.height,
+    this.background,
+    this.foreground,
+  });
+
+  /// Primary action — violet, white label, 4px shadow.
+  const BsheelButton.primary({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.violet,
+        ghost = false,
+        background = null,
+        foreground = null;
+
+  /// Approve — jade, ink label.
+  const BsheelButton.positive({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.green,
+        ghost = false,
+        background = null,
+        foreground = null;
+
+  /// Reject, ban, remove — coral, ink label.
+  const BsheelButton.coral({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.coral,
+        ghost = false,
+        background = null,
+        foreground = null;
+
+  /// Anything waiting on a person — gold, ink label.
+  const BsheelButton.gold({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.gold,
+        ghost = false,
+        background = null,
+        foreground = null;
+
+  /// Legacy alias — resolves to [BsheelButton.primary].
+  const BsheelButton.violet({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.violet,
+        ghost = false,
+        background = null,
+        foreground = null;
+
+  /// Secondary — cream ground, ink label, 3px shadow.
+  const BsheelButton.ghost({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.ghost,
+        ghost = true,
+        background = null,
+        foreground = null;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null || loading;
+    final ground = background ?? tone.ground;
+    final fg = foreground ?? BsheelColors.onAccent(ground);
+
+    // Primary weight carries 4px; secondary and small carry 3px.
+    final depth = (tone == BsheelPillTone.ghost || small) ? 3.0 : 4.0;
+    final h = height ?? (small ? BsheelLayout.minTarget : 50.0);
+    final hPad = small ? 14.0 : 18.0;
+    final textStyle = (small ? BsheelType.buttonSm : BsheelType.buttonMd);
+
+    final content = Row(
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (loading)
+          SizedBox(
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(
+                disabled ? BsheelColors.inkMuted : fg,
+              ),
+            ),
+          )
+        else if (icon != null) ...[
+          Icon(
+            icon,
+            size: small ? 15 : 17,
+            color: disabled ? BsheelColors.inkMuted : fg,
+          ),
+          const SizedBox(width: 8),
+        ],
+        if (!loading)
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              style: textStyle.copyWith(
+                color: disabled ? BsheelColors.inkSoft : fg,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+      ],
+    );
+
+    // Disabled: dashed muted border, cream ground, no shadow.
+    if (disabled) {
+      final box = _DashedBox(
+        radius: BsheelRadii.md,
+        color: BsheelColors.surface,
+        child: SizedBox(
+          height: h,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: hPad),
+            child: Center(child: content),
+          ),
+        ),
+      );
+      return expand ? SizedBox(width: double.infinity, child: box) : box;
+    }
+
+    final box = Container(
+      height: h,
+      padding: EdgeInsets.symmetric(horizontal: hPad),
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(BsheelRadii.md),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.hard(depth),
+      ),
+      alignment: Alignment.center,
+      child: content,
+    );
+
+    return BsheelPressable(
+      onTap: onPressed,
+      depth: depth,
+      child: expand ? SizedBox(width: double.infinity, child: box) : box,
+    );
+  }
+}
+
+/// Square icon button with the same press behaviour.
+class BsheelIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final Color ground;
+  final String? tooltip;
+  final String? badge;
+  final double size;
+
+  const BsheelIconButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.ground = BsheelColors.card,
+    this.tooltip,
+    this.badge,
+    this.size = BsheelLayout.minTarget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.sm,
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 18, color: BsheelColors.onAccent(ground)),
+    );
+
+    return BsheelPressable(
+      onTap: onTap,
+      depth: 3,
+      tooltip: tooltip,
+      child: badge == null
+          ? btn
+          : Stack(
+              clipBehavior: Clip.none,
+              children: [
+                btn,
+                Positioned(
+                  top: -6,
+                  right: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: BsheelColors.danger,
+                      borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      border:
+                          const Border.fromBorderSide(BsheelBorders.inkSide),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: BsheelType.labelSm.copyWith(
+                        color: BsheelColors.ink,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+// ── Stat tile ───────────────────────────────────────────────────────
+
+/// Dashboard stat tile — accent ground, tracked mono label, big Syne
+/// numeral, mono footnote. 4px shadow.
+class BsheelStatTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? footnote;
+  final Color ground;
+  final VoidCallback? onTap;
+
+  const BsheelStatTile({
+    super.key,
+    required this.label,
+    required this.value,
+    this.footnote,
+    this.ground = BsheelColors.card,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = BsheelColors.onAccent(ground);
+    // On an accent ground every line is full-opacity ink; on white the
+    // label and footnote soften to inkSoft.
+    final metaColor = ground == BsheelColors.card ? BsheelColors.inkSoft : fg;
+
+    return BsheelCard(
+      color: ground,
+      radius: BsheelRadii.lg,
+      depth: 4,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(17, 15, 17, 15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: BsheelType.labelMd.copyWith(color: metaColor, fontSize: 10),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(value, style: BsheelType.displayXl.copyWith(color: fg)),
+          if (footnote != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              footnote!.toUpperCase(),
+              style: BsheelType.labelMd.copyWith(
+                color: metaColor,
+                fontSize: 10,
+                letterSpacing: 0.4,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Legacy name for [BsheelStatTile], mapped to the old parameter list.
 class BsheelTile extends StatelessWidget {
   final String eyebrow;
   final String value;
   final String? delta;
   final Color? deltaColor;
   final Color color;
+  final Color foreground;
   final VoidCallback? onTap;
 
   const BsheelTile({
@@ -522,80 +911,582 @@ class BsheelTile extends StatelessWidget {
     required this.value,
     this.delta,
     this.deltaColor,
-    this.color = BsheelColors.paper,
+    this.color = BsheelColors.card,
+    this.foreground = BsheelColors.ink,
     this.onTap,
   });
 
   @override
+  Widget build(BuildContext context) => BsheelStatTile(
+        label: eyebrow,
+        value: value,
+        footnote: delta,
+        ground: color,
+        onTap: onTap,
+      );
+}
+
+// ── Callout ─────────────────────────────────────────────────────────
+
+/// Banner that states a consequence. Coral for a fault or a block, gold
+/// for something waiting on a person, jade for a confirmation.
+class BsheelCallout extends StatelessWidget {
+  final String message;
+  final BsheelPillTone tone;
+  final Widget? trailing;
+  final List<InlineSpan>? richMessage;
+
+  const BsheelCallout(
+    this.message, {
+    super.key,
+    this.tone = BsheelPillTone.gold,
+    this.trailing,
+    this.richMessage,
+  });
+
+  const BsheelCallout.danger(
+    this.message, {
+    super.key,
+    this.trailing,
+    this.richMessage,
+  }) : tone = BsheelPillTone.coral;
+
+  const BsheelCallout.warning(
+    this.message, {
+    super.key,
+    this.trailing,
+    this.richMessage,
+  }) : tone = BsheelPillTone.gold;
+
+  const BsheelCallout.positive(
+    this.message, {
+    super.key,
+    this.trailing,
+    this.richMessage,
+  }) : tone = BsheelPillTone.green;
+
+  @override
   Widget build(BuildContext context) {
-    // Foreground is derived, never passed: on coral / gold / jade / sky the
-    // text must be ink, and `onAccent` is the only place that decides.
-    final fg = BsheelColors.onAccent(color);
-    final soft = BsheelColors.onAccentSoft(color);
-    return _Pressable(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(BsheelRadii.lg),
-          border: Border.all(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
+    final ground = tone.ground;
+    final fg = BsheelColors.onAccent(ground);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(BsheelRadii.md),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.sm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '!',
+            style: BsheelType.displayXs.copyWith(color: fg, fontSize: 15),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The affordance arrow shares the eyebrow row rather than
-            // floating over it, so a long eyebrow can never run under it.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: BsheelEyebrow(eyebrow, color: soft)),
-                if (onTap != null) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.arrow_outward_rounded,
-                    size: 14,
-                    color: soft,
+          const SizedBox(width: 9),
+          Expanded(
+            child: richMessage != null
+                ? Text.rich(
+                    TextSpan(children: richMessage),
+                    style: BsheelType.bodySmMedium.copyWith(color: fg),
+                  )
+                : Text(
+                    message,
+                    style: BsheelType.bodySmMedium.copyWith(color: fg),
                   ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: BsheelType.displayXl.copyWith(
-                  color: fg,
-                  letterSpacing: -1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (delta != null)
-              Text(
-                delta!.toUpperCase(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: BsheelType.labelMd.copyWith(
-                  color: deltaColor ?? soft,
-                ),
-              ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            trailing!,
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Table ───────────────────────────────────────────────────────────
+
+/// One column in a [BsheelTable]. A null [width] flexes to fill.
+class BsheelColumn {
+  final String label;
+  final double? width;
+
+  const BsheelColumn(this.label, {this.width});
+}
+
+/// Table wrapped in a 2px ink outline with a 5px shadow. The header row
+/// sits on cream with a 2px rule beneath; body rows are separated by the
+/// only 1px hairline in the system.
+class BsheelTable extends StatelessWidget {
+  final List<BsheelColumn> columns;
+  final List<BsheelRow> rows;
+  final double depth;
+  final double gap;
+
+  const BsheelTable({
+    super.key,
+    required this.columns,
+    required this.rows,
+    this.depth = 5,
+    this.gap = 12,
+  });
+
+  List<Widget> _cells(List<Widget> children) {
+    final out = <Widget>[];
+    for (var i = 0; i < columns.length; i++) {
+      final child = i < children.length ? children[i] : const SizedBox();
+      final w = columns[i].width;
+      out.add(
+        w == null
+            ? Expanded(child: child)
+            : SizedBox(width: w, child: child),
+      );
+      if (i != columns.length - 1) out.add(SizedBox(width: gap));
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: BsheelColors.card,
+        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: depth > 0 ? BsheelShadows.hard(depth) : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: BsheelColors.surface,
+              border: Border(bottom: BsheelBorders.inkSide),
+            ),
+            child: Row(
+              children: _cells([
+                for (final c in columns)
+                  Text(
+                    c.label.toUpperCase(),
+                    style: BsheelType.labelSm.copyWith(letterSpacing: 1.1),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ]),
+            ),
+          ),
+          for (var i = 0; i < rows.length; i++)
+            _BsheelTableRow(
+              row: rows[i],
+              cells: _cells(rows[i].cells),
+              last: i == rows.length - 1,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A body row. [muted] greys the row for retired or inactive records.
+class BsheelRow {
+  final List<Widget> cells;
+  final VoidCallback? onTap;
+  final bool muted;
+
+  const BsheelRow(this.cells, {this.onTap, this.muted = false});
+}
+
+class _BsheelTableRow extends StatefulWidget {
+  final BsheelRow row;
+  final List<Widget> cells;
+  final bool last;
+
+  const _BsheelTableRow({
+    required this.row,
+    required this.cells,
+    required this.last,
+  });
+
+  @override
+  State<_BsheelTableRow> createState() => _BsheelTableRowState();
+}
+
+class _BsheelTableRowState extends State<_BsheelTableRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.row.muted
+        ? BsheelColors.surface
+        : (_hover && widget.row.onTap != null
+            ? BsheelColors.surface
+            : BsheelColors.card);
+
+    return MouseRegion(
+      cursor: widget.row.onTap == null
+          ? MouseCursor.defer
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.row.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: bg,
+            border: widget.last
+                ? null
+                : const Border(bottom: BsheelBorders.rowSide),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: widget.cells,
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Segmented (pill-shaped tab control) ────────────────────────────
+/// Table-cell helpers, so pages don't restate the type each time.
+abstract final class BsheelCell {
+  /// Row title — 13px DM Sans medium, ellipsised.
+  static Widget title(String text, {bool muted = false}) => Text(
+        text,
+        style: BsheelType.bodySmMedium.copyWith(
+          color: muted ? BsheelColors.inkMuted : BsheelColors.ink,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
 
+  /// Mono datum — id, username, count.
+  static Widget mono(String text, {Color? color, bool bold = true}) => Text(
+        text,
+        style: BsheelType.monoMd.copyWith(
+          color: color ?? BsheelColors.ink,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+
+  /// Quieter mono datum — timestamps, moderator names.
+  static Widget meta(String text, {Color? color}) => Text(
+        text,
+        style: BsheelType.monoSm.copyWith(color: color ?? BsheelColors.inkSoft),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+
+  /// Tracked mono label inside a cell.
+  static Widget label(String text, {Color? color}) => Text(
+        text.toUpperCase(),
+        style: BsheelType.labelSm.copyWith(
+          color: color ?? BsheelColors.inkSoft,
+          fontSize: 10,
+          letterSpacing: 0.7,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+
+  /// Left-aligned pill, so it doesn't stretch to the column width.
+  static Widget pill(Widget pill) =>
+      Align(alignment: Alignment.centerLeft, child: pill);
+}
+
+// ── Key / value rail ────────────────────────────────────────────────
+
+/// Detail-rail panel: label on the left, mono value on the right, 1px
+/// hairlines between rows.
+class BsheelKeyValues extends StatelessWidget {
+  final List<BsheelKeyValue> entries;
+  final Color shadowColor;
+  final double depth;
+
+  const BsheelKeyValues({
+    super.key,
+    required this.entries,
+    this.shadowColor = BsheelColors.ink,
+    this.depth = 3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13),
+      decoration: BoxDecoration(
+        color: BsheelColors.card,
+        borderRadius: BorderRadius.circular(BsheelRadii.card),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.hard(depth, color: shadowColor),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < entries.length; i++)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: i == entries.length - 1
+                  ? null
+                  : const BoxDecoration(
+                      border: Border(bottom: BsheelBorders.rowSide),
+                    ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entries[i].label,
+                      style: BsheelType.bodySm.copyWith(
+                        color: BsheelColors.inkSoft,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    entries[i].value,
+                    style: BsheelType.monoMd.copyWith(
+                      color: entries[i].emphasis ?? BsheelColors.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class BsheelKeyValue {
+  final String label;
+  final String value;
+
+  /// Set for a value that needs to read as a fault, e.g. `SPENT`.
+  final Color? emphasis;
+
+  const BsheelKeyValue(this.label, this.value, {this.emphasis});
+}
+
+// ── Toggle row ──────────────────────────────────────────────────────
+
+/// A trigger or feature flag: mono key, plain-language consequence, and
+/// the switch. Wrap several in a [BsheelCard.flat] to get one panel.
+class BsheelToggleRow extends StatelessWidget {
+  final String name;
+  final String description;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool monoName;
+  final bool last;
+
+  const BsheelToggleRow({
+    super.key,
+    required this.name,
+    required this.description,
+    required this.value,
+    this.onChanged,
+    this.monoName = true,
+    this.last = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: last
+          ? null
+          : const BoxDecoration(border: Border(bottom: BsheelBorders.rowSide)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  monoName ? name : name.toUpperCase(),
+                  style: monoName ? BsheelType.monoMd : BsheelType.titleMd,
+                ),
+                const SizedBox(height: 2),
+                Text(description, style: BsheelType.bodyXs),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          BsheelSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+/// 50×28 switch — jade when on, lavender when off, cream knob, 2px ink.
+class BsheelSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  const BsheelSwitch({super.key, required this.value, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: onChanged == null ? MouseCursor.defer : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onChanged == null ? null : () => onChanged!(!value),
+        // Keeps the row's hit area at 44px without changing the visual.
+        child: SizedBox(
+          height: BsheelLayout.minTarget,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 130),
+              curve: Curves.easeOut,
+              width: 50,
+              height: 28,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: value ? BsheelColors.success : BsheelColors.lavender,
+                borderRadius: BorderRadius.circular(BsheelRadii.full),
+                border: const Border.fromBorderSide(BsheelBorders.inkSide),
+              ),
+              alignment:
+                  value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: BsheelColors.bg,
+                  borderRadius: BorderRadius.circular(BsheelRadii.full),
+                  border: const Border.fromBorderSide(BsheelBorders.inkSide),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Filter chips ────────────────────────────────────────────────────
+
+/// One filter option. [count] is appended to the label, and [ground]
+/// tints the chip when it should carry a category or status colour.
+class BsheelFilter {
+  final String value;
+  final String label;
+  final int? count;
+  final Color? ground;
+  final bool dashed;
+
+  const BsheelFilter(
+    this.value,
+    this.label, {
+    this.count,
+    this.ground,
+    this.dashed = false,
+  });
+}
+
+/// Chip row. The selected chip inverts to ink; unselected chips keep
+/// their own ground, or white.
+class BsheelFilterChips extends StatelessWidget {
+  final List<BsheelFilter> filters;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  const BsheelFilterChips({
+    super.key,
+    required this.filters,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final f in filters)
+          _Chip(
+            filter: f,
+            active: f.value == selected,
+            onTap: () => onChanged(f.value),
+          ),
+      ],
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final BsheelFilter filter;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _Chip({
+    required this.filter,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ground = active
+        ? BsheelColors.ink
+        : (filter.ground ?? BsheelColors.card);
+    final label = filter.count == null
+        ? filter.label.toUpperCase()
+        : '${filter.label.toUpperCase()} ${filter.count}';
+    final text = Text(
+      label,
+      style: BsheelType.labelSm.copyWith(
+        color: filter.dashed && !active
+            ? BsheelColors.inkSoft
+            : BsheelColors.onAccent(ground),
+        letterSpacing: 0.9,
+      ),
+    );
+    const padding = EdgeInsets.symmetric(horizontal: 10, vertical: 5);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        // 44px hit target without inflating the chip.
+        child: SizedBox(
+          height: BsheelLayout.minTarget,
+          child: Center(
+            child: filter.dashed && !active
+                ? _DashedBox(
+                    radius: BsheelRadii.full,
+                    color: BsheelColors.card,
+                    child: Padding(padding: padding, child: text),
+                  )
+                : Container(
+                    padding: padding,
+                    decoration: BoxDecoration(
+                      color: ground,
+                      borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      border:
+                          const Border.fromBorderSide(BsheelBorders.inkSide),
+                    ),
+                    child: text,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pill-shaped segmented control, kept for existing call sites.
 class BsheelSegmented extends StatelessWidget {
   final List<String> options;
   final int selected;
@@ -610,62 +1501,20 @@ class BsheelSegmented extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      // A long option list must never run outside the control: it wraps
-      // onto a second run instead of overflowing the shell.
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 2,
-        children: List.generate(options.length, (i) {
-          final on = i == selected;
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged?.call(i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                // 44px minimum click target (spec §1).
-                constraints: const BoxConstraints(
-                  minHeight: BsheelLayout.minTarget,
-                ),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: on ? BsheelColors.ink : Colors.transparent,
-                  borderRadius: BorderRadius.circular(BsheelRadii.full),
-                ),
-                child: Text(
-                  options[i].toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelMd.copyWith(
-                    color: on
-                        ? BsheelColors.onAccent(BsheelColors.ink)
-                        : BsheelColors.inkSoft,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
+    return BsheelFilterChips(
+      filters: [
+        for (var i = 0; i < options.length; i++)
+          BsheelFilter('$i', options[i]),
+      ],
+      selected: '$selected',
+      onChanged: (v) => onChanged?.call(int.parse(v)),
     );
   }
 }
 
-// ── Progress bar ────────────────────────────────────────────────────
+// ── Meter ───────────────────────────────────────────────────────────
 
-/// Flat meter — black fill on a light gray track, square ends.
+/// Gold meter in an ink-outlined track — 16px tall, 2px inner padding.
 class BsheelProgress extends StatelessWidget {
   final double value;
   final Color fill;
@@ -674,30 +1523,264 @@ class BsheelProgress extends StatelessWidget {
   const BsheelProgress({
     super.key,
     required this.value,
-    this.fill = BsheelColors.ink,
-    this.height = 6,
+    this.fill = BsheelColors.accent,
+    this.height = 16,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      color: BsheelColors.heat1,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: BsheelColors.card,
+        borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
       child: Align(
         alignment: Alignment.centerLeft,
         child: FractionallySizedBox(
           widthFactor: value.clamp(0.0, 1.0),
-          child: ColoredBox(color: fill),
+          child: Container(
+            decoration: BoxDecoration(
+              color: fill,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Form field (validated, TextFormField-based) ────────────────────
+/// Vertical bar chart — inactive bars lavender, emphasised bars violet,
+/// the latest bar gold.
+class BsheelBarChart extends StatelessWidget {
+  final List<double> values;
+  final int? highlightLast;
+  final double height;
+  final Color shadowColor;
 
-/// Canonical Bsheel form field. Was the private `_DarkFormField` copied
-/// across quest_management / users / quest_injection pages.
+  const BsheelBarChart({
+    super.key,
+    required this.values,
+    this.highlightLast,
+    this.height = 124,
+    this.shadowColor = BsheelColors.cool,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final max = values.isEmpty
+        ? 1.0
+        : values.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+
+    return Container(
+      height: height,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: BsheelColors.card,
+        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.hard(4, color: shadowColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = 0; i < values.length; i++) ...[
+            Expanded(
+              child: FractionallySizedBox(
+                heightFactor: (values[i] / max).clamp(0.04, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: i == values.length - 1
+                        ? BsheelColors.accent
+                        : (values[i] >= max * 0.7
+                            ? BsheelColors.primary
+                            : BsheelColors.lavender),
+                    borderRadius: BorderRadius.circular(3),
+                    border:
+                        const Border.fromBorderSide(BsheelBorders.inkSide),
+                  ),
+                ),
+              ),
+            ),
+            if (i != values.length - 1) const SizedBox(width: 4),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Inputs ──────────────────────────────────────────────────────────
+
+/// Labelled field. Focus recolours the border to violet and adds a
+/// matching coloured shadow; an error recolours to coral and adds one
+/// line beneath, never a tooltip.
+class BsheelField extends StatefulWidget {
+  final TextEditingController? controller;
+  final String? label;
+  final String? hint;
+  final String? error;
+  final int maxLines;
+  final int? maxLength;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final bool enabled;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final String? Function(String?)? validator;
+  final Widget? prefix;
+  final Widget? suffix;
+  final TextAlign textAlign;
+  final TextStyle? style;
+
+  const BsheelField({
+    super.key,
+    this.controller,
+    this.label,
+    this.hint,
+    this.error,
+    this.maxLines = 1,
+    this.maxLength,
+    this.keyboardType,
+    this.obscureText = false,
+    this.enabled = true,
+    this.onChanged,
+    this.onSubmitted,
+    this.validator,
+    this.prefix,
+    this.suffix,
+    this.textAlign = TextAlign.start,
+    this.style,
+  });
+
+  @override
+  State<BsheelField> createState() => _BsheelFieldState();
+}
+
+class _BsheelFieldState extends State<BsheelField> {
+  final _focus = FocusNode();
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final error = widget.error ?? _validationError;
+    final focused = _focus.hasFocus;
+    final borderColor = error != null
+        ? BsheelColors.danger
+        : (focused ? BsheelColors.primary : BsheelColors.ink);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.label != null) ...[
+          BsheelLabel(widget.label!),
+          const SizedBox(height: 6),
+        ],
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 110),
+          decoration: BoxDecoration(
+            color: widget.enabled ? BsheelColors.card : BsheelColors.surface,
+            borderRadius: BorderRadius.circular(BsheelRadii.md),
+            border: Border.all(
+              color: borderColor,
+              width: BsheelBorders.thick,
+            ),
+            boxShadow: focused
+                ? BsheelShadows.hard(3, color: BsheelColors.primary)
+                : null,
+          ),
+          child: Row(
+            children: [
+              if (widget.prefix != null) ...[
+                const SizedBox(width: 12),
+                widget.prefix!,
+              ],
+              Expanded(
+                child: TextFormField(
+                  controller: widget.controller,
+                  focusNode: _focus,
+                  enabled: widget.enabled,
+                  maxLines: widget.maxLines,
+                  maxLength: widget.maxLength,
+                  keyboardType: widget.keyboardType,
+                  obscureText: widget.obscureText,
+                  onChanged: widget.onChanged,
+                  onFieldSubmitted: widget.onSubmitted,
+                  textAlign: widget.textAlign,
+                  style: widget.style ?? BsheelType.bodyMd,
+                  validator: widget.validator == null
+                      ? null
+                      : (v) {
+                          final result = widget.validator!(v);
+                          // Surface it on our own border, and return null
+                          // so Material doesn't draw a second message.
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && result != _validationError) {
+                              setState(() => _validationError = result);
+                            }
+                          });
+                          return result;
+                        },
+                  decoration: InputDecoration(
+                    hintText: widget.hint,
+                    hintStyle: BsheelType.bodyMd.copyWith(
+                      color: BsheelColors.inkMuted,
+                    ),
+                    counterText: '',
+                    filled: false,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 14,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorStyle: const TextStyle(height: 0, fontSize: 0),
+                  ),
+                ),
+              ),
+              if (widget.suffix != null) ...[
+                widget.suffix!,
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            error,
+            style: BsheelType.bodyXs.copyWith(
+              color: BsheelColors.dangerText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Legacy validated field — delegates to [BsheelField].
 class BsheelFormField extends StatelessWidget {
   final TextEditingController? controller;
   final String label;
@@ -717,68 +1800,18 @@ class BsheelFormField extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      style: BsheelType.bodyMd,
-      validator: validator,
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: BsheelType.labelSm.copyWith(
-          color: BsheelColors.inkMuted,
-        ),
-        filled: true,
-        fillColor: BsheelColors.paper,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.ink,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.hot,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.hot,
-            width: BsheelBorders.thin,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BsheelField(
+        controller: controller,
+        label: label,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        validator: validator,
+        onChanged: onChanged,
+      );
 }
 
-// ── Text field (plain, TextField-based) ────────────────────────────
-
-/// Canonical Bsheel text field. Was the private `_DarkTextField` copied
-/// (with small divergences) across pending_submissions /
-/// submission_review / xp_management pages. Styling knobs remain so
-/// call sites can quiet or emphasise a field, but defaults are the port
-/// look: white fill, hairline border, black focus border.
+/// Legacy plain field — delegates to [BsheelField]. The old colour knobs
+/// are accepted and ignored; the design has one input treatment.
 class BsheelTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -806,54 +1839,58 @@ class BsheelTextField extends StatelessWidget {
     this.style,
     this.labelStyle,
     this.hintStyle,
-    this.fillColor = BsheelColors.paper,
-    this.borderColor = BsheelColors.line,
-    this.focusedBorderColor = BsheelColors.ink,
+    this.fillColor = BsheelColors.card,
+    this.borderColor = BsheelColors.ink,
+    this.focusedBorderColor = BsheelColors.primary,
+  });
+
+  @override
+  Widget build(BuildContext context) => BsheelField(
+        controller: controller,
+        label: label.isEmpty ? null : label,
+        hint: hint,
+        onChanged: onChanged,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        style: style,
+      );
+}
+
+/// Search field with a leading magnifier — used in page headers.
+class BsheelSearchField extends StatelessWidget {
+  final TextEditingController? controller;
+  final String hint;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final double? width;
+
+  const BsheelSearchField({
+    super.key,
+    this.controller,
+    this.hint = 'Search…',
+    this.onChanged,
+    this.onSubmitted,
+    this.width,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    final field = BsheelField(
       controller: controller,
-      style: style ?? BsheelType.bodyMd,
+      hint: hint,
       onChanged: onChanged,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: labelStyle ??
-            BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-        hintStyle: hintStyle,
-        filled: true,
-        fillColor: fillColor,
-        isDense: isDense,
-        // A dense field still has to clear the 44px target (spec §1).
-        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: BorderSide(color: borderColor, width: BsheelBorders.thin),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: BorderSide(color: borderColor, width: BsheelBorders.thin),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: BorderSide(
-            color: focusedBorderColor,
-            width: BsheelBorders.thin,
-          ),
-        ),
+      onSubmitted: onSubmitted,
+      prefix: const Icon(
+        Icons.search_rounded,
+        size: 17,
+        color: BsheelColors.inkMuted,
       ),
     );
+    return width == null ? field : SizedBox(width: width, child: field);
   }
 }
 
-// ── Dropdown ────────────────────────────────────────────────────────
-
-/// Canonical Bsheel dropdown. Was the private `_DarkDropdown` copied
-/// across quest_management / quest_injection pages.
+/// Dropdown in the Arcade Pop input shell.
 class BsheelDropdown<T> extends StatelessWidget {
   final T value;
   final String label;
@@ -870,121 +1907,553 @@ class BsheelDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      style: BsheelType.bodyMd,
-      dropdownColor: BsheelColors.paper,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: BsheelType.labelSm.copyWith(
-          color: BsheelColors.inkMuted,
-        ),
-        filled: true,
-        fillColor: BsheelColors.paper,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty) ...[
+          BsheelLabel(label),
+          const SizedBox(height: 6),
+        ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          decoration: BoxDecoration(
+            color: BsheelColors.card,
+            borderRadius: BorderRadius.circular(BsheelRadii.md),
+            border: const Border.fromBorderSide(BsheelBorders.inkSide),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              items: items,
+              onChanged: onChanged,
+              isExpanded: true,
+              style: BsheelType.bodyMd,
+              dropdownColor: BsheelColors.card,
+              borderRadius: BorderRadius.circular(BsheelRadii.md),
+              icon: const Icon(
+                Icons.expand_more_rounded,
+                color: BsheelColors.ink,
+                size: 20,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+            ),
           ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.ink,
-            width: BsheelBorders.thin,
-          ),
-        ),
-      ),
-      items: items,
-      onChanged: onChanged,
+      ],
     );
   }
 }
 
-// ── Dialog (title + content + trailing actions row) ────────────────
+// ── Media ───────────────────────────────────────────────────────────
 
-/// Canonical Bsheel dialog. Was the private `_DarkAlertDialog` /
-/// `_DarkDialog` copied across quest_management / users /
-/// pending_submissions pages. Defaults are the white port look; pass
-/// [backgroundColor] / [titleStyle] for the dark media-panel variant.
+/// Diagonal-stripe placeholder for media that hasn't loaded or isn't
+/// there. Same pattern as the design's proof-media block.
+class BsheelMediaPlaceholder extends StatelessWidget {
+  final String label;
+  final double? width;
+  final double? height;
+  final double radius;
+  final double depth;
+
+  const BsheelMediaPlaceholder({
+    super.key,
+    this.label = 'PROOF MEDIA',
+    this.width,
+    this.height,
+    this.radius = BsheelRadii.lg,
+    this.depth = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: depth > 0 ? BsheelShadows.hard(depth) : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: CustomPaint(
+        painter: const _StripePainter(),
+        child: Center(
+          child: label.isEmpty
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: BsheelLabel(label, size: 10),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StripePainter extends CustomPainter {
+  const _StripePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = BsheelColors.bg,
+    );
+    final paint = Paint()
+      ..color = BsheelColors.surface
+      ..strokeWidth = 8
+      ..style = PaintingStyle.stroke;
+    // 135° stripes, 12px apart.
+    for (double x = -size.height; x < size.width + size.height; x += 17) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height, size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StripePainter oldDelegate) => false;
+}
+
+/// Square thumbnail with the stripe pattern behind a network image.
+class BsheelThumb extends StatelessWidget {
+  final String? url;
+  final double size;
+  final double radius;
+
+  const BsheelThumb({
+    super.key,
+    this.url,
+    this.size = 44,
+    this.radius = BsheelRadii.sm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final frame = BsheelMediaPlaceholder(
+      label: '',
+      width: size,
+      height: size,
+      radius: radius,
+    );
+    if (url == null || url!.isEmpty) return frame;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        url!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => frame,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : frame,
+      ),
+    );
+  }
+}
+
+/// Circular avatar for a person; falls back to a tinted initial.
+class BsheelAvatar extends StatelessWidget {
+  final String? url;
+  final String initial;
+  final double size;
+  final Color ground;
+
+  const BsheelAvatar({
+    super.key,
+    this.url,
+    this.initial = '?',
+    this.size = 30,
+    this.ground = BsheelColors.cool,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: ground,
+        shape: BoxShape.circle,
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial.toUpperCase(),
+        style: BsheelType.titleSm.copyWith(
+          color: BsheelColors.onAccent(ground),
+          fontSize: size * 0.42,
+        ),
+      ),
+    );
+
+    if (url == null || url!.isEmpty) return fallback;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        url!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      ),
+    );
+  }
+}
+
+// ── States ──────────────────────────────────────────────────────────
+
+/// Skeleton block — keeps the 2px border but drops to muted violet-grey,
+/// so a loading row still reads as a row and nothing shifts on load.
+class BsheelSkeleton extends StatelessWidget {
+  final double height;
+  final double? width;
+  final double? widthFactor;
+  final double radius;
+
+  const BsheelSkeleton({
+    super.key,
+    this.height = 56,
+    this.width,
+    this.widthFactor,
+    this.radius = BsheelRadii.md,
+  });
+
+  /// Short bar, for a heading placeholder.
+  const BsheelSkeleton.line({super.key, this.widthFactor = 0.45})
+      : height = 16,
+        width = null,
+        radius = 6;
+
+  @override
+  Widget build(BuildContext context) {
+    final box = Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: BsheelColors.skeleton,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: BsheelColors.lavender,
+          width: BsheelBorders.thick,
+        ),
+      ),
+    );
+    if (widthFactor == null) return box;
+    return FractionallySizedBox(
+      alignment: Alignment.centerLeft,
+      widthFactor: widthFactor,
+      child: box,
+    );
+  }
+}
+
+/// Loading placeholder whose shapes match the real rows. No spinner.
+class BsheelLoadingList extends StatelessWidget {
+  final int rows;
+  final double rowHeight;
+
+  const BsheelLoadingList({super.key, this.rows = 4, this.rowHeight = 56});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const BsheelSkeleton.line(),
+        const SizedBox(height: 9),
+        for (var i = 0; i < rows; i++) ...[
+          BsheelSkeleton(
+            height: rowHeight,
+            widthFactor: i == rows - 1 ? 0.7 : null,
+          ),
+          if (i != rows - 1) const SizedBox(height: 9),
+        ],
+      ],
+    );
+  }
+}
+
+/// Empty state. Every one names a single thing worth doing next, so pass
+/// an [actionLabel] wherever there is one.
+class BsheelEmptyState extends StatelessWidget {
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Color accent;
+  final String? glyph;
+
+  const BsheelEmptyState({
+    super.key,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+    this.accent = BsheelColors.inkMuted,
+    this.glyph,
+  });
+
+  /// Queue cleared — jade dashed border and a tick.
+  const BsheelEmptyState.allClear({
+    super.key,
+    this.title = 'ALL CLEAR',
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  })  : accent = BsheelColors.success,
+        glyph = '✓';
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: CustomPaint(
+          painter: _DashedBorderPainter(
+            radius: BsheelRadii.card,
+            color: accent,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (glyph != null) ...[
+                  Text(glyph!, style: const TextStyle(fontSize: 28)),
+                  const SizedBox(height: 7),
+                ],
+                Text(
+                  title.toUpperCase(),
+                  style: BsheelType.displaySm,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  message,
+                  style: BsheelType.bodySm.copyWith(
+                    color: BsheelColors.inkSoft,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: 14),
+                  BsheelButton.ghost(
+                    label: actionLabel!,
+                    onPressed: onAction,
+                    small: true,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Error state. Says what did *not* happen before offering retry — a
+/// moderator's first fear is a half-applied decision.
+class BsheelErrorState extends StatelessWidget {
+  final String title;
+  final String message;
+  final VoidCallback? onRetry;
+
+  const BsheelErrorState({
+    super.key,
+    this.title = 'FAILED TO LOAD',
+    required this.message,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: BsheelColors.danger,
+            borderRadius: BorderRadius.circular(BsheelRadii.card),
+            border: const Border.fromBorderSide(BsheelBorders.inkSide),
+            boxShadow: BsheelShadows.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title.toUpperCase(),
+                style: BsheelType.displaySm.copyWith(fontSize: 19),
+              ),
+              const SizedBox(height: 8),
+              Text(message, style: BsheelType.bodySm),
+              if (onRetry != null) ...[
+                const SizedBox(height: 12),
+                BsheelButton(
+                  label: 'Tap to retry',
+                  onPressed: onRetry,
+                  small: true,
+                  background: BsheelColors.bg,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Persistent offline bar — not a toast. Actions stay enabled and queue
+/// locally, so this states that rather than blocking the page.
+class BsheelOfflineBar extends StatelessWidget {
+  final String message;
+
+  const BsheelOfflineBar({
+    super.key,
+    this.message = 'Reconnecting… decisions are queued locally.',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      decoration: BoxDecoration(
+        color: BsheelColors.ink,
+        borderRadius: BorderRadius.circular(BsheelRadii.card),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: const BoxDecoration(
+              color: BsheelColors.accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const BsheelLabel('OFFLINE', color: BsheelColors.accent),
+                const SizedBox(height: 1),
+                Text(
+                  message,
+                  style: BsheelType.bodySm.copyWith(
+                    color: BsheelColors.inkPanelTextStrong,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Dialog ──────────────────────────────────────────────────────────
+
+/// Cream dialog with a 2px ink outline and a 6px shadow.
 class BsheelDialog extends StatelessWidget {
   final String title;
   final Widget content;
   final List<Widget> actions;
   final Color backgroundColor;
   final TextStyle? titleStyle;
+  final double maxWidth;
 
   const BsheelDialog({
     super.key,
     required this.title,
     required this.content,
     required this.actions,
-    this.backgroundColor = BsheelColors.paper,
+    this.backgroundColor = BsheelColors.bg,
     this.titleStyle,
+    this.maxWidth = 460,
   });
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: backgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BsheelRadii.xl),
-        side: const BorderSide(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: titleStyle ??
-                  BsheelType.displaySm.copyWith(color: BsheelColors.ink),
-            ),
-            const SizedBox(height: 16),
-            // Tall content scrolls inside the dialog rather than pushing
-            // the action row off a short browser window.
-            Flexible(child: SingleChildScrollView(child: content)),
-            const SizedBox(height: 24),
-            // Actions wrap instead of overflowing a narrow dialog.
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: actions,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(BsheelRadii.lg),
+            border: const Border.fromBorderSide(BsheelBorders.inkSide),
+            boxShadow: BsheelShadows.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 15,
+                ),
+                decoration: const BoxDecoration(
+                  color: BsheelColors.surface,
+                  border: Border(bottom: BsheelBorders.inkSide),
+                ),
+                child: Text(
+                  title.toUpperCase(),
+                  style: titleStyle ?? BsheelType.displaySm,
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: content,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i != 0) const SizedBox(width: 9),
+                      actions[i],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Time-ago label helper ───────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 
-/// Formats an ISO timestamp as a short relative label. Wraps the shared
-/// app_core [timeAgo] formatter. Was the private `_timeAgo` copied
-/// across appeals / reports / auto_notifications pages.
+/// Short relative label from an ISO timestamp. Wraps app_core's
+/// [timeAgo].
 ///
-/// - Default (`caps: true`): `'3M AGO'` style, `''` on null/unparsable
-///   input (appeals / reports).
-/// - `caps: false`: `'3m ago'` style — pair with `fallback: '?'` for the
-///   auto_notifications variant.
+/// - `caps: true` (default) → `'3M AGO'`, `''` when unparsable.
+/// - `caps: false` → `'3m ago'`; pair with `fallback: '?'`.
 String bsheelTimeAgo(String? iso, {bool caps = true, String fallback = ''}) {
   if (iso == null) return fallback;
   final dt = DateTime.tryParse(iso);
@@ -993,39 +2462,23 @@ String bsheelTimeAgo(String? iso, {bool caps = true, String fallback = ''}) {
   return caps ? label.toUpperCase() : label;
 }
 
-// ── Pressable scale helper ─────────────────────────────────────────
-
-class _Pressable extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-
-  const _Pressable({required this.child, this.onTap});
-
-  @override
-  State<_Pressable> createState() => _PressableState();
+/// `6h 12m` style waiting label from an ISO timestamp, for queue rows
+/// where the exact age is the point.
+String bsheelWaiting(String? iso, {String fallback = '—'}) {
+  if (iso == null) return fallback;
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return fallback;
+  final d = DateTime.now().difference(dt.toLocal());
+  if (d.inMinutes < 1) return 'just now';
+  if (d.inHours < 1) return '${d.inMinutes}m';
+  if (d.inDays < 1) return '${d.inHours}h ${d.inMinutes % 60}m';
+  return '${d.inDays}d ${d.inHours % 24}h';
 }
 
-class _PressableState extends State<_Pressable> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor:
-          widget.onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onTapDown:
-            widget.onTap == null ? null : (_) => setState(() => _down = true),
-        onTapUp: (_) => setState(() => _down = false),
-        onTapCancel: () => setState(() => _down = false),
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 80),
-          scale: _down ? 0.985 : 1.0,
-          child: widget.child,
-        ),
-      ),
-    );
-  }
+/// True once a queue item has waited long enough to need coral.
+bool bsheelIsStale(String? iso, {Duration threshold = const Duration(hours: 4)}) {
+  if (iso == null) return false;
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return false;
+  return DateTime.now().difference(dt.toLocal()) > threshold;
 }

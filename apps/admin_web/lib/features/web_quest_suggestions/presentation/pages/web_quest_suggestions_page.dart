@@ -1,9 +1,10 @@
-import 'package:app_core/app_core.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -17,6 +18,23 @@ final webQuestSuggestionsProvider =
     );
   },
 );
+
+/// The status a suggestion holds until a moderator decides — the string the
+/// intake endpoint writes and the one this page reads back. Suggestion
+/// statuses have no `app_contracts` class, so this names the value the
+/// existing code path already used rather than restating it at each site.
+const String _statusPending = 'pending';
+
+/// The categories the live quest bank owns, from `app_contracts` rather than
+/// restated here. A suggestion whose category falls outside this set is drawn
+/// untinted instead of being mapped to a colour it does not carry.
+const Set<String> _questBankCategories = {
+  QuestCategory.fitness,
+  QuestCategory.creativity,
+  QuestCategory.social,
+  QuestCategory.learning,
+  QuestCategory.adventure,
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -35,89 +53,75 @@ class _WebQuestSuggestionsPageState
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(webQuestSuggestionsProvider(_filter));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BsheelEyebrow('Web · Suggestions'),
-              const SizedBox(height: 14),
-              BsheelDisplay(
-                'Community quest {ideas.}',
-                baseStyle: BsheelType.hero(context),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Quest ideas submitted from the marketing site. Approve '
-                'to copy into the live quest bank, or dismiss.',
-                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-              ),
+
+    return AdminPane(
+      title: 'Quest suggestions',
+      meta: 'From players',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BsheelFilterChips(
+            filters: const [
+              BsheelFilter('pending', 'Pending'),
+              BsheelFilter('approved', 'Approved'),
+              BsheelFilter('rejected', 'Rejected'),
+              BsheelFilter('all', 'All'),
             ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 18),
-          child: _FilterTabs(
-            value: _filter,
+            selected: _filter,
             onChanged: (v) => setState(() => _filter = v),
           ),
-        ),
-        Expanded(
-          child: async.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
+          const SizedBox(height: 12),
+          async.when(
+            loading: () => const BsheelLoadingList(rows: 4, rowHeight: 108),
+            error: (e, _) => BsheelErrorState(
+              title: 'Suggestions didn’t load',
+              message: 'The suggestion list didn’t come back, so nothing was '
+                  'added to the quest bank and nothing was discarded. $e',
+              onRetry: () =>
+                  ref.invalidate(webQuestSuggestionsProvider(_filter)),
             ),
             data: (rows) {
-              if (rows.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.inbox_outlined,
-                        size: 64,
-                        color: BsheelColors.primary.withAlpha(100),
-                      ),
-                      const SizedBox(height: QuestSpacing.md),
-                      Text(
-                        'NO ${_filter.toUpperCase()} SUGGESTIONS',
-                        style: BsheelType.displaySm
-                            .copyWith(color: BsheelColors.inkMuted),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return ListView.separated(
-                itemCount: rows.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: QuestSpacing.sm),
-                itemBuilder: (context, index) {
-                  final r = rows[index];
-                  return _SuggestionCard(
-                    data: r,
-                    onApprove: () => _approve(r),
-                    onReject: () => _setStatus(r['id'] as String, 'rejected'),
-                  );
-                },
+              if (rows.isEmpty) return _empty();
+
+              // A coloured shadow marks the one card that needs attention —
+              // the oldest suggestion still waiting on a decision.
+              final firstPending =
+                  rows.indexWhere((r) => _status(r) == _statusPending);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < rows.length; i++) ...[
+                    if (i != 0) const SizedBox(height: 11),
+                    _SuggestionCard(
+                      data: rows[i],
+                      highlighted: i == firstPending,
+                      onApprove: () => _approve(rows[i]),
+                      onReject: () =>
+                          _setStatus(rows[i]['id'] as String, 'rejected'),
+                    ),
+                  ],
+                ],
               );
             },
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _empty() {
+    final onAll = _filter == 'all';
+    return BsheelEmptyState(
+      title: onAll ? 'No suggestions yet' : 'Nothing $_filter',
+      message: onAll
+          ? 'No player has suggested a quest from the marketing site yet.'
+          : 'No suggestion is $_filter right now. Switch to ALL to see every '
+              'idea players have sent in.',
+      actionLabel: onAll ? 'Reload' : 'Show all',
+      onAction: onAll
+          ? () => ref.invalidate(webQuestSuggestionsProvider(_filter))
+          : () => setState(() => _filter = 'all'),
     );
   }
 
@@ -125,6 +129,9 @@ class _WebQuestSuggestionsPageState
   // dialog defaults in quest_management_page (xp 50, 4h timer, active).
   static const int _approvedXpReward = 50;
   static const int _approvedDurationHours = 4;
+
+  static String _status(Map<String, dynamic> row) =>
+      (row['status'] ?? _statusPending) as String;
 
   /// Approving really copies the suggestion into the live quest bank:
   /// insert into `quests` first, and only mark the suggestion approved
@@ -140,46 +147,25 @@ class _WebQuestSuggestionsPageState
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: BsheelColors.paper,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          side: const BorderSide(color: BsheelColors.ink, width: 1),
-        ),
-        title: Text(
-          'APPROVE SUGGESTION',
-          style: BsheelType.displaySm.copyWith(color: BsheelColors.ink),
-        ),
+      builder: (ctx) => BsheelDialog(
+        title: 'Approve suggestion',
         content: Text(
-          'Approve "$title"?\n\n'
+          'Approve “$title”?\n\n'
           'This adds it to the live quest bank as an active $difficulty '
           '$category quest ($_approvedXpReward XP · '
           '${_approvedDurationHours}h timer).',
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.success,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.success),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
+          BsheelButton.positive(
+            label: 'Add to bank',
+            small: true,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'APPROVE',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.onAccent(BsheelColors.primary),
-              ),
-            ),
           ),
         ],
       ),
@@ -241,56 +227,17 @@ class _WebQuestSuggestionsPageState
   }
 }
 
-class _FilterTabs extends StatelessWidget {
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  const _FilterTabs({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      ('pending', 'PENDING'),
-      ('approved', 'APPROVED'),
-      ('rejected', 'REJECTED'),
-      ('all', 'ALL'),
-    ];
-    return Wrap(
-      spacing: QuestSpacing.xs,
-      children: tabs.map((t) {
-        final selected = value == t.$1;
-        return ChoiceChip(
-          label: Text(
-            t.$2,
-            style: BsheelType.labelSm.copyWith(
-              letterSpacing: 1.2,
-              color: selected
-                  ? BsheelColors.onAccent(BsheelColors.accent)
-                  : BsheelColors.inkSoft,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            ),
-          ),
-          selected: selected,
-          backgroundColor: BsheelColors.bg,
-          selectedColor: BsheelColors.accent,
-          side: const BorderSide(color: BsheelColors.ink, width: 1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.sm),
-          ),
-          onSelected: (_) => onChanged(t.$1),
-        );
-      }).toList(),
-    );
-  }
-}
+// ── Card ──────────────────────────────────────────────────────────────────────
 
 class _SuggestionCard extends StatelessWidget {
   final Map<String, dynamic> data;
+  final bool highlighted;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
   const _SuggestionCard({
     required this.data,
+    required this.highlighted,
     required this.onApprove,
     required this.onReject,
   });
@@ -301,207 +248,109 @@ class _SuggestionCard extends StatelessWidget {
     final description = (data['description'] ?? '') as String;
     final category = (data['category'] ?? '') as String;
     final difficulty = (data['difficulty'] ?? '') as String;
-    final suggesterName = (data['suggested_by_name'] ?? '') as String?;
-    final suggesterHandle = (data['suggested_by_handle'] ?? '') as String?;
-    final status = (data['status'] ?? 'pending') as String;
-    final createdAt = DateTime.tryParse((data['created_at'] ?? '') as String);
+    final status = (data['status'] ?? _statusPending) as String;
+    final pending = status == _statusPending;
 
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-      ),
+    return BsheelCard(
+      padding: const EdgeInsets.all(13),
+      shadowColor: highlighted ? BsheelColors.success : BsheelColors.ink,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: BsheelType.bodyMdBold.copyWith(
-                    color: BsheelColors.ink,
-                    fontSize: 17,
-                  ),
-                ),
-              ),
-              _StatusBadge(status: status),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.xs),
-          Wrap(
-            spacing: QuestSpacing.xs,
-            runSpacing: 4,
-            children: [
-              _Chip(label: category.toUpperCase(), color: BsheelColors.primary),
-              _Chip(label: difficulty.toUpperCase(), color: BsheelColors.cool),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.sm),
           Text(
-            description,
-            style: BsheelType.bodyMd.copyWith(color: BsheelColors.ink),
+            title,
+            style: BsheelType.bodySmMedium.copyWith(fontSize: 15),
           ),
-          const SizedBox(height: QuestSpacing.sm),
-          Row(
-            children: [
-              if ((suggesterName ?? '').isNotEmpty ||
-                  (suggesterHandle ?? '').isNotEmpty)
-                Expanded(
-                  child: Text(
-                    [
-                      if ((suggesterName ?? '').isNotEmpty) suggesterName,
-                      if ((suggesterHandle ?? '').isNotEmpty) suggesterHandle,
-                    ].whereType<String>().join(' · '),
-                    style: BsheelType.labelSm
-                        .copyWith(color: BsheelColors.inkMuted),
-                  ),
-                )
-              else
-                Expanded(
-                  child: Text(
-                    'Anonymous submission',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.inkMuted,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              if (createdAt != null)
-                Text(
-                  _formatDate(createdAt),
-                  style:
-                      BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-                ),
-            ],
-          ),
-          if (status == 'pending') ...[
-            const SizedBox(height: QuestSpacing.md),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+          const SizedBox(height: 8),
+          Text(_metaLine(), style: BsheelType.labelMd),
+          if (category.isNotEmpty || difficulty.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                OutlinedButton.icon(
-                  onPressed: onReject,
-                  icon: const Icon(Icons.close, size: 16),
-                  label: Text(
-                    'REJECT',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.onCream(BsheelColors.danger),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: BsheelColors.onCream(BsheelColors.danger),
-                    side: const BorderSide(
-                      color: BsheelColors.danger,
-                      width: BsheelBorders.thin,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: QuestSpacing.sm),
-                ElevatedButton.icon(
-                  onPressed: onApprove,
-                  icon: const Icon(Icons.check, size: 16),
-                  label: Text(
-                    'APPROVE',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.onAccent(BsheelColors.success),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: BsheelColors.success,
-                    foregroundColor:
-                        BsheelColors.onAccent(BsheelColors.success),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    ),
-                  ),
-                ),
+                if (category.isNotEmpty)
+                  _questBankCategories.contains(category)
+                      ? BsheelTag.category(category)
+                      : BsheelTag(category),
+                if (difficulty.isNotEmpty) BsheelTag(difficulty),
               ],
             ),
           ],
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (pending)
+            Row(
+              children: [
+                BsheelButton.positive(
+                  label: 'Add to bank',
+                  small: true,
+                  onPressed: onApprove,
+                ),
+                const SizedBox(width: 7),
+                BsheelButton.ghost(
+                  label: 'Discard',
+                  small: true,
+                  onPressed: onReject,
+                ),
+              ],
+            )
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: BsheelPill.status(status),
+            ),
         ],
       ),
     );
   }
 
+  /// `nour.k · 11 MAR · SUGGESTED SOCIAL` — the mono meta line the design
+  /// draws. The handle is the public identity, so it wins over the display
+  /// name; an intake with neither reads as anonymous rather than blank.
+  String _metaLine() {
+    final handle = (data['suggested_by_handle'] ?? '').toString().trim();
+    final name = (data['suggested_by_name'] ?? '').toString().trim();
+    final category = (data['category'] ?? '').toString().trim();
+    final createdAt = DateTime.tryParse((data['created_at'] ?? '').toString());
+
+    return [
+      if (handle.isNotEmpty)
+        handle
+      else if (name.isNotEmpty)
+        name
+      else
+        'anonymous',
+      if (createdAt != null) _formatDate(createdAt),
+      if (category.isNotEmpty) 'SUGGESTED ${category.toUpperCase()}',
+    ].join(' · ');
+  }
+
+  static const List<String> _months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+
+  /// `11 MAR` — the form the design draws.
   static String _formatDate(DateTime dt) {
     final local = dt.toLocal();
-    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    // Coral, jade and gold grounds all take ink — `onAccent` decides,
-    // never the call site. White on coral measures 3.03:1 and fails.
-    final (Color bg, Color fg) = switch (status) {
-      'approved' => (
-          BsheelColors.success,
-          BsheelColors.onAccent(BsheelColors.success),
-        ),
-      'rejected' => (
-          BsheelColors.danger,
-          BsheelColors.onAccent(BsheelColors.danger),
-        ),
-      _ => (BsheelColors.accent, BsheelColors.onAccent(BsheelColors.accent)),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: BsheelType.labelSm.copyWith(
-          color: fg,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Chip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha(40),
-        border: Border.all(color: color, width: 1.5),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: BsheelType.labelSm.copyWith(
-          // The chip fill is a 16% tint, so the label reads on cream.
-          color: BsheelColors.onCream(color),
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+    return '${local.day.toString().padLeft(2, '0')} '
+        '${_months[local.month - 1]}';
   }
 }

@@ -1,11 +1,11 @@
-import 'package:app_core/app_core.dart';
+import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:app_contracts/app_contracts.dart';
 
-import '../../../../core/providers/admin_role_provider.dart';
 import '../../../../core/backend/app_backend.dart';
+import '../../../../core/providers/admin_role_provider.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 class _UserOption {
@@ -32,14 +32,25 @@ final _usersProvider =
     ..sort((a, b) => a.username.compareTo(b.username)));
 });
 
+/// The quest bank the QUEST field searches. Injection creates the quest
+/// row server-side from these fields, so the picked quest is a template
+/// rather than a reference — the admin never authors one by hand here.
+final _questBankProvider =
+    FutureProvider.autoDispose<List<QuestModel>>((ref) async {
+  final quests = await AppBackend.repositories.quests.listAllQuestsAdmin();
+  return quests.toList()..sort((a, b) => a.title.compareTo(b.title));
+});
+
 class _PendingInjection {
   final String id;
   final String questTitle;
+  final String targetUserId;
   final String targetUsername;
   final DateTime createdAt;
   const _PendingInjection({
     required this.id,
     required this.questTitle,
+    required this.targetUserId,
     required this.targetUsername,
     required this.createdAt,
   });
@@ -47,6 +58,11 @@ class _PendingInjection {
 
 /// Unconsumed injections, newest first. The API joins the quest title and
 /// the target username, replacing three client round-trips.
+///
+/// This is also the only block the client can know about before it
+/// submits: `admin_quest_injections_pending_idx` is UNIQUE on
+/// `target_user_id WHERE consumed_at IS NULL`, so a user already in this
+/// list cannot take another injection.
 final _pendingInjectionsProvider =
     FutureProvider.autoDispose<List<_PendingInjection>>((ref) async {
   final rows = await AppBackend.repositories.admin.injections();
@@ -54,6 +70,7 @@ final _pendingInjectionsProvider =
       .map((row) => _PendingInjection(
             id: row['id']?.toString() ?? '',
             questTitle: row['quest_title']?.toString() ?? 'UNKNOWN',
+            targetUserId: row['target_user_id']?.toString() ?? '',
             targetUsername: row['target_username']?.toString() ?? 'unknown',
             createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '') ??
                 DateTime.now(),
@@ -68,553 +85,355 @@ class QuestInjectionPage extends ConsumerStatefulWidget {
   ConsumerState<QuestInjectionPage> createState() => _QuestInjectionPageState();
 }
 
-class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage> {
+  final _userCtrl = TextEditingController();
+  final _questCtrl = TextEditingController();
 
-  // Shared user picker state
   _UserOption? _selectedUser;
+  QuestModel? _selectedQuest;
   String _userSearch = '';
-
-  // Quest form state
-  final _questFormKey = GlobalKey<FormState>();
-  final _questTitleCtrl = TextEditingController();
-  final _questDescCtrl = TextEditingController();
-  final _questXpCtrl = TextEditingController(text: '50');
-  final _questDurationCtrl = TextEditingController(text: '4');
-  String _questCategory = QuestCategory.fitness;
-  String _questDifficulty = QuestDifficulty.easy;
-  bool _injectingQuest = false;
-
-  // Notification form state
-  final _notifFormKey = GlobalKey<FormState>();
-  final _notifTitleCtrl = TextEditingController();
-  final _notifBodyCtrl = TextEditingController();
-  bool _sendingNotif = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 2, vsync: this);
-  }
+  String _questSearch = '';
+  bool _injecting = false;
 
   @override
   void dispose() {
-    _tab.dispose();
-    _questTitleCtrl.dispose();
-    _questDescCtrl.dispose();
-    _questXpCtrl.dispose();
-    _questDurationCtrl.dispose();
-    _notifTitleCtrl.dispose();
-    _notifBodyCtrl.dispose();
+    _userCtrl.dispose();
+    _questCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isSuperAdmin = ref.watch(isSuperAdminProvider).valueOrNull ?? false;
-    if (!isSuperAdmin) {
-      return Padding(
-        padding: const EdgeInsets.all(QuestSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'INJECT',
-              style: BsheelType.displaySm.copyWith(color: BsheelColors.ink),
-            ),
-            const SizedBox(height: QuestSpacing.lg),
-            Container(
-              padding: const EdgeInsets.all(QuestSpacing.lg),
-              decoration: BoxDecoration(
-                color: BsheelColors.paper,
-                border: Border.all(color: BsheelColors.ink, width: 1),
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.lock_outline,
-                    color: BsheelColors.onCream(BsheelColors.danger),
-                    size: 20,
-                  ),
-                  const SizedBox(width: QuestSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'Quest injection and admin notifications require '
-                      'super-admin role.',
-                      style: BsheelType.bodySm
-                          .copyWith(color: BsheelColors.inkMuted),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+
+    return AdminPane(
+      title: 'Injection',
+      // Coral, because this bypasses the roll: it is the one action on the
+      // console that hands a user a quest they did not draw.
+      meta: 'Direct assignment',
+      metaColor: BsheelColors.dangerText,
+      child: isSuperAdmin ? _form() : _locked(),
+    );
+  }
+
+  Widget _locked() => const BsheelCallout.danger(
+        'Quest injection is a super-admin action. Your role can review '
+        'submissions but cannot assign a quest directly.',
       );
-    }
+
+  Widget _form() {
+    final blocking = _blockingInjection();
+    final ready = _selectedUser != null && _selectedQuest != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const BsheelEyebrow('Content · Injection'),
-              const SizedBox(height: 14),
-              BsheelDisplay(
-                'Inject a {quest.}',
-                baseStyle: BsheelType.hero(context),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Push a custom quest or notification to one specific user. '
-                'Use sparingly — surfaces only on their next pull.',
-                style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-              ),
-            ],
+        Text(
+          'Assign a quest to a specific user, bypassing the roll. The server '
+          'still enforces one active quest per user, so this fails if they '
+          'already have one running or awaiting review.',
+          style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+        ),
+        const SizedBox(height: 14),
+        _userField(),
+        const SizedBox(height: 14),
+        _questField(),
+        if (blocking != null) ...[
+          const SizedBox(height: 14),
+          BsheelCallout.danger(
+            '@${blocking.targetUsername} already has an injected quest '
+            'waiting — “${blocking.questTitle}”. A second injection will be '
+            'rejected by the unique partial index.',
+            trailing: BsheelButton.ghost(
+              label: 'Cancel it',
+              small: true,
+              onPressed: () => _cancelInjection(blocking),
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: BsheelButton.primary(
+            label: 'Inject quest',
+            loading: _injecting,
+            // Null, not merely dim: the component draws the dashed
+            // unavailable treatment so the block reads before the copy.
+            onPressed: (ready && blocking == null) ? _injectQuest : null,
           ),
         ),
-        const SizedBox(height: 24),
-        _buildUserPicker(),
-        const SizedBox(height: QuestSpacing.md),
-        Container(
-          decoration: BoxDecoration(
-            color: BsheelColors.paper,
-            border: Border.all(color: BsheelColors.ink, width: 1),
-            borderRadius: BorderRadius.circular(BsheelRadii.sm),
-          ),
-          child: TabBar(
-            controller: _tab,
-            indicatorColor: BsheelColors.primary,
-            labelColor: BsheelColors.primary,
-            unselectedLabelColor: BsheelColors.inkMuted,
-            labelStyle: BsheelType.labelSm,
-            tabs: const [
-              Tab(text: 'QUEST'),
-              Tab(text: 'NOTIFICATION'),
-            ],
-          ),
-        ),
-        const SizedBox(height: QuestSpacing.md),
-        Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _buildQuestForm(),
-              _buildNotificationForm(),
-            ],
-          ),
+        const SizedBox(height: 12),
+        Text(
+          'EVERY INJECTION IS WRITTEN TO admin_audit_log',
+          style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
         ),
       ],
     );
   }
 
-  // ── User picker ────────────────────────────────────────────
-
-  Widget _buildUserPicker() {
-    final usersAsync = ref.watch(_usersProvider);
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'TARGET USER',
-                style:
-                    BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-              ),
-              const Spacer(),
-              if (_selectedUser != null)
-                Text(
-                  '@${_selectedUser!.username}',
-                  style:
-                      BsheelType.labelSm.copyWith(color: BsheelColors.primary),
-                ),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          BsheelFormField(
-            label: 'SEARCH BY USERNAME OR NAME',
-            onChanged: (v) =>
-                setState(() => _userSearch = v.trim().toLowerCase()),
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          SizedBox(
-            height: 140,
-            child: usersAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              ),
-              error: (e, _) => Text(
-                'Error: $e',
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
-              data: (users) {
-                final filtered = _userSearch.isEmpty
-                    ? users
-                    : users
-                        .where(
-                          (u) =>
-                              u.username.toLowerCase().contains(_userSearch) ||
-                              u.displayName.toLowerCase().contains(_userSearch),
-                        )
-                        .toList();
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No users match',
-                      style: BsheelType.bodySm
-                          .copyWith(color: BsheelColors.inkMuted),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (ctx, i) {
-                    final u = filtered[i];
-                    final selected = _selectedUser?.id == u.id;
-                    return ListTile(
-                      dense: true,
-                      selected: selected,
-                      selectedTileColor: BsheelColors.primary.withAlpha(25),
-                      title: Text(
-                        u.displayName.isNotEmpty ? u.displayName : u.username,
-                        style: BsheelType.bodySm.copyWith(
-                          color: selected
-                              ? BsheelColors.primary
-                              : BsheelColors.ink,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '@${u.username}',
-                        style: BsheelType.labelSm
-                            .copyWith(color: BsheelColors.inkMuted),
-                      ),
-                      onTap: () => setState(() => _selectedUser = u),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+  /// The pending injection that blocks the selected user, if any.
+  ///
+  /// There is no admin endpoint that reports another user's active quest,
+  /// so this is not a full precheck: a user mid-quest with no pending
+  /// injection reads as clear here and is refused by the server.
+  _PendingInjection? _blockingInjection() {
+    final user = _selectedUser;
+    if (user == null) return null;
+    final pending = ref.watch(_pendingInjectionsProvider).valueOrNull;
+    if (pending == null) return null;
+    for (final injection in pending) {
+      if (injection.targetUserId == user.id) return injection;
+    }
+    return null;
   }
 
-  // ── Quest form ─────────────────────────────────────────────
+  // ── User field ─────────────────────────────────────────────────────
 
-  Widget _buildQuestForm() {
-    final pendingAsync = ref.watch(_pendingInjectionsProvider);
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Form(
-            key: _questFormKey,
-            child: Column(
-              children: [
-                BsheelFormField(
-                  controller: _questTitleCtrl,
-                  label: 'TITLE (3-100 CHARS)',
-                  validator: (v) {
-                    final t = (v ?? '').trim();
-                    if (t.length < 3 || t.length > 100) return '3-100 chars';
-                    return null;
+  Widget _userField() {
+    final usersAsync = ref.watch(_usersProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BsheelField(
+          controller: _userCtrl,
+          label: 'User',
+          hint: 'Search by username or id…',
+          suffix: _selectedUser == null
+              ? null
+              : BsheelIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Clear user',
+                  size: 34,
+                  ground: BsheelColors.card,
+                  onTap: () {
+                    _userCtrl.clear();
+                    setState(() {
+                      _selectedUser = null;
+                      _userSearch = '';
+                    });
                   },
                 ),
-                const SizedBox(height: QuestSpacing.md),
-                BsheelFormField(
-                  controller: _questDescCtrl,
-                  label: 'DESCRIPTION (10-500 CHARS)',
-                  maxLines: 3,
-                  validator: (v) {
-                    final t = (v ?? '').trim();
-                    if (t.length < 10 || t.length > 500) return '10-500 chars';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: BsheelDropdown<String>(
-                        value: _questCategory,
-                        label: 'CATEGORY',
-                        items: const [
-                          DropdownMenuItem(
-                            value: QuestCategory.fitness,
-                            child: Text('Fitness'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestCategory.creativity,
-                            child: Text('Creativity'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestCategory.social,
-                            child: Text('Social'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestCategory.learning,
-                            child: Text('Learning'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestCategory.adventure,
-                            child: Text('Adventure'),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() => _questCategory = v!),
-                      ),
-                    ),
-                    const SizedBox(width: QuestSpacing.md),
-                    Expanded(
-                      child: BsheelDropdown<String>(
-                        value: _questDifficulty,
-                        label: 'DIFFICULTY',
-                        items: const [
-                          DropdownMenuItem(
-                            value: QuestDifficulty.easy,
-                            child: Text('Easy'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestDifficulty.medium,
-                            child: Text('Medium'),
-                          ),
-                          DropdownMenuItem(
-                            value: QuestDifficulty.hard,
-                            child: Text('Hard'),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() => _questDifficulty = v!),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: BsheelFormField(
-                        controller: _questXpCtrl,
-                        label: 'XP REWARD (5-1000)',
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          if (n == null || n < 5 || n > 1000) return '5-1000';
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: QuestSpacing.md),
-                    Expanded(
-                      child: BsheelFormField(
-                        controller: _questDurationCtrl,
-                        label: 'DURATION (HOURS)',
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          if (n == null || n < 1 || n > 168) return '1-168';
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    icon: _injectingQuest
-                        ? SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color:
-                                  BsheelColors.onAccent(BsheelColors.primary),
-                            ),
-                          )
-                        : const Icon(Icons.send, size: 16),
-                    label: Text(
-                      'INJECT QUEST',
-                      style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.onAccent(BsheelColors.primary)),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BsheelColors.primary,
-                      foregroundColor:
-                          BsheelColors.onAccent(BsheelColors.primary),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.lg,
-                        vertical: QuestSpacing.sm,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                      ),
-                    ),
-                    onPressed: _injectingQuest ? null : _injectQuest,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.lg),
-          Text(
-            'PENDING INJECTIONS',
-            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          pendingAsync.when(
+          onChanged: (v) => setState(() {
+            _userSearch = v.trim().toLowerCase();
+            _selectedUser = null;
+          }),
+        ),
+        if (_selectedUser == null && _userSearch.isNotEmpty)
+          usersAsync.when(
             loading: () => const Padding(
-              padding: EdgeInsets.all(QuestSpacing.md),
-              child: CircularProgressIndicator(color: BsheelColors.primary),
+              padding: EdgeInsets.only(top: 8),
+              child: BsheelLoadingList(rows: 2, rowHeight: 34),
             ),
-            error: (e, _) => Text(
-              'Error: $e',
-              style: BsheelType.bodySm.copyWith(
-                color: BsheelColors.onCream(BsheelColors.danger),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'The user list didn’t come back, so nobody was selected '
+                'and nothing was assigned. $e',
+                style:
+                    BsheelType.bodyXs.copyWith(color: BsheelColors.dangerText),
               ),
             ),
-            data: (rows) {
-              if (rows.isEmpty) {
-                return Text(
-                  'No pending injections.',
-                  style:
-                      BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
-                );
-              }
-              return Column(
-                children: rows
-                    .map(
-                      (r) => Container(
-                        margin: const EdgeInsets.only(bottom: QuestSpacing.sm),
-                        padding: const EdgeInsets.all(QuestSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: BsheelColors.paper,
-                          border: Border.all(color: BsheelColors.ink),
-                          borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    r.questTitle,
-                                    style: BsheelType.bodySm
-                                        .copyWith(color: BsheelColors.ink),
-                                  ),
-                                  Text(
-                                    '→ @${r.targetUsername}',
-                                    style: BsheelType.labelSm.copyWith(
-                                      color: BsheelColors.inkMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Cancel injection',
-                              icon: Icon(
-                                Icons.delete_outline,
-                                color:
-                                    BsheelColors.onCream(BsheelColors.danger),
-                                size: 18,
-                              ),
-                              onPressed: () => _cancelInjection(r),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
+            data: (users) {
+              final matches = users
+                  .where((u) =>
+                      u.username.toLowerCase().contains(_userSearch) ||
+                      u.displayName.toLowerCase().contains(_userSearch) ||
+                      u.id.toLowerCase().contains(_userSearch))
+                  .take(6)
+                  .toList(growable: false);
+              return _results(
+                empty: 'No user matches “${_userCtrl.text.trim()}”.',
+                rows: [
+                  for (final u in matches)
+                    _ResultRow(
+                      title: '@${u.username}',
+                      subtitle: u.displayName.isEmpty ? u.id : u.displayName,
+                      onTap: () {
+                        _userCtrl.text = u.username;
+                        setState(() {
+                          _selectedUser = u;
+                          _userSearch = '';
+                        });
+                      },
+                    ),
+                ],
               );
             },
           ),
+      ],
+    );
+  }
+
+  // ── Quest field ────────────────────────────────────────────────────
+
+  Widget _questField() {
+    final bankAsync = ref.watch(_questBankProvider);
+    final selected = _selectedQuest;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BsheelField(
+          controller: _questCtrl,
+          label: 'Quest',
+          hint: 'Search the quest bank…',
+          suffix: selected == null
+              ? null
+              : BsheelIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Clear quest',
+                  size: 34,
+                  ground: BsheelColors.card,
+                  onTap: () {
+                    _questCtrl.clear();
+                    setState(() {
+                      _selectedQuest = null;
+                      _questSearch = '';
+                    });
+                  },
+                ),
+          onChanged: (v) => setState(() {
+            _questSearch = v.trim().toLowerCase();
+            _selectedQuest = null;
+          }),
+        ),
+        if (selected != null) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              BsheelTag.category(selected.category),
+              BsheelPill(selected.difficulty, small: true),
+              BsheelPill('${selected.xpReward} XP', small: true),
+              BsheelPill('${selected.durationHours}h', small: true),
+            ],
+          ),
         ],
+        if (selected == null && _questSearch.isNotEmpty)
+          bankAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: BsheelLoadingList(rows: 2, rowHeight: 34),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'The quest bank didn’t come back, so no quest was selected '
+                'and nothing was assigned. $e',
+                style:
+                    BsheelType.bodyXs.copyWith(color: BsheelColors.dangerText),
+              ),
+            ),
+            data: (quests) {
+              final matches = quests
+                  .where((q) =>
+                      q.title.toLowerCase().contains(_questSearch) ||
+                      q.category.toLowerCase().contains(_questSearch))
+                  .take(6)
+                  .toList(growable: false);
+              return _results(
+                empty: 'No quest in the bank matches '
+                    '“${_questCtrl.text.trim()}”.',
+                rows: [
+                  for (final q in matches)
+                    _ResultRow(
+                      title: q.title,
+                      subtitle: '${q.category} · ${q.difficulty} · '
+                          '${q.xpReward} XP · ${q.durationHours}h',
+                      onTap: () {
+                        _questCtrl.text = q.title;
+                        setState(() {
+                          _selectedQuest = q;
+                          _questSearch = '';
+                        });
+                      },
+                    ),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _results({required String empty, required List<Widget> rows}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: BsheelCard.flat(
+        color: BsheelColors.surface,
+        child: rows.isEmpty
+            ? Text(
+                empty,
+                style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: rows,
+              ),
       ),
     );
   }
 
-  Future<void> _injectQuest() async {
-    if (_selectedUser == null) {
-      _snack('Pick a target user first.', isError: true);
-      return;
-    }
-    if (!_questFormKey.currentState!.validate()) return;
+  // ── Actions ────────────────────────────────────────────────────────
 
-    setState(() => _injectingQuest = true);
+  Future<void> _injectQuest() async {
+    final user = _selectedUser;
+    final quest = _selectedQuest;
+    if (user == null || quest == null) return;
+
+    setState(() => _injecting = true);
     try {
       await AppBackend.repositories.admin.injectQuest(
-        targetUserId: _selectedUser!.id,
-        title: _questTitleCtrl.text.trim(),
-        description: _questDescCtrl.text.trim(),
-        category: _questCategory,
-        difficulty: _questDifficulty,
-        xpReward: int.parse(_questXpCtrl.text.trim()),
-        durationHours: int.parse(_questDurationCtrl.text.trim()),
+        targetUserId: user.id,
+        title: quest.title,
+        description: quest.description,
+        category: quest.category,
+        difficulty: quest.difficulty,
+        xpReward: quest.xpReward,
+        durationHours: quest.durationHours,
       );
-      _snack('Quest injected for @${_selectedUser!.username}.');
-      _questTitleCtrl.clear();
-      _questDescCtrl.clear();
+      _snack('Quest injected for @${user.username}.');
+      _questCtrl.clear();
+      setState(() {
+        _selectedQuest = null;
+        _questSearch = '';
+      });
       ref.invalidate(_pendingInjectionsProvider);
     } catch (e) {
+      // A 23505 on admin_quest_injections_pending_idx arrives as
+      // PENDING_INJECTION_EXISTS. Refetching makes the blocked callout
+      // appear instead of leaving the failure only in a snack bar.
+      ref.invalidate(_pendingInjectionsProvider);
       _snack('Failed: $e', isError: true);
     } finally {
-      if (mounted) setState(() => _injectingQuest = false);
+      if (mounted) setState(() => _injecting = false);
     }
   }
 
-  Future<void> _cancelInjection(_PendingInjection inj) async {
+  Future<void> _cancelInjection(_PendingInjection injection) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: BsheelColors.paper,
-        title: Text(
-          'CANCEL INJECTION?',
-          style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-        ),
+      builder: (ctx) => BsheelDialog(
+        title: 'Cancel this injection',
         content: Text(
-          'Cancel "${inj.questTitle}" for @${inj.targetUsername}? '
-          'It will not surface on their next roll. The quest record stays '
-          'in the database for audit and is excluded from the public random pool.',
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+          'Cancel “${injection.questTitle}” for @${injection.targetUsername}? '
+          'It will not surface on their next roll. The quest record stays in '
+          'the database for audit and is excluded from the public random '
+          'pool.',
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Keep it',
+            small: true,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'KEEP',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-            ),
           ),
-          ElevatedButton(
+          BsheelButton.coral(
+            label: 'Cancel injection',
+            small: true,
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.hot,
-              foregroundColor: BsheelColors.ink,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-            ),
           ),
         ],
       ),
@@ -625,7 +444,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
       // The API marks the row consumed rather than deleting it: deleting
       // would let the orphaned quest leak back into the public random pool,
       // whose isolation check matches on a row existing in this table.
-      await AppBackend.repositories.admin.cancelInjection(inj.id);
+      await AppBackend.repositories.admin.cancelInjection(injection.id);
       ref.invalidate(_pendingInjectionsProvider);
       _snack('Injection cancelled.');
     } catch (e) {
@@ -633,109 +452,68 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
     }
   }
 
-  // ── Notification form ──────────────────────────────────────
-
-  Widget _buildNotificationForm() {
-    return SingleChildScrollView(
-      child: Form(
-        key: _notifFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BsheelFormField(
-              controller: _notifTitleCtrl,
-              label: 'TITLE',
-              validator: _required,
-            ),
-            const SizedBox(height: QuestSpacing.md),
-            BsheelFormField(
-              controller: _notifBodyCtrl,
-              label: 'BODY',
-              maxLines: 4,
-              validator: _required,
-            ),
-            const SizedBox(height: QuestSpacing.md),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                icon: _sendingNotif
-                    ? SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: BsheelColors.onAccent(BsheelColors.primary),
-                        ),
-                      )
-                    : const Icon(Icons.notifications_active, size: 16),
-                label: Text(
-                  'SEND NOTIFICATION',
-                  style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.onAccent(BsheelColors.primary)),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BsheelColors.primary,
-                  foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: QuestSpacing.lg,
-                    vertical: QuestSpacing.sm,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                  ),
-                ),
-                onPressed: _sendingNotif ? null : _sendNotification,
-              ),
-            ),
-          ],
+  void _snack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    final ground = isError ? BsheelColors.danger : BsheelColors.card;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: ground,
+        content: Text(
+          message,
+          // The snack ground is coral on an error: ink, never white.
+          style: BsheelType.bodySm.copyWith(
+            color: BsheelColors.onAccent(ground),
+          ),
         ),
       ),
     );
   }
+}
 
-  Future<void> _sendNotification() async {
-    if (_selectedUser == null) {
-      _snack('Pick a target user first.', isError: true);
-      return;
-    }
-    if (!_notifFormKey.currentState!.validate()) return;
-    setState(() => _sendingNotif = true);
-    try {
-      await AppBackend.repositories.admin.sendNotification(
-        targetUserId: _selectedUser!.id,
-        title: _notifTitleCtrl.text.trim(),
-        body: _notifBodyCtrl.text.trim(),
-        type: NotificationType.announcement,
-      );
-      _snack('Notification sent to @${_selectedUser!.username}.');
-      _notifTitleCtrl.clear();
-      _notifBodyCtrl.clear();
-    } catch (e) {
-      _snack('Failed: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _sendingNotif = false);
-    }
-  }
+/// One tappable search result under a field.
+class _ResultRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
-  // ── helpers ────────────────────────────────────────────────
+  const _ResultRow({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
-  String? _required(String? v) =>
-      (v == null || v.trim().isEmpty) ? 'Required' : null;
-
-  void _snack(String msg, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          msg,
-          // The snack ground is coral on an error: ink, never white.
-          style: BsheelType.bodyMd.copyWith(
-            color: BsheelColors.onAccent(
-              isError ? BsheelColors.danger : BsheelColors.paper,
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(
+            minHeight: BsheelLayout.minTarget,
+          ),
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BsheelType.titleSm,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BsheelType.monoSm,
+              ),
+            ],
           ),
         ),
-        backgroundColor: isError ? BsheelColors.danger : BsheelColors.paper,
       ),
     );
   }

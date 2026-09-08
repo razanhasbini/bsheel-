@@ -1,22 +1,29 @@
-import 'package:app_core/app_core.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/admin_route_names.dart';
+import '../../../../core/theme/admin_layout_constants.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
-import '../../util/caption_flags.dart';
 import '../providers/moderation_controller.dart';
 import '../providers/pending_submissions_provider.dart';
 import '../widgets/media_section.dart';
+import 'submission_review_page.dart';
 
-// Screen-specific colours — not theme tokens.
-const Color _mediaPanelBorder = Color(0xFF2A2A2A);
-const Color _mediaPanelDeep = Color(0xFF111111);
-const Color _mediaPanelSoft = Color(0xFFC9C9C9); // light text on dark panels
-
+/// `/moderation` — the queue rail beside the review surface.
+///
+/// The rail is the only list on the console that is genuinely a work
+/// queue, so it is fixed at 300px and never scrolls the page: the
+/// moderator keeps one hand on `J`/`K` and the proof stays put on the
+/// right. The review surface itself is [SubmissionReviewSurface], shared
+/// verbatim with `/moderation/review/:id` — the decision, the note, the
+/// confirm step and the evidence layout live there and are not restated
+/// here. This screen owns the queue, the selection, the keyboard, and the
+/// view-every-asset gate that unlocks a decision.
 class PendingSubmissionsPage extends ConsumerStatefulWidget {
   const PendingSubmissionsPage({super.key});
 
@@ -27,21 +34,84 @@ class PendingSubmissionsPage extends ConsumerStatefulWidget {
 
 class _PendingSubmissionsPageState
     extends ConsumerState<PendingSubmissionsPage> {
-  // Which card is keyboard-active. Bound by [0, list.length - 1] each build.
-  int _selectedIndex = 0;
+  /// Rail width from the design frame.
+  static const double _railWidth = 300;
 
-  // Per-submission set of media indices that have been viewed. A submission
-  // unlocks once `viewed.length >= submission.mediaUrls.length`.
+  /// Below this the rail and the surface cannot both hold their minimums,
+  /// so the rail takes the whole page until a submission is picked.
+  static const double _twoPaneMin = 940;
+
+  /// Queue filters. `all` and `flagged` are rail-local views over the
+  /// pending set rather than statuses — the flags are client-side
+  /// heuristics — so only the appeal key comes from the contract.
+  static const String _fAll = 'all';
+  static const String _fAppeals = SubmissionColumns.appealed;
+  static const String _fFlagged = 'flagged';
+
+  static const List<String> _videoExtensions = [
+    '.mp4',
+    '.mov',
+    '.webm',
+    '.m4v',
+  ];
+
+  String _filter = _fAll;
+
+  /// Selected submission, by id rather than index: the queue re-sorts and
+  /// shrinks under realtime, and an index would silently point at whatever
+  /// slid into its place.
+  String? _selectedId;
+
+  /// Per-submission set of media indices that have been viewed. A
+  /// submission unlocks once `viewed.length >= submission.mediaUrls.length`.
   final Map<String, Set<int>> _viewed = <String, Set<int>>{};
 
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _railScroll = ScrollController();
   final Map<String, GlobalKey> _itemKeys = <String, GlobalKey>{};
+
+  /// The live review surface, so `A` and `R` run exactly the flow the
+  /// buttons run — including the confirm dialog and the note.
+  final GlobalKey<SubmissionReviewSurfaceState> _surfaceKey =
+      GlobalKey<SubmissionReviewSurfaceState>();
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _railScroll.dispose();
     super.dispose();
   }
+
+  // ── Queue derivation ──────────────────────────────────────────────────
+
+  bool _isFlagged(PendingSubmission s) =>
+      s.isDuplicate || s.captionFlags.isNotEmpty;
+
+  List<PendingSubmission> _visible(List<PendingSubmission> all) =>
+      switch (_filter) {
+        _fAppeals => all.where((s) => s.appealed).toList(),
+        _fFlagged => all.where(_isFlagged).toList(),
+        _ => all,
+      };
+
+  /// The submission the surface is showing. On a wide window the queue
+  /// always has a selection — an empty right pane beside a full rail is
+  /// just a wasted screen — but on a narrow one nothing is picked until
+  /// the moderator picks it, because the rail is the whole page.
+  PendingSubmission? _resolve(List<PendingSubmission> list, bool twoPane) {
+    if (list.isEmpty) return null;
+    final index = list.indexWhere((s) => s.id == _selectedId);
+    if (index >= 0) return list[index];
+    return twoPane ? list.first : null;
+  }
+
+  String? _thumbUrl(PendingSubmission s) {
+    for (final url in s.mediaUrls) {
+      final lower = url.toLowerCase();
+      if (!_videoExtensions.any(lower.endsWith)) return url;
+    }
+    return null;
+  }
+
+  // ── The view-every-asset gate ─────────────────────────────────────────
 
   bool _allMediaViewed(PendingSubmission s) {
     final required = s.mediaUrls.length;
@@ -53,39 +123,117 @@ class _PendingSubmissionsPageState
   void _markViewed(String submissionId, int index) {
     final set = _viewed.putIfAbsent(submissionId, () => <int>{});
     if (set.add(index)) {
-      // Defer the rebuild — frameBuilder fires during paint and calling
-      // setState directly would assert. addPostFrameCallback handles that;
-      // the callback chain in MediaSection already wraps in postFrame so
-      // this setState is safe to invoke synchronously here.
+      // The callback chain in MediaSection already defers to a post-frame
+      // callback, so calling setState synchronously here is safe.
       if (mounted) setState(() {});
     }
   }
 
-  void _moveSelection(int delta, int listLength) {
-    if (listLength == 0) return;
-    final next = (_selectedIndex + delta).clamp(0, listLength - 1);
-    if (next == _selectedIndex) return;
-    setState(() => _selectedIndex = next);
+  // ── Selection and keyboard ────────────────────────────────────────────
+
+  void _select(PendingSubmission s) {
+    if (_selectedId == s.id) return;
+    setState(() => _selectedId = s.id);
+  }
+
+  void _move(int delta, List<PendingSubmission> list) {
+    if (list.isEmpty) return;
+    final current = list.indexWhere((s) => s.id == _selectedId);
+    final base = current >= 0 ? current : 0;
+    final next = (base + delta).clamp(0, list.length - 1);
+    if (list[next].id == _selectedId) return;
+    setState(() => _selectedId = list[next].id);
     _scrollSelectedIntoView();
   }
 
-  /// Mass-approve with the same safety rails as single approvals:
-  /// only submissions whose media has been fully viewed are eligible
-  /// (the rest are skipped and reported), the admin confirms the count
-  /// first, and one failure doesn't silently abort the rest — failures
-  /// are collected and summarised in a SnackBar.
+  void _scrollSelectedIntoView() {
+    // Run after layout so the GlobalKey has a context.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final id = _selectedId;
+      if (id == null) return;
+      final ctx = _itemKeys[id]?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 180),
+        alignment: 0.1,
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  /// True while the caret is in a text field. Without this the rejection
+  /// note the moderator is typing would fire decisions letter by letter —
+  /// every `a` an approval, every `r` a rejection.
+  bool get _typing {
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    if (ctx == null) return false;
+    if (ctx.widget is EditableText) return true;
+    return ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  KeyEventResult _onKey(KeyEvent event, List<PendingSubmission> list) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_typing) return KeyEventResult.ignored;
+
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.keyJ ||
+        key == LogicalKeyboardKey.arrowDown) {
+      _move(1, list);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyK || key == LogicalKeyboardKey.arrowUp) {
+      _move(-1, list);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyA) {
+      _surfaceKey.currentState?.approve();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyR) {
+      _surfaceKey.currentState?.reject();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter) {
+      final id = _selectedId;
+      if (id != null) {
+        context.goNamed(
+          AdminRouteNames.submissionReview,
+          pathParameters: {'id': id},
+        );
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  // ── Decisions ─────────────────────────────────────────────────────────
+
+  Future<bool> _approve(PendingSubmission s) =>
+      ref.read(moderationControllerProvider.notifier).approve(s);
+
+  Future<bool> _reject(PendingSubmission s, String note) =>
+      ref.read(moderationControllerProvider.notifier).deny(s, note);
+
+  /// Mass-approve with the same safety rails as single approvals: only
+  /// submissions whose media has been fully viewed are eligible (the rest
+  /// are skipped and reported), the moderator confirms the count first,
+  /// and one failure doesn't silently abort the rest — failures are
+  /// collected and summarised.
   Future<void> _approveAll(List<PendingSubmission> list) async {
     final eligible = list.where(_allMediaViewed).toList();
     final skipped = list.length - eligible.length;
 
     if (eligible.isEmpty) {
-      _showSummarySnack(
-        'Nothing to approve — view every photo/video on a submission first.',
+      _summary(
+        'Nothing to approve — open a submission and view every photo and '
+        'video on it first.',
       );
       return;
     }
 
-    final confirmed = await _showApproveAllDialog(eligible.length, skipped);
+    final confirmed = await _confirmApproveAll(eligible.length, skipped);
     if (confirmed != true || !mounted) return;
 
     var approved = 0;
@@ -104,1206 +252,496 @@ class _PendingSubmissionsPageState
     final parts = <String>['Approved $approved'];
     if (failed > 0) parts.add('$failed failed');
     if (skipped > 0) parts.add('$skipped skipped (media not viewed)');
-    _showSummarySnack('${parts.join(' · ')}.');
+    _summary('${parts.join(' · ')}.');
   }
 
-  Future<bool?> _showApproveAllDialog(int eligibleCount, int skippedCount) {
+  Future<bool?> _confirmApproveAll(int eligible, int skipped) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: BsheelColors.paper,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.xl),
-          side: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
+      builder: (ctx) => BsheelDialog(
+        title: 'Approve all',
+        content: Text(
+          'Approve $eligible ${eligible == 1 ? 'submission' : 'submissions'}? '
+          'XP is awarded once each and every author is notified. The '
+          'view-every-asset gate still applies.'
+          '${skipped > 0 ? '\n\n$skipped will be skipped — their media has '
+              'not been fully viewed.' : ''}',
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+        actions: [
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          BsheelButton.positive(
+            label: 'Approve $eligible',
+            small: true,
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _summary(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: BsheelColors.card,
+        content: Text(message, style: BsheelType.bodySm),
+      ),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    // Realtime: new submissions appear in the queue without manual
+    // refresh; status changes (a decision by another moderator) drop them
+    // out. autoDispose tears the channel down on navigation away.
+    ref.watch(pendingSubmissionsRealtimeProvider);
+
+    final queueAsync = ref.watch(pendingSubmissionsProvider);
+    final moderation = ref.watch(moderationControllerProvider);
+    final busy = moderation.isLoading;
+
+    final all = queueAsync.valueOrNull ?? const <PendingSubmission>[];
+    final list = _visible(all);
+    final stale = all
+        .where((s) => bsheelIsStale(s.submittedAt.toIso8601String()))
+        .length;
+
+    // Measured here rather than in a LayoutBuilder: the surface's detail
+    // provider has to be watched during build, and a layout callback runs
+    // after it. The shell keeps the sidebar beside the page above the
+    // tablet breakpoint, so that width is not the page's.
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final pageWidth =
+        windowWidth >= AdminLayoutConstants.tabletBreakpoint
+            ? windowWidth - BsheelLayout.sidebarWidth
+            : windowWidth;
+    final twoPane = pageWidth >= _twoPaneMin;
+
+    final selected = _resolve(list, twoPane);
+    final detailAsync = selected == null
+        ? null
+        : ref.watch(submissionDetailProvider(selected.id));
+
+    return AdminPage(
+      title: 'Moderation',
+      meta: stale > 0
+          ? '${all.length} waiting · $stale stale'
+          : '${all.length} waiting',
+      metaColor: stale > 0 ? BsheelColors.dangerText : null,
+      scrollable: false,
+      padding: EdgeInsets.zero,
+      actions: [
+        if (list.length > 1)
+          BsheelButton.positive(
+            label: 'Approve all',
+            icon: Icons.done_all_rounded,
+            small: true,
+            onPressed: busy ? null : () => _approveAll(list),
+          ),
+        BsheelIconButton(
+          icon: Icons.refresh_rounded,
+          tooltip: 'Refresh the queue',
+          onTap: () => ref.invalidate(pendingSubmissionsProvider),
+        ),
+      ],
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (_, event) => _onKey(event, list),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (moderation.hasError)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: BsheelCallout.danger(
+                  moderation.error.toString(),
+                  trailing: BsheelButton.ghost(
+                    label: 'Reload',
+                    small: true,
+                    onPressed: () =>
+                        ref.invalidate(pendingSubmissionsProvider),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: !twoPane
+                  // Narrow: the rail is the page until a submission is
+                  // picked, then the surface is, with a way back.
+                  ? (selected == null || detailAsync == null
+                      ? _rail(
+                          queueAsync: queueAsync,
+                          all: all,
+                          list: list,
+                          selected: null,
+                          fullWidth: true,
+                        )
+                      : _surface(
+                          selected: selected,
+                          detailAsync: detailAsync,
+                          list: list,
+                          busy: busy,
+                          onBack: () => setState(() => _selectedId = null),
+                        ))
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _rail(
+                          queueAsync: queueAsync,
+                          all: all,
+                          list: list,
+                          selected: selected,
+                          fullWidth: false,
+                        ),
+                        Expanded(
+                          child: selected == null || detailAsync == null
+                              ? _nothingSelected(queueAsync, list)
+                              : _surface(
+                                  selected: selected,
+                                  detailAsync: detailAsync,
+                                  list: list,
+                                  busy: busy,
+                                ),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Queue rail ────────────────────────────────────────────────────────
+
+  Widget _rail({
+    required AsyncValue<List<PendingSubmission>> queueAsync,
+    required List<PendingSubmission> all,
+    required List<PendingSubmission> list,
+    required PendingSubmission? selected,
+    required bool fullWidth,
+  }) {
+    return Container(
+      width: fullWidth ? null : _railWidth,
+      decoration: BoxDecoration(
+        color: BsheelColors.surface,
+        border: fullWidth
+            ? null
+            : const Border(right: BsheelBorders.inkSide),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header — the count, then the three views of the queue.
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BsheelBorders.inkSide),
+            ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.done_all_rounded,
-                      color: BsheelColors.success,
-                      size: 24,
-                    ),
-                    const SizedBox(width: QuestSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'APPROVE ALL',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: BsheelType.displaySm
-                            .copyWith(color: BsheelColors.ink),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: QuestSpacing.md),
                 Text(
-                  'Approve $eligibleCount '
-                  '${eligibleCount == 1 ? 'submission' : 'submissions'}? '
-                  'The media-viewed gate applies — only submissions whose '
-                  'media you have fully viewed are included.'
-                  '${skippedCount > 0 ? '\n\n$skippedCount will be skipped '
-                      '(media not fully viewed).' : ''}',
-                  style: BsheelType.bodySm
-                      .copyWith(color: BsheelColors.inkSoft, height: 1.4),
+                  'PENDING REVIEW · ${list.length}',
+                  style: BsheelType.labelMd,
                 ),
-                const SizedBox(height: QuestSpacing.lg),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: QuestSpacing.sm,
-                  runSpacing: QuestSpacing.sm,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: Text(
-                        'CANCEL',
-                        style: BsheelType.labelSm
-                            .copyWith(color: BsheelColors.inkSoft),
-                      ),
+                const SizedBox(height: 4),
+                BsheelFilterChips(
+                  selected: _filter,
+                  onChanged: (v) => setState(() => _filter = v),
+                  filters: [
+                    const BsheelFilter(_fAll, 'All'),
+                    BsheelFilter(
+                      _fAppeals,
+                      'Appeals',
+                      count: all.where((s) => s.appealed).length,
                     ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.success,
-                        foregroundColor:
-                            BsheelColors.onAccent(BsheelColors.success),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                      ),
-                      child: Text(
-                        'APPROVE $eligibleCount',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.onAccent(BsheelColors.success),
-                        ),
-                      ),
+                    BsheelFilter(
+                      _fFlagged,
+                      'Flagged',
+                      count: all.where(_isFlagged).length,
                     ),
                   ],
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showSummarySnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: BsheelColors.paper,
-        content: Text(
-          msg,
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.ink),
-        ),
-      ),
-    );
-  }
-
-  void _scrollSelectedIntoView() {
-    // Run after layout so the GlobalKey has a context.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final entries = _itemKeys.entries.toList();
-      if (_selectedIndex >= entries.length) return;
-      final ctx = entries[_selectedIndex].value.currentContext;
-      if (ctx == null) return;
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 180),
-        alignment: 0.1,
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Realtime: new submissions appear in the queue without manual
-    // refresh; status changes (approve/reject by another mod) drop
-    // them out. autoDispose tears the channel down on navigation away.
-    ref.watch(pendingSubmissionsRealtimeProvider);
-
-    final submissionsAsync = ref.watch(pendingSubmissionsProvider);
-    final moderationState = ref.watch(moderationControllerProvider);
-
-    final list = submissionsAsync.maybeWhen(
-      data: (subs) => subs,
-      orElse: () => const <PendingSubmission>[],
-    );
-
-    // Clamp selection if the list shrank (e.g. after approve).
-    if (_selectedIndex >= list.length) {
-      _selectedIndex = list.isEmpty ? 0 : list.length - 1;
-    }
-
-    final selected = list.isNotEmpty ? list[_selectedIndex] : null;
-    final busy = moderationState.isLoading;
-
-    Future<void> approveSelected() async {
-      if (busy || selected == null) return;
-      if (!_allMediaViewed(selected)) return;
-      await ref.read(moderationControllerProvider.notifier).approve(selected);
-    }
-
-    Future<void> denySelected() async {
-      if (busy || selected == null) return;
-      if (!_allMediaViewed(selected)) return;
-      final note = await _showDenyDialog(context, selected);
-      if (note == null || note.isEmpty) return;
-      await ref
-          .read(moderationControllerProvider.notifier)
-          .deny(selected, note);
-    }
-
-    void openSelected() {
-      if (selected == null) return;
-      context.goNamed(
-        AdminRouteNames.submissionReview,
-        pathParameters: {'id': selected.id},
-      );
-    }
-
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyA): approveSelected,
-        const SingleActivator(LogicalKeyboardKey.keyD): denySelected,
-        const SingleActivator(LogicalKeyboardKey.enter): openSelected,
-        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-            _moveSelection(1, list.length),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-            _moveSelection(-1, list.length),
-        const SingleActivator(LogicalKeyboardKey.keyJ): () =>
-            _moveSelection(1, list.length),
-        const SingleActivator(LogicalKeyboardKey.keyK): () =>
-            _moveSelection(-1, list.length),
-      },
-      child: Focus(
-        autofocus: true,
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Header(
-                submissions: list,
-                busy: busy,
-                onRefresh: () => ref.invalidate(pendingSubmissionsProvider),
-                onApproveAll: () => _approveAll(list),
-              ),
-              const SizedBox(height: QuestSpacing.xs),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Oldest first. Approve/deny is locked until you view '
-                      'every photo and watch every video.',
-                      style: BsheelType.bodySm.copyWith(
-                        color: BsheelColors.inkSoft,
-                      ),
-                    ),
-                  ),
-                  // The shortcut legend is a fixed-width strip: it is
-                  // dropped rather than allowed to crush the caption.
-                  if (MediaQuery.of(context).size.width >= 900) ...[
-                    const SizedBox(width: 12),
-                    const _ShortcutsHint(),
-                  ],
-                ],
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              if (busy)
-                LinearProgressIndicator(
-                  color: BsheelColors.ink,
-                  backgroundColor: BsheelColors.ink.withAlpha(30),
-                ),
-              if (moderationState.hasError)
-                _ErrorBanner(error: moderationState.error.toString()),
-              Expanded(
-                child: submissionsAsync.when(
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(
-                      color: BsheelColors.ink,
-                    ),
-                  ),
-                  error: (e, _) => Center(
-                    child: Text(
-                      'Error: $e',
-                      textAlign: TextAlign.center,
-                      style: BsheelType.bodySm.copyWith(
-                        color: BsheelColors.onCream(BsheelColors.danger),
-                      ),
-                    ),
-                  ),
-                  data: (submissions) {
-                    if (submissions.isEmpty) return const _EmptyState();
-
-                    return ListView.separated(
-                      controller: _scrollController,
-                      itemCount: submissions.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.sm),
-                      itemBuilder: (context, i) {
-                        final sub = submissions[i];
-                        final key = _itemKeys.putIfAbsent(
-                          sub.id,
-                          () => GlobalKey(),
-                        );
-                        final viewed = _allMediaViewed(sub);
-                        final viewedSet = _viewed[sub.id] ?? const <int>{};
-                        return KeyedSubtree(
-                          key: key,
-                          child: _SubmissionCard(
-                            submission: sub,
-                            isSelected: i == _selectedIndex,
-                            allMediaViewed: viewed,
-                            viewedIndices: viewedSet,
-                            onTapCard: () => setState(() => _selectedIndex = i),
-                            onMediaViewed: (idx) => _markViewed(sub.id, idx),
-                            onApprove: (busy || !viewed)
-                                ? null
-                                : () => ref
-                                    .read(
-                                      moderationControllerProvider.notifier,
-                                    )
-                                    .approve(sub),
-                            onDeny: (busy || !viewed)
-                                ? null
-                                : () async {
-                                    final note =
-                                        await _showDenyDialog(context, sub);
-                                    if (note == null || note.isEmpty) return;
-                                    await ref
-                                        .read(
-                                          moderationControllerProvider.notifier,
-                                        )
-                                        .deny(sub, note);
-                                  },
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Header ───────────────────────────────────────────────────────────────────
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.submissions,
-    required this.busy,
-    required this.onRefresh,
-    required this.onApproveAll,
-  });
-
-  final List<PendingSubmission> submissions;
-  final bool busy;
-  final VoidCallback onRefresh;
-  final VoidCallback onApproveAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        // The hero type and the action pills cannot share a line on a
-        // narrow window, so they stack instead of overflowing the card.
-        final narrow = c.maxWidth < 720;
-
-        final headline = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const BsheelEyebrow('Moderation · Pending'),
-            const SizedBox(height: 14),
-            BsheelDisplay(
-              'Review the {queue.}',
-              baseStyle:
-                  BsheelType.displayXl.copyWith(fontSize: narrow ? 30 : 44),
+          Expanded(child: _railBody(queueAsync, all, list, selected)),
+          // Footer — the shortcuts, stated where the hand already is.
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
+            decoration: const BoxDecoration(
+              border: Border(top: BsheelBorders.inkSide),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${submissions.length} submissions waiting · use '
-              'A approve · D deny · ↑↓ to navigate.',
-              style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+            child: const Text(
+              'J / K MOVE · A APPROVE · R REJECT',
+              style: BsheelType.labelSm,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        );
-
-        final actions = Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            if (submissions.length > 1)
-              BsheelButton.primary(
-                label: 'APPROVE ALL (${submissions.length})',
-                icon: Icons.done_all_rounded,
-                small: true,
-                onPressed: busy ? null : onApproveAll,
-              ),
-            BsheelButton.ghost(
-              label: 'REFRESH',
-              icon: Icons.refresh_rounded,
-              small: true,
-              onPressed: onRefresh,
-            ),
-          ],
-        );
-
-        return BsheelCard(
-          padding: EdgeInsets.symmetric(
-            horizontal: narrow ? 20 : 36,
-            vertical: narrow ? 22 : 32,
-          ),
-          child: narrow
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    headline,
-                    const SizedBox(height: 16),
-                    actions,
-                  ],
-                )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: headline),
-                    const SizedBox(width: 16),
-                    Flexible(child: actions),
-                  ],
-                ),
-        );
-      },
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: BsheelColors.success.withAlpha(102),
-          ),
-          const SizedBox(height: QuestSpacing.md),
-          Text(
-            'NO PENDING SUBMISSIONS',
-            style: BsheelType.labelMd.copyWith(color: BsheelColors.ink),
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          Text(
-            'All caught up! Check back later.',
-            textAlign: TextAlign.center,
-            style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
           ),
         ],
       ),
     );
   }
-}
 
-// ── Submission card ──────────────────────────────────────────────────────────
-
-class _SubmissionCard extends StatelessWidget {
-  const _SubmissionCard({
-    required this.submission,
-    required this.isSelected,
-    required this.allMediaViewed,
-    required this.viewedIndices,
-    required this.onMediaViewed,
-    required this.onApprove,
-    required this.onDeny,
-    required this.onTapCard,
-  });
-
-  final PendingSubmission submission;
-  final bool isSelected;
-  final bool allMediaViewed;
-  final Set<int> viewedIndices;
-  final void Function(int index) onMediaViewed;
-  final VoidCallback? onApprove;
-  final VoidCallback? onDeny;
-  final VoidCallback onTapCard;
-
-  static const Duration _staleAfter = Duration(hours: 24);
-
-  bool get _isStale =>
-      DateTime.now().difference(submission.submittedAt) > _staleAfter;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = submission.displayName ?? submission.username ?? 'Unknown';
-
-    final flags = <Widget>[];
-    if (submission.isDuplicate) {
-      flags.add(
-        const _FlagBadge(
-          label: 'DUPLICATE',
-          color: BsheelColors.hot,
-          icon: Icons.content_copy,
-        ),
-      );
-    }
-    for (final f in submission.captionFlags) {
-      flags.add(
-        _FlagBadge(
-          label: f,
-          color: f == CaptionFlags.inappropriate
-              ? BsheelColors.hot
-              : BsheelColors.pureWhite,
-          icon: f == CaptionFlags.inappropriate
-              ? Icons.warning_amber_rounded
-              : Icons.report_gmailerrorred,
-        ),
-      );
-    }
-    if (_isStale) {
-      flags.add(
-        const _FlagBadge(
-          label: 'STALE',
-          color: BsheelColors.hot,
-          icon: Icons.schedule,
-        ),
-      );
-    }
-
-    final hasHistory =
-        submission.userApprovedCount + submission.userRejectedCount > 0;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: _mediaPanelDeep,
-        border: Border.all(
-          color: isSelected
-              ? BsheelColors.pureWhite.withAlpha(160)
-              : _mediaPanelBorder,
-          width: BsheelBorders.thin,
-        ),
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+  Widget _railBody(
+    AsyncValue<List<PendingSubmission>> queueAsync,
+    List<PendingSubmission> all,
+    List<PendingSubmission> list,
+    PendingSubmission? selected,
+  ) {
+    return queueAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(12),
+        child: BsheelLoadingList(rows: 5, rowHeight: 68),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-        onTap: onTapCard,
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
-          // Below ~660px of card width the three columns cannot all hold
-          // their minimums, so the card stacks instead of overflowing.
-          child: LayoutBuilder(
-            builder: (context, c) {
-              final narrow = c.maxWidth < 660;
-
-              final media = MediaSection(
-                submission: submission,
-                viewedIndices: viewedIndices,
-                onMediaViewed: onMediaViewed,
-                maxWidth: narrow ? c.maxWidth : 320,
-              );
-
-              final details = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Name + chips wrap: a long display name plus a history
-                  // chip and the ACTIVE pill will not fit one line.
-                  Wrap(
-                    spacing: QuestSpacing.sm,
-                    runSpacing: QuestSpacing.xs,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor:
-                                BsheelColors.pureWhite.withAlpha(30),
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: BsheelType.labelSm.copyWith(
-                                color: BsheelColors.pureWhite,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: QuestSpacing.sm),
-                          Flexible(
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              style: BsheelType.bodyMdBold.copyWith(
-                                color: BsheelColors.pureWhite,
-                                fontSize: 15,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (hasHistory)
-                        _UserHistoryChip(
-                          approved: submission.userApprovedCount,
-                          rejected: submission.userRejectedCount,
-                        ),
-                      if (isSelected) _ActivePill(),
-                    ],
-                  ),
-                  if (submission.questTitle != null) ...[
-                    const SizedBox(height: QuestSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.sm,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        border: Border.all(
-                          color: _mediaPanelBorder,
-                        ),
-                      ),
-                      child: Text(
-                        submission.questTitle!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: BsheelType.labelSm.copyWith(
-                          color: _mediaPanelSoft,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (flags.isNotEmpty) ...[
-                    const SizedBox(height: QuestSpacing.sm),
-                    Wrap(
-                      spacing: QuestSpacing.sm,
-                      runSpacing: QuestSpacing.xs,
-                      children: flags,
-                    ),
-                  ],
-                  if (submission.appealed) ...[
-                    const SizedBox(height: QuestSpacing.md),
-                    _AppealBanner(note: submission.appealNote),
-                  ],
-                  if (submission.caption != null &&
-                      submission.caption!.isNotEmpty) ...[
-                    const SizedBox(height: QuestSpacing.md),
-                    Text(
-                      submission.caption!,
-                      style: BsheelType.bodyMd.copyWith(
-                        color: _mediaPanelSoft,
-                        height: 1.4,
-                      ),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: QuestSpacing.md),
-                  Text(
-                    'Submitted ${_formatTime(submission.submittedAt)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: BsheelType.labelSm.copyWith(
-                      color: _isStale
-                          ? BsheelColors.danger
-                          : BsheelColors.inkMuted,
-                      fontSize: 11,
-                      fontWeight: _isStale ? FontWeight.w500 : null,
-                    ),
-                  ),
-                ],
-              );
-
-              final actions = Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!allMediaViewed) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.sm,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: BsheelColors.pureWhite.withAlpha(25),
-                        borderRadius: BorderRadius.circular(BsheelRadii.md),
-                        border: Border.all(
-                          color: BsheelColors.pureWhite.withAlpha(120),
-                        ),
-                      ),
-                      child: Text(
-                        'VIEW ALL\nMEDIA FIRST',
-                        textAlign: TextAlign.center,
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.pureWhite,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.8,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: QuestSpacing.sm),
-                  ],
-                  ElevatedButton.icon(
-                    onPressed: onApprove,
-                    icon: const Icon(Icons.check, size: 16),
-                    label: Text(
-                      'APPROVE',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.onAccent(BsheelColors.success),
-                        fontSize: 11,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: BsheelColors.success,
-                      foregroundColor:
-                          BsheelColors.onAccent(BsheelColors.success),
-                      disabledBackgroundColor:
-                          BsheelColors.success.withAlpha(50),
-                      disabledForegroundColor:
-                          BsheelColors.onAccent(BsheelColors.success)
-                              .withAlpha(140),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BsheelRadii.full),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.md,
-                        vertical: QuestSpacing.md,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: QuestSpacing.sm),
-                  OutlinedButton.icon(
-                    onPressed: onDeny,
-                    icon: const Icon(Icons.close, size: 16),
-                    label: Text(
-                      'DENY',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.danger,
-                        fontSize: 11,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: BsheelColors.danger,
-                      side: const BorderSide(
-                        color: BsheelColors.danger,
-                        width: BsheelBorders.thin,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BsheelRadii.full),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.md,
-                        vertical: QuestSpacing.md,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: QuestSpacing.sm),
-                  OutlinedButton.icon(
-                    onPressed: () => context.goNamed(
-                      AdminRouteNames.submissionReview,
-                      pathParameters: {'id': submission.id},
-                    ),
-                    icon: const Icon(Icons.open_in_new, size: 14),
-                    label: Text(
-                      'OPEN',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: BsheelColors.inkMuted,
-                      side: const BorderSide(
-                        color: _mediaPanelBorder,
-                        width: BsheelBorders.thin,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BsheelRadii.full),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ],
-              );
-
-              if (narrow) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    media,
-                    const SizedBox(height: QuestSpacing.md),
-                    details,
-                    const SizedBox(height: QuestSpacing.md),
-                    actions,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  media,
-                  const SizedBox(width: QuestSpacing.lg),
-                  Expanded(child: details),
-                  const SizedBox(width: QuestSpacing.lg),
-                  SizedBox(width: 130, child: actions),
-                ],
-              );
-            },
-          ),
+      error: (error, _) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: BsheelErrorState(
+          title: 'The queue didn’t load',
+          message: 'The pending list didn’t come back. Nothing was lost — '
+              'no decision has been recorded. $error',
+          onRetry: () => ref.invalidate(pendingSubmissionsProvider),
         ),
       ),
+      data: (_) {
+        if (list.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(12),
+            child: all.isEmpty
+                ? BsheelEmptyState.allClear(
+                    message: 'Nothing is waiting on a moderator. Newly '
+                        'submitted proof lands here on its own.',
+                    actionLabel: 'Open the history',
+                    onAction: () => context.goNamed(
+                      AdminRouteNames.submissionHistory,
+                    ),
+                  )
+                : BsheelEmptyState(
+                    title: 'Nothing in this view',
+                    message: 'No pending submission matches this filter — '
+                        'the rest of the queue is still waiting.',
+                    actionLabel: 'Show the whole queue',
+                    onAction: () => setState(() => _filter = _fAll),
+                  ),
+          );
+        }
+
+        return ListView.separated(
+          controller: _railScroll,
+          padding: const EdgeInsets.all(12),
+          itemCount: list.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 9),
+          itemBuilder: (context, i) {
+            final s = list[i];
+            final key = _itemKeys.putIfAbsent(s.id, () => GlobalKey());
+            return KeyedSubtree(
+              key: key,
+              child: _QueueCard(
+                submission: s,
+                thumbUrl: _thumbUrl(s),
+                flagged: _isFlagged(s),
+                selected: s.id == selected?.id,
+                onTap: () => _select(s),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  String _formatTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+  // ── Review surface ────────────────────────────────────────────────────
+
+  Widget _surface({
+    required PendingSubmission selected,
+    required AsyncValue<Map<String, dynamic>?> detailAsync,
+    required List<PendingSubmission> list,
+    required bool busy,
+    VoidCallback? onBack,
+  }) {
+    final index = list.indexWhere((s) => s.id == selected.id);
+
+    return detailAsync.when(
+      loading: () => const SubmissionReviewSkeleton(),
+      error: (error, _) => Padding(
+        padding: BsheelLayout.pagePadding,
+        child: BsheelErrorState(
+          title: 'The review didn’t load',
+          message: 'This submission’s detail didn’t come back, so nothing '
+              'here is stale — and no decision has been recorded. $error',
+          onRetry: () =>
+              ref.invalidate(submissionDetailProvider(selected.id)),
+        ),
+      ),
+      data: (data) {
+        if (data == null) {
+          return Padding(
+            padding: BsheelLayout.pagePadding,
+            child: BsheelEmptyState(
+              title: 'Already decided',
+              message: 'This submission is no longer in the queue — another '
+                  'moderator may have just decided it.',
+              actionLabel: 'Refresh the queue',
+              onAction: () => ref.invalidate(pendingSubmissionsProvider),
+            ),
+          );
+        }
+
+        final gated = !_allMediaViewed(selected);
+
+        return SubmissionReviewSurface(
+          key: _surfaceKey,
+          submissionId: selected.id,
+          data: data,
+          // MediaSection carries the view-every-asset gate, so the queue
+          // draws the evidence rather than letting the surface do it.
+          mediaBuilder: (context, maxWidth) => MediaSection(
+            submission: selected,
+            viewedIndices: _viewed[selected.id] ?? const <int>{},
+            onMediaViewed: (i) => _markViewed(selected.id, i),
+            maxWidth: maxWidth,
+          ),
+          position: index >= 0 ? index + 1 : null,
+          queueLength: index >= 0 ? list.length : null,
+          approvedCount: selected.userApprovedCount,
+          rejectedCount: selected.userRejectedCount,
+          suggestedReasons: suggestedRejectionReasons(selected),
+          busy: busy,
+          blockedReason: gated ? 'View all media first' : null,
+          onApprove: (_) => _approve(selected),
+          onReject: (note) => _reject(selected, note),
+          onBack: onBack,
+        );
+      },
+    );
+  }
+
+  Widget _nothingSelected(
+    AsyncValue<List<PendingSubmission>> queueAsync,
+    List<PendingSubmission> list,
+  ) {
+    if (queueAsync.isLoading) return const SubmissionReviewSkeleton();
+    return Padding(
+      padding: BsheelLayout.pagePadding,
+      child: BsheelEmptyState(
+        title: 'Nothing selected',
+        message: 'Pick a submission from the queue to see its proof, the '
+            'author’s record and the decision.',
+        actionLabel: list.isEmpty ? null : 'Review the oldest',
+        onAction: list.isEmpty ? null : () => _select(list.first),
+      ),
+    );
   }
 }
 
-// ── Deny dialog (chip-based reasons + optional custom note) ──────────────────
+// ── Queue card ──────────────────────────────────────────────────────────
 
-Future<String?> _showDenyDialog(
-  BuildContext context,
-  PendingSubmission sub,
-) async {
-  return showDialog<String>(
-    context: context,
-    builder: (_) => _DenyDialog(submission: sub),
-  );
-}
+/// One rail row: thumbnail, who, which quest, how long it has waited.
+///
+/// The selected row is the only card on the page carrying a coloured
+/// shadow — it is the one item that needs attention, and everything else
+/// in the rail is flat.
+class _QueueCard extends StatelessWidget {
+  const _QueueCard({
+    required this.submission,
+    required this.thumbUrl,
+    required this.flagged,
+    required this.selected,
+    required this.onTap,
+  });
 
-class _DenyDialog extends StatefulWidget {
-  const _DenyDialog({required this.submission});
   final PendingSubmission submission;
-
-  @override
-  State<_DenyDialog> createState() => _DenyDialogState();
-}
-
-class _DenyDialogState extends State<_DenyDialog> {
-  static const List<String> _commonReasons = [
-    'Not the actual quest',
-    "Doesn't show the activity clearly",
-    'Low quality / unclear media',
-    'Appears staged or faked',
-    'Inappropriate content',
-    'Duplicate / re-uploaded',
-    'Spam / off-topic caption',
-  ];
-
-  final Set<String> _selected = <String>{};
-  final TextEditingController _customController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.submission.isDuplicate) {
-      _selected.add('Duplicate / re-uploaded');
-    }
-    final cFlags = widget.submission.captionFlags;
-    if (cFlags.contains(CaptionFlags.inappropriate)) {
-      _selected.add('Inappropriate content');
-    }
-    if (cFlags.contains(CaptionFlags.spam)) {
-      _selected.add('Spam / off-topic caption');
-    }
-  }
-
-  @override
-  void dispose() {
-    _customController.dispose();
-    super.dispose();
-  }
+  final String? thumbUrl;
+  final bool flagged;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final custom = _customController.text.trim();
-    final canSubmit = _selected.isNotEmpty || custom.isNotEmpty;
+    final name =
+        submission.displayName ?? submission.username ?? 'Unknown author';
+    final iso = submission.submittedAt.toIso8601String();
+    final stale = bsheelIsStale(iso);
 
-    return BsheelDialog(
-      title: 'DENY SUBMISSION',
-      backgroundColor: _mediaPanelDeep,
-      titleStyle: BsheelType.displaySm.copyWith(color: BsheelColors.pureWhite),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pick one or more reasons. Users see these as bullet points.',
-              style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
-            ),
-            const SizedBox(height: QuestSpacing.md),
-            Wrap(
-              spacing: QuestSpacing.sm,
-              runSpacing: QuestSpacing.sm,
-              children: _commonReasons.map((reason) {
-                final on = _selected.contains(reason);
-                return FilterChip(
-                  label: Text(
-                    reason,
-                    style: BsheelType.labelSm.copyWith(
-                      // Selected chips sit on coral, unselected on ink.
-                      color: BsheelColors.onAccent(
-                        on ? BsheelColors.danger : BsheelColors.ink,
-                      ),
-                      fontSize: 11,
+    final body = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        BsheelThumb(url: thumbUrl),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // A long display name plus both markers will not hold one
+              // line in a 300px rail, so they wrap instead of clipping.
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    style: BsheelType.titleMd,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (submission.appealed)
+                    const BsheelPill(
+                      'appeal',
+                      tone: BsheelPillTone.gold,
+                      small: true,
                     ),
-                  ),
-                  selected: on,
-                  showCheckmark: false,
-                  backgroundColor: BsheelColors.ink,
-                  selectedColor: BsheelColors.danger,
-                  side: BorderSide(
-                    color: on ? BsheelColors.danger : _mediaPanelBorder,
-                    width: BsheelBorders.thin,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.full),
-                  ),
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _selected.add(reason);
-                    } else {
-                      _selected.remove(reason);
-                    }
-                  }),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: QuestSpacing.md),
-            BsheelTextField(
-              controller: _customController,
-              label: 'OTHER (OPTIONAL)',
-              onChanged: (_) => setState(() {}),
-              maxLines: 3,
-              style: BsheelType.bodyMd.copyWith(color: BsheelColors.pureWhite),
-              labelStyle:
-                  BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-              fillColor: BsheelColors.pureBlack,
-              borderColor: _mediaPanelBorder,
-              focusedBorderColor: BsheelColors.pureWhite,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'CANCEL',
-            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: canSubmit ? _submit : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: BsheelColors.danger,
-            foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.full),
-            ),
-          ),
-          child: Text(
-            'DENY',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.onAccent(BsheelColors.danger),
-            ),
+                  if (flagged)
+                    const BsheelPill(
+                      'flagged',
+                      tone: BsheelPillTone.coral,
+                      small: true,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                submission.questTitle ?? 'Quest unavailable',
+                style: BsheelType.bodyXs,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'WAITING ${bsheelWaiting(iso)}'.toUpperCase(),
+                style: BsheelType.labelMd.copyWith(
+                  color:
+                      stale ? BsheelColors.dangerText : BsheelColors.inkMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ],
     );
-  }
 
-  void _submit() {
-    final lines = <String>[];
-    for (final r in _commonReasons) {
-      if (_selected.contains(r)) lines.add('• $r');
+    if (selected) {
+      return BsheelCard(
+        padding: const EdgeInsets.all(11),
+        depth: 4,
+        shadowColor: BsheelColors.primary,
+        onTap: onTap,
+        child: body,
+      );
     }
-    final custom = _customController.text.trim();
-    if (custom.isNotEmpty) lines.add('• $custom');
-    Navigator.pop(context, lines.join('\n'));
-  }
-}
-
-// ── Small UI atoms ───────────────────────────────────────────────────────────
-
-class _AppealBanner extends StatelessWidget {
-  const _AppealBanner({required this.note});
-  final String? note;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.pureWhite.withAlpha(20),
-        borderRadius: BorderRadius.circular(BsheelRadii.md),
-        border: Border.all(
-          color: BsheelColors.pureWhite.withAlpha(100),
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.gavel, size: 16, color: BsheelColors.pureWhite),
-              const SizedBox(width: QuestSpacing.sm),
-              Text(
-                'APPEAL — PREVIOUSLY REJECTED',
-                style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.pureWhite,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-          if (note != null && note!.isNotEmpty) ...[
-            const SizedBox(height: QuestSpacing.sm),
-            Text(
-              '"${note!}"',
-              style: BsheelType.bodySm.copyWith(
-                color: BsheelColors.pureWhite.withAlpha(220),
-                fontStyle: FontStyle.italic,
-                height: 1.4,
-              ),
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ActivePill extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: QuestSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: BsheelColors.pureWhite.withAlpha(30),
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(color: BsheelColors.pureWhite.withAlpha(120)),
-      ),
-      child: Text(
-        'ACTIVE',
-        style: BsheelType.labelSm.copyWith(
-          color: BsheelColors.pureWhite,
-          fontSize: 9,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class _ShortcutsHint extends StatelessWidget {
-  const _ShortcutsHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTextStyle(
-      style: BsheelType.labelSm.copyWith(
-        color: BsheelColors.inkMuted,
-        fontSize: 10,
-        letterSpacing: 0.5,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _kbd('↑↓'),
-          const Text(' nav   '),
-          _kbd('A'),
-          const Text(' approve   '),
-          _kbd('D'),
-          const Text(' deny   '),
-          _kbd('↵'),
-          const Text(' open'),
-        ],
-      ),
-    );
-  }
-
-  Widget _kbd(String c) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: BsheelColors.ink,
-        border: Border.all(color: _mediaPanelBorder),
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-      ),
-      child: Text(
-        c,
-        style: const TextStyle(
-          color: BsheelColors.pureWhite,
-          fontFamily: 'monospace',
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class _FlagBadge extends StatelessWidget {
-  const _FlagBadge({
-    required this.label,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: QuestSpacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(color: color.withAlpha(120)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: BsheelType.labelSm.copyWith(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UserHistoryChip extends StatelessWidget {
-  const _UserHistoryChip({required this.approved, required this.rejected});
-
-  final int approved;
-  final int rejected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: QuestSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-        color: BsheelColors.ink,
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(color: _mediaPanelBorder),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.check, size: 11, color: BsheelColors.success),
-          const SizedBox(width: 2),
-          Text(
-            '$approved',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.success,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: QuestSpacing.sm),
-          const Icon(Icons.close, size: 11, color: BsheelColors.hot),
-          const SizedBox(width: 2),
-          Text(
-            '$rejected',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.hot,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.error});
-  final String error;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: QuestSpacing.md),
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.hot.withAlpha(20),
-        borderRadius: BorderRadius.circular(BsheelRadii.md),
-        border: Border.all(
-          color: BsheelColors.hot.withAlpha(100),
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Text(
-        error,
-        style: BsheelType.bodySm.copyWith(
-          color: BsheelColors.onCream(BsheelColors.danger),
-        ),
-      ),
+    return BsheelCard.flat(
+      padding: const EdgeInsets.all(11),
+      onTap: onTap,
+      child: body,
     );
   }
 }

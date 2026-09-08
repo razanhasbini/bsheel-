@@ -9,9 +9,9 @@ import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
-/// "Port" login. Single centred hairline card on a pure white page,
-/// small inverted brand mark, light display headline with an italic
-/// accent ("Sign in to the {desk.}"), solid black pill submit.
+/// Moderator sign-in. Renders outside the shell, so it owns its own
+/// [Scaffold]: a single 620px page frame centred on cream — 2px ink
+/// outline, 14px radius, 8px hard ink shadow — holding a 330px column.
 class AdminLoginPage extends ConsumerStatefulWidget {
   const AdminLoginPage({super.key});
 
@@ -24,6 +24,7 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
+  String? _notice;
 
   @override
   void dispose() {
@@ -36,6 +37,7 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _notice = null;
     });
     try {
       final response = await ref.read(authRepositoryProvider).signInWithEmail(
@@ -59,6 +61,38 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _notice = null;
+        _error = 'Enter your email address first, then tap forgot password.';
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).resetPassword(email);
+      if (mounted) {
+        setState(() => _notice = 'Reset link sent. Check your inbox.');
+      }
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Reset failed. Please try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,197 +100,73 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: BsheelCard(
-                padding: const EdgeInsets.fromLTRB(32, 32, 32, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Brand
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: BsheelColors.ink,
-                            borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'B',
-                            style: TextStyle(
-                              fontFamily: BsheelFonts.body,
-                              fontWeight: FontWeight.w400,
-                              fontSize: 18,
-                              color: BsheelColors.pureWhite,
-                              height: 1,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Bsheel',
-                              style: BsheelType.displaySm.copyWith(
-                                fontSize: 20,
-                                height: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'ADMIN · V1.0',
-                              style: BsheelType.labelSm.copyWith(
-                                fontSize: 9,
-                                letterSpacing: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                    const BsheelEyebrow('Restricted area'),
-                    const SizedBox(height: 12),
-                    BsheelDisplay(
-                      'Sign in to the {desk.}',
-                      baseStyle: BsheelType.displayLg.copyWith(fontSize: 38),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Mods, ops and admins only. Everyone else: open the '
-                      'mobile app instead.',
-                      style: BsheelType.bodyMd.copyWith(
-                        color: BsheelColors.inkSoft,
+            padding: const EdgeInsets.fromLTRB(24, 32, 32, 40),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 620),
+              padding: const EdgeInsets.all(36),
+              decoration: BoxDecoration(
+                color: BsheelColors.bg,
+                borderRadius: BorderRadius.circular(BsheelRadii.lg),
+                border: const Border.fromBorderSide(BsheelBorders.inkSide),
+                boxShadow: BsheelShadows.frame,
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: 330,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text('BSHEEL ADMIN', style: BsheelType.displayLg),
+                      const SizedBox(height: 2),
+                      const BsheelLabel('Moderator sign in'),
+                      const SizedBox(height: 16),
+                      BsheelField(
+                        controller: _emailController,
+                        label: 'Email',
+                        hint: 'your@email.com',
+                        keyboardType: TextInputType.emailAddress,
+                        enabled: !_loading,
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    _Field(
-                      controller: _emailController,
-                      label: 'EMAIL',
-                      hint: 'you@bsheel.app',
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      controller: _passwordController,
-                      label: 'PASSWORD',
-                      hint: '••••••••',
-                      obscure: true,
-                      onSubmitted: (_) => _login(),
-                    ),
-                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      BsheelField(
+                        controller: _passwordController,
+                        label: 'Password',
+                        hint: 'Enter your password',
+                        obscureText: true,
+                        enabled: !_loading,
+                        onSubmitted: (_) => _login(),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 16),
+                        BsheelCallout.danger(_error!),
+                      ],
+                      if (_notice != null) ...[
+                        const SizedBox(height: 16),
+                        BsheelCallout.positive(_notice!),
+                      ],
+                      const SizedBox(height: 16),
+                      BsheelButton.primary(
+                        label: 'LOG IN',
+                        expand: true,
+                        height: 52,
+                        loading: _loading,
+                        onPressed: _loading ? null : _login,
+                      ),
                       const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: BsheelColors.paper,
-                          borderRadius: BorderRadius.circular(BsheelRadii.md),
-                          border: Border.all(
-                            color: BsheelColors.danger,
-                            width: BsheelBorders.thin,
-                          ),
-                        ),
-                        child: Text(
-                          _error!,
-                          style: BsheelType.bodySm.copyWith(
-                            color: BsheelColors.onCream(BsheelColors.danger),
-                          ),
-                        ),
+                      BsheelLink(
+                        'Forgot password?',
+                        align: TextAlign.center,
+                        onTap: _loading ? null : _forgotPassword,
                       ),
                     ],
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: BsheelButton.primary(
-                            label: _loading ? 'SIGNING IN…' : 'SIGN IN',
-                            icon: _loading ? null : Icons.arrow_forward_rounded,
-                            loading: _loading,
-                            onPressed: _loading ? null : _login,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.controller,
-    required this.label,
-    this.hint,
-    this.obscure = false,
-    this.onSubmitted,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String? hint;
-  final bool obscure;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: BsheelType.labelSm),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: obscure,
-          style: BsheelType.bodyMd,
-          onSubmitted: onSubmitted,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: BsheelType.bodyMd.copyWith(
-              color: BsheelColors.inkMuted,
-            ),
-            filled: true,
-            fillColor: BsheelColors.paper,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 11,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.md),
-              borderSide: const BorderSide(
-                color: BsheelColors.line,
-                width: BsheelBorders.thin,
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.md),
-              borderSide: const BorderSide(
-                color: BsheelColors.line,
-                width: BsheelBorders.thin,
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.md),
-              borderSide: const BorderSide(
-                color: BsheelColors.ink,
-                width: BsheelBorders.thin,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

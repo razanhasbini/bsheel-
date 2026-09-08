@@ -8,10 +8,13 @@ import 'package:app_repositories/app_repositories.dart' show AdminRoleEnum;
 import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/backend/app_backend.dart';
+import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Providers ────────────────────────────────────────────────────────────────
@@ -28,6 +31,9 @@ final usersProvider = FutureProvider.autoDispose<List<_UserRow>>((ref) async {
       displayName: row['display_name']?.toString() ?? '',
       avatarUrl: row['avatar_url']?.toString(),
       bio: row['bio']?.toString(),
+      email: row['email']?.toString(),
+      accountStatus:
+          row['account_status']?.toString() ?? _AccountStatus.active,
       xp: (row['xp'] as num?)?.toInt() ?? 0,
       level: (row['level'] as num?)?.toInt() ?? 1,
       questsCompleted: (row['quests_completed'] as num?)?.toInt() ?? 0,
@@ -37,12 +43,24 @@ final usersProvider = FutureProvider.autoDispose<List<_UserRow>>((ref) async {
   }).toList();
 });
 
+/// Values of the `account_status` Postgres enum, as returned by
+/// `admin/users`. `app_contracts` has no class for them yet, so they are
+/// named once here instead of being repeated as literals at every call
+/// site — see the report note.
+abstract final class _AccountStatus {
+  static const String active = 'active';
+  static const String suspended = 'suspended';
+  static const String banned = 'banned';
+}
+
 class _UserRow {
   final String id;
   final String username;
   final String displayName;
   final String? avatarUrl;
   final String? bio;
+  final String? email;
+  final String accountStatus;
   final int xp;
   final int level;
   final int questsCompleted;
@@ -55,6 +73,8 @@ class _UserRow {
     required this.displayName,
     this.avatarUrl,
     this.bio,
+    this.email,
+    this.accountStatus = _AccountStatus.active,
     required this.xp,
     required this.level,
     required this.questsCompleted,
@@ -65,6 +85,14 @@ class _UserRow {
   bool get isAdmin => adminRole != null;
   bool get isSuperAdmin => adminRole == AdminRole.superAdmin;
   bool get isModerator => adminRole == AdminRole.moderator;
+
+  /// Suspended and banned accounts read as retired rows: muted table row,
+  /// muted numerals, lavender avatar.
+  bool get isRestricted => accountStatus != _AccountStatus.active;
+
+  /// What the moderator searches by — the header hint promises both.
+  String get haystack =>
+      '$username $displayName ${email ?? ''}'.toLowerCase();
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -81,9 +109,22 @@ class UsersPage extends ConsumerStatefulWidget {
 }
 
 class _UsersPageState extends ConsumerState<UsersPage> {
+  /// The filter row: `all` plus the three account statuses.
+  static const String _fAll = 'all';
+
+  /// Below this the rail cannot sit beside the table, so the page stacks
+  /// with the rail first — a selection has to stay visible.
+  static const double _railBreakpoint = 1100;
+
+  /// Five columns need this much room; narrower than that the table
+  /// scrolls sideways inside the page rather than painting outside it.
+  static const double _minTableWidth = 520;
+
   late final TextEditingController _searchCtrl =
       TextEditingController(text: widget.initialQuery ?? '');
   late String _search = (widget.initialQuery ?? '').toLowerCase();
+  String _statusFilter = _fAll;
+  String? _selectedId;
 
   @override
   void didUpdateWidget(covariant UsersPage oldWidget) {
@@ -106,509 +147,437 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   @override
   Widget build(BuildContext context) {
     final usersAsync = ref.watch(usersProvider);
+    final loaded = usersAsync.valueOrNull ?? const <_UserRow>[];
+
+    return AdminPage(
+      title: 'Users',
+      actions: [
+        BsheelSearchField(
+          controller: _searchCtrl,
+          hint: 'Search username or email…',
+          width: 230,
+          onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+        ),
+      ],
+      subheader: LayoutBuilder(
+        builder: (context, c) {
+          final chips = BsheelFilterChips(
+            selected: _statusFilter,
+            onChanged: (v) => setState(() => _statusFilter = v),
+            filters: [
+              BsheelFilter(
+                _fAll,
+                'All',
+                count: loaded.length,
+                ground: BsheelColors.card,
+              ),
+              BsheelFilter(
+                _AccountStatus.active,
+                'Active',
+                count: _countOf(loaded, _AccountStatus.active),
+                ground: BsheelColors.card,
+              ),
+              BsheelFilter(
+                _AccountStatus.suspended,
+                'Suspended',
+                count: _countOf(loaded, _AccountStatus.suspended),
+                ground: BsheelColors.accent,
+              ),
+              BsheelFilter(
+                _AccountStatus.banned,
+                'Banned',
+                count: _countOf(loaded, _AccountStatus.banned),
+                ground: BsheelColors.danger,
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              BsheelButton.ghost(
+                label: 'Export',
+                icon: Icons.file_download_rounded,
+                small: true,
+                // Nothing to export until the list is on screen, and a
+                // button that cannot act says so by losing its shadow.
+                onPressed:
+                    loaded.isEmpty ? null : () => _exportToExcel(loaded),
+              ),
+              BsheelButton.primary(
+                label: 'Add user',
+                icon: Icons.person_add_rounded,
+                small: true,
+                onPressed: () => _showCreateUserDialog(context),
+              ),
+            ],
+          );
+          if (c.maxWidth < 620) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                chips,
+                const SizedBox(height: QuestSpacing.sm),
+                actions,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: chips),
+              const SizedBox(width: QuestSpacing.md),
+              actions,
+            ],
+          );
+        },
+      ),
+      child: usersAsync.when(
+        loading: () => const BsheelLoadingList(rows: 6, rowHeight: 46),
+        error: (e, _) => BsheelErrorState(
+          title: 'Users didn’t load',
+          message: 'The account list didn’t come back, so no account is on '
+              'screen. Nothing was changed — this page only reads until you '
+              'act on a row. $e',
+          onRetry: () => ref.invalidate(usersProvider),
+        ),
+        data: (users) => _body(context, users),
+      ),
+    );
+  }
+
+  static int _countOf(List<_UserRow> users, String status) =>
+      users.where((u) => u.accountStatus == status).length;
+
+  // ── Body: table on the left, 300px detail rail on the right ─────────
+
+  Widget _body(BuildContext context, List<_UserRow> users) {
+    if (users.isEmpty) {
+      return BsheelEmptyState(
+        title: 'No accounts yet',
+        message: 'Nobody has signed up, so there is nothing to moderate. '
+            'Create the first account to get started.',
+        actionLabel: 'Add a user',
+        onAction: () => _showCreateUserDialog(context),
+      );
+    }
+
+    final filtered = _visible(users);
+    final selected = _selected(users);
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final stacked = c.maxWidth < _railBreakpoint;
+        // 300 rail + 18 gutter.
+        final tableWidth = stacked ? c.maxWidth : c.maxWidth - 318;
+
+        Widget tableSide;
+        if (filtered.isEmpty) {
+          tableSide = BsheelEmptyState(
+            title: 'No match',
+            message: 'No account matches this filter and search. Clear them '
+                'both to see every account again.',
+            actionLabel: 'Clear filters',
+            onAction: () {
+              _searchCtrl.clear();
+              setState(() {
+                _search = '';
+                _statusFilter = _fAll;
+              });
+            },
+          );
+        } else {
+          tableSide = _table(filtered);
+          if (tableWidth < _minTableWidth) {
+            tableSide = SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: _minTableWidth, child: tableSide),
+            );
+          }
+        }
+
+        final rail = _rail(context, selected);
+
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              rail,
+              const SizedBox(height: QuestSpacing.lg),
+              tableSide,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: tableSide),
+            const SizedBox(width: QuestSpacing.lg),
+            SizedBox(width: 300, child: rail),
+          ],
+        );
+      },
+    );
+  }
+
+  List<_UserRow> _visible(List<_UserRow> users) {
+    return users.where((u) {
+      if (_statusFilter != _fAll && u.accountStatus != _statusFilter) {
+        return false;
+      }
+      if (_search.isEmpty) return true;
+      return u.haystack.contains(_search);
+    }).toList(growable: false);
+  }
+
+  /// Resolved against the whole list, not the filtered one, so changing a
+  /// filter never silently drops the moderator's selection.
+  _UserRow? _selected(List<_UserRow> users) {
+    final id = _selectedId;
+    if (id == null) return null;
+    for (final u in users) {
+      if (u.id == id) return u;
+    }
+    return null;
+  }
+
+  // ── Table ───────────────────────────────────────────────────────────
+
+  Widget _table(List<_UserRow> rows) {
+    return BsheelTable(
+      depth: 5,
+      columns: const [
+        BsheelColumn('User'),
+        BsheelColumn('Level', width: 74),
+        BsheelColumn('XP', width: 92),
+        BsheelColumn('Quests', width: 92),
+        BsheelColumn('Status', width: 108),
+      ],
+      rows: [
+        for (final u in rows)
+          BsheelRow(
+            [
+              _userCell(u),
+              BsheelCell.mono(
+                '${u.level}',
+                color: u.isRestricted ? BsheelColors.inkMuted : null,
+              ),
+              BsheelCell.mono(
+                _grouped(u.xp),
+                bold: false,
+                color: u.isRestricted ? BsheelColors.inkMuted : null,
+              ),
+              BsheelCell.mono(
+                _grouped(u.questsCompleted),
+                bold: false,
+                color: u.isRestricted ? BsheelColors.inkMuted : null,
+              ),
+              BsheelCell.pill(BsheelPill.status(u.accountStatus)),
+            ],
+            muted: u.isRestricted,
+            onTap: () => setState(() => _selectedId = u.id),
+          ),
+      ],
+    );
+  }
+
+  Widget _userCell(_UserRow u) {
+    final name = u.username.isEmpty ? u.displayName : u.username;
+    return Row(
+      children: [
+        BsheelAvatar(
+          url: u.avatarUrl,
+          initial: name.isEmpty ? '?' : name[0],
+          size: 30,
+          // Lavender is the system's retired tint; sky is informational.
+          ground: u.isRestricted ? BsheelColors.lavender : BsheelColors.cool,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            name.isEmpty ? '—' : name,
+            style: BsheelType.titleMd.copyWith(
+              color: u.isRestricted ? BsheelColors.inkSoft : BsheelColors.ink,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Detail rail ─────────────────────────────────────────────────────
+
+  Widget _rail(BuildContext context, _UserRow? user) {
+    if (user == null) {
+      return const BsheelEmptyState(
+        title: 'No user picked',
+        message: 'Pick a user in the table and their account opens here, '
+            'with the two actions that change it.',
+      );
+    }
+
+    final name = user.username.isEmpty ? user.displayName : user.username;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        LayoutBuilder(
-          builder: (context, c) {
-            final narrow = c.maxWidth < 720;
-            final headline = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Community · Users'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Mind the {community.}',
-                  baseStyle: BsheelType.displayXl.copyWith(
-                    fontSize: narrow ? 30 : 44,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Search, export, and moderate every user account.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
-            );
-            final actions = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                BsheelButton.ghost(
-                  label: 'EXPORT',
-                  icon: Icons.file_download_rounded,
-                  small: true,
-                  onPressed: usersAsync.maybeWhen(
-                    data: (users) => () => _exportToExcel(users),
-                    orElse: () => null,
-                  ),
-                ),
-                BsheelButton.primary(
-                  label: 'ADD USER',
-                  icon: Icons.person_add_rounded,
-                  small: true,
-                  onPressed: () => _showCreateUserDialog(context),
-                ),
-              ],
-            );
-            return BsheelCard(
-              padding: EdgeInsets.symmetric(
-                horizontal: narrow ? 20 : 36,
-                vertical: narrow ? 22 : 32,
-              ),
-              child: narrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        headline,
-                        const SizedBox(height: 16),
-                        actions,
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(child: headline),
-                        const SizedBox(width: 16),
-                        Flexible(child: actions),
-                      ],
-                    ),
-            );
-          },
+        Text(
+          'SELECTED · $name',
+          style: BsheelType.labelMd,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: TextField(
-            controller: _searchCtrl,
-            style: BsheelType.bodySm,
-            decoration: InputDecoration(
-              hintText: 'Search by username or display name...',
-              hintStyle: BsheelType.bodySm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-              prefixIcon:
-                  const Icon(Icons.search, color: BsheelColors.inkMuted),
-              filled: true,
-              fillColor: BsheelColors.paper,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide: const BorderSide(color: BsheelColors.ink),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide: const BorderSide(color: BsheelColors.ink, width: 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                borderSide:
-                    const BorderSide(color: BsheelColors.primary, width: 1),
-              ),
-            ),
-            onChanged: (v) => setState(() => _search = v.toLowerCase()),
+        if (user.adminRole != null) ...[
+          const SizedBox(height: QuestSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _RoleBadge(role: user.adminRole),
+          ),
+        ],
+        const SizedBox(height: QuestSpacing.md),
+        BsheelKeyValues(
+          depth: 4,
+          // The rail is the focus of this page, so it takes the one
+          // coloured shadow on screen.
+          shadowColor: BsheelColors.primary,
+          entries: [
+            BsheelKeyValue('Joined', _joinedLabel(user.createdAt)),
+            // The admin user list carries no moderation counters yet, so
+            // these three read as unknown rather than as zero.
+            const BsheelKeyValue('Approval rate', '—'),
+            const BsheelKeyValue('Reports against', '—'),
+            const BsheelKeyValue('Blocks received', '—'),
+          ],
+        ),
+        const SizedBox(height: QuestSpacing.md),
+        BsheelButton.ghost(
+          label: 'View submissions',
+          small: true,
+          expand: true,
+          onPressed: () =>
+              context.goNamed(AdminRouteNames.submissionHistory),
+        ),
+        const SizedBox(height: QuestSpacing.sm),
+        BsheelButton.gold(
+          label: 'Suspend',
+          small: true,
+          expand: true,
+          onPressed: () => _confirmStatusChange(
+            context,
+            user,
+            _AccountStatus.suspended,
           ),
         ),
-        Expanded(
-          child: usersAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
-            ),
-            data: (users) {
-              final filtered = users.where((u) {
-                if (_search.isEmpty) return true;
-                return u.username.toLowerCase().contains(_search) ||
-                    u.displayName.toLowerCase().contains(_search);
-              }).toList();
-
-              if (filtered.isEmpty) {
-                return Center(
-                  child: Text(
-                    'No users found.',
-                    style: BsheelType.bodyMd.copyWith(
-                      color: BsheelColors.inkMuted,
-                    ),
-                  ),
-                );
-              }
-
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 600) {
-                    return ListView.separated(
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.sm),
-                      itemBuilder: (context, i) =>
-                          _buildMobileCard(context, filtered[i]),
-                    );
-                  }
-                  return Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: BsheelColors.paper,
-                      border: Border.all(
-                        color: BsheelColors.ink,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    ),
-                    // Seven columns cannot fit a narrow window: the table
-                    // scrolls sideways inside its card instead of painting
-                    // outside it.
-                    child: SingleChildScrollView(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth:
-                                constraints.maxWidth - BsheelBorders.thick * 2,
-                          ),
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              BsheelColors.surface,
-                            ),
-                            columnSpacing: 24,
-                            headingTextStyle: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.inkMuted,
-                              letterSpacing: 1.5,
-                            ),
-                            dataTextStyle: BsheelType.bodySm.copyWith(
-                              color: BsheelColors.ink,
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('USER')),
-                              DataColumn(label: Text('XP'), numeric: true),
-                              DataColumn(label: Text('LEVEL'), numeric: true),
-                              DataColumn(label: Text('QUESTS'), numeric: true),
-                              DataColumn(label: Text('ROLE')),
-                              DataColumn(label: Text('JOINED')),
-                              DataColumn(label: Text('ACTIONS')),
-                            ],
-                            rows: filtered
-                                .asMap()
-                                .entries
-                                .map((e) => _buildRow(context, e.value, e.key))
-                                .toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
+        const SizedBox(height: QuestSpacing.sm),
+        BsheelButton.coral(
+          label: 'Ban account',
+          small: true,
+          expand: true,
+          onPressed: () => _confirmStatusChange(
+            context,
+            user,
+            _AccountStatus.banned,
+          ),
+        ),
+        const SizedBox(height: QuestSpacing.sm),
+        BsheelButton.ghost(
+          label: 'More actions',
+          small: true,
+          expand: true,
+          onPressed: () => _showMoreActions(context, user),
+        ),
+        const SizedBox(height: QuestSpacing.md),
+        Text(
+          'SUSPENDING HIDES THE QOTD TICKET AND BLOCKS NEW QUESTS. '
+          'BOTH ACTIONS ARE AUDITED.',
+          style: BsheelType.labelSm.copyWith(
+            color: BsheelColors.inkMuted,
+            height: 1.5,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMobileCard(BuildContext context, _UserRow user) {
-    final createdAt = user.createdAt;
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(color: BsheelColors.ink, width: 1),
-        borderRadius: BorderRadius.circular(BsheelRadii.sm),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: BsheelColors.cool.withAlpha(50),
-            backgroundImage:
-                user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-            child: user.avatarUrl == null
-                ? Text(
-                    user.displayName.isNotEmpty
-                        ? user.displayName[0].toUpperCase()
-                        : '?',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.onCream(BsheelColors.cool),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
+  /// Everything the row menu used to carry. The rail shows the two
+  /// account-status actions the design draws; the rest live one tap away
+  /// so no behaviour is lost.
+  void _showMoreActions(BuildContext context, _UserRow user) {
+    final name = user.username.isEmpty ? user.displayName : user.username;
+
+    Widget action(String value, String label, IconData icon) => Padding(
+          padding: const EdgeInsets.only(bottom: QuestSpacing.sm),
+          child: BsheelButton.ghost(
+            label: label,
+            icon: icon,
+            small: true,
+            expand: true,
+            onPressed: () {
+              Navigator.pop(context);
+              _handleAction(context, value, user);
+            },
           ),
-          const SizedBox(width: QuestSpacing.md),
-          Expanded(
+        );
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => BsheelDialog(
+        title: 'Actions · $name',
+        maxWidth: 360,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 380),
+          child: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  user.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.bodySm.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: BsheelColors.ink,
-                  ),
+                action('view', 'View details', Icons.visibility_rounded),
+                action('edit', 'Edit profile', Icons.edit_rounded),
+                action(
+                  'assign_quest',
+                  'Assign quest',
+                  Icons.assignment_rounded,
                 ),
-                Text(
-                  '@${user.username}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.inkSoft,
-                    fontSize: 10,
-                  ),
+                action(
+                  'send_notification',
+                  'Send notification',
+                  Icons.notifications_rounded,
                 ),
-                const SizedBox(height: QuestSpacing.xs),
-                Wrap(
-                  spacing: QuestSpacing.sm,
-                  runSpacing: 4,
-                  children: [
-                    Text(
-                      '${user.xp} XP',
-                      style: BsheelType.labelSm.copyWith(
-                        // Gold is 1.6:1 as small type on cream.
-                        color: BsheelColors.onCream(BsheelColors.accent),
-                        fontSize: 10,
-                      ),
-                    ),
-                    Text(
-                      'LV${user.level}',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.primary,
-                        fontSize: 10,
-                      ),
-                    ),
-                    Text(
-                      '${user.questsCompleted} quests',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
-                        fontSize: 10,
-                      ),
-                    ),
-                    if (createdAt != null)
-                      Text(
-                        'Joined ${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted,
-                          fontSize: 10,
-                        ),
-                      ),
-                    _RoleBadge(role: user.adminRole),
-                  ],
+                action('role', 'Manage role', Icons.shield_rounded),
+                action(
+                  'reset_pw',
+                  'Reset password',
+                  Icons.lock_reset_rounded,
+                ),
+                action(
+                  'activate',
+                  'Activate account',
+                  Icons.check_circle_rounded,
+                ),
+                BsheelButton.coral(
+                  label: 'Delete user',
+                  icon: Icons.delete_rounded,
+                  small: true,
+                  expand: true,
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _handleAction(context, 'delete', user);
+                  },
                 ),
               ],
             ),
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: BsheelColors.inkMuted),
-            color: BsheelColors.paper,
-            tooltip: 'Actions',
-            onSelected: (action) => _handleAction(context, action, user),
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'view',
-                child: _MenuItem(Icons.visibility, 'View Details'),
-              ),
-              const PopupMenuItem(
-                value: 'edit',
-                child: _MenuItem(Icons.edit, 'Edit Profile'),
-              ),
-              const PopupMenuItem(
-                value: 'assign_quest',
-                child: _MenuItem(Icons.assignment, 'Assign Quest'),
-              ),
-              const PopupMenuItem(
-                value: 'send_notification',
-                child: _MenuItem(Icons.notifications, 'Send Notification'),
-              ),
-              const PopupMenuItem(
-                value: 'role',
-                child: _MenuItem(Icons.shield, 'Manage Role'),
-              ),
-              const PopupMenuItem(
-                value: 'reset_pw',
-                child: _MenuItem(Icons.lock_reset, 'Reset Password'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'suspend',
-                child: _MenuItem(Icons.pause_circle, 'Suspend User',
-                    isDestructive: true),
-              ),
-              const PopupMenuItem(
-                value: 'ban',
-                child: _MenuItem(Icons.block, 'Ban User', isDestructive: true),
-              ),
-              const PopupMenuItem(
-                value: 'activate',
-                child: _MenuItem(Icons.check_circle, 'Activate User'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'delete',
-                child: _MenuItem(
-                  Icons.delete,
-                  'Delete User',
-                  isDestructive: true,
-                ),
-              ),
-            ],
+        ),
+        actions: [
+          BsheelButton.ghost(
+            label: 'Close',
+            small: true,
+            onPressed: () => Navigator.pop(ctx),
           ),
         ],
       ),
-    );
-  }
-
-  DataRow _buildRow(BuildContext context, _UserRow user, int index) {
-    final createdAt = user.createdAt;
-    final rowColor = index.isEven ? BsheelColors.paper : BsheelColors.surface;
-
-    return DataRow(
-      color: WidgetStateProperty.all(rowColor),
-      cells: [
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: BsheelColors.cool.withAlpha(50),
-                backgroundImage: user.avatarUrl != null
-                    ? NetworkImage(user.avatarUrl!)
-                    : null,
-                child: user.avatarUrl == null
-                    ? Text(
-                        user.displayName.isNotEmpty
-                            ? user.displayName[0].toUpperCase()
-                            : '?',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.onCream(BsheelColors.cool),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: QuestSpacing.sm),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    user.displayName,
-                    style: BsheelType.bodySm.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: BsheelColors.ink,
-                    ),
-                  ),
-                  Text(
-                    '@${user.username}',
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.inkMuted,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        DataCell(
-          Text(
-            '${user.xp}',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.onCream(BsheelColors.accent),
-            ),
-          ),
-        ),
-        DataCell(
-          Text(
-            '${user.level}',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.primary,
-            ),
-          ),
-        ),
-        DataCell(
-          Text(
-            '${user.questsCompleted}',
-            style: BsheelType.bodySm.copyWith(color: BsheelColors.ink),
-          ),
-        ),
-        DataCell(_RoleBadge(role: user.adminRole)),
-        DataCell(
-          Text(
-            createdAt != null
-                ? '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}'
-                : '-',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.inkMuted,
-            ),
-          ),
-        ),
-        DataCell(
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: BsheelColors.inkMuted),
-            color: BsheelColors.paper,
-            tooltip: 'Actions',
-            onSelected: (action) => _handleAction(context, action, user),
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'view',
-                child: _MenuItem(Icons.visibility, 'View Details'),
-              ),
-              const PopupMenuItem(
-                value: 'edit',
-                child: _MenuItem(Icons.edit, 'Edit Profile'),
-              ),
-              const PopupMenuItem(
-                value: 'assign_quest',
-                child: _MenuItem(Icons.assignment, 'Assign Quest'),
-              ),
-              const PopupMenuItem(
-                value: 'send_notification',
-                child: _MenuItem(Icons.notifications, 'Send Notification'),
-              ),
-              const PopupMenuItem(
-                value: 'role',
-                child: _MenuItem(Icons.shield, 'Manage Role'),
-              ),
-              const PopupMenuItem(
-                value: 'reset_pw',
-                child: _MenuItem(Icons.lock_reset, 'Reset Password'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'suspend',
-                child: _MenuItem(Icons.pause_circle, 'Suspend User',
-                    isDestructive: true),
-              ),
-              const PopupMenuItem(
-                value: 'ban',
-                child: _MenuItem(Icons.block, 'Ban User', isDestructive: true),
-              ),
-              const PopupMenuItem(
-                value: 'activate',
-                child: _MenuItem(Icons.check_circle, 'Activate User'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'delete',
-                child:
-                    _MenuItem(Icons.delete, 'Delete User', isDestructive: true),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -627,12 +596,12 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       case 'reset_pw':
         _showResetPasswordDialog(context, user);
       case 'suspend':
-        _confirmStatusChange(context, user, 'suspended');
+        _confirmStatusChange(context, user, _AccountStatus.suspended);
       case 'ban':
-        _confirmStatusChange(context, user, 'banned');
+        _confirmStatusChange(context, user, _AccountStatus.banned);
       case 'activate':
         // Restorative action — no confirmation needed.
-        _setAccountStatus(user.id, 'active', user.displayName);
+        _setAccountStatus(user.id, _AccountStatus.active, user.displayName);
       case 'delete':
         _confirmDelete(context, user);
     }
@@ -648,9 +617,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       );
       ref.invalidate(usersProvider);
       if (mounted) {
-        final label = status == 'active'
+        final label = status == _AccountStatus.active
             ? 'activated'
-            : status == 'suspended'
+            : status == _AccountStatus.suspended
                 ? 'suspended'
                 : 'banned';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -670,39 +639,34 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: user.displayName.toUpperCase(),
+        title: user.displayName,
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DetailRow('USERNAME', '@${user.username}'),
-              _DetailRow('DISPLAY NAME', user.displayName),
-              _DetailRow('USER ID', user.id),
-              _DetailRow('XP', '${user.xp}'),
-              _DetailRow('LEVEL', '${user.level}'),
-              _DetailRow('QUESTS COMPLETED', '${user.questsCompleted}'),
-              _DetailRow('BIO', user.bio ?? '-'),
-              _DetailRow('ROLE', user.adminRole ?? 'User'),
-              _DetailRow(
-                'JOINED',
-                user.createdAt != null
-                    ? '${user.createdAt!.year}-${user.createdAt!.month.toString().padLeft(2, '0')}-${user.createdAt!.day.toString().padLeft(2, '0')}'
-                    : '-',
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow('Username', '@${user.username}'),
+                _DetailRow('Display name', user.displayName, mono: false),
+                _DetailRow('Email', user.email ?? '—'),
+                _DetailRow('Status', user.accountStatus),
+                _DetailRow('User id', user.id),
+                _DetailRow('XP', '${user.xp}'),
+                _DetailRow('Level', '${user.level}'),
+                _DetailRow('Quests completed', '${user.questsCompleted}'),
+                _DetailRow('Bio', user.bio ?? '—', mono: false),
+                _DetailRow('Role', user.adminRole ?? 'Regular user'),
+                _DetailRow('Joined', _joinedLabel(user.createdAt)),
+              ],
+            ),
           ),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Close',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CLOSE',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
         ],
       ),
@@ -720,7 +684,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'EDIT ${user.displayName.toUpperCase()}',
+        title: 'Edit ${user.displayName}',
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
@@ -731,21 +695,21 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 children: [
                   BsheelFormField(
                     controller: usernameCtrl,
-                    label: 'USERNAME',
+                    label: 'Username',
                     validator: (v) =>
                         v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                   const SizedBox(height: QuestSpacing.md),
                   BsheelFormField(
                     controller: displayNameCtrl,
-                    label: 'DISPLAY NAME',
+                    label: 'Display name',
                     validator: (v) =>
                         v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                   const SizedBox(height: QuestSpacing.md),
                   BsheelFormField(
                     controller: bioCtrl,
-                    label: 'BIO',
+                    label: 'Bio',
                     maxLines: 2,
                   ),
                   const SizedBox(height: QuestSpacing.md),
@@ -766,7 +730,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                       Expanded(
                         child: BsheelFormField(
                           controller: levelCtrl,
-                          label: 'LEVEL',
+                          label: 'Level',
                           keyboardType: TextInputType.number,
                           validator: (v) {
                             final n = int.tryParse(v ?? '');
@@ -782,16 +746,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           ),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
+          BsheelButton.primary(
+            label: 'Save',
+            small: true,
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
               Navigator.pop(ctx);
@@ -804,19 +766,6 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 int.parse(levelCtrl.text.trim()),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
-            child: Text(
-              'SAVE',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.onAccent(BsheelColors.primary),
-              ),
-            ),
           ),
         ],
       ),
@@ -865,18 +814,19 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => BsheelDialog(
-          title: 'MANAGE ROLE: ${user.displayName.toUpperCase()}',
+          title: 'Manage role: ${user.displayName}',
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Current role: ${user.adminRole ?? "Regular User"}',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkMuted,
-                  ),
+                Row(
+                  children: [
+                    const BsheelLabel('Current role'),
+                    const SizedBox(width: QuestSpacing.sm),
+                    _RoleBadge(role: user.adminRole),
+                  ],
                 ),
                 const SizedBox(height: QuestSpacing.md),
                 RadioGroup<String?>(
@@ -885,55 +835,47 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                   child: const Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _DarkRadioTile<String?>(
-                        title: 'REGULAR USER',
+                      _RoleRadioTile<String?>(
+                        title: 'Regular user',
                         subtitle: 'No admin privileges',
                         value: null,
                       ),
-                      _DarkRadioTile<String?>(
-                        title: 'MODERATOR',
+                      _RoleRadioTile<String?>(
+                        title: 'Moderator',
                         subtitle: 'Can review submissions',
                         value: AdminRole.moderator,
                       ),
-                      _DarkRadioTile<String?>(
-                        title: 'SUPER ADMIN',
+                      _RoleRadioTile<String?>(
+                        title: 'Super admin',
                         subtitle: 'Full admin access',
                         value: AdminRole.superAdmin,
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: QuestSpacing.md),
+                // The audit note: a role change is recorded against the
+                // moderator who made it, and cannot be made quietly.
+                const BsheelCallout(
+                  'Granting or removing an admin role is written to the '
+                  'audit log against your account.',
+                ),
               ],
             ),
           ),
           actions: [
-            TextButton(
+            BsheelButton.ghost(
+              label: 'Cancel',
+              small: true,
               onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'CANCEL',
-                style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.inkMuted,
-                ),
-              ),
             ),
-            ElevatedButton(
+            BsheelButton.primary(
+              label: 'Save',
+              small: true,
               onPressed: () async {
                 Navigator.pop(ctx);
                 await _setRole(user.id, selectedRole);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: BsheelColors.primary,
-                foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                ),
-              ),
-              child: Text(
-                'SAVE',
-                style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.onAccent(BsheelColors.primary),
-                ),
-              ),
             ),
           ],
         ),
@@ -973,14 +915,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'RESET PASSWORD: ${user.displayName.toUpperCase()}',
+        title: 'Reset password: ${user.displayName}',
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 360),
           child: Form(
             key: formKey,
             child: BsheelFormField(
               controller: pwCtrl,
-              label: 'NEW PASSWORD',
+              label: 'New password',
               // SEC-010: mirror the policy used everywhere else
               // (≥10 chars, mix of upper/lower/digit, no banned
               // substrings). The edge function re-validates on
@@ -990,34 +932,19 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           ),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
+          BsheelButton.primary(
+            label: 'Reset',
+            small: true,
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
               Navigator.pop(ctx);
               await _resetPassword(user.id, pwCtrl.text);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
-            child: Text(
-              'RESET',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.onAccent(BsheelColors.primary),
-              ),
-            ),
           ),
         ],
       ),
@@ -1050,13 +977,13 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     String status,
   ) {
     final (String title, String verb, String consequence) = switch (status) {
-      'banned' => (
-          'BAN USER',
+      _AccountStatus.banned => (
+          'Ban user',
           'ban',
           'They will be locked out of the app until reactivated.',
         ),
       _ => (
-          'SUSPEND USER',
+          'Suspend user',
           'suspend',
           'They will be temporarily locked out until reactivated.',
         ),
@@ -1066,37 +993,32 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: title,
-        content: Text(
-          'Are you sure you want to $verb "${user.displayName}" '
-          '(@${user.username})?\n\n$consequence',
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Are you sure you want to $verb "${user.displayName}" '
+              '(@${user.username})?',
+              style: BsheelType.bodySm,
+            ),
+            const SizedBox(height: QuestSpacing.md),
+            BsheelCallout.danger('$consequence This is audited.'),
+          ],
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.hot,
-              foregroundColor: BsheelColors.ink,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
+          BsheelButton.coral(
+            label: verb,
+            small: true,
             onPressed: () async {
               Navigator.pop(ctx);
               await _setAccountStatus(user.id, status, user.displayName);
             },
-            child: Text(
-              verb.toUpperCase(),
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-            ),
           ),
         ],
       ),
@@ -1107,39 +1029,36 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'DELETE USER',
-        content: Text(
-          'Are you sure you want to delete "${user.displayName}" (@${user.username})?\n\n'
-          'This will permanently remove their account, profile, quests, and submissions. '
-          'This cannot be undone.',
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+        title: 'Delete user',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Are you sure you want to delete "${user.displayName}" '
+              '(@${user.username})?',
+              style: BsheelType.bodySm,
+            ),
+            const SizedBox(height: QuestSpacing.md),
+            const BsheelCallout.danger(
+              'This permanently removes their account, profile, quests and '
+              'submissions. It cannot be undone.',
+            ),
+          ],
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.hot,
-              foregroundColor: BsheelColors.ink,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
+          BsheelButton.coral(
+            label: 'Delete',
+            small: true,
             onPressed: () async {
               Navigator.pop(ctx);
               await _deleteUser(user.id);
             },
-            child: Text(
-              'DELETE',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-            ),
           ),
         ],
       ),
@@ -1151,6 +1070,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       await AppBackend.repositories.admin.deleteUser(userId);
       ref.invalidate(usersProvider);
       if (mounted) {
+        setState(() {
+          if (_selectedId == userId) _selectedId = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User deleted.')),
         );
@@ -1195,7 +1117,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'SEND NOTIFICATION TO ${user.displayName.toUpperCase()}',
+        title: 'Notify ${user.displayName}',
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
@@ -1205,14 +1127,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               children: [
                 BsheelFormField(
                   controller: titleCtrl,
-                  label: 'TITLE',
+                  label: 'Title',
                   validator: (v) =>
                       v == null || v.trim().isEmpty ? 'Required' : null,
                 ),
                 const SizedBox(height: QuestSpacing.md),
                 BsheelFormField(
                   controller: bodyCtrl,
-                  label: 'MESSAGE',
+                  label: 'Message',
                   maxLines: 3,
                   validator: (v) =>
                       v == null || v.trim().isEmpty ? 'Required' : null,
@@ -1222,14 +1144,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           ),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-            ),
           ),
-          ElevatedButton(
+          BsheelButton.primary(
+            label: 'Send',
+            small: true,
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
               Navigator.pop(ctx);
@@ -1239,17 +1161,6 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 bodyCtrl.text.trim(),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.cool,
-              foregroundColor: BsheelColors.ink,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
-            child: Text(
-              'SEND',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-            ),
           ),
         ],
       ),
@@ -1302,7 +1213,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'CREATE NEW USER',
+        title: 'Create new user',
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
@@ -1313,7 +1224,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 children: [
                   BsheelFormField(
                     controller: emailCtrl,
-                    label: 'EMAIL',
+                    label: 'Email',
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Required';
                       if (!v.contains('@')) return 'Invalid email';
@@ -1323,7 +1234,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                   const SizedBox(height: QuestSpacing.md),
                   BsheelFormField(
                     controller: passwordCtrl,
-                    label: 'PASSWORD',
+                    label: 'Password',
                     // Same SEC-010 policy as admin password resets:
                     // ≥10 chars + upper/lower/digit, no banned substrings.
                     validator: _validateAdminResetPassword,
@@ -1331,14 +1242,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                   const SizedBox(height: QuestSpacing.md),
                   BsheelFormField(
                     controller: usernameCtrl,
-                    label: 'USERNAME',
+                    label: 'Username',
                     validator: (v) =>
                         v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                   const SizedBox(height: QuestSpacing.md),
                   BsheelFormField(
                     controller: displayNameCtrl,
-                    label: 'DISPLAY NAME (OPTIONAL)',
+                    label: 'Display name (optional)',
                   ),
                 ],
               ),
@@ -1346,16 +1257,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           ),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
+          BsheelButton.primary(
+            label: 'Create',
+            small: true,
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
               Navigator.pop(ctx);
@@ -1366,19 +1275,6 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 displayNameCtrl.text.trim(),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.sm),
-              ),
-            ),
-            child: Text(
-              'CREATE',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.onAccent(BsheelColors.primary),
-              ),
-            ),
           ),
         ],
       ),
@@ -1500,6 +1396,43 @@ class _UsersPageState extends ConsumerState<UsersPage> {
   }
 }
 
+// ── Formatting ───────────────────────────────────────────────────────────
+
+const List<String> _monthLabels = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// `04 Mar 25` — the rail's date shape.
+String _joinedLabel(DateTime? dt) {
+  if (dt == null) return '—';
+  final d = dt.toLocal();
+  return '${d.day.toString().padLeft(2, '0')} '
+      '${_monthLabels[d.month - 1]} '
+      '${(d.year % 100).toString().padLeft(2, '0')}';
+}
+
+/// Thousands separators, so `18420` reads as `18,420` in a mono column.
+String _grouped(int n) {
+  final digits = n.abs().toString();
+  final out = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i != 0 && (digits.length - i) % 3 == 0) out.write(',');
+    out.write(digits[i]);
+  }
+  return out.toString();
+}
+
 // ── Password validator (SEC-010) ─────────────────────────────────────────
 // Mirrors apps/mobile_app/lib/features/auth/presentation/password_policy.dart.
 // Server-side validation in the admin_manage_user edge function is the
@@ -1530,95 +1463,39 @@ String? _validateAdminResetPassword(String? v) {
 
 // ── Helper Widgets ───────────────────────────────────────────────────────────
 
+/// Admin role as a status pill. Violet is the elevated privilege, sky is
+/// the informational one; a regular account has no badge to draw.
 class _RoleBadge extends StatelessWidget {
   final String? role;
   const _RoleBadge({this.role});
 
   @override
   Widget build(BuildContext context) {
-    if (role == null) {
+    final role0 = role;
+    if (role0 == null) {
       return Text(
-        'User',
+        'Regular user',
         style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
       );
     }
-    final (Color bg, Color fg, String label) = switch (role) {
-      'super_admin' => (
-          BsheelColors.danger.withAlpha(30),
-          BsheelColors.onCream(BsheelColors.danger),
-          'SUPER ADMIN',
-        ),
-      'moderator' => (
-          BsheelColors.cool.withAlpha(30),
-          BsheelColors.onCream(BsheelColors.cool),
-          'MODERATOR',
-        ),
-      _ => (
-          BsheelColors.inkMuted.withAlpha(30),
-          BsheelColors.inkSoft,
-          role!.toUpperCase(),
-        ),
+    final (BsheelPillTone tone, String label) = switch (role0) {
+      AdminRole.superAdmin => (BsheelPillTone.violet, 'super admin'),
+      AdminRole.moderator => (BsheelPillTone.sky, 'moderator'),
+      _ => (BsheelPillTone.paper, role0.replaceAll('_', ' ')),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: QuestSpacing.sm,
-        vertical: 3,
-      ),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(color: fg.withAlpha(80)),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: BsheelType.labelSm.copyWith(
-          color: fg,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+    return BsheelPill(label, tone: tone);
   }
 }
 
-class _MenuItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isDestructive;
-
-  const _MenuItem(this.icon, this.label, {this.isDestructive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    // The menu ground is `BsheelColors.paper`: white-on-white made every
-    // item invisible. Destructive rows take the coral text twin.
-    final color = isDestructive
-        ? BsheelColors.onCream(BsheelColors.danger)
-        : BsheelColors.ink;
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: QuestSpacing.sm),
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: BsheelType.bodySm.copyWith(color: color),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// Dialog detail line: tracked mono key, selectable value. A user id is
+/// long and has no break points, so the value wraps rather than running
+/// past the dialog edge.
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+  final bool mono;
 
-  const _DetailRow(this.label, this.value);
+  const _DetailRow(this.label, this.value, {this.mono = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1627,23 +1504,12 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
-            child: Text(
-              label,
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkSoft,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
+          SizedBox(width: 140, child: BsheelLabel(label)),
           const SizedBox(width: QuestSpacing.sm),
-          // A user id is long and has no break points — it wraps rather
-          // than running past the dialog edge.
           Expanded(
             child: SelectableText(
               value,
-              style: BsheelType.bodySm.copyWith(color: BsheelColors.ink),
+              style: mono ? BsheelType.monoMd : BsheelType.bodySm,
             ),
           ),
         ],
@@ -1652,12 +1518,12 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _DarkRadioTile<T> extends StatelessWidget {
+class _RoleRadioTile<T> extends StatelessWidget {
   final String title;
   final String subtitle;
   final T value;
 
-  const _DarkRadioTile({
+  const _RoleRadioTile({
     required this.title,
     required this.subtitle,
     required this.value,
@@ -1666,13 +1532,11 @@ class _DarkRadioTile<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RadioListTile<T>(
-      title: Text(
-        title,
-        style: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
-      ),
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: BsheelType.bodySmMedium),
       subtitle: Text(
         subtitle,
-        style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+        style: BsheelType.bodyXs,
       ),
       value: value,
       activeColor: BsheelColors.primary,
@@ -1756,25 +1620,23 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
   @override
   Widget build(BuildContext context) {
     return BsheelDialog(
-      title: 'ASSIGN QUEST TO ${widget.user.displayName.toUpperCase()}',
+      title: 'Assign quest to ${widget.user.displayName}',
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
         child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: BsheelColors.primary),
-              )
+            ? const BsheelLoadingList(rows: 4, rowHeight: 52)
             : _quests.isEmpty
-                ? Text(
-                    'No active quests available.',
-                    style: BsheelType.bodySm
-                        .copyWith(color: BsheelColors.inkMuted),
+                ? const BsheelEmptyState(
+                    title: 'No active quests',
+                    message: 'There is no active quest to assign. Activate '
+                        'one in quest management first.',
                   )
                 : SizedBox(
                     height: 320,
                     child: ListView.separated(
                       itemCount: _quests.length,
                       separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.xs),
+                          const SizedBox(height: QuestSpacing.sm),
                       itemBuilder: (_, i) {
                         final q = _quests[i];
                         final qId = q[QuestColumns.id].toString();
@@ -1782,69 +1644,55 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                         final category =
                             (q[QuestColumns.category] ?? '').toString();
                         final xp = q[QuestColumns.xpReward] ?? 0;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedQuestId = qId),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 120),
-                            padding: const EdgeInsets.all(QuestSpacing.md),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? BsheelColors.primary.withAlpha(20)
-                                  : BsheelColors.surface,
-                              borderRadius:
-                                  BorderRadius.circular(BsheelRadii.sm),
-                              border: Border.all(
+                        return BsheelCard(
+                          padding: const EdgeInsets.all(11),
+                          // The violet shadow marks the one row that is
+                          // selected; the rest sit flat.
+                          depth: isSelected ? 3 : 0,
+                          shadowColor: BsheelColors.primary,
+                          color: isSelected
+                              ? BsheelColors.card
+                              : BsheelColors.surface,
+                          onTap: () =>
+                              setState(() => _selectedQuestId = qId),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSelected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                size: 18,
                                 color: isSelected
                                     ? BsheelColors.primary
-                                    : BsheelColors.ink,
-                                width: 1.5,
+                                    : BsheelColors.inkMuted,
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isSelected
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  size: 16,
-                                  color: isSelected
-                                      ? BsheelColors.primary
-                                      : BsheelColors.inkMuted,
-                                ),
-                                const SizedBox(width: QuestSpacing.sm),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        q[QuestColumns.title].toString(),
-                                        style: BsheelType.bodySm.copyWith(
-                                          color: BsheelColors.ink,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      Text(
-                                        category.toUpperCase(),
-                                        style: BsheelType.labelSm.copyWith(
-                                          color: BsheelColors.inkMuted,
-                                          fontSize: 9,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  '+$xp XP',
-                                  style: BsheelType.labelSm.copyWith(
-                                    color: BsheelColors.onCream(
-                                      BsheelColors.accent,
+                              const SizedBox(width: QuestSpacing.sm),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      q[QuestColumns.title].toString(),
+                                      style: BsheelType.titleSm,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    fontSize: 10,
-                                  ),
+                                    if (category.isNotEmpty) ...[
+                                      const SizedBox(height: 5),
+                                      BsheelTag.category(category),
+                                    ],
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: QuestSpacing.sm),
+                              Text(
+                                '+$xp XP',
+                                style: BsheelType.monoSm.copyWith(
+                                  color: BsheelColors.accentText,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -1852,36 +1700,16 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                   ),
       ),
       actions: [
-        TextButton(
+        BsheelButton.ghost(
+          label: 'Cancel',
+          small: true,
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'CANCEL',
-            style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
-          ),
         ),
-        ElevatedButton(
+        BsheelButton.primary(
+          label: 'Assign',
+          small: true,
+          loading: _assigning,
           onPressed: (_selectedQuestId == null || _assigning) ? null : _assign,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: BsheelColors.primary,
-            foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.sm),
-            ),
-          ),
-          child: _assigning
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: BsheelColors.onAccent(BsheelColors.primary),
-                  ),
-                )
-              : Text(
-                  'ASSIGN',
-                  style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.onAccent(BsheelColors.primary)),
-                ),
         ),
       ],
     );

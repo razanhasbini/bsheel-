@@ -5,6 +5,9 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
+/// Shown when a signed-in account has no admin role. Renders outside the
+/// shell, so it owns its own [Scaffold] and draws the same 620px page frame
+/// as the login screen — with the refusal carried by a coral callout.
 class AdminAccessDeniedPage extends ConsumerWidget {
   const AdminAccessDeniedPage({super.key});
 
@@ -12,57 +15,51 @@ class AdminAccessDeniedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: BsheelColors.bg,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: BsheelCard(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: BsheelColors.paper,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: BsheelColors.line,
-                        width: BsheelBorders.thin,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 32, 32, 40),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 620),
+              padding: const EdgeInsets.all(36),
+              decoration: BoxDecoration(
+                color: BsheelColors.bg,
+                borderRadius: BorderRadius.circular(BsheelRadii.lg),
+                border: const Border.fromBorderSide(BsheelBorders.inkSide),
+                boxShadow: BsheelShadows.frame,
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: 330,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text('BSHEEL ADMIN', style: BsheelType.displayLg),
+                      const SizedBox(height: 2),
+                      const BsheelLabel('Restricted area'),
+                      const SizedBox(height: 16),
+                      const BsheelCallout.danger('You are not authorized.'),
+                      const SizedBox(height: 16),
+                      Text(
+                        'This account does not have dashboard access. '
+                        'Ask a super admin to grant you an admin role.',
+                        style: BsheelType.bodyMd.copyWith(
+                          color: BsheelColors.inkSoft,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.lock_outline,
-                      // Coral on white is 2.9:1 — under the 3:1 graphics
-                      // threshold, so the mark takes the text twin.
-                      color: BsheelColors.onCream(BsheelColors.danger),
-                      size: 26,
-                    ),
+                      const SizedBox(height: 18),
+                      BsheelButton.ghost(
+                        label: 'SIGN OUT',
+                        icon: Icons.logout,
+                        expand: true,
+                        height: 48,
+                        onPressed: () =>
+                            ref.read(authRepositoryProvider).signOut(),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  const BsheelEyebrow('Restricted'),
-                  const SizedBox(height: 8),
-                  const BsheelDisplay(
-                    'No {entry.}',
-                    baseStyle: BsheelType.displayLg,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'This account does not have dashboard access. '
-                    'Ask a super admin to grant you an admin role.',
-                    textAlign: TextAlign.center,
-                    style:
-                        BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                  ),
-                  const SizedBox(height: 24),
-                  BsheelButton.primary(
-                    label: 'SIGN OUT',
-                    icon: Icons.logout,
-                    onPressed: () => ref.read(authRepositoryProvider).signOut(),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

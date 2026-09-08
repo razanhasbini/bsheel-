@@ -1,15 +1,14 @@
-import 'package:app_core/app_core.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:excel/excel.dart' as xl;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:app_contracts/app_contracts.dart';
 
-import '../../../../core/providers/admin_role_provider.dart';
 import '../../../../core/backend/app_backend.dart';
-
+import '../../../../core/providers/admin_role_provider.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 /// Quest bank, newest first. Rows stay maps because the table, the edit
@@ -37,6 +36,29 @@ final _questsProvider =
   return rows;
 });
 
+/// Every category the CHECK constraint allows, in the order the design
+/// draws the filter row. The strings come from `app_contracts`, never
+/// from a literal — the DB constraint and this list cannot drift.
+const List<String> _questCategories = [
+  QuestCategory.fitness,
+  QuestCategory.creativity,
+  QuestCategory.social,
+  QuestCategory.learning,
+  QuestCategory.adventure,
+];
+
+/// Every difficulty the CHECK constraint allows.
+const List<String> _questDifficulties = [
+  QuestDifficulty.easy,
+  QuestDifficulty.medium,
+  QuestDifficulty.hard,
+];
+
+/// `fitness` → `Fitness`, for dropdown items that read as words rather
+/// than as DB values.
+String _readable(String value) =>
+    value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}';
+
 class QuestManagementPage extends ConsumerStatefulWidget {
   const QuestManagementPage({super.key});
 
@@ -46,436 +68,208 @@ class QuestManagementPage extends ConsumerStatefulWidget {
 }
 
 class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
+  /// Filter keys that are not category values. Retirement is
+  /// `is_active = false`, not a status string, so it has no contract.
+  static const String _filterAll = 'all';
+  static const String _filterRetired = 'retired';
+
+  /// Six columns cannot fit a narrow window; below this the table
+  /// scrolls sideways rather than painting outside the page.
+  static const double _tableMinWidth = 660;
+
+  final TextEditingController _searchCtrl = TextEditingController();
   String _search = '';
+  String _filter = _filterAll;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final questsAsync = ref.watch(_questsProvider);
     final isSuperAdmin = ref.watch(isSuperAdminProvider).valueOrNull ?? false;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        LayoutBuilder(
-          builder: (context, c) {
-            // Three action pills and a 44px hero cannot share a line on a
-            // narrow window, so the header stacks instead of overflowing.
-            final narrow = c.maxWidth < 780;
-            final headline = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Content · Quests'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'The {quest bank.}',
-                  baseStyle: BsheelType.hero(context),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Browse, write and retire every quest in the catalog.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
-            );
-            final actions = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (isSuperAdmin) ...[
-                  BsheelButton.ghost(
-                    label: 'IMPORT',
-                    icon: Icons.upload_file_rounded,
-                    small: true,
-                    onPressed: () => _showImportDialog(context),
-                  ),
-                  BsheelButton.coral(
-                    label: 'DELETE ALL',
-                    icon: Icons.delete_forever_rounded,
-                    small: true,
-                    onPressed: () => _confirmDeleteAll(context),
-                  ),
-                ],
-                BsheelButton.primary(
-                  label: 'NEW QUEST',
-                  icon: Icons.add_rounded,
-                  small: true,
-                  onPressed: () => _showQuestDialog(context),
-                ),
-              ],
-            );
-            return BsheelCard(
-              padding: EdgeInsets.symmetric(
-                horizontal: narrow ? 20 : 36,
-                vertical: narrow ? 22 : 32,
-              ),
-              child: narrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        headline,
-                        const SizedBox(height: 16),
-                        actions,
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(child: headline),
-                        const SizedBox(width: 16),
-                        Flexible(child: actions),
-                      ],
-                    ),
-            );
-          },
+    return AdminPage(
+      title: 'Quest bank',
+      actions: [
+        BsheelSearchField(
+          controller: _searchCtrl,
+          hint: 'Search quests…',
+          width: 220,
+          onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
         ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: TextField(
-            style: BsheelType.bodySm,
-            decoration: InputDecoration(
-              hintText: 'Search quests...',
-              hintStyle: BsheelType.bodySm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-              prefixIcon:
-                  const Icon(Icons.search, color: BsheelColors.inkMuted),
-              filled: true,
-              fillColor: BsheelColors.paper,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.md),
-                borderSide: const BorderSide(color: BsheelColors.line),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.md),
-                borderSide: const BorderSide(
-                  color: BsheelColors.line,
-                  width: BsheelBorders.thin,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.md),
-                borderSide: const BorderSide(
-                  color: BsheelColors.ink,
-                  width: BsheelBorders.thin,
-                ),
-              ),
-            ),
-            onChanged: (v) => setState(() => _search = v.toLowerCase()),
+        // Bulk import and the bank-wide wipe stay super-admin only, and
+        // stay in the header as icons so the row cannot overflow.
+        if (isSuperAdmin) ...[
+          BsheelIconButton(
+            icon: Icons.upload_file_rounded,
+            tooltip: 'Import quests from a spreadsheet',
+            onTap: () => _showImportDialog(context),
           ),
-        ),
-        Expanded(
-          child: questsAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
-            ),
-            data: (quests) {
-              final filtered = quests.where((q) {
-                if (_search.isEmpty) return true;
-                final title =
-                    (q[QuestColumns.title] ?? '').toString().toLowerCase();
-                final desc = (q[QuestColumns.description] ?? '')
-                    .toString()
-                    .toLowerCase();
-                return title.contains(_search) || desc.contains(_search);
-              }).toList();
-
-              if (filtered.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.assignment_outlined,
-                        size: 64,
-                        color: BsheelColors.inkMuted,
-                      ),
-                      const SizedBox(height: QuestSpacing.md),
-                      Text(
-                        'NO QUESTS FOUND',
-                        style: BsheelType.labelMd.copyWith(
-                          color: BsheelColors.inkMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 600) {
-                    return ListView.separated(
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.sm),
-                      itemBuilder: (context, i) =>
-                          _buildMobileCard(context, filtered[i]),
-                    );
-                  }
-                  return Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: BsheelColors.paper,
-                      border: Border.all(
-                        color: BsheelColors.line,
-                        width: BsheelBorders.thin,
-                      ),
-                      borderRadius: BorderRadius.circular(BsheelRadii.lg),
-                    ),
-                    // Eight columns cannot fit a narrow window: the
-                    // table scrolls sideways inside its card rather than
-                    // painting outside it.
-                    child: SingleChildScrollView(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth:
-                                constraints.maxWidth - BsheelBorders.thick * 2,
-                          ),
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              BsheelColors.surface,
-                            ),
-                            columnSpacing: 24,
-                            headingTextStyle: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.inkMuted,
-                              letterSpacing: 1.5,
-                            ),
-                            dataTextStyle: BsheelType.bodySm.copyWith(
-                              color: BsheelColors.ink,
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('TITLE')),
-                              DataColumn(label: Text('CATEGORY')),
-                              DataColumn(label: Text('DIFFICULTY')),
-                              DataColumn(label: Text('XP'), numeric: true),
-                              DataColumn(label: Text('DURATION')),
-                              DataColumn(label: Text('ACTIVE')),
-                              DataColumn(label: Text('CREATED')),
-                              DataColumn(label: Text('ACTIONS')),
-                            ],
-                            rows: filtered
-                                .asMap()
-                                .entries
-                                .map((e) => _buildRow(context, e.value, e.key))
-                                .toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileCard(BuildContext context, Map<String, dynamic> quest) {
-    final id = quest[QuestColumns.id]?.toString() ?? '';
-    final title = quest[QuestColumns.title]?.toString() ?? '-';
-    final category = quest[QuestColumns.category]?.toString() ?? '-';
-    final difficulty = quest[QuestColumns.difficulty]?.toString() ?? '-';
-    final xp = quest[QuestColumns.xpReward] ?? 0;
-    final durationHours = _toDurationHours(quest[QuestColumns.durationHours]);
-    final isActive = quest[QuestColumns.isActive] == true;
-
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: BsheelType.bodyMd.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: BsheelColors.ink,
-                  ),
-                ),
-              ),
-              Switch(
-                value: isActive,
-                activeThumbColor: BsheelColors.primary,
-                inactiveThumbColor: BsheelColors.inkMuted,
-                inactiveTrackColor: BsheelColors.surface,
-                onChanged: (val) => _toggleActive(id, val),
-              ),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.xs),
-          Wrap(
-            spacing: QuestSpacing.sm,
-            runSpacing: QuestSpacing.sm,
-            children: [
-              _CategoryChip(category: category),
-              _DifficultyChip(difficulty: difficulty),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: QuestSpacing.sm,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: BsheelColors.surface,
-                  borderRadius: BorderRadius.circular(BsheelRadii.full),
-                  border: Border.all(color: BsheelColors.line),
-                ),
-                child: Text(
-                  '$xp XP · ${durationHours}h',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelSm.copyWith(
-                    // Gold on a cream chip is 1.6:1 — text twin.
-                    color: BsheelColors.onCream(BsheelColors.accent),
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.edit_outlined,
-                  color: BsheelColors.onCream(BsheelColors.cool),
-                ),
-                tooltip: 'Edit',
-                onPressed: () => _showQuestDialog(context, quest: quest),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-                tooltip: 'Delete',
-                onPressed: () => _confirmDelete(context, id, title),
-              ),
-            ],
+          BsheelIconButton(
+            icon: Icons.delete_forever_rounded,
+            ground: BsheelColors.danger,
+            tooltip: 'Delete every quest',
+            onTap: () => _confirmDeleteAll(context),
           ),
         ],
+        BsheelButton.primary(
+          label: 'New quest',
+          small: true,
+          onPressed: () => _showQuestDialog(context),
+        ),
+      ],
+      subheader: _filterRow(questsAsync.valueOrNull),
+      child: questsAsync.when(
+        loading: () => const BsheelLoadingList(rows: 6, rowHeight: 44),
+        error: (e, _) => BsheelErrorState(
+          message: 'The quest bank did not come back. Nothing was changed — '
+              'no quest has been written, edited or retired. ($e)',
+          onRetry: () => ref.invalidate(_questsProvider),
+        ),
+        data: (quests) => _bank(context, quests),
       ),
     );
   }
 
-  DataRow _buildRow(
-    BuildContext context,
-    Map<String, dynamic> quest,
-    int index,
-  ) {
-    final id = quest[QuestColumns.id]?.toString() ?? '';
-    final title = quest[QuestColumns.title]?.toString() ?? '-';
-    final category = quest[QuestColumns.category]?.toString() ?? '-';
-    final difficulty = quest[QuestColumns.difficulty]?.toString() ?? '-';
-    final xp = quest[QuestColumns.xpReward] ?? 0;
-    final durationHours = _toDurationHours(quest[QuestColumns.durationHours]);
-    final isActive = quest[QuestColumns.isActive] == true;
-    final createdAt = quest[QuestColumns.createdAt] != null
-        ? DateTime.tryParse(quest[QuestColumns.createdAt].toString())
-        : null;
+  // ── Filters ────────────────────────────────────────────────
 
-    final rowColor = index.isEven ? BsheelColors.paper : BsheelColors.surface;
+  Widget _filterRow(List<Map<String, dynamic>>? quests) {
+    int? countWhere(bool Function(Map<String, dynamic>) test) =>
+        quests?.where(test).length;
 
-    return DataRow(
-      color: WidgetStateProperty.all(rowColor),
-      cells: [
-        DataCell(
-          Text(
-            title,
-            style: BsheelType.bodySm.copyWith(
-              fontWeight: FontWeight.w500,
-              color: BsheelColors.ink,
+    return BsheelFilterChips(
+      selected: _filter,
+      onChanged: (value) => setState(() => _filter = value),
+      filters: [
+        // ALL stays untinted — it is not a category.
+        BsheelFilter(_filterAll, 'All', count: quests?.length),
+        for (final category in _questCategories)
+          BsheelFilter(
+            category,
+            category,
+            count: countWhere(
+              (q) => q[QuestColumns.category]?.toString() == category,
             ),
+            ground: BsheelColors.category(category),
           ),
-        ),
-        DataCell(_CategoryChip(category: category)),
-        DataCell(_DifficultyChip(difficulty: difficulty)),
-        DataCell(
-          Text(
-            '$xp',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.onCream(BsheelColors.accent),
-            ),
-          ),
-        ),
-        DataCell(
-          Text(
-            '${durationHours}h',
-            style: BsheelType.bodySm.copyWith(color: BsheelColors.ink),
-          ),
-        ),
-        DataCell(
-          Switch(
-            value: isActive,
-            activeThumbColor: BsheelColors.primary,
-            inactiveThumbColor: BsheelColors.inkMuted,
-            inactiveTrackColor: BsheelColors.ink,
-            onChanged: (val) => _toggleActive(id, val),
-          ),
-        ),
-        DataCell(
-          Text(
-            createdAt != null
-                ? '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}'
-                : '-',
-            style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.inkMuted,
-            ),
-          ),
-        ),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.edit_outlined,
-                  color: BsheelColors.onCream(BsheelColors.cool),
-                ),
-                tooltip: 'Edit',
-                onPressed: () => _showQuestDialog(context, quest: quest),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-                tooltip: 'Delete',
-                onPressed: () => _confirmDelete(context, id, title),
-              ),
-            ],
-          ),
+        BsheelFilter(
+          _filterRetired,
+          'Retired',
+          count: countWhere((q) => q[QuestColumns.isActive] != true),
+          dashed: true,
         ),
       ],
     );
   }
+
+  bool _matches(Map<String, dynamic> quest) {
+    if (_filter == _filterRetired) {
+      if (quest[QuestColumns.isActive] == true) return false;
+    } else if (_filter != _filterAll) {
+      if (quest[QuestColumns.category]?.toString() != _filter) return false;
+    }
+    if (_search.isEmpty) return true;
+    final title = (quest[QuestColumns.title] ?? '').toString().toLowerCase();
+    final description =
+        (quest[QuestColumns.description] ?? '').toString().toLowerCase();
+    return title.contains(_search) || description.contains(_search);
+  }
+
+  // ── Table ──────────────────────────────────────────────────
+
+  Widget _bank(BuildContext context, List<Map<String, dynamic>> quests) {
+    final filtered = quests.where(_matches).toList();
+
+    if (filtered.isEmpty) {
+      final filtering = _search.isNotEmpty || _filter != _filterAll;
+      return Padding(
+        padding: const EdgeInsets.only(top: 36),
+        child: filtering
+            ? BsheelEmptyState(
+                title: 'No matches',
+                message: 'No quest matches that search or filter. Nothing has '
+                    'been removed — clear the filter to see the whole bank.',
+                actionLabel: 'Clear filters',
+                onAction: () => setState(() {
+                  _search = '';
+                  _filter = _filterAll;
+                  _searchCtrl.clear();
+                }),
+              )
+            : BsheelEmptyState(
+                title: 'The bank is empty',
+                message: 'The generator has nothing to hand out until a quest '
+                    'exists. Write the first one.',
+                actionLabel: 'New quest',
+                onAction: () => _showQuestDialog(context),
+              ),
+      );
+    }
+
+    final table = BsheelTable(
+      depth: 5,
+      columns: const [
+        BsheelColumn('Title'),
+        BsheelColumn('Category', width: 112),
+        BsheelColumn('Difficulty', width: 92),
+        BsheelColumn('Timer', width: 74),
+        BsheelColumn('XP', width: 74),
+        BsheelColumn('Status', width: 96),
+      ],
+      rows: [for (final quest in filtered) _tableRow(context, quest)],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth >= _tableMinWidth
+          ? table
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: _tableMinWidth, child: table),
+            ),
+    );
+  }
+
+  BsheelRow _tableRow(BuildContext context, Map<String, dynamic> quest) {
+    final retired = quest[QuestColumns.isActive] != true;
+    // A retired row greys wholesale, so every cell reads as inactive.
+    final Color? dim = retired ? BsheelColors.inkMuted : null;
+
+    return BsheelRow(
+      [
+        BsheelCell.title(
+          quest[QuestColumns.title]?.toString() ?? '—',
+          muted: retired,
+        ),
+        BsheelCell.label(
+          quest[QuestColumns.category]?.toString() ?? '—',
+          color: dim ?? BsheelColors.ink,
+        ),
+        BsheelCell.label(
+          quest[QuestColumns.difficulty]?.toString() ?? '—',
+          color: dim,
+        ),
+        BsheelCell.meta(
+          '${_toDurationHours(quest[QuestColumns.durationHours])}h',
+          color: dim,
+        ),
+        BsheelCell.mono('${quest[QuestColumns.xpReward] ?? 0}', color: dim),
+        BsheelCell.pill(
+          retired
+              ? const BsheelPill.muted('retired', small: true)
+              : const BsheelPill('live', tone: BsheelPillTone.green,
+                  small: true),
+        ),
+      ],
+      muted: retired,
+      onTap: () => _showQuestDialog(context, quest: quest),
+    );
+  }
+
+  // ── Retire / restore, delete ───────────────────────────────
 
   Future<void> _toggleActive(String id, bool active) async {
     try {
@@ -496,39 +290,25 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => BsheelDialog(
-        title: 'DELETE QUEST',
+        title: 'Delete quest',
         content: Text(
-          'Delete "$title"? This cannot be undone.',
-          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+          'Delete "$title"? This cannot be undone. Retiring it instead keeps '
+          'the history and stops it being handed out.',
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
-              ),
-            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.danger,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.full),
-              ),
-            ),
+          BsheelButton.coral(
+            label: 'Delete',
+            small: true,
             onPressed: () async {
               Navigator.pop(ctx);
               await _deleteQuest(id);
             },
-            child: Text(
-              'DELETE',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.onAccent(BsheelColors.danger),
-              ),
-            ),
           ),
         ],
       ),
@@ -553,10 +333,14 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     }
   }
 
+  // ── Create / edit ──────────────────────────────────────────
+
   void _showQuestDialog(BuildContext context, {Map<String, dynamic>? quest}) {
     final isEdit = quest != null;
-    final titleCtrl =
-        TextEditingController(text: quest?[QuestColumns.title]?.toString());
+    final id = quest?[QuestColumns.id]?.toString();
+    final storedTitle = quest?[QuestColumns.title]?.toString() ?? '';
+
+    final titleCtrl = TextEditingController(text: storedTitle);
     final descCtrl = TextEditingController(
       text: quest?[QuestColumns.description]?.toString(),
     );
@@ -571,229 +355,193 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
         quest?[QuestColumns.category]?.toString() ?? QuestCategory.fitness;
     String difficulty =
         quest?[QuestColumns.difficulty]?.toString() ?? QuestDifficulty.easy;
-    bool isActive = quest?[QuestColumns.isActive] ?? true;
+    // A new quest goes live; an edit keeps whatever the row already is
+    // and the footer's retire / restore is the one control that flips it.
+    final bool isActive = quest?[QuestColumns.isActive] ?? true;
 
     final formKey = GlobalKey<FormState>();
 
     showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => Dialog(
-          backgroundColor: BsheelColors.paper,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.xl),
-            side: const BorderSide(
-              color: BsheelColors.line,
-              width: BsheelBorders.thin,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(QuestSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isEdit ? 'EDIT QUEST' : 'NEW QUEST',
-                  style: BsheelType.displaySm.copyWith(
-                    color: BsheelColors.ink,
-                  ),
-                ),
-                const SizedBox(height: QuestSpacing.md),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
-                  child: Form(
-                    key: formKey,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+        builder: (ctx, setDialogState) => BsheelDialog(
+          title: isEdit ? 'Edit quest' : 'New quest',
+          maxWidth: 540,
+          content: SizedBox(
+            width: 500,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 440),
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      BsheelField(
+                        controller: titleCtrl,
+                        label: 'Title',
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      BsheelField(
+                        controller: descCtrl,
+                        label: 'Description',
+                        maxLines: 3,
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          BsheelFormField(
-                            controller: titleCtrl,
-                            label: 'TITLE',
-                            validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Required'
-                                : null,
+                          Expanded(
+                            child: BsheelDropdown<String>(
+                              value: category,
+                              label: 'Category',
+                              items: [
+                                for (final value in _questCategories)
+                                  DropdownMenuItem(
+                                    value: value,
+                                    child: Text(_readable(value)),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setDialogState(() => category = v!),
+                            ),
                           ),
-                          const SizedBox(height: QuestSpacing.md),
-                          BsheelFormField(
-                            controller: descCtrl,
-                            label: 'DESCRIPTION',
-                            maxLines: 3,
-                            validator: (v) => v == null || v.trim().isEmpty
-                                ? 'Required'
-                                : null,
-                          ),
-                          const SizedBox(height: QuestSpacing.md),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: BsheelDropdown<String>(
-                                  value: category,
-                                  label: 'CATEGORY',
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: QuestCategory.fitness,
-                                      child: Text('Fitness'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestCategory.creativity,
-                                      child: Text('Creativity'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestCategory.social,
-                                      child: Text('Social'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestCategory.learning,
-                                      child: Text('Learning'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestCategory.adventure,
-                                      child: Text('Adventure'),
-                                    ),
-                                  ],
-                                  onChanged: (v) =>
-                                      setDialogState(() => category = v!),
-                                ),
-                              ),
-                              const SizedBox(width: QuestSpacing.md),
-                              Expanded(
-                                child: BsheelDropdown<String>(
-                                  value: difficulty,
-                                  label: 'DIFFICULTY',
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: QuestDifficulty.easy,
-                                      child: Text('Easy'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestDifficulty.medium,
-                                      child: Text('Medium'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: QuestDifficulty.hard,
-                                      child: Text('Hard'),
-                                    ),
-                                  ],
-                                  onChanged: (v) =>
-                                      setDialogState(() => difficulty = v!),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: QuestSpacing.md),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: BsheelFormField(
-                                  controller: xpCtrl,
-                                  label: 'XP REWARD',
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Required';
-                                    }
-                                    final n = int.tryParse(v.trim());
-                                    if (n == null || n < 0) {
-                                      return 'Invalid number';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: QuestSpacing.md),
-                              Expanded(
-                                child: BsheelFormField(
-                                  controller: durationCtrl,
-                                  label: 'DURATION (HOURS)',
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Required';
-                                    }
-                                    final n = int.tryParse(v.trim());
-                                    if (n == null || n < 1 || n > 168) {
-                                      return 'Use 1-168';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: QuestSpacing.md),
-                          Row(
-                            children: [
-                              Text(
-                                'ACTIVE',
-                                style: BsheelType.labelSm.copyWith(
-                                  color: BsheelColors.inkMuted,
-                                ),
-                              ),
-                              Switch(
-                                value: isActive,
-                                activeThumbColor: BsheelColors.primary,
-                                inactiveThumbColor: BsheelColors.inkMuted,
-                                inactiveTrackColor: BsheelColors.surface,
-                                onChanged: (v) =>
-                                    setDialogState(() => isActive = v),
-                              ),
-                            ],
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: BsheelDropdown<String>(
+                              value: difficulty,
+                              label: 'Difficulty',
+                              items: [
+                                for (final value in _questDifficulties)
+                                  DropdownMenuItem(
+                                    value: value,
+                                    child: Text(_readable(value)),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setDialogState(() => difficulty = v!),
+                            ),
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: BsheelField(
+                              controller: xpCtrl,
+                              label: 'XP reward',
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final n = int.tryParse(v.trim());
+                                if (n == null || n < 0) {
+                                  return 'Invalid number';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: BsheelField(
+                              controller: durationCtrl,
+                              label: 'Timer (hours)',
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final n = int.tryParse(v.trim());
+                                if (n == null || n < 1 || n > 168) {
+                                  return 'Use 1-168';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (isEdit && id != null) ...[
+                        const SizedBox(height: 18),
+                        Container(
+                          height: BsheelBorders.hairline,
+                          color: BsheelColors.rowLine,
+                        ),
+                        const SizedBox(height: 14),
+                        const BsheelLabel('This quest'),
+                        const SizedBox(height: 4),
+                        Text(
+                          isActive
+                              ? 'Retiring keeps the quest and its history, and '
+                                  'stops the generator handing it out.'
+                              : 'This quest is retired. Restoring puts it back '
+                                  'into rotation.',
+                          style: BsheelType.bodyXs,
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 9,
+                          runSpacing: 9,
+                          children: [
+                            BsheelButton.ghost(
+                              label: isActive ? 'Retire quest' : 'Restore',
+                              small: true,
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _toggleActive(id, !isActive);
+                              },
+                            ),
+                            BsheelButton.coral(
+                              label: 'Delete quest',
+                              small: true,
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _confirmDelete(context, id, storedTitle);
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: QuestSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text(
-                        'CANCEL',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: QuestSpacing.sm),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (!formKey.currentState!.validate()) return;
-                        Navigator.pop(ctx);
-                        await _saveQuest(
-                          id: quest?[QuestColumns.id]?.toString(),
-                          title: titleCtrl.text.trim(),
-                          description: descCtrl.text.trim(),
-                          category: category,
-                          difficulty: difficulty,
-                          xpReward: int.parse(xpCtrl.text.trim()),
-                          durationHours: int.parse(durationCtrl.text.trim()),
-                          isActive: isActive,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.primary,
-                        foregroundColor: BsheelColors.pureWhite,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                      ),
-                      child: Text(
-                        isEdit ? 'SAVE' : 'CREATE',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.pureWhite,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
+          actions: [
+            BsheelButton.ghost(
+              label: 'Cancel',
+              small: true,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            BsheelButton.primary(
+              label: isEdit ? 'Save' : 'Create',
+              small: true,
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(ctx);
+                await _saveQuest(
+                  id: id,
+                  title: titleCtrl.text.trim(),
+                  description: descCtrl.text.trim(),
+                  category: category,
+                  difficulty: difficulty,
+                  xpReward: int.parse(xpCtrl.text.trim()),
+                  durationHours: int.parse(durationCtrl.text.trim()),
+                  isActive: isActive,
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -879,8 +627,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     [
       'Take a mindful walk',
       'Walk for 20 minutes, no phone, just observe.',
-      'adventure',
-      'easy',
+      QuestCategory.adventure,
+      QuestDifficulty.easy,
       '20',
       '4',
       'true',
@@ -888,8 +636,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     [
       'Sketch something',
       'Draw a small sketch of anything nearby.',
-      'creativity',
-      'medium',
+      QuestCategory.creativity,
+      QuestDifficulty.medium,
       '50',
       '6',
       'true',
@@ -905,103 +653,61 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => Dialog(
-          backgroundColor: BsheelColors.paper,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.xl),
-            side: const BorderSide(
-              color: BsheelColors.line,
-              width: BsheelBorders.thin,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(QuestSpacing.lg),
+        builder: (ctx, setDialogState) => BsheelDialog(
+          title: 'Import quests',
+          maxWidth: 760,
+          content: SizedBox(
+            width: 720,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
+              constraints: const BoxConstraints(maxHeight: 460),
               child: SingleChildScrollView(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'IMPORT QUESTS (EXCEL)',
-                      style: BsheelType.displaySm
-                          .copyWith(color: BsheelColors.ink),
-                    ),
-                    const SizedBox(height: QuestSpacing.sm),
                     Text(
                       'Upload a .xlsx file. Row 1 must be the header row with '
                       'these exact column names, in this order:',
                       style: BsheelType.bodySm
-                          .copyWith(color: BsheelColors.inkMuted),
+                          .copyWith(color: BsheelColors.inkSoft),
                     ),
-                    const SizedBox(height: QuestSpacing.md),
-                    _buildExampleTable(),
-                    const SizedBox(height: QuestSpacing.sm),
+                    const SizedBox(height: 12),
+                    _importExample(),
+                    const SizedBox(height: 10),
                     Text(
                       'Rules: title 3-100, description 10-500, xp_reward 5-100, '
-                      'duration_hours 1-168. category ∈ {fitness, creativity, '
-                      'social, learning, adventure}. difficulty ∈ {easy, medium, '
-                      'hard}. is_active is "true" / "false" (defaults to true).',
-                      style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
-                        height: 1.4,
-                      ),
+                      'duration_hours 1-168. category ∈ '
+                      '{${_questCategories.join(', ')}}. difficulty ∈ '
+                      '{${_questDifficulties.join(', ')}}. is_active is '
+                      '"true" / "false" (defaults to true).',
+                      style: BsheelType.bodyXs,
                     ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          icon: const Icon(
-                            Icons.description_outlined,
-                            size: 16,
-                            color: BsheelColors.primary,
-                          ),
-                          label: Text(
-                            'COPY HEADER ROW',
-                            style: BsheelType.labelSm
-                                .copyWith(color: BsheelColors.primary),
-                          ),
-                          onPressed: () async {
-                            await Clipboard.setData(
-                              ClipboardData(
-                                text: _importHeaders.join('\t'),
-                              ),
-                            );
-                            if (!ctx.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Header row copied — paste into Excel row 1.',
-                                ),
-                              ),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(
-                              color: BsheelColors.ink,
-                              width: BsheelBorders.thin,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                BsheelRadii.full,
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: BsheelButton.ghost(
+                        label: 'Copy header row',
+                        icon: Icons.description_outlined,
+                        small: true,
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: _importHeaders.join('\t')),
+                          );
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Header row copied — paste into Excel row 1.',
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Container(
-                      padding: const EdgeInsets.all(QuestSpacing.md),
-                      decoration: BoxDecoration(
-                        color: BsheelColors.surface,
-                        border: Border.all(
-                          color: BsheelColors.line,
-                          width: BsheelBorders.thin,
-                        ),
-                        borderRadius: BorderRadius.circular(BsheelRadii.md),
+                          );
+                        },
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    BsheelCard.flat(
+                      color: BsheelColors.surface,
+                      padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
                           Expanded(
@@ -1016,13 +722,12 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                               ),
                             ),
                           ),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.folder_open, size: 16),
-                            label: Text(
-                              'CHOOSE FILE',
-                              style: BsheelType.labelSm
-                                  .copyWith(color: BsheelColors.pureWhite),
-                            ),
+                          const SizedBox(width: 12),
+                          BsheelButton(
+                            label: 'Choose file',
+                            icon: Icons.folder_open,
+                            small: true,
+                            background: BsheelColors.card,
                             onPressed: importing
                                 ? null
                                 : () async {
@@ -1064,163 +769,97 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                       });
                                     }
                                   },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: BsheelColors.primary,
-                              foregroundColor: BsheelColors.pureWhite,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  BsheelRadii.full,
-                                ),
-                              ),
-                            ),
                           ),
                         ],
                       ),
                     ),
                     if (error != null) ...[
-                      const SizedBox(height: QuestSpacing.sm),
-                      Text(
-                        error!,
-                        style: BsheelType.bodySm.copyWith(
-                          color: BsheelColors.onCream(BsheelColors.danger),
-                        ),
-                      ),
+                      const SizedBox(height: 12),
+                      BsheelCallout.danger(error!),
                     ],
-                    const SizedBox(height: QuestSpacing.md),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed:
-                              importing ? null : () => Navigator.pop(ctx),
-                          child: Text(
-                            'CANCEL',
-                            style: BsheelType.labelSm
-                                .copyWith(color: BsheelColors.inkMuted),
-                          ),
-                        ),
-                        const SizedBox(width: QuestSpacing.sm),
-                        ElevatedButton(
-                          onPressed: (importing || picked == null)
-                              ? null
-                              : () async {
-                                  setDialogState(() {
-                                    error = null;
-                                    importing = true;
-                                  });
-                                  final result = await _importQuestsFromXlsx(
-                                    picked!.bytes,
-                                  );
-                                  if (!ctx.mounted) return;
-                                  if (result.error != null) {
-                                    setDialogState(() {
-                                      error = result.error;
-                                      importing = false;
-                                    });
-                                    return;
-                                  }
-                                  Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Imported ${result.inserted} quest(s).',
-                                      ),
-                                    ),
-                                  );
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: BsheelColors.primary,
-                            foregroundColor: BsheelColors.pureWhite,
-                            disabledBackgroundColor:
-                                BsheelColors.primary.withAlpha(50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                BsheelRadii.full,
-                              ),
-                            ),
-                          ),
-                          child: importing
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: BsheelColors.pureWhite,
-                                  ),
-                                )
-                              : Text(
-                                  'IMPORT',
-                                  style: BsheelType.labelSm
-                                      .copyWith(color: BsheelColors.pureWhite),
-                                ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ),
           ),
+          actions: [
+            BsheelButton.ghost(
+              label: 'Cancel',
+              small: true,
+              onPressed: importing ? null : () => Navigator.pop(ctx),
+            ),
+            BsheelButton.primary(
+              label: 'Import',
+              small: true,
+              loading: importing,
+              onPressed: (importing || picked == null)
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        error = null;
+                        importing = true;
+                      });
+                      final result =
+                          await _importQuestsFromXlsx(picked!.bytes);
+                      if (!ctx.mounted) return;
+                      if (result.error != null) {
+                        setDialogState(() {
+                          error = result.error;
+                          importing = false;
+                        });
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Imported ${result.inserted} quest(s).',
+                          ),
+                        ),
+                      );
+                    },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildExampleTable() {
+  /// The header row and two example rows, column-aligned in mono so the
+  /// admin can read it as a spreadsheet. The header keeps its exact
+  /// lower-case spelling — the parser matches it character for character.
+  Widget _importExample() {
     final allRows = [_importHeaders, ..._importExampleRows];
-    return Container(
-      decoration: BoxDecoration(
-        color: BsheelColors.bg,
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-        borderRadius: BorderRadius.circular(BsheelRadii.md),
-      ),
+    final widths = [
+      for (var col = 0; col < _importHeaders.length; col++)
+        allRows.map((r) => col < r.length ? r[col].length : 0).reduce(
+              (a, b) => a > b ? a : b,
+            ),
+    ];
+    String line(List<String> row) => [
+          for (var col = 0; col < widths.length; col++)
+            (col < row.length ? row[col] : '').padRight(widths[col]),
+        ].join('  ');
+
+    return BsheelCard.flat(
+      color: BsheelColors.surface,
+      padding: const EdgeInsets.all(12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            BsheelColors.surface,
-          ),
-          dataRowMaxHeight: 36,
-          dataRowMinHeight: 30,
-          headingRowHeight: 32,
-          columnSpacing: QuestSpacing.lg,
-          columns: _importHeaders
-              .map(
-                (h) => DataColumn(
-                  label: Text(
-                    h,
-                    style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.ink,
-                      fontWeight: FontWeight.w500,
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < allRows.length; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: i == 0 ? 6 : 2),
+                child: Text(
+                  line(allRows[i]),
+                  style: BsheelType.monoSm.copyWith(
+                    color: i == 0 ? BsheelColors.ink : BsheelColors.inkSoft,
                   ),
                 ),
-              )
-              .toList(),
-          rows: allRows
-              .skip(1)
-              .map(
-                (row) => DataRow(
-                  cells: row
-                      .map(
-                        (c) => DataCell(
-                          Text(
-                            c,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              color: BsheelColors.ink,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              )
-              .toList(),
+              ),
+          ],
         ),
       ),
     );
@@ -1377,133 +1016,52 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final enabled = confirmCtrl.text.trim() == 'DELETE ALL';
-          return Dialog(
-            backgroundColor: BsheelColors.paper,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BsheelRadii.xl),
-              side: const BorderSide(
-                color: BsheelColors.danger,
-                width: BsheelBorders.thin,
+          return BsheelDialog(
+            title: 'Delete all quests',
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const BsheelCallout.danger(
+                    'This will permanently delete every quest. Active '
+                    'user_quests and submissions will cascade per your FK '
+                    'policies. There is no undo.',
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Type  DELETE ALL  to confirm:',
+                    style: BsheelType.bodySm.copyWith(
+                      color: BsheelColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  BsheelField(
+                    controller: confirmCtrl,
+                    hint: 'DELETE ALL',
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
               ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(QuestSpacing.lg),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: BsheelColors.onCream(BsheelColors.danger),
-                          size: 24,
-                        ),
-                        const SizedBox(width: QuestSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            'DELETE ALL QUESTS',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: BsheelType.displaySm.copyWith(
-                              color: BsheelColors.onCream(BsheelColors.danger),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Text(
-                      'This will permanently delete every quest. Active user_quests and submissions will cascade per your FK policies. There is no undo.',
-                      style: BsheelType.bodySm
-                          .copyWith(color: BsheelColors.ink, height: 1.4),
-                    ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Text(
-                      'Type  DELETE ALL  to confirm:',
-                      style: BsheelType.labelSm
-                          .copyWith(color: BsheelColors.inkMuted),
-                    ),
-                    const SizedBox(height: QuestSpacing.xs),
-                    TextField(
-                      controller: confirmCtrl,
-                      style: BsheelType.bodyMd,
-                      autofocus: true,
-                      onChanged: (_) => setDialogState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'DELETE ALL',
-                        hintStyle: BsheelType.bodySm
-                            .copyWith(color: BsheelColors.inkMuted),
-                        filled: true,
-                        fillColor: BsheelColors.bg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.md),
-                          borderSide:
-                              const BorderSide(color: BsheelColors.line),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.md),
-                          borderSide: const BorderSide(
-                            color: BsheelColors.line,
-                            width: BsheelBorders.thin,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.md),
-                          borderSide: const BorderSide(
-                            color: BsheelColors.danger,
-                            width: BsheelBorders.thin,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: QuestSpacing.md),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text(
-                            'CANCEL',
-                            style: BsheelType.labelSm
-                                .copyWith(color: BsheelColors.inkMuted),
-                          ),
-                        ),
-                        const SizedBox(width: QuestSpacing.sm),
-                        ElevatedButton(
-                          onPressed: enabled
-                              ? () async {
-                                  Navigator.pop(ctx);
-                                  await _deleteAllQuests();
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: BsheelColors.danger,
-                            foregroundColor:
-                                BsheelColors.onAccent(BsheelColors.danger),
-                            disabledBackgroundColor:
-                                BsheelColors.danger.withAlpha(70),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                BsheelRadii.full,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            'DELETE ALL',
-                            style: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.onAccent(BsheelColors.danger),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            actions: [
+              BsheelButton.ghost(
+                label: 'Cancel',
+                small: true,
+                onPressed: () => Navigator.pop(ctx),
               ),
-            ),
+              BsheelButton.coral(
+                label: 'Delete all',
+                small: true,
+                onPressed: enabled
+                    ? () async {
+                        Navigator.pop(ctx);
+                        await _deleteAllQuests();
+                      }
+                    : null,
+              ),
+            ],
           );
         },
       ),
@@ -1539,68 +1097,4 @@ class _PickedFile {
   final String name;
   final List<int> bytes;
   const _PickedFile({required this.name, required this.bytes});
-}
-
-// ── Chip widgets ─────────────────────────────────────────────────────────────
-
-class _CategoryChip extends StatelessWidget {
-  final String category;
-  const _CategoryChip({required this.category});
-
-  @override
-  Widget build(BuildContext context) {
-    // Monochrome type chip — the label carries the meaning.
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: QuestSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Text(
-        category.toUpperCase(),
-        style:
-            BsheelType.labelSm.copyWith(color: BsheelColors.ink, fontSize: 10),
-      ),
-    );
-  }
-}
-
-class _DifficultyChip extends StatelessWidget {
-  final String difficulty;
-  const _DifficultyChip({required this.difficulty});
-
-  @override
-  Widget build(BuildContext context) {
-    // Monochrome type chip — the label carries the meaning.
-    final String label = switch (difficulty) {
-      'easy' => 'EASY',
-      'medium' => 'MEDIUM',
-      'hard' => 'HARD',
-      _ => difficulty.toUpperCase(),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: QuestSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Text(
-        label,
-        style: BsheelType.labelSm
-            .copyWith(color: BsheelColors.inkMuted, fontSize: 10),
-      ),
-    );
-  }
 }

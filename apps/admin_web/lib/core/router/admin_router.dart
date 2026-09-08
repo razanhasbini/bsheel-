@@ -104,6 +104,9 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
         name: AdminRouteNames.confirmEmail,
         builder: (context, state) => ConfirmEmailPage(
           token: state.uri.queryParameters['token'],
+          // Lets the page draw its "check your email" state and target a
+          // resend. Never used to confirm anything — the token does that.
+          email: state.uri.queryParameters['email'],
         ),
       ),
       GoRoute(

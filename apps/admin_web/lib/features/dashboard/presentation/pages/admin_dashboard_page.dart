@@ -1,12 +1,15 @@
+import 'package:app_contracts/app_contracts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/providers/admin_counts_provider.dart';
 import '../../../../core/backend/app_backend.dart';
+import '../../../../core/providers/admin_counts_provider.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+import '../../../moderation/presentation/providers/pending_submissions_provider.dart';
 
 // ── Providers ────────────────────────────────────────────────────────
 
@@ -27,378 +30,282 @@ final _dashboardStatsProvider =
   };
 });
 
+/// How many queue rows the dashboard shows. The dashboard answers "what
+/// would I pick up next", not "show me everything", so it reads the head
+/// of the queue rather than the whole thing.
+const int _queueRows = 5;
+
+/// The head of the review queue — pending submissions, oldest first, from
+/// the same admin read the moderation queue page issues. The first row is
+/// therefore the oldest thing waiting on a person, which is also where the
+/// "oldest" footnote on the awaiting-review tile comes from.
+final _queueHeadProvider =
+    FutureProvider.autoDispose<List<PendingSubmission>>((ref) async {
+  final rows = await AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: SubmissionStatus.pending,
+    order: 'asc',
+    limit: _queueRows,
+  );
+  return rows.map(PendingSubmission.fromJson).toList();
+});
+
+/// The moment the counters last landed, for the header's freshness line.
+///
+/// Derived rather than folded into [_dashboardStatsProvider] so that
+/// provider stays exactly the counter map every other reader expects. It
+/// recomputes only when the stats `AsyncValue` itself changes, so the
+/// stamp does not drift on unrelated rebuilds.
+final _statsFetchedAtProvider = Provider.autoDispose<DateTime?>((ref) {
+  final stats = ref.watch(_dashboardStatsProvider);
+  return stats.hasValue ? DateTime.now() : null;
+});
+
+String _hhmm(DateTime at) {
+  final local = at.toLocal();
+  final h = local.hour.toString().padLeft(2, '0');
+  final m = local.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
 // ── Page ─────────────────────────────────────────────────────────────
 
+/// What needs a human, ordered by how long it has waited.
 class AdminDashboardPage extends ConsumerWidget {
   const AdminDashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(_dashboardStatsProvider);
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 700;
+    final fetchedAt = ref.watch(_statsFetchedAtProvider);
 
     // Real admin name from the signed-in profile; falls back to "Admin"
     // while the lookup is in flight (same source as the sidebar footer).
+    // The design's header is the page title, so the greeting the old hero
+    // carried lives on the meta line instead.
     final adminName =
         ref.watch(adminMetaProvider).valueOrNull?.displayName.trim() ?? '';
     final firstName = adminName.isEmpty ? 'Admin' : adminName.split(' ').first;
 
-    return SingleChildScrollView(
-      child: Column(
+    return AdminPage(
+      title: 'Dashboard',
+      meta: fetchedAt == null
+          ? firstName
+          : '$firstName · Updated ${_hhmm(fetchedAt)}',
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Page hero ─────────────────────────────────────────
-          BsheelCard(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 22 : 36,
-              vertical: isMobile ? 24 : 32,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      BsheelEyebrow('Today · ${_dateLabel()}'),
-                      const SizedBox(height: 14),
-                      BsheelDisplay(
-                        'Good {${_greetingWord()},}\n$firstName.',
-                        baseStyle: BsheelType.displayXl.copyWith(
-                          fontSize: isMobile ? 36 : 48,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isMobile)
-                  Flexible(
-                    child: statsAsync.when(
-                      data: (s) => Text(
-                        '${s['pending']} PENDING · ${s['appeals']} APPEALS\n'
-                        '${s['pendingReports']} REPORTS · '
-                        '${s['activeQuests']} ACTIVE QUESTS',
-                        textAlign: TextAlign.right,
-                        style: BsheelType.labelLg,
-                      ),
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ── Tile grid ────────────────────────────────────────
-          statsAsync.when(
-            loading: () => const _TilesSkeleton(),
-            error: (e, _) => _ErrorBanner(error: '$e'),
-            data: (s) => _TileGrid(
-              tiles: [
-                BsheelTile(
-                  eyebrow: 'Queue depth',
-                  value: '${s['pending']}',
-                  color: BsheelColors.accent,
-                  onTap: () =>
-                      context.goNamed(AdminRouteNames.pendingSubmissions),
-                ),
-                BsheelTile(
-                  eyebrow: 'Reports open',
-                  value: '${s['pendingReports']}',
-                  color: BsheelColors.hot,
-                  onTap: () => context.goNamed(AdminRouteNames.reports),
-                ),
-                BsheelTile(
-                  eyebrow: 'Approved · 24h',
-                  value: '${s['approvedToday']}',
-                  onTap: () =>
-                      context.goNamed(AdminRouteNames.submissionHistory),
-                ),
-                BsheelTile(
-                  eyebrow: 'Active quests',
-                  value: '${s['activeQuests']}',
-                  color: BsheelColors.primary,
-                  onTap: () => context.goNamed(AdminRouteNames.questManagement),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // ── Moderation breakdown + Today's queue card row ─────
-          if (!isMobile)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _ModerationLoadCard(stats: statsAsync),
-                ),
-                const SizedBox(width: 18),
-                Expanded(child: _QueueProgressCard(stats: statsAsync)),
-              ],
-            )
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ModerationLoadCard(stats: statsAsync),
-                const SizedBox(height: 18),
-                _QueueProgressCard(stats: statsAsync),
-              ],
-            ),
-          const SizedBox(height: 24),
+          _StatTiles(),
+          SizedBox(height: 22),
+          _QueueSection(),
         ],
       ),
     );
   }
-
-  String _greetingWord() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'morning';
-    if (hour < 17) return 'afternoon';
-    return 'evening';
-  }
-
-  String _dateLabel() {
-    final now = DateTime.now();
-    const months = [
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC',
-    ];
-    const wk = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    return '${wk[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
-  }
 }
 
-// ── Tile grid layout ─────────────────────────────────────────────────
+// ── Stat tiles ───────────────────────────────────────────────────────
 
-class _TileGrid extends StatelessWidget {
-  const _TileGrid({required this.tiles});
-  final List<Widget> tiles;
+class _StatTiles extends ConsumerWidget {
+  const _StatTiles();
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final cols = c.maxWidth < 600
-            ? 1
-            : c.maxWidth < 1180
-                ? 2
-                : 4;
-        const gap = 18.0;
-        final w = (c.maxWidth - gap * (cols - 1)) / cols;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: tiles.map((t) => SizedBox(width: w, child: t)).toList(),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(_dashboardStatsProvider);
+    final queueHead = ref.watch(_queueHeadProvider).valueOrNull;
+
+    return statsAsync.when(
+      loading: () => _TileGrid(
+        children: List.generate(4, (_) => const BsheelSkeleton(height: 100)),
+      ),
+      error: (error, _) => BsheelErrorState(
+        title: 'Counters unavailable',
+        message: "The counters didn't come back. Nothing was lost — no "
+            'decision has been recorded, and the queue below is unaffected.',
+        onRetry: () => ref.invalidate(_dashboardStatsProvider),
+      ),
+      data: (s) {
+        // First run: a wall of zeroes tells a new operator nothing, so the
+        // tiles are suppressed until there is something to count.
+        if (s.values.every((count) => count == 0)) {
+          return BsheelEmptyState(
+            title: 'Nothing to count yet',
+            message: 'No users, quests or submissions have landed. Fill the '
+                'quest bank first — assignments and submissions follow from '
+                'there, and these counters fill in behind them.',
+            actionLabel: 'Open quest bank',
+            onAction: () => context.goNamed(AdminRouteNames.questManagement),
+          );
+        }
+
+        // The queue is read oldest-first, so its first row is the oldest
+        // thing waiting. No queue read yet means no footnote — never a
+        // guessed number.
+        final oldest = (queueHead == null || queueHead.isEmpty)
+            ? null
+            : bsheelWaiting(
+                queueHead.first.submittedAt.toIso8601String(),
+                fallback: '',
+              );
+
+        return _TileGrid(
+          children: [
+            BsheelStatTile(
+              label: 'Awaiting review',
+              value: '${s['pending']}',
+              footnote: (oldest == null || oldest.isEmpty)
+                  ? null
+                  : 'Oldest $oldest',
+              ground: BsheelColors.accent,
+              onTap: () => context.goNamed(AdminRouteNames.pendingSubmissions),
+            ),
+            BsheelStatTile(
+              label: 'Appeals open',
+              value: '${s['appeals']}',
+              footnote: 'Second review',
+              ground: BsheelColors.danger,
+              onTap: () => context.goNamed(AdminRouteNames.appeals),
+            ),
+            BsheelStatTile(
+              label: 'Reports',
+              value: '${s['pendingReports']}',
+              footnote: 'Untriaged',
+              onTap: () => context.goNamed(AdminRouteNames.reports),
+            ),
+            BsheelStatTile(
+              label: 'Decided today',
+              value: '${s['approvedToday']}',
+              // `approvedToday` counts approvals in the last 24h, so the
+              // footnote says which decisions the number covers rather
+              // than inventing the median the design draws.
+              footnote: 'Approved · 24h',
+              ground: BsheelColors.success,
+              onTap: () => context.goNamed(AdminRouteNames.submissionHistory),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-class _TilesSkeleton extends StatelessWidget {
-  const _TilesSkeleton();
+/// Four across on a full-width shell, two on a tablet, one on a phone.
+class _TileGrid extends StatelessWidget {
+  const _TileGrid({required this.children});
+
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    Widget shell() => Container(
-          height: 130,
-          decoration: BoxDecoration(
-            color: BsheelColors.paper,
-            borderRadius: BorderRadius.circular(BsheelRadii.lg),
-            border: Border.all(
-              color: BsheelColors.line,
-              width: BsheelBorders.thin,
-            ),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 560
+            ? 1
+            : constraints.maxWidth < 900
+                ? 2
+                : 4;
+        const gap = 12.0;
+        final width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final child in children)
+              SizedBox(width: width, child: child),
+          ],
         );
-    return _TileGrid(tiles: List.generate(4, (_) => shell()));
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.error});
-  final String error;
-
-  @override
-  Widget build(BuildContext context) {
-    return BsheelCard.flat(
-      child: Text(
-        error,
-        style: BsheelType.bodySm.copyWith(
-          color: BsheelColors.onCream(BsheelColors.danger),
-        ),
-      ),
+      },
     );
   }
 }
 
-// ── Moderation load card (real counts, tag-dot legend) ───────────────
+// ── Queue — oldest first ─────────────────────────────────────────────
 
-class _ModerationLoadCard extends StatelessWidget {
-  const _ModerationLoadCard({required this.stats});
-  final AsyncValue<Map<String, int>> stats;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = stats.valueOrNull;
-    final pending = s?['pending'] ?? 0;
-    final appeals = s?['appeals'] ?? 0;
-    final reports = s?['pendingReports'] ?? 0;
-    final approvedToday = s?['approvedToday'] ?? 0;
-
-    return BsheelCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const BsheelEyebrow('Moderation · live counts'),
-          const SizedBox(height: 6),
-          BsheelDisplay(
-            s != null && pending == 0
-                ? 'Queue is {clear.}'
-                : 'Work the {queue.}',
-            baseStyle: BsheelType.displayMd,
-          ),
-          const SizedBox(height: 16),
-          if (s == null)
-            Text(
-              '—',
-              style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkMuted),
-            )
-          else
-            Wrap(
-              spacing: 18,
-              runSpacing: 8,
-              children: [
-                _TagDot(color: BsheelColors.accent, label: '$pending in queue'),
-                _TagDot(color: BsheelColors.primary, label: '$appeals appeals'),
-                _TagDot(color: BsheelColors.hot, label: '$reports reports'),
-                _TagDot(
-                  color: BsheelColors.cool,
-                  label: '$approvedToday approved · 24h',
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TagDot extends StatelessWidget {
-  const _TagDot({required this.color, required this.label});
-  final Color color;
-  final String label;
+class _QueueSection extends ConsumerWidget {
+  const _QueueSection();
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queueAsync = ref.watch(_queueHeadProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: BsheelColors.ink, width: 1.5),
-          ),
+        Row(
+          children: [
+            const Expanded(child: BsheelLabel('Queue — oldest first')),
+            const SizedBox(width: 12),
+            BsheelLink(
+              'Open moderation',
+              onTap: () => context.goNamed(AdminRouteNames.pendingSubmissions),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: BsheelType.bodyMd.copyWith(fontSize: 13),
+        const SizedBox(height: 10),
+        queueAsync.when(
+          loading: () =>
+              const BsheelLoadingList(rows: _queueRows, rowHeight: 40),
+          error: (error, _) => BsheelErrorState(
+            title: 'Queue unavailable',
+            message: "The queue didn't come back. Nothing was lost — no "
+                'decision has been recorded and nothing left the queue.',
+            onRetry: () => ref.invalidate(_queueHeadProvider),
+          ),
+          data: (queue) {
+            if (queue.isEmpty) {
+              return BsheelEmptyState.allClear(
+                message: 'Nothing is waiting on a moderator. New submissions '
+                    'land here the moment they arrive.',
+                actionLabel: 'Open moderation',
+                onAction: () =>
+                    context.goNamed(AdminRouteNames.pendingSubmissions),
+              );
+            }
+            return BsheelTable(
+              columns: const [
+                BsheelColumn('Submission'),
+                BsheelColumn('User', width: 96),
+                BsheelColumn('Waiting', width: 92),
+                BsheelColumn('Type', width: 82),
+              ],
+              rows: [
+                for (final submission in queue)
+                  _queueRow(context, submission),
+              ],
+            );
+          },
         ),
       ],
     );
   }
-}
 
-// ── Today's queue (ink-fill card with progress) ─────────────────────
+  BsheelRow _queueRow(BuildContext context, PendingSubmission submission) {
+    final iso = submission.submittedAt.toIso8601String();
+    final stale = bsheelIsStale(iso);
 
-class _QueueProgressCard extends ConsumerWidget {
-  const _QueueProgressCard({required this.stats});
-  final AsyncValue<Map<String, int>> stats;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Share of the last 24h's reviewable work that has been approved:
-    // approved (24h) vs approved (24h) + still pending. Empty queue with
-    // nothing approved reads as fully cleared.
-    final s = stats.valueOrNull;
-    final approved = s?['approvedToday'] ?? 0;
-    final pending = s?['pending'] ?? 0;
-    final total = approved + pending;
-    final double? progress =
-        s == null ? null : (total == 0 ? 1.0 : approved / total);
-
-    return BsheelCard(
-      color: BsheelColors.ink,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const BsheelEyebrow(
-            "Today's queue",
-            color: BsheelColors.inkPanelText,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Clear it\nout.',
-            style: BsheelType.displayMd.copyWith(
-              color: BsheelColors.onAccent(BsheelColors.ink),
-              fontSize: 26,
-              height: 1.05,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'CLEARED · 24H',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelMd.copyWith(
-                    color: BsheelColors.inkPanelText,
-                  ),
+    return BsheelRow(
+      [
+        BsheelCell.title(submission.questTitle ?? '—'),
+        BsheelCell.mono(submission.username ?? '—', bold: false),
+        BsheelCell.mono(
+          bsheelWaiting(iso),
+          // Coral once an item has waited past the review window — the one
+          // row that has been ignored too long is the point of this table.
+          color: stale ? BsheelColors.dangerText : BsheelColors.ink,
+          bold: stale,
+        ),
+        submission.appealed
+            ? BsheelCell.pill(
+                const BsheelPill(
+                  'Appeal',
+                  tone: BsheelPillTone.gold,
+                  small: true,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                progress == null ? '—' : '${(progress * 100).round()}%',
-                style: BsheelType.displaySm.copyWith(
-                  fontSize: 18,
-                  color: BsheelColors.onAccent(BsheelColors.ink),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          BsheelProgress(
-            value: progress ?? 0,
-            fill: BsheelColors.accent,
-          ),
-          const SizedBox(height: 18),
-          BsheelButton.primary(
-            label: 'Open queue →',
-            onPressed: () => GoRouter.of(context)
-                .goNamed(AdminRouteNames.pendingSubmissions),
-          ),
-        ],
+              )
+            : BsheelCell.label('First'),
+      ],
+      onTap: () => context.goNamed(
+        AdminRouteNames.submissionReview,
+        pathParameters: {'id': submission.id},
       ),
     );
   }

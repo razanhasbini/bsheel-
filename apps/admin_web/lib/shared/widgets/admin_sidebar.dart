@@ -1,148 +1,154 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/backend/app_backend.dart';
 
+import '../../core/backend/app_backend.dart';
 import '../../core/providers/admin_counts_provider.dart';
 import '../../core/router/admin_route_names.dart';
 import '../../core/theme/bsheel_design.dart';
+import 'bsheel_widgets.dart';
 
-/// "Port" sidebar — flush white column with a single hairline rule on
-/// the right, small tracked caps for section heads, and a solid black
-/// pill for the active link (inversion is the only emphasis). The
-/// integer route indices are kept compatible with the previous
-/// implementation.
+/// Arcade Pop sidebar — a 230px ink panel holding all sixteen
+/// destinations, ordered by how often a moderator touches them.
+///
+/// The active row is a violet fill with a 2px cream border and a white
+/// label. Badge counts appear on Moderation, Appeals and Reports only:
+/// the three queues that represent work waiting on a person. A badge is
+/// coral when its row is inactive and gold when it is active, so it stays
+/// legible against the violet fill.
 class AdminSidebar extends ConsumerWidget {
   final bool inDrawer;
 
   const AdminSidebar({super.key, this.inDrawer = false});
 
-  static const double _width = 256;
+  static const double width = BsheelLayout.sidebarWidth;
 
-  // Sections are built per-render so the moderation badges can carry
-  // live counts from `adminCountsProvider`. Static order, dynamic
-  // values.
-  List<_NavSection> _buildSections(AdminCounts c) => [
-        const _NavSection('Overview', [
-          _NavItem('Dashboard', 0),
-        ]),
-        _NavSection('Moderation', [
-          _NavItem(
-            'Pending',
-            1,
-            badge: c.pending > 0 ? _fmt(c.pending) : null,
-          ),
-          const _NavItem('History', 2),
-          _NavItem(
-            'Appeals',
-            9,
-            badge: c.appeals > 0 ? _fmt(c.appeals) : null,
-          ),
-          _NavItem(
-            'Reports',
-            10,
-            badge: c.reports > 0 ? _fmt(c.reports) : null,
-          ),
-        ]),
-        const _NavSection('Content', [
-          _NavItem('Quests', 4),
-          _NavItem('Quest of Day', 17),
-          _NavItem('Injection', 11),
-          _NavItem('Feed', 3),
-        ]),
-        const _NavSection('Community', [
-          _NavItem('Users', 5),
-          _NavItem('Announcements', 7),
-          _NavItem('Auto Rules', 8),
-          _NavItem('XP Manager', 6),
-        ]),
-        const _NavSection('Web', [
-          _NavItem('Signups', 13),
-          _NavItem('Suggestions', 14),
-        ]),
-        const _NavSection('System', [
-          _NavItem('Settings', 12),
-        ]),
-      ];
+  /// Route order per the spec. Badges are resolved at build time.
+  static const List<_Destination> _destinations = [
+    _Destination('DASHBOARD', AdminRouteNames.dashboard, '/'),
+    _Destination(
+      'MODERATION',
+      AdminRouteNames.pendingSubmissions,
+      '/moderation',
+      badge: _Badge.pending,
+    ),
+    _Destination(
+      'APPEALS',
+      AdminRouteNames.appeals,
+      '/appeals',
+      badge: _Badge.appeals,
+    ),
+    _Destination(
+      'HISTORY',
+      AdminRouteNames.submissionHistory,
+      '/moderation/history',
+    ),
+    _Destination('FEED', AdminRouteNames.feedManagement, '/feed'),
+    _Destination('QUESTS', AdminRouteNames.questManagement, '/quests'),
+    _Destination('QUEST OF THE DAY', AdminRouteNames.questOfTheDay, '/qotd'),
+    _Destination('USERS', AdminRouteNames.users, '/users'),
+    _Destination('XP', AdminRouteNames.xpManagement, '/xp'),
+    _Destination(
+      'ANNOUNCEMENTS',
+      AdminRouteNames.announcements,
+      '/announcements',
+    ),
+    _Destination(
+      'AUTO NOTIFICATIONS',
+      AdminRouteNames.autoNotifications,
+      '/auto-notifications',
+    ),
+    _Destination(
+      'REPORTS',
+      AdminRouteNames.reports,
+      '/reports',
+      badge: _Badge.reports,
+    ),
+    _Destination('INJECTION', AdminRouteNames.injection, '/injection'),
+    _Destination('WEB SIGNUPS', AdminRouteNames.webSignups, '/web-signups'),
+    _Destination(
+      'QUEST SUGGESTIONS',
+      AdminRouteNames.webQuestSuggestions,
+      '/web-quest-suggestions',
+    ),
+    _Destination('SETTINGS', AdminRouteNames.settings, '/settings'),
+  ];
 
-  /// Compact badge: 99+ for anything over 99 so the pill stays tidy.
+  /// Longest matching prefix wins, so `/moderation/history` highlights
+  /// HISTORY rather than MODERATION. Reviewing one submission is part of
+  /// the queue flow, so it keeps MODERATION lit.
+  static String _activePath(String location) {
+    if (location.startsWith('/moderation/history')) return '/moderation/history';
+    if (location.startsWith('/moderation')) return '/moderation';
+    var best = '/';
+    for (final d in _destinations) {
+      if (d.path == '/') continue;
+      if (location.startsWith(d.path) && d.path.length > best.length) {
+        best = d.path;
+      }
+    }
+    return best;
+  }
+
   static String _fmt(int n) => n > 99 ? '99+' : '$n';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentIndex = _currentIndex(context);
+    final active = _activePath(GoRouterState.of(context).matchedLocation);
     final counts =
         ref.watch(adminCountsProvider).valueOrNull ?? const AdminCounts.zero();
-    final sections = _buildSections(counts);
+
+    String? badgeFor(_Badge? badge) {
+      final value = switch (badge) {
+        _Badge.pending => counts.pending,
+        _Badge.appeals => counts.appeals,
+        _Badge.reports => counts.reports,
+        null => 0,
+      };
+      return value > 0 ? _fmt(value) : null;
+    }
 
     return SizedBox(
-      width: inDrawer ? null : _width,
+      width: inDrawer ? null : width,
       child: Container(
-        decoration: BoxDecoration(
-          color: BsheelColors.bg,
-          border: inDrawer
-              ? null
-              : const Border(
-                  right: BorderSide(
-                    color: BsheelColors.line,
-                    width: BsheelBorders.thin,
-                  ),
-                ),
-        ),
+        color: BsheelColors.inkPanel,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Brand row
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              decoration: const BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: BsheelColors.line,
-                    width: BsheelBorders.thin,
-                  ),
-                ),
-              ),
+            // Brand
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
               child: Row(
                 children: [
-                  // Brand mark — small inverted square.
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: BsheelColors.ink,
-                      borderRadius: BorderRadius.circular(BsheelRadii.sm),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'B',
-                      style: TextStyle(
-                        fontFamily: BsheelFonts.body,
-                        fontWeight: FontWeight.w400,
-                        fontSize: 15,
-                        color: BsheelColors.pureWhite,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bsheel',
-                          style: BsheelType.displaySm.copyWith(
-                            fontSize: 20,
-                            height: 1,
+                          'BSHEEL',
+                          style: TextStyle(
+                            fontFamily: BsheelFonts.display,
+                            fontWeight: FontWeight.w800,
+                            // Variable font: drive the wght axis explicitly.
+                            fontVariations: [FontVariation('wght', 800)],
+                            fontSize: 21,
+                            height: 1.1,
+                            letterSpacing: -0.63,
+                            color: BsheelColors.inkPanelTextStrong,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 2),
                         Text(
-                          'ADMIN · V1.0',
-                          style: BsheelType.labelSm.copyWith(
+                          'ADMIN CONSOLE',
+                          style: TextStyle(
+                            fontFamily: BsheelFonts.mono,
+                            fontWeight: FontWeight.w700,
+                            // Variable font: drive the wght axis explicitly.
+                            fontVariations: [FontVariation('wght', 700)],
                             fontSize: 9,
-                            letterSpacing: 1.4,
+                            height: 1.3,
+                            letterSpacing: 1.44,
+                            color: BsheelColors.accent,
                           ),
                         ),
                       ],
@@ -150,7 +156,11 @@ class AdminSidebar extends ConsumerWidget {
                   ),
                   if (inDrawer)
                     IconButton(
-                      icon: const Icon(Icons.close, color: BsheelColors.ink),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: BsheelColors.inkPanelTextStrong,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: 'Close',
                     ),
@@ -158,253 +168,70 @@ class AdminSidebar extends ConsumerWidget {
               ),
             ),
 
-            // Nav
+            // Destinations
             Expanded(
               child: ListView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
                 children: [
-                  for (final section in sections) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 18, 12, 8),
-                      child: Text(
-                        section.title.toUpperCase(),
-                        style: BsheelType.labelSm.copyWith(
-                          fontSize: 9.5,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
+                  for (final d in _destinations)
+                    _NavRow(
+                      label: d.label,
+                      badge: badgeFor(d.badge),
+                      active: d.path == active,
+                      onTap: () {
+                        if (inDrawer) Navigator.of(context).pop();
+                        context.goNamed(d.name);
+                      },
                     ),
-                    for (final item in section.items)
-                      _NavLink(
-                        item: item,
-                        active: currentIndex == item.index,
-                        onTap: () {
-                          if (inDrawer) Navigator.of(context).pop();
-                          _onTap(context, item.index);
-                        },
-                      ),
-                  ],
-                  const SizedBox(height: 12),
                 ],
               ),
             ),
 
-            // Footer (avatar + sign-out) — live from adminMetaProvider.
-            const _AdminFooter(),
+            const _SidebarFooter(),
           ],
         ),
       ),
     );
   }
-
-  int _currentIndex(BuildContext context) {
-    final loc = GoRouterState.of(context).matchedLocation;
-    if (loc.startsWith('/moderation/history')) return 2;
-    // Reviewing a single submission is part of the Pending queue flow, so
-    // the Pending item stays highlighted (the dedicated "Review" nav item
-    // was removed — it duplicated "Pending").
-    if (loc.startsWith('/moderation')) return 1;
-    if (loc.startsWith('/feed')) return 3;
-    if (loc.startsWith('/quests')) return 4;
-    if (loc.startsWith('/users')) return 5;
-    if (loc.startsWith('/xp')) return 6;
-    if (loc.startsWith('/announcements')) return 7;
-    if (loc.startsWith('/auto-notifications')) return 8;
-    if (loc.startsWith('/appeals')) return 9;
-    if (loc.startsWith('/reports')) return 10;
-    if (loc.startsWith('/injection')) return 11;
-    if (loc.startsWith('/web-signups')) return 13;
-    if (loc.startsWith('/web-quest-suggestions')) return 14;
-    if (loc.startsWith('/settings')) return 12;
-    return 0;
-  }
-
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.goNamed(AdminRouteNames.dashboard);
-      case 1:
-        context.goNamed(AdminRouteNames.pendingSubmissions);
-      case 2:
-        context.goNamed(AdminRouteNames.submissionHistory);
-      case 3:
-        context.goNamed(AdminRouteNames.feedManagement);
-      case 4:
-        context.goNamed(AdminRouteNames.questManagement);
-      case 5:
-        context.goNamed(AdminRouteNames.users);
-      case 6:
-        context.goNamed(AdminRouteNames.xpManagement);
-      case 7:
-        context.goNamed(AdminRouteNames.announcements);
-      case 8:
-        context.goNamed(AdminRouteNames.autoNotifications);
-      case 9:
-        context.goNamed(AdminRouteNames.appeals);
-      case 10:
-        context.goNamed(AdminRouteNames.reports);
-      case 11:
-        context.goNamed(AdminRouteNames.injection);
-      case 12:
-        context.goNamed(AdminRouteNames.settings);
-      case 13:
-        context.goNamed(AdminRouteNames.webSignups);
-      case 14:
-        context.goNamed(AdminRouteNames.webQuestSuggestions);
-      case 17:
-        context.goNamed(AdminRouteNames.questOfTheDay);
-    }
-  }
 }
 
-/// Footer — avatar + name + role, live from [adminMetaProvider].
-/// On loading/error falls back to "Admin · ADMIN" so the sidebar layout
-/// stays stable while the lookup is in flight.
-class _AdminFooter extends ConsumerWidget {
-  const _AdminFooter();
+enum _Badge { pending, appeals, reports }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final meta = ref.watch(adminMetaProvider).valueOrNull;
-    final name = meta?.displayName ?? 'Admin';
-    final role = meta?.roleLabel ?? 'ADMIN';
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          _Avatar(
-            avatarUrl: meta?.avatarUrl,
-            initial: initial,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.bodyMdBold.copyWith(fontSize: 13),
-                ),
-                Text(
-                  role,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelSm.copyWith(
-                    fontSize: 9,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _LogoutButton(),
-        ],
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.avatarUrl, required this.initial});
-  final String? avatarUrl;
-  final String initial;
-
-  @override
-  Widget build(BuildContext context) {
-    final fallback = Container(
-      width: 32,
-      height: 32,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: BsheelColors.ink,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          fontFamily: BsheelFonts.body,
-          fontWeight: FontWeight.w400,
-          color: BsheelColors.pureWhite,
-          fontSize: 13,
-        ),
-      ),
-    );
-
-    if (avatarUrl == null || avatarUrl!.isEmpty) return fallback;
-
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Image.network(
-        avatarUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
-      ),
-    );
-  }
-}
-
-class _NavSection {
-  final String title;
-  final List<_NavItem> items;
-  const _NavSection(this.title, this.items);
-}
-
-class _NavItem {
+class _Destination {
   final String label;
-  final int index;
-  final String? badge;
-  const _NavItem(this.label, this.index, {this.badge});
+  final String name;
+  final String path;
+  final _Badge? badge;
+
+  const _Destination(this.label, this.name, this.path, {this.badge});
 }
 
-class _NavLink extends StatefulWidget {
-  final _NavItem item;
+class _NavRow extends StatefulWidget {
+  final String label;
+  final String? badge;
   final bool active;
   final VoidCallback onTap;
 
-  const _NavLink({
-    required this.item,
+  const _NavRow({
+    required this.label,
+    required this.badge,
     required this.active,
     required this.onTap,
   });
 
   @override
-  State<_NavLink> createState() => _NavLinkState();
+  State<_NavRow> createState() => _NavRowState();
 }
 
-class _NavLinkState extends State<_NavLink> {
+class _NavRowState extends State<_NavRow> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    final fg = active
-        ? BsheelColors.onAccent(BsheelColors.ink)
-        : (_hover ? BsheelColors.ink : BsheelColors.inkSoft);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+      padding: const EdgeInsets.only(bottom: 3),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
@@ -414,60 +241,78 @@ class _NavLinkState extends State<_NavLink> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 110),
-            // 44px minimum click target (spec 1).
             constraints: const BoxConstraints(
               minHeight: BsheelLayout.minTarget,
             ),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
             decoration: BoxDecoration(
               color: active
-                  ? BsheelColors.ink
-                  : (_hover ? BsheelColors.surface : Colors.transparent),
-              borderRadius: BorderRadius.circular(BsheelRadii.full),
+                  ? BsheelColors.primary
+                  : (_hover
+                      ? BsheelColors.inkPanelBorder
+                      : Colors.transparent),
+              borderRadius: BorderRadius.circular(BsheelRadii.sm),
+              border: Border.all(
+                color: active
+                    ? BsheelColors.inkPanelTextStrong
+                    : Colors.transparent,
+                width: BsheelBorders.thick,
+              ),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
-                    widget.item.label,
+                    widget.label,
+                    style: TextStyle(
+                      fontFamily: BsheelFonts.mono,
+                      fontWeight: FontWeight.w700,
+                      // Variable font: drive the wght axis explicitly.
+                      fontVariations: const [FontVariation('wght', 700)],
+                      fontSize: 10,
+                      height: 1.3,
+                      letterSpacing: 0.9,
+                      color: active
+                          ? BsheelColors.pureWhite
+                          : (_hover
+                              ? BsheelColors.inkPanelTextStrong
+                              : BsheelColors.inkPanelText),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: BsheelType.bodyMd.copyWith(
-                      color: fg,
-                      fontWeight: FontWeight.w400,
-                      height: 1.2,
-                    ),
                   ),
                 ),
-                if (widget.item.badge != null)
+                if (widget.badge != null) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 7,
-                      vertical: 2,
+                      vertical: 1,
                     ),
                     decoration: BoxDecoration(
-                      color:
-                          active ? BsheelColors.pureWhite : Colors.transparent,
+                      // Gold on the violet fill, coral everywhere else.
+                      color: active
+                          ? BsheelColors.accent
+                          : BsheelColors.danger,
                       borderRadius: BorderRadius.circular(BsheelRadii.full),
-                      border: Border.all(
-                        color:
-                            active ? BsheelColors.pureWhite : BsheelColors.line,
-                        width: BsheelBorders.thin,
+                      border: const Border.fromBorderSide(
+                        BsheelBorders.inkSide,
                       ),
                     ),
                     child: Text(
-                      widget.item.badge!,
-                      style: BsheelType.labelSm.copyWith(
-                        fontSize: 9.5,
-                        letterSpacing: 0.5,
-                        color: active
-                            ? BsheelColors.onAccent(BsheelColors.pureWhite)
-                            : BsheelColors.onCream(BsheelColors.danger),
-                        height: 1.2,
+                      widget.badge!,
+                      style: const TextStyle(
+                        fontFamily: BsheelFonts.mono,
+                        fontWeight: FontWeight.w700,
+                        // Variable font: drive the wght axis explicitly.
+                        fontVariations: [FontVariation('wght', 700)],
+                        fontSize: 9,
+                        height: 1.3,
+                        color: BsheelColors.ink,
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -477,52 +322,29 @@ class _NavLinkState extends State<_NavLink> {
   }
 }
 
-class _LogoutButton extends StatelessWidget {
+/// Signed-in moderator and their role, with sign-out.
+class _SidebarFooter extends ConsumerWidget {
+  const _SidebarFooter();
+
   Future<void> _signOut(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: BsheelColors.paper,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.xl),
-          side: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
-        ),
-        title: RichText(
-          text: const TextSpan(
-            style: BsheelType.displaySm,
-            children: [
-              TextSpan(text: 'Sign '),
-              TextSpan(
-                text: 'out?',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-        ),
+      builder: (ctx) => BsheelDialog(
+        title: 'Sign out?',
         content: Text(
-          "You'll need to log back in to access the admin panel.",
-          style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+          "You'll need to log back in to reach the admin console.",
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'CANCEL',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.inkSoft),
-            ),
           ),
-          TextButton(
+          BsheelButton.coral(
+            label: 'Sign out',
+            small: true,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'SIGN OUT',
-              style: BsheelType.labelMd.copyWith(
-                color: BsheelColors.onCream(BsheelColors.danger),
-              ),
-            ),
           ),
         ],
       ),
@@ -532,37 +354,116 @@ class _LogoutButton extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Sign out',
-      child: InkWell(
-        onTap: () => _signOut(context),
-        customBorder: const CircleBorder(),
-        // The dot stays 28px; the hit area is 44px (spec 1).
-        child: SizedBox(
-          width: BsheelLayout.minTarget,
-          height: BsheelLayout.minTarget,
-          child: Center(
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: BsheelColors.bg,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: BsheelColors.line,
-                  width: BsheelBorders.thin,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.logout_rounded,
-                size: 13,
-                color: BsheelColors.ink,
-              ),
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meta = ref.watch(adminMetaProvider).valueOrNull;
+    final name = meta?.displayName ?? 'Admin';
+    final role = meta?.roleLabel ?? 'ADMIN';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 16),
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: BsheelColors.inkPanelBorder,
+            width: BsheelBorders.thick,
           ),
         ),
+      ),
+      child: Row(
+        children: [
+          _FooterAvatar(url: meta?.avatarUrl, name: name),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: BsheelType.titleSm.copyWith(
+                    color: BsheelColors.inkPanelTextStrong,
+                  ),
+                ),
+                Text(
+                  role,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: BsheelFonts.mono,
+                    fontWeight: FontWeight.w700,
+                    // Variable font: drive the wght axis explicitly.
+                    fontVariations: [FontVariation('wght', 700)],
+                    fontSize: 9,
+                    height: 1.4,
+                    letterSpacing: 0.9,
+                    color: BsheelColors.inkPanelText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.logout_rounded,
+              size: 17,
+              color: BsheelColors.inkPanelText,
+            ),
+            tooltip: 'Sign out',
+            onPressed: () => _signOut(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 30px rounded-square avatar with a cream outline, per the design.
+class _FooterAvatar extends StatelessWidget {
+  final String? url;
+  final String name;
+
+  const _FooterAvatar({required this.url, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
+    final fallback = Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: BsheelColors.danger,
+        borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        border: Border.all(
+          color: BsheelColors.inkPanelTextStrong,
+          width: BsheelBorders.thick,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: BsheelType.titleSm.copyWith(
+          color: BsheelColors.ink,
+          fontSize: 13,
+        ),
+      ),
+    );
+
+    if (url == null || url!.isEmpty) return fallback;
+
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        border: Border.all(
+          color: BsheelColors.inkPanelTextStrong,
+          width: BsheelBorders.thick,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        url!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
       ),
     );
   }

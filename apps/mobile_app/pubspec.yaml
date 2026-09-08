@@ -79,43 +79,15 @@ flutter:
     - assets/brand/
 
   fonts:
-    # Syne is a variable font bundled at a single ExtraBold snapshot.
-    # Map every requested weight to the same asset so Flutter never
-    # falls back to the system sans when the theme asks for 400/500/600/700.
+    # Arcade Pop type, as variable fonts so every weight the design asks
+    # for is a real cut rather than an alias. Pair `fontWeight` with a
+    # `fontVariations` wght entry — see QuestTypography.
     - family: Syne
       fonts:
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 400
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 500
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 600
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 700
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 800
-        - asset: assets/fonts/Syne-ExtraBold.ttf
-          weight: 900
+        - asset: assets/fonts/Syne-Variable.ttf
     - family: DMSans
       fonts:
-        - asset: assets/fonts/DMSans-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/DMSans-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/DMSans-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/DMSans-SemiBold.ttf
-          weight: 700
-        # 800/900 fall back to SemiBold until DMSans-Bold/Black .ttf are added
-        # (splash uses w900 for the BOOTING ARCADE / PLAY YOUR DAY labels).
-        - asset: assets/fonts/DMSans-SemiBold.ttf
-          weight: 800
-        - asset: assets/fonts/DMSans-SemiBold.ttf
-          weight: 900
-    # Mono font is shipped as a single Bold variant. Flutter aliases all
-    # requested weights to it automatically when only one is declared,
-    # so we don't need the 5-row weight table that was here before
-    # (ARC-030).
+        - asset: assets/fonts/DMSans-Variable.ttf
     - family: JetBrainsMono
       fonts:
-        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf

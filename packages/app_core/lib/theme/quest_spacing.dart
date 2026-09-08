@@ -1,4 +1,8 @@
-import 'dart:ui' show Offset;
+import 'dart:ui' show Color, Offset;
+
+import 'package:flutter/painting.dart' show BoxShadow;
+
+import 'quest_colors.dart';
 
 /// Arcade Pop spacing + radius — the single source of truth for shape.
 /// Chunky 2-3px borders and generous radii (10-22px) for the rounded-pop look.
@@ -39,4 +43,59 @@ abstract final class QuestSpacing {
 
   // Hard-offset drop shadow (no blur) — the Arcade Pop signature
   static const Offset hardShadowOffset = Offset(0, 6);
+
+  // ──────────────────────────────────────────────
+  // HARD SHADOW SCALE — the Arcade Pop signature
+  // ──────────────────────────────────────────────
+  // Zero blur, ink colour, equal x/y offset. Depth *is* the weight scale,
+  // so pick by the element's role rather than by eye:
+  //
+  //   3px  small cards and chips
+  //   4px  stat tiles and secondary buttons
+  //   5px  primary buttons and media
+  //   6px  hero panels
+  //   8px  phone-level frames
+  //
+  // A *coloured* shadow marks the one element on screen that matters most
+  // (violet on the active-quest hero, jade on a cleared quest). Everything
+  // else takes ink. Pass `color` for that case.
+
+  /// Hard offset shadow at [depth], ink unless [color] says otherwise.
+  static List<BoxShadow> hardShadow(
+    double depth, {
+    Color color = QuestColors.osTextPrimary,
+  }) =>
+      [BoxShadow(color: color, offset: Offset(depth, depth))];
+
+  /// 3px — small cards and chips.
+  static const List<BoxShadow> shadowSm = [
+    BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(3, 3)),
+  ];
+
+  /// 4px — stat tiles and secondary buttons.
+  static const List<BoxShadow> shadowMd = [
+    BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(4, 4)),
+  ];
+
+  /// 5px — primary buttons and media.
+  static const List<BoxShadow> shadowLg = [
+    BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(5, 5)),
+  ];
+
+  /// 6px — hero panels.
+  static const List<BoxShadow> shadowXl = [
+    BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(6, 6)),
+  ];
+
+  /// 8px — phone-level frames.
+  static const List<BoxShadow> shadowFrame = [
+    BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(8, 8)),
+  ];
+
+  /// Border radii the design uses, named by role so call sites stop
+  /// guessing between 12 and 14.
+  static const double radiusChip = 8.0; // category tags are square-ish
+  static const double radiusControl = 12.0; // inputs, buttons
+  static const double radiusCard = 16.0; // cards
+  static const double radiusHero = 18.0; // hero panels
 }

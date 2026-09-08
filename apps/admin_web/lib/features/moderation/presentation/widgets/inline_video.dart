@@ -9,13 +9,15 @@
 // `admin_web` only ever runs on Flutter web so this file uses `package:web`
 // directly — there is no mobile target to abstract over.
 
-import '../../../../core/theme/bsheel_design.dart';
 import 'dart:js_interop';
 import 'dart:math' as math;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
+
+import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/widgets/bsheel_widgets.dart';
 
 /// Plays a video URL inline using the browser's native `<video>` element.
 ///
@@ -26,8 +28,11 @@ import 'package:web/web.dart' as web;
 /// requires real playback (a 4s clip needs 2s, not a fixed low threshold);
 /// it only fires early for videos longer than
 /// [watchedAfterSeconds] ÷ [watchedAfterFraction] seconds. Used by the
-/// pending-submissions queue to gate the approve/deny actions until the
-/// admin has actually looked at the media.
+/// moderation queue to gate the approve/reject actions until the moderator
+/// has actually looked at the media.
+///
+/// The player draws itself as an Arcade Pop media frame: 2px ink outline,
+/// 14px radius, hard offset shadow at [depth].
 class InlineVideo extends StatefulWidget {
   const InlineVideo({
     super.key,
@@ -37,6 +42,7 @@ class InlineVideo extends StatefulWidget {
     this.watchedAfterFraction = 0.5,
     this.aspectRatio = 16 / 9,
     this.autoplay = false,
+    this.depth = 5,
   });
 
   final String url;
@@ -45,6 +51,9 @@ class InlineVideo extends StatefulWidget {
   final double watchedAfterFraction;
   final double aspectRatio;
   final bool autoplay;
+
+  /// Hard-shadow offset. 5 is the proof frame; 4 an extra asset behind it.
+  final double depth;
 
   @override
   State<InlineVideo> createState() => _InlineVideoState();
@@ -82,7 +91,9 @@ class _InlineVideoState extends State<InlineVideo> {
           ..width = '100%'
           ..height = '100%'
           ..objectFit = 'contain'
-          ..backgroundColor = 'black'
+          // The letterbox behind the frame is ink, not black: a colder
+          // black beside the cream page reads as a second palette.
+          ..backgroundColor = _cssColor(BsheelColors.ink)
           ..border = '0';
 
         video.addEventListener(
@@ -117,7 +128,7 @@ class _InlineVideoState extends State<InlineVideo> {
 
         // A decode/network failure must not trap the moderator: mark the media
         // "viewed" (they can't watch bytes the browser can't play) so the
-        // approve/deny gate unlocks, and flip to the fallback UI.
+        // approve/reject gate unlocks, and flip to the fallback UI.
         video.addEventListener(
           'error',
           ((web.Event _) {
@@ -139,18 +150,21 @@ class _InlineVideoState extends State<InlineVideo> {
 
     return AspectRatio(
       aspectRatio: widget.aspectRatio,
-      child: Container(
-        decoration: BoxDecoration(
-          color: BsheelColors.pureBlack,
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          border: Border.all(
-            color: const Color(0xFF2A2A2A),
-            width: BsheelBorders.thin,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: HtmlElementView(viewType: _viewType),
+      child: _frame(child: HtmlElementView(viewType: _viewType)),
+    );
+  }
+
+  /// The media frame every proof asset shares.
+  Widget _frame({required Widget child, Color? color}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color ?? BsheelColors.ink,
+        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+        boxShadow: BsheelShadows.hard(widget.depth),
       ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
     );
   }
 
@@ -159,16 +173,8 @@ class _InlineVideoState extends State<InlineVideo> {
   Widget _fallback() {
     return AspectRatio(
       aspectRatio: widget.aspectRatio,
-      child: Container(
-        decoration: BoxDecoration(
-          color: BsheelColors.ink,
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          border: Border.all(
-            color: const Color(0xFF2A2A2A),
-            width: BsheelBorders.thin,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
+      child: _frame(
+        color: BsheelColors.surface,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -178,23 +184,20 @@ class _InlineVideoState extends State<InlineVideo> {
                 color: BsheelColors.inkMuted,
               ),
               const SizedBox(height: 8),
-              const Text(
-                "CAN'T PLAY IN BROWSER",
-                style: TextStyle(
-                  color: BsheelColors.inkMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.6,
-                ),
-              ),
+              const BsheelLabel('Can’t play in browser'),
               const SizedBox(height: 4),
-              TextButton.icon(
+              const Text(
+                'The browser could not decode this file. Nothing is wrong '
+                'with the submission — open the original to inspect it.',
+                textAlign: TextAlign.center,
+                style: BsheelType.bodyXs,
+              ),
+              const SizedBox(height: 10),
+              BsheelButton.ghost(
+                label: 'Open original',
+                icon: Icons.open_in_new_rounded,
+                small: true,
                 onPressed: () => web.window.open(widget.url, '_blank'),
-                icon: const Icon(Icons.open_in_new, size: 14),
-                label: const Text('OPEN ORIGINAL'),
-                style: TextButton.styleFrom(
-                  foregroundColor: BsheelColors.pureWhite,
-                ),
               ),
             ],
           ),
@@ -202,4 +205,12 @@ class _InlineVideoState extends State<InlineVideo> {
       ),
     );
   }
+}
+
+/// A token colour as the `#rrggbb` string the DOM needs. Keeps the
+/// `<video>` element on the same palette as the frame around it without
+/// a hex literal living in this file.
+String _cssColor(Color color) {
+  final rgb = color.toARGB32() & 0xFFFFFF;
+  return '#${rgb.toRadixString(16).padLeft(6, '0')}';
 }

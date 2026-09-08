@@ -2,35 +2,40 @@ import 'package:flutter/material.dart';
 
 import 'bsheel_design.dart';
 
-/// "Port" light theme — strict black & white, light grotesque type,
-/// hairline rules. Same `AdminTheme.light` getter name as before so
-/// `MaterialApp(theme: AdminTheme.light)` keeps working without edits.
+/// Arcade Pop light theme for the admin console — cream ground, 2px ink
+/// outlines, hard offset shadows, Syne / DM Sans / JetBrains Mono.
+///
+/// The `AdminTheme.light` getter name is unchanged so
+/// `MaterialApp(theme: AdminTheme.light)` keeps working.
+///
+/// Material's own components can't draw a hard offset shadow, so anything
+/// that needs one uses the primitives in `shared/widgets/bsheel_widgets.dart`.
+/// This theme covers the defaults: colours, type, borders and radii.
 abstract final class AdminTheme {
-  static ThemeData get light {
-    final inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(BsheelRadii.md),
-      borderSide: const BorderSide(
-        color: BsheelColors.line,
-        width: BsheelBorders.thin,
-      ),
-    );
+  static OutlineInputBorder _border(Color color) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(BsheelRadii.md),
+        borderSide: BorderSide(color: color, width: BsheelBorders.thick),
+      );
 
+  static ThemeData get light {
     return ThemeData(
       brightness: Brightness.light,
       scaffoldBackgroundColor: BsheelColors.bg,
       canvasColor: BsheelColors.bg,
-      colorScheme: ColorScheme.light(
-        primary: BsheelColors.ink,
-        onPrimary: BsheelColors.onAccent(BsheelColors.ink),
-        secondary: BsheelColors.inkSoft,
-        onSecondary: BsheelColors.onAccent(BsheelColors.inkSoft),
-        tertiary: BsheelColors.inkMuted,
-        error: BsheelColors.error,
-        // Ink, not white: white on coral is 3.03:1 and fails AA.
-        onError: BsheelColors.onAccent(BsheelColors.danger),
-        surface: BsheelColors.paper,
+      colorScheme: const ColorScheme.light(
+        primary: BsheelColors.primary,
+        onPrimary: BsheelColors.pureWhite,
+        secondary: BsheelColors.accent,
+        // Gold takes ink, never white — see the contrast rule.
+        onSecondary: BsheelColors.accentInk,
+        tertiary: BsheelColors.cool,
+        onTertiary: BsheelColors.ink,
+        error: BsheelColors.danger,
+        onError: BsheelColors.ink,
+        surface: BsheelColors.card,
         onSurface: BsheelColors.ink,
-        outline: BsheelColors.line,
+        surfaceContainer: BsheelColors.surface,
+        outline: BsheelColors.ink,
       ),
       fontFamily: BsheelFonts.body,
       textTheme: const TextTheme(
@@ -41,8 +46,8 @@ abstract final class AdminTheme {
         headlineMedium: BsheelType.displayMd,
         headlineSmall: BsheelType.displaySm,
         titleLarge: BsheelType.displaySm,
-        titleMedium: BsheelType.bodyMdBold,
-        titleSmall: BsheelType.bodyMdBold,
+        titleMedium: BsheelType.titleMd,
+        titleSmall: BsheelType.titleSm,
         bodyLarge: BsheelType.bodyLg,
         bodyMedium: BsheelType.bodyMd,
         bodySmall: BsheelType.bodySm,
@@ -51,167 +56,214 @@ abstract final class AdminTheme {
         labelSmall: BsheelType.labelSm,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: BsheelColors.bg,
+        backgroundColor: BsheelColors.surface,
         foregroundColor: BsheelColors.ink,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: BsheelType.displaySm,
+        titleTextStyle: BsheelType.displayMd,
         iconTheme: IconThemeData(color: BsheelColors.ink),
       ),
       cardTheme: CardThemeData(
-        color: BsheelColors.paper,
+        color: BsheelColors.card,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.lg),
-          side: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
+          side: BsheelBorders.inkSide,
         ),
         margin: EdgeInsets.zero,
       ),
-      // Primary action: solid black pill, white text — inversion is the accent.
+      // Primary action: violet fill, white label, ink outline. The hard
+      // shadow comes from BsheelButton, which pages should prefer.
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: BsheelColors.ink,
-          foregroundColor: BsheelColors.onAccent(BsheelColors.ink),
-          minimumSize: const Size(64, BsheelLayout.minTarget),
-          textStyle: const TextStyle(
-            fontFamily: BsheelFonts.body,
-            fontWeight: FontWeight.w400,
-            fontSize: 13,
-            letterSpacing: 1.0,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          backgroundColor: BsheelColors.primary,
+          foregroundColor: BsheelColors.pureWhite,
+          disabledBackgroundColor: BsheelColors.surface,
+          disabledForegroundColor: BsheelColors.inkMuted,
+          textStyle: BsheelType.buttonMd,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          minimumSize: const Size(0, BsheelLayout.minTarget),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.full),
+            borderRadius: BorderRadius.circular(BsheelRadii.md),
+            side: BsheelBorders.inkSide,
           ),
           elevation: 0,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          backgroundColor: BsheelColors.surface,
           foregroundColor: BsheelColors.ink,
-          textStyle: const TextStyle(
-            fontFamily: BsheelFonts.body,
-            fontWeight: FontWeight.w400,
-            fontSize: 13,
-            letterSpacing: 1.0,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: BsheelType.buttonSm,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          minimumSize: const Size(0, BsheelLayout.minTarget),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(BsheelRadii.full),
+            borderRadius: BorderRadius.circular(BsheelRadii.md),
           ),
-          side: const BorderSide(
-            color: BsheelColors.ink,
-            width: BsheelBorders.thin,
-          ),
-          minimumSize: const Size(64, BsheelLayout.minTarget),
+          side: BsheelBorders.inkSide,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: BsheelColors.ink,
-          minimumSize: const Size(48, BsheelLayout.minTarget),
+          foregroundColor: BsheelColors.primary,
+          textStyle: BsheelType.labelMd.copyWith(color: BsheelColors.primary),
+          minimumSize: const Size(0, BsheelLayout.minTarget),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: BsheelColors.ink,
-          minimumSize: const Size.square(BsheelLayout.minTarget),
+          minimumSize: const Size(
+            BsheelLayout.minTarget,
+            BsheelLayout.minTarget,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: BsheelColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: inputBorder,
-        enabledBorder: inputBorder,
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(color: BsheelColors.ink, width: 1),
+        fillColor: BsheelColors.card,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 13,
+          vertical: 14,
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.danger,
-            width: BsheelBorders.thin,
-          ),
+        border: _border(BsheelColors.ink),
+        enabledBorder: _border(BsheelColors.ink),
+        // Focus recolours the border to violet; the matching coloured
+        // shadow is drawn by BsheelTextField.
+        focusedBorder: _border(BsheelColors.primary),
+        errorBorder: _border(BsheelColors.danger),
+        focusedErrorBorder: _border(BsheelColors.danger),
+        disabledBorder: _border(BsheelColors.inkMuted),
+        hintStyle: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+        labelStyle: BsheelType.labelMd,
+        floatingLabelStyle: BsheelType.labelMd.copyWith(
+          color: BsheelColors.primary,
         ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(
-            color: BsheelColors.danger,
-            width: BsheelBorders.thin,
-          ),
+        // One line beneath the field, never a tooltip.
+        errorStyle: BsheelType.bodyXs.copyWith(
+          color: BsheelColors.dangerText,
+          fontWeight: FontWeight.w600,
         ),
-        hintStyle: BsheelType.bodyMd.copyWith(color: BsheelColors.inkMuted),
-        labelStyle: BsheelType.labelMd.copyWith(color: BsheelColors.inkSoft),
-        errorStyle: BsheelType.bodySm.copyWith(
-          color: BsheelColors.onCream(BsheelColors.danger),
-        ),
-        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
       ),
       dividerTheme: const DividerThemeData(
-        color: BsheelColors.line,
-        thickness: 1,
+        color: BsheelColors.rowLine,
+        thickness: BsheelBorders.hairline,
         space: 0,
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: BsheelColors.ink,
-        contentTextStyle: BsheelType.bodyMd
-            .copyWith(color: BsheelColors.onAccent(BsheelColors.ink)),
+        contentTextStyle: BsheelType.bodySm.copyWith(
+          color: BsheelColors.inkPanelTextStrong,
+        ),
+        actionTextColor: BsheelColors.accent,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
+          side: BsheelBorders.inkSide,
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: BsheelColors.paper,
+        backgroundColor: BsheelColors.bg,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.xl),
-          side: const BorderSide(
-            color: BsheelColors.line,
-            width: BsheelBorders.thin,
-          ),
+          borderRadius: BorderRadius.circular(BsheelRadii.lg),
+          side: BsheelBorders.inkSide,
         ),
         titleTextStyle: BsheelType.displaySm,
-        contentTextStyle: BsheelType.bodyMd,
+        contentTextStyle: BsheelType.bodySm.copyWith(
+          color: BsheelColors.inkSoft,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: BsheelColors.card,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BsheelRadii.md),
+          side: BsheelBorders.inkSide,
+        ),
+        textStyle: BsheelType.bodySm,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: BsheelColors.ink,
+          borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        ),
+        textStyle: BsheelType.labelSm.copyWith(
+          color: BsheelColors.inkPanelTextStrong,
+        ),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: BsheelColors.ink,
+        color: BsheelColors.primary,
+        linearTrackColor: BsheelColors.skeleton,
+        circularTrackColor: BsheelColors.skeleton,
       ),
-      iconTheme: const IconThemeData(color: BsheelColors.ink),
+      iconTheme: const IconThemeData(color: BsheelColors.ink, size: 20),
       tabBarTheme: const TabBarThemeData(
         labelColor: BsheelColors.ink,
         unselectedLabelColor: BsheelColors.inkMuted,
-        indicatorColor: BsheelColors.ink,
+        indicatorColor: BsheelColors.primary,
         indicatorSize: TabBarIndicatorSize.label,
-        dividerColor: BsheelColors.line,
+        dividerColor: BsheelColors.rowLine,
         labelStyle: BsheelType.labelLg,
         unselectedLabelStyle: BsheelType.labelLg,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: BsheelColors.surface,
+        backgroundColor: BsheelColors.card,
         selectedColor: BsheelColors.ink,
-        labelStyle: BsheelType.labelMd,
-        side: const BorderSide(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
+        labelStyle: BsheelType.labelSm.copyWith(color: BsheelColors.ink),
+        secondaryLabelStyle: BsheelType.labelSm.copyWith(
+          color: BsheelColors.pureWhite,
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        side: BsheelBorders.inkSide,
+        shape: const StadiumBorder(),
+        showCheckmark: false,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: const WidgetStatePropertyAll(BsheelColors.bg),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? BsheelColors.success
+              : BsheelColors.lavender,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(BsheelColors.ink),
+        trackOutlineWidth: const WidgetStatePropertyAll(BsheelBorders.thick),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? BsheelColors.primary
+              : BsheelColors.card,
+        ),
+        checkColor: const WidgetStatePropertyAll(BsheelColors.pureWhite),
+        side: BsheelBorders.inkSide,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BsheelRadii.full),
+          borderRadius: BorderRadius.circular(4),
         ),
+      ),
+      radioTheme: const RadioThemeData(
+        fillColor: WidgetStatePropertyAll(BsheelColors.ink),
       ),
       listTileTheme: const ListTileThemeData(
         iconColor: BsheelColors.ink,
         textColor: BsheelColors.ink,
+        titleTextStyle: BsheelType.bodySmMedium,
+        subtitleTextStyle: BsheelType.bodyXs,
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStatePropertyAll(
+          BsheelColors.ink.withValues(alpha: 0.35),
+        ),
+        radius: const Radius.circular(BsheelRadii.full),
+        thickness: const WidgetStatePropertyAll(8),
       ),
       materialTapTargetSize: MaterialTapTargetSize.padded,
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
     );
   }
 }

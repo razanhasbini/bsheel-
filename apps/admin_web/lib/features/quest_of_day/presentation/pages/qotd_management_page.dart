@@ -1,10 +1,9 @@
-import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
-
-import '../../../../core/backend/app_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 /// Quest-of-the-Day scheduler. Admins pick one quest per UTC day and the
@@ -13,6 +12,13 @@ import '../../../../shared/widgets/bsheel_widgets.dart';
 ///
 /// Past entries stay in the table for the audit trail — they just stop
 /// being surfaced once the day rolls over.
+///
+/// The API hands `display_date` back as a bare `YYYY-MM-DD` string, which
+/// `DateTime.parse` reads as *local* midnight. Every comparison here runs
+/// through [_utcDay], which rebuilds the printed calendar date as UTC
+/// midnight — the same day the home page matches on. Comparing a parsed
+/// value directly against `DateTime.utc(...)` never matches, because
+/// `DateTime ==` also compares `isUtc`.
 class QotdManagementPage extends ConsumerStatefulWidget {
   const QotdManagementPage({super.key});
 
@@ -20,8 +26,49 @@ class QotdManagementPage extends ConsumerStatefulWidget {
   ConsumerState<QotdManagementPage> createState() => _QotdManagementPageState();
 }
 
+/// The UTC day [date] names, as UTC midnight.
+DateTime _utcDay(DateTime date) =>
+    DateTime.utc(date.year, date.month, date.day);
+
+/// Today, in UTC — the day the home page's ticket query uses.
+DateTime _utcToday() => _utcDay(DateTime.now().toUtc());
+
+const List<String> _monthNames = [
+  'JAN',
+  'FEB',
+  'MAR',
+  'APR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AUG',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DEC',
+];
+
+/// `13 MAR` — the 76px date column in the schedule.
+String _dayMonth(DateTime day) => '${day.day} ${_monthNames[day.month - 1]}';
+
+/// `2026-03-13` — the exact value written to `display_date`.
+String _isoDay(DateTime day) =>
+    '${day.year}-${day.month.toString().padLeft(2, '0')}-'
+    '${day.day.toString().padLeft(2, '0')}';
+
 class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
   bool _busy = false;
+  late Future<List<_QotdEntry>> _entriesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _entriesFuture = _loadEntries();
+  }
+
+  void _reload() {
+    if (mounted) setState(() => _entriesFuture = _loadEntries());
+  }
 
   Future<List<_QotdEntry>> _loadEntries() async {
     // Pull the full list joined with quests so the admin sees the quest
@@ -89,7 +136,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
         bonusXp: bonusXp,
         note: (note == null || note.isEmpty) ? null : note,
       );
-      if (mounted) setState(() {});
+      _reload();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,28 +151,23 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
   Future<void> _delete(String id) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: BsheelColors.paper,
-        title: const Text(
-          'DELETE QOTD ENTRY?',
-          style: TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
-        ),
-        content: const Text(
-          "The home-page ticket will disappear for that day. Quests themselves aren't touched.",
-          style: TextStyle(color: BsheelColors.inkSoft),
+      builder: (ctx) => BsheelDialog(
+        title: 'Pull from rotation',
+        content: Text(
+          'The home-page ticket will disappear for that day. Quests '
+          "themselves aren't touched.",
+          style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
         ),
         actions: [
-          TextButton(
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('CANCEL'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.danger,
-              foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
-            ),
+          BsheelButton.coral(
+            label: 'Unschedule',
+            small: true,
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('DELETE'),
           ),
         ],
       ),
@@ -134,7 +176,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
     setState(() => _busy = true);
     try {
       await AppBackend.repositories.admin.deleteQuestOfTheDay(id);
-      if (mounted) setState(() {});
+      _reload();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -146,14 +188,16 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
     }
   }
 
-  Future<void> _openEditor({_QotdEntry? existing}) async {
+  Future<void> _openEditor({_QotdEntry? existing, DateTime? forDay}) async {
     final quests = await _loadQuests();
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => _QotdEditorDialog(
         existing: existing,
+        initialDate: forDay,
         quests: quests,
+        onDelete: existing == null ? null : () => _delete(existing.id),
         onSave: ({
           required DateTime date,
           required String questId,
@@ -176,102 +220,228 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          BsheelCard(
-            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Curation · Quest of the Day'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Stack a {ticket} per day.',
-                  baseStyle: BsheelType.hero(context),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'One quest per UTC day shows as the yellow ticket above the generator. Queue future entries to keep the rotation hot — uniqueness on `display_date` means you can edit any row by saving the same date.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _busy ? null : () => _openEditor(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('QUEUE NEW QOTD'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.ink,
-                        foregroundColor: BsheelColors.paper,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    return AdminPane(
+      title: 'Quest of the day',
+      meta: 'Schedule',
+      child: FutureBuilder<List<_QotdEntry>>(
+        future: _entriesFuture,
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const BsheelLoadingList(rows: 4, rowHeight: 52);
+          }
+          if (snap.hasError) {
+            return BsheelErrorState(
+              message: 'The schedule did not come back. Nothing was changed '
+                  '— no day has been scheduled or pulled. (${snap.error})',
+              onRetry: _reload,
+            );
+          }
+          return _schedule(context, snap.data ?? const <_QotdEntry>[]);
+        },
+      ),
+    );
+  }
+
+  Widget _schedule(BuildContext context, List<_QotdEntry> entries) {
+    final today = _utcToday();
+    final byDay = <DateTime, _QotdEntry>{
+      for (final entry in entries) _utcDay(entry.displayDate): entry,
+    };
+    final todayEntry = byDay[today];
+
+    // Every day from tomorrow to the furthest queued entry, or a week
+    // out — whichever is later. A gap between two queued days is the one
+    // thing this screen exists to surface.
+    var horizon = today.add(const Duration(days: 7));
+    for (final day in byDay.keys) {
+      if (day.isAfter(horizon)) horizon = day;
+    }
+    final upcoming = <DateTime>[];
+    for (var day = today.add(const Duration(days: 1));
+        !day.isAfter(horizon);
+        day = day.add(const Duration(days: 1))) {
+      upcoming.add(day);
+    }
+
+    // Newest first, as the API returns them.
+    final past = [
+      for (final entry in entries)
+        if (_utcDay(entry.displayDate).isBefore(today)) entry,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (todayEntry != null)
+          _hero(todayEntry, today)
+        else
+          const BsheelCallout.danger(
+            'Nothing is scheduled for today. The Quest of the Day ticket '
+            'will not render on the home page until a quest is scheduled.',
           ),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: FutureBuilder<List<_QotdEntry>>(
-              future: _loadEntries(),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  );
-                }
-                if (snap.hasError) {
-                  return Text(
-                    'Error loading entries: ${snap.error}',
-                    style: BsheelType.bodySm.copyWith(
-                      color: BsheelColors.onCream(BsheelColors.danger),
-                    ),
-                  );
-                }
-                final entries = snap.data ?? const <_QotdEntry>[];
-                if (entries.isEmpty) {
-                  return BsheelCard(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'No quests queued yet. Hit QUEUE NEW QOTD above.',
-                      style: BsheelType.bodyMd
-                          .copyWith(color: BsheelColors.inkSoft),
-                    ),
-                  );
-                }
-                final todayUtc = DateTime.now().toUtc();
-                final todayKey = DateTime.utc(
-                  todayUtc.year,
-                  todayUtc.month,
-                  todayUtc.day,
-                );
-                return Column(
-                  children: [
-                    for (final e in entries) ...[
-                      _QotdRow(
-                        entry: e,
-                        isToday: e.displayDate == todayKey,
-                        isFuture: e.displayDate.isAfter(todayKey),
-                        onEdit: () => _openEditor(existing: e),
-                        onDelete: () => _delete(e.id),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ],
-                );
-              },
+        const SizedBox(height: 20),
+        const BsheelLabel('Scheduled'),
+        const SizedBox(height: 8),
+        _rowList([
+          for (var i = 0; i < upcoming.length; i++)
+            _dayRow(
+              day: upcoming[i],
+              entry: byDay[upcoming[i]],
+              last: i == upcoming.length - 1,
             ),
+        ]),
+        if (past.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const BsheelLabel('Already ran'),
+          const SizedBox(height: 8),
+          _rowList([
+            for (var i = 0; i < past.length; i++)
+              _dayRow(
+                day: _utcDay(past[i].displayDate),
+                entry: past[i],
+                last: i == past.length - 1,
+                spent: true,
+              ),
+          ]),
+        ],
+        const SizedBox(height: 20),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: BsheelButton.primary(
+            label: 'Schedule a day',
+            icon: Icons.event_available_rounded,
+            onPressed: _busy ? null : () => _openEditor(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Today's live entry — gold, because the ticket is the one thing on
+  /// this page a person is waiting on.
+  Widget _hero(_QotdEntry entry, DateTime today) {
+    const ground = BsheelColors.accent;
+    final fg = BsheelColors.onAccent(ground);
+    final stats = <String>[
+      if (entry.questCategory.isNotEmpty) entry.questCategory.toUpperCase(),
+      if (entry.questDifficulty.isNotEmpty)
+        entry.questDifficulty.toUpperCase(),
+      '+${entry.questXp} XP',
+      if (entry.bonusXp > 0) 'BONUS +${entry.bonusXp} XP',
+      if (entry.ticketNo != null && entry.ticketNo!.isNotEmpty)
+        '№${entry.ticketNo}',
+    ];
+
+    return BsheelCard(
+      color: ground,
+      radius: BsheelRadii.lg,
+      depth: 4,
+      padding: const EdgeInsets.all(16),
+      onTap: _busy ? null : () => _openEditor(existing: entry),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BsheelLabel('Today · ${_dayMonth(today)} · Live', color: fg),
+          const SizedBox(height: 9),
+          Text(entry.questTitle, style: BsheelType.displaySm.copyWith(color: fg)),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 16,
+            runSpacing: 5,
+            children: [
+              for (final stat in stats)
+                Text(
+                  stat,
+                  style: BsheelType.labelMd.copyWith(
+                    color: fg,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          BsheelButton(
+            label: 'Pull from rotation',
+            small: true,
+            background: BsheelColors.bg,
+            onPressed: _busy ? null : () => _delete(entry.id),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _rowList(List<Widget> rows) => BsheelCard.flat(
+        padding: EdgeInsets.zero,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(BsheelRadii.card),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: rows,
+          ),
+        ),
+      );
+
+  /// One day in the schedule. An unscheduled day is drawn on cream with
+  /// its date and its consequence in red — the ticket silently not
+  /// rendering is the failure this screen has to make visible.
+  Widget _dayRow({
+    required DateTime day,
+    required _QotdEntry? entry,
+    required bool last,
+    bool spent = false,
+  }) {
+    final missing = entry == null;
+    final dateColor = missing
+        ? BsheelColors.dangerText
+        : (spent ? BsheelColors.inkMuted : null);
+
+    return BsheelPressable(
+      depth: 0,
+      onTap: _busy
+          ? null
+          : () => missing
+              ? _openEditor(forDay: day)
+              : _openEditor(existing: entry),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        decoration: BoxDecoration(
+          color: missing || spent ? BsheelColors.surface : BsheelColors.card,
+          border: last ? null : const Border(bottom: BsheelBorders.rowSide),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 76,
+              child: BsheelCell.meta(_dayMonth(day), color: dateColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: missing
+                  ? Text(
+                      'Nothing scheduled — the QOTD ticket will not render '
+                      'that day',
+                      style: BsheelType.bodySmMedium.copyWith(
+                        color: BsheelColors.dangerText,
+                      ),
+                    )
+                  : BsheelCell.title(entry.questTitle, muted: spent),
+            ),
+            if (!missing) ...[
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 76,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: BsheelCell.meta(
+                    '+${entry.questXp + entry.bonusXp} XP',
+                    color: spent ? BsheelColors.inkMuted : BsheelColors.ink,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -323,137 +493,21 @@ class _QuestRow {
   final String difficulty;
 }
 
-class _QotdRow extends StatelessWidget {
-  const _QotdRow({
-    required this.entry,
-    required this.isToday,
-    required this.isFuture,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final _QotdEntry entry;
-  final bool isToday;
-  final bool isFuture;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = isToday
-        ? BsheelColors.ink
-        : isFuture
-            ? BsheelColors.inkSoft
-            : BsheelColors.inkMuted;
-    final dateStr =
-        '${entry.displayDate.year}-${entry.displayDate.month.toString().padLeft(2, '0')}-${entry.displayDate.day.toString().padLeft(2, '0')}';
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-        border: Border.all(
-          color: isToday ? BsheelColors.ink : BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Status pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BsheelRadii.full),
-              border: Border.all(
-                color: accent,
-                width: BsheelBorders.thin,
-              ),
-            ),
-            child: Text(
-              isToday
-                  ? 'TODAY'
-                  : isFuture
-                      ? 'UPCOMING'
-                      : 'PAST',
-              style: BsheelType.labelMd.copyWith(
-                color: accent,
-                letterSpacing: 1.4,
-                fontSize: 10,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 110),
-            child: Text(
-              dateStr,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: BsheelType.labelMd.copyWith(
-                color: BsheelColors.ink,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.questTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: BsheelType.labelLg.copyWith(
-                    color: BsheelColors.ink,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${entry.questCategory.toUpperCase()} · ${entry.questXp + entry.bonusXp} XP'
-                  '${entry.bonusXp > 0 ? " (+${entry.bonusXp} bonus)" : ""}'
-                  '${entry.ticketNo != null && entry.ticketNo!.isNotEmpty ? "  ·  №${entry.ticketNo}" : ""}',
-                  style:
-                      BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: onEdit,
-            child: Text(
-              'EDIT',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.ink),
-            ),
-          ),
-          const SizedBox(width: 4),
-          TextButton(
-            onPressed: onDelete,
-            child: Text(
-              'DELETE',
-              style: BsheelType.labelMd.copyWith(
-                color: BsheelColors.onCream(BsheelColors.danger),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _QotdEditorDialog extends StatefulWidget {
   const _QotdEditorDialog({
     required this.existing,
     required this.quests,
     required this.onSave,
+    this.initialDate,
+    this.onDelete,
   });
 
   final _QotdEntry? existing;
+
+  /// Pre-selected day, used when an admin taps an unscheduled row.
+  final DateTime? initialDate;
   final List<_QuestRow> quests;
+  final Future<void> Function()? onDelete;
   final Future<void> Function({
     required DateTime date,
     required String questId,
@@ -478,12 +532,12 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
   void initState() {
     super.initState();
     final existing = widget.existing;
-    _date = existing?.displayDate ??
-        DateTime.utc(
-          DateTime.now().toUtc().year,
-          DateTime.now().toUtc().month,
-          DateTime.now().toUtc().day,
-        );
+    // Always a UTC midnight, whichever branch it comes from.
+    _date = existing != null
+        ? _utcDay(existing.displayDate)
+        : (widget.initialDate == null
+            ? _utcToday()
+            : _utcDay(widget.initialDate!));
     _questId = existing?.questId;
     _ticketCtrl = TextEditingController(text: existing?.ticketNo ?? '');
     _bonusCtrl =
@@ -514,114 +568,116 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dateStr =
-        '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}';
-    return AlertDialog(
-      backgroundColor: BsheelColors.paper,
-      title: Text(
-        widget.existing == null ? 'QUEUE NEW QOTD' : 'EDIT QOTD',
-        style: const TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
-      ),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return BsheelDialog(
+      title: widget.existing == null ? 'Schedule a day' : 'Edit QOTD',
+      maxWidth: 560,
+      content: SizedBox(
+        width: 520,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
+                const BsheelLabel('Display date'),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: BsheelButton.ghost(
+                    label: _isoDay(_date),
+                    icon: Icons.calendar_today,
+                    small: true,
+                    onPressed: _saving ? null : _pickDate,
+                  ),
+                ),
+                const SizedBox(height: 5),
                 const Text(
-                  'Date:',
-                  style: TextStyle(
-                    color: BsheelColors.ink,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  'The home page matches this date in UTC. Saving a date that '
+                  'already has an entry overwrites that day.',
+                  style: BsheelType.bodyXs,
                 ),
-                const SizedBox(width: 12),
-                TextButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: BsheelColors.ink,
-                  ),
-                  label: Text(
-                    dateStr,
-                    style:
-                        const TextStyle(color: BsheelColors.ink, fontSize: 14),
-                  ),
+                const SizedBox(height: 14),
+                BsheelDropdown<String?>(
+                  value: _questId,
+                  label: 'Quest',
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Select a quest…'),
+                    ),
+                    for (final q in widget.quests)
+                      DropdownMenuItem<String?>(
+                        value: q.id,
+                        child: Text(
+                          '${q.title} · ${q.category} · +${q.xpReward} XP',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _questId = v),
+                ),
+                const SizedBox(height: 5),
+                const Text('Pick from active quests.', style: BsheelType.bodyXs),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: BsheelField(
+                        controller: _ticketCtrl,
+                        label: 'Ticket №',
+                        hint: 'Defaults to MMDD',
+                        enabled: !_saving,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: BsheelField(
+                        controller: _bonusCtrl,
+                        label: 'Bonus XP',
+                        hint: 'Above base reward',
+                        keyboardType: TextInputType.number,
+                        enabled: !_saving,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                BsheelField(
+                  controller: _noteCtrl,
+                  label: 'Admin note',
+                  hint: 'Not shown to users',
+                  maxLines: 2,
+                  enabled: !_saving,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _questId,
-              decoration: const InputDecoration(
-                labelText: 'Quest',
-                helperText: 'Pick from active quests.',
-              ),
-              isExpanded: true,
-              items: [
-                for (final q in widget.quests)
-                  DropdownMenuItem(
-                    value: q.id,
-                    child: Text(
-                      '${q.title} · ${q.category} · +${q.xpReward} XP',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _questId = v),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ticketCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Ticket № (optional)',
-                      helperText: 'Defaults to MMDD if left empty.',
-                    ),
-                    style: const TextStyle(color: BsheelColors.ink),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _bonusCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Bonus XP',
-                      helperText: 'Above quest base reward.',
-                    ),
-                    style: const TextStyle(color: BsheelColors.ink),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Admin note (not shown to users)',
-              ),
-              style: const TextStyle(color: BsheelColors.ink),
-            ),
-          ],
+          ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('CANCEL'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: BsheelColors.ink,
-            foregroundColor: BsheelColors.pureWhite,
+        if (widget.onDelete != null)
+          BsheelButton.coral(
+            label: 'Unschedule',
+            small: true,
+            onPressed: _saving
+                ? null
+                : () async {
+                    final onDelete = widget.onDelete!;
+                    Navigator.pop(context);
+                    await onDelete();
+                  },
           ),
+        BsheelButton.ghost(
+          label: 'Cancel',
+          small: true,
+          onPressed: _saving ? null : () => Navigator.pop(context),
+        ),
+        BsheelButton.primary(
+          label: widget.existing == null ? 'Schedule' : 'Save',
+          small: true,
+          loading: _saving,
           onPressed: _saving || _questId == null
               ? null
               : () async {
@@ -635,7 +691,6 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
                   );
                   if (context.mounted) Navigator.pop(context);
                 },
-          child: Text(widget.existing == null ? 'QUEUE' : 'SAVE'),
         ),
       ],
     );

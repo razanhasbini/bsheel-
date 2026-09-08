@@ -1,10 +1,11 @@
-import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+
 // ── Providers ────────────────────────────────────────────────────────────────
 
 /// One aggregate query returns stored totals beside expected totals for
@@ -57,6 +58,14 @@ class _UserXpAudit {
       currentXp == expectedXp &&
       currentLevel == expectedLevel &&
       currentQuests == expectedQuests;
+
+  /// Stored minus computed. Positive means the profile is holding XP the
+  /// approved history does not account for.
+  int get xpDelta => currentXp - expectedXp;
+
+  String get label => username.isNotEmpty
+      ? username
+      : (displayName.isNotEmpty ? displayName : userId);
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -68,405 +77,197 @@ class XpManagementPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auditAsync = ref.watch(_xpAuditProvider);
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          BsheelCard(
-            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Community · XP Manager'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Mind the {ledger.}',
-                  baseStyle: BsheelType.hero(context),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Audit XP values against approved quests. Reconcile any '
-                  'inconsistencies before they show up on the leaderboard.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+    return AdminPane(
+      title: 'XP reconciliation',
+      meta: 'Audit',
+      child: auditAsync.when(
+        loading: () => const BsheelLoadingList(rows: 5, rowHeight: 46),
+        error: (e, _) => BsheelErrorState(
+          title: 'Audit didn’t run',
+          message: 'The comparison didn’t come back, so nothing was compared '
+              'and no balance has been touched. $e',
+          onRetry: () => ref.invalidate(_xpAuditProvider),
+        ),
+        data: (users) => _AuditBody(users: users),
+      ),
+    );
+  }
+}
 
-          // Formula info card
-          Container(
-            padding: const EdgeInsets.all(QuestSpacing.md),
-            decoration: BoxDecoration(
-              color: BsheelColors.paper,
-              border: Border.all(
-                color: BsheelColors.line,
-                width: BsheelBorders.thin,
+class _AuditBody extends ConsumerWidget {
+  final List<_UserXpAudit> users;
+
+  const _AuditBody({required this.users});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final drifted = users.where((u) => !u.isConsistent).toList();
+    final inSync = users.length - drifted.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text.rich(
+          const TextSpan(
+            children: [
+              TextSpan(text: 'Compares '),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: _MonoChip('profiles.xp'),
               ),
-              borderRadius: BorderRadius.circular(BsheelRadii.lg),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'XP SYSTEM RULES',
-                  style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.ink,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: QuestSpacing.sm),
-                Text(
-                  'Level Formula: level = floor(XP / 100) + 1',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-                Text(
-                  '100 XP = Level 2, 200 XP = Level 3, etc.',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-                Text(
-                  'XP Source: Only from approved quest submissions',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-                Text(
-                  'DB Trigger: handle_submission_approved() awards XP atomically',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-              ],
-            ),
+              TextSpan(
+                text: ' against the sum of approved submissions. A drift '
+                    'means an award, reversal or deletion did not settle.',
+              ),
+            ],
           ),
-          const SizedBox(height: QuestSpacing.lg),
-
-          // Audit table
-          auditAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: BsheelColors.primary),
-            ),
-            error: (e, _) => Center(
-              child: Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
+          style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: BsheelStatTile(
+                label: 'In sync',
+                value: _grouped(inSync),
+                ground: BsheelColors.success,
               ),
             ),
-            data: (users) {
-              final inconsistent = users.where((u) => !u.isConsistent).toList();
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (inconsistent.isNotEmpty) ...[
-                    _SectionHeader(
-                      title: 'INCONSISTENCIES FOUND (${inconsistent.length})',
-                      color: BsheelColors.onCream(BsheelColors.danger),
+            const SizedBox(width: 11),
+            Expanded(
+              child: BsheelStatTile(
+                label: 'Drifted',
+                value: _grouped(drifted.length),
+                ground: BsheelColors.danger,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (drifted.isEmpty)
+          BsheelEmptyState.allClear(
+            message: 'Every profile matches the XP its approved submissions '
+                'imply. Nothing to reconcile — come back after the next '
+                'batch of approvals.',
+            actionLabel: 'Re-run the audit',
+            onAction: () => ref.invalidate(_xpAuditProvider),
+          )
+        else
+          BsheelTable(
+            depth: 4,
+            columns: const [
+              BsheelColumn('User'),
+              BsheelColumn('Stored', width: 84),
+              BsheelColumn('Computed', width: 84),
+              BsheelColumn('Delta', width: 80),
+            ],
+            rows: [
+              for (final u in drifted)
+                BsheelRow(
+                  [
+                    Text(
+                      u.label,
+                      style: BsheelType.titleMd,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: QuestSpacing.sm),
-                    ElevatedButton.icon(
-                      onPressed: () => _fixAll(ref, inconsistent),
-                      icon: const Icon(Icons.auto_fix_high, size: 16),
-                      label: Text(
-                        'FIX ALL',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.onAccent(BsheelColors.danger),
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.danger,
-                        foregroundColor:
-                            BsheelColors.onAccent(BsheelColors.danger),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                      ),
+                    BsheelCell.mono(_grouped(u.currentXp), bold: false),
+                    BsheelCell.mono(_grouped(u.expectedXp), bold: false),
+                    BsheelCell.mono(
+                      _signed(u.xpDelta),
+                      color: BsheelColors.dangerText,
                     ),
-                    const SizedBox(height: QuestSpacing.md),
-                    ...inconsistent.map(
-                      (u) => _AuditCard(
-                        user: u,
-                        onFix: () => _fixUser(ref, u),
-                      ),
-                    ),
-                    const SizedBox(height: QuestSpacing.lg),
                   ],
-                  _SectionHeader(
-                    title: 'ALL USERS (${users.length})',
-                    color: BsheelColors.onCream(BsheelColors.cool),
-                  ),
-                  const SizedBox(height: QuestSpacing.md),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth < 600) {
-                        return Column(
-                          children: users.map((u) {
-                            return Container(
-                              margin: const EdgeInsets.only(
-                                bottom: QuestSpacing.sm,
-                              ),
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration: BoxDecoration(
-                                color: BsheelColors.paper,
-                                border: Border.all(
-                                  color: u.isConsistent
-                                      ? BsheelColors.line
-                                      : BsheelColors.danger,
-                                  width: BsheelBorders.thin,
-                                ),
-                                borderRadius: BorderRadius.circular(
-                                  BsheelRadii.lg,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          '@${u.username}',
-                                          style: BsheelType.bodySm.copyWith(
-                                            color: BsheelColors.ink,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      u.isConsistent
-                                          ? Icon(
-                                              Icons.check_circle,
-                                              color: BsheelColors.onCream(
-                                                BsheelColors.success,
-                                              ),
-                                              size: 16,
-                                            )
-                                          : Icon(
-                                              Icons.warning,
-                                              color: BsheelColors.onCream(
-                                                BsheelColors.danger,
-                                              ),
-                                              size: 16,
-                                            ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: QuestSpacing.xs),
-                                  Text(
-                                    'XP: ${u.currentXp} (exp ${u.expectedXp})  '
-                                    'LV: ${u.currentLevel} (exp ${u.expectedLevel})  '
-                                    'Q: ${u.currentQuests} (exp ${u.expectedQuests})',
-                                    style: BsheelType.labelSm.copyWith(
-                                      color: u.isConsistent
-                                          ? BsheelColors.inkSoft
-                                          : BsheelColors.onCream(
-                                              BsheelColors.danger),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  if (!u.isConsistent) ...[
-                                    const SizedBox(height: QuestSpacing.xs),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: () => _fixUser(ref, u),
-                                        child: Text(
-                                          'FIX',
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: BsheelColors.primary,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        );
-                      }
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: BsheelColors.paper,
-                          border: Border.all(
-                            color: BsheelColors.line,
-                            width: BsheelBorders.thin,
-                          ),
-                          borderRadius: BorderRadius.circular(BsheelRadii.lg),
-                        ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              BsheelColors.surface,
-                            ),
-                            columnSpacing: 20,
-                            headingTextStyle: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.inkMuted,
-                              letterSpacing: 1.5,
-                            ),
-                            dataTextStyle: BsheelType.bodySm.copyWith(
-                              color: BsheelColors.ink,
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('USER')),
-                              DataColumn(label: Text('XP'), numeric: true),
-                              DataColumn(
-                                  label: Text('EXPECTED'), numeric: true),
-                              DataColumn(label: Text('LEVEL'), numeric: true),
-                              DataColumn(label: Text('EXP LVL'), numeric: true),
-                              DataColumn(label: Text('QUESTS'), numeric: true),
-                              DataColumn(label: Text('EXP QST'), numeric: true),
-                              DataColumn(label: Text('STATUS')),
-                              DataColumn(label: Text('ACTIONS')),
-                            ],
-                            rows: users
-                                .asMap()
-                                .entries
-                                .map(
-                                  (e) => DataRow(
-                                    color: WidgetStateProperty.all(
-                                      e.key.isEven
-                                          ? BsheelColors.paper
-                                          : BsheelColors.surface,
-                                    ),
-                                    cells: [
-                                      DataCell(
-                                        Text(
-                                          '@${e.value.username}',
-                                          style: BsheelType.bodySm.copyWith(
-                                              color: BsheelColors.ink),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.currentXp}',
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: BsheelColors.onCream(
-                                              e.value.currentXp !=
-                                                      e.value.expectedXp
-                                                  ? BsheelColors.danger
-                                                  : BsheelColors.accent,
-                                            ),
-                                            fontWeight: e.value.currentXp !=
-                                                    e.value.expectedXp
-                                                ? FontWeight.w500
-                                                : null,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.expectedXp}',
-                                          style: BsheelType.bodySm.copyWith(
-                                            color: BsheelColors.inkMuted,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.currentLevel}',
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: e.value.currentLevel !=
-                                                    e.value.expectedLevel
-                                                ? BsheelColors.onCream(
-                                                    BsheelColors.danger)
-                                                : BsheelColors.primary,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.expectedLevel}',
-                                          style: BsheelType.bodySm.copyWith(
-                                            color: BsheelColors.inkMuted,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.currentQuests}',
-                                          style: BsheelType.labelSm.copyWith(
-                                            color: e.value.currentQuests !=
-                                                    e.value.expectedQuests
-                                                ? BsheelColors.onCream(
-                                                    BsheelColors.danger)
-                                                : BsheelColors.ink,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          '${e.value.expectedQuests}',
-                                          style: BsheelType.bodySm.copyWith(
-                                            color: BsheelColors.inkMuted,
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        e.value.isConsistent
-                                            ? Icon(
-                                                Icons.check_circle,
-                                                color: BsheelColors.onCream(
-                                                  BsheelColors.success,
-                                                ),
-                                                size: 18,
-                                              )
-                                            : Icon(
-                                                Icons.warning,
-                                                color: BsheelColors.onCream(
-                                                  BsheelColors.danger,
-                                                ),
-                                                size: 18,
-                                              ),
-                                      ),
-                                      DataCell(
-                                        e.value.isConsistent
-                                            ? const SizedBox.shrink()
-                                            : TextButton(
-                                                onPressed: () =>
-                                                    _fixUser(ref, e.value),
-                                                child: Text(
-                                                  'FIX',
-                                                  style: BsheelType.labelSm
-                                                      .copyWith(
-                                                    color: BsheelColors.primary,
-                                                  ),
-                                                ),
-                                              ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: QuestSpacing.xl),
-                  Text(
-                    'MANUAL XP ADJUSTMENT',
-                    style: BsheelType.labelMd.copyWith(
-                      color: BsheelColors.ink,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: QuestSpacing.md),
-                  _ManualXpAdjuster(users: users),
-                ],
-              );
-            },
+                  // The design draws no per-row action, so the row itself
+                  // opens the single-user reconcile the page has always
+                  // had — each one is its own audited transaction.
+                  onTap: () => _confirmOne(context, ref, u),
+                ),
+            ],
+          ),
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: BsheelButton.primary(
+            label: 'Reconcile all',
+            onPressed: drifted.isEmpty
+                ? null
+                : () => _confirmAll(context, ref, drifted),
+          ),
+        ),
+        const SizedBox(height: 26),
+        const BsheelLabel('Manual adjustment'),
+        const SizedBox(height: 8),
+        _ManualXpAdjuster(users: users),
+      ],
+    );
+  }
+
+  Future<void> _confirmOne(
+    BuildContext context,
+    WidgetRef ref,
+    _UserXpAudit user,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => BsheelDialog(
+        title: 'Reconcile ${user.label}?',
+        content: Text(
+          'Rewrites this profile to ${_grouped(user.expectedXp)} XP, level '
+          '${user.expectedLevel} and ${user.expectedQuests} completed '
+          'quests — the totals its approved submissions imply. The change '
+          'lands in the admin audit log with your name on it, and there is '
+          'no undo.',
+          style: BsheelType.bodySm,
+        ),
+        actions: [
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          BsheelButton.coral(
+            label: 'Reconcile',
+            small: true,
+            onPressed: () => Navigator.of(ctx).pop(true),
           ),
         ],
       ),
     );
+    if (ok == true) await _fixUser(ref, user);
+  }
+
+  Future<void> _confirmAll(
+    BuildContext context,
+    WidgetRef ref,
+    List<_UserXpAudit> drifted,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => BsheelDialog(
+        title: 'Reconcile ${drifted.length} profiles?',
+        content: const Text(
+          'Each drifted profile is rewritten to the total its approved '
+          'submissions imply, one audited transaction at a time. Balances '
+          'go down as well as up, players see the new number immediately, '
+          'and there is no undo.',
+          style: BsheelType.bodySm,
+        ),
+        actions: [
+          BsheelButton.ghost(
+            label: 'Cancel',
+            small: true,
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          BsheelButton.coral(
+            label: 'Reconcile all',
+            small: true,
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _fixAll(ref, drifted);
   }
 
   // SEC-009: route through admin_set_user_xp so each fix lands in
@@ -500,98 +301,55 @@ class XpManagementPage extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final Color color;
-  const _SectionHeader({required this.title, required this.color});
+// ── Inline code chip ─────────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(width: 4, height: 20, color: color),
-        const SizedBox(width: QuestSpacing.sm),
-        Text(
-          title,
-          style: BsheelType.labelMd.copyWith(
-            color: BsheelColors.ink,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-}
+/// A column name drawn inside a sentence: cream box, 2px ink outline,
+/// mono type. Small enough to sit on the body baseline.
+class _MonoChip extends StatelessWidget {
+  final String text;
 
-class _AuditCard extends StatelessWidget {
-  final _UserXpAudit user;
-  final VoidCallback onFix;
-  const _AuditCard({required this.user, required this.onFix});
+  const _MonoChip(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: QuestSpacing.sm),
-      padding: const EdgeInsets.all(QuestSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: BsheelColors.danger.withAlpha(15),
-        border: Border.all(
-          color: BsheelColors.danger,
-          width: BsheelBorders.thin,
-        ),
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+        color: BsheelColors.surface,
+        borderRadius: BorderRadius.circular(BsheelRadii.sm),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '@${user.username}',
-                  style: BsheelType.bodyMd.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: BsheelColors.ink,
-                  ),
-                ),
-                const SizedBox(height: QuestSpacing.xs),
-                Text(
-                  'XP: ${user.currentXp} → ${user.expectedXp}  |  '
-                  'Level: ${user.currentLevel} → ${user.expectedLevel}  |  '
-                  'Quests: ${user.currentQuests} → ${user.expectedQuests}',
-                  style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.onCream(BsheelColors.danger),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: onFix,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: BsheelColors.primary,
-              side: const BorderSide(
-                color: BsheelColors.primary,
-                width: BsheelBorders.thin,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(BsheelRadii.full),
-              ),
-            ),
-            child: Text(
-              'FIX',
-              style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: Text(text, style: BsheelType.monoSm),
     );
   }
 }
 
+// ── Number helpers ───────────────────────────────────────────────────────────
+
+/// `11780` → `11,780`. Grouped so a five-figure balance can be read at a
+/// glance in an 84px column.
+String _grouped(int n) {
+  final digits = n.abs().toString();
+  final out = StringBuffer(n < 0 ? '−' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i != 0 && (digits.length - i) % 3 == 0) out.write(',');
+    out.write(digits[i]);
+  }
+  return out.toString();
+}
+
+/// A delta always carries its sign, so the direction of the drift is
+/// readable without comparing the two columns beside it.
+String _signed(int n) {
+  if (n == 0) return '0';
+  return '${n > 0 ? '+' : '−'}${_grouped(n.abs())}';
+}
+
+// ── Manual adjustment ────────────────────────────────────────────────────────
+
+/// Kept from the previous page: a direct grant or deduction, still routed
+/// through the audited `admin_set_user_xp` RPC. The design frame does not
+/// draw it, but removing it would drop an audited capability.
 class _ManualXpAdjuster extends ConsumerStatefulWidget {
   final List<_UserXpAudit> users;
   const _ManualXpAdjuster({required this.users});
@@ -614,136 +372,64 @@ class _ManualXpAdjusterState extends ConsumerState<_ManualXpAdjuster> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: BsheelColors.paper,
-        border: Border.all(
-          color: BsheelColors.line,
-          width: BsheelBorders.thin,
-        ),
-        borderRadius: BorderRadius.circular(BsheelRadii.lg),
-      ),
+    return BsheelCard(
+      depth: 3,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Add or remove XP for a user manually.',
-            style: BsheelType.bodySm.copyWith(
-              color: BsheelColors.inkMuted,
-            ),
+            'Add or remove XP for one player. The adjustment is logged '
+            'against your account with its reason.',
+            style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
           ),
-          const SizedBox(height: QuestSpacing.md),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 600;
-
-              final userDropdown = DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'USER',
-                  labelStyle: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.inkMuted,
-                  ),
-                  filled: true,
-                  fillColor: BsheelColors.bg,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(color: BsheelColors.line),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(
-                      color: BsheelColors.line,
-                      width: BsheelBorders.thin,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.md),
-                    borderSide: const BorderSide(
-                      color: BsheelColors.ink,
-                      width: BsheelBorders.thin,
-                    ),
-                  ),
+          const SizedBox(height: 12),
+          BsheelDropdown<String?>(
+            label: 'Player',
+            value: _selectedUserId,
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Pick a player…'),
+              ),
+              for (final u in widget.users)
+                DropdownMenuItem<String?>(
+                  value: u.userId,
+                  child: Text('${u.label} · ${_grouped(u.currentXp)} XP'),
                 ),
-                style: BsheelType.bodySm,
-                dropdownColor: BsheelColors.paper,
-                initialValue: _selectedUserId,
-                items: widget.users
-                    .map(
-                      (u) => DropdownMenuItem(
-                        value: u.userId,
-                        child: Text('@${u.username} (${u.currentXp} XP)'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedUserId = v),
-              );
-
-              final amountField = BsheelTextField(
-                controller: _amountCtrl,
-                label: 'XP AMOUNT',
-                hint: '+50 or -30',
-                keyboardType: TextInputType.number,
-                style: BsheelType.bodySm,
-                hintStyle:
-                    BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
-                isDense: true,
-              );
-
-              final reasonField = BsheelTextField(
-                controller: _reasonCtrl,
-                label: 'REASON (OPTIONAL)',
-                style: BsheelType.bodySm,
-                hintStyle:
-                    BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
-                isDense: true,
-              );
-
-              final applyBtn = ElevatedButton(
-                onPressed: _selectedUserId == null ? null : _applyXp,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BsheelColors.primary,
-                  foregroundColor: BsheelColors.pureWhite,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BsheelRadii.full),
-                  ),
+            ],
+            onChanged: (v) => setState(() => _selectedUserId = v),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: BsheelField(
+                  controller: _amountCtrl,
+                  label: 'XP amount',
+                  hint: '+50 or -30',
+                  keyboardType: TextInputType.number,
                 ),
-                child: Text(
-                  'APPLY',
-                  style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.pureWhite,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: BsheelField(
+                  controller: _reasonCtrl,
+                  label: 'Reason',
+                  hint: 'Optional — shown in the audit log',
                 ),
-              );
-
-              if (isMobile) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    userDropdown,
-                    const SizedBox(height: QuestSpacing.sm),
-                    amountField,
-                    const SizedBox(height: QuestSpacing.sm),
-                    reasonField,
-                    const SizedBox(height: QuestSpacing.sm),
-                    applyBtn,
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(flex: 2, child: userDropdown),
-                  const SizedBox(width: QuestSpacing.md),
-                  Expanded(child: amountField),
-                  const SizedBox(width: QuestSpacing.md),
-                  Expanded(child: reasonField),
-                  const SizedBox(width: QuestSpacing.md),
-                  applyBtn,
-                ],
-              );
-            },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: BsheelButton.ghost(
+              label: 'Apply adjustment',
+              small: true,
+              onPressed: _selectedUserId == null ? null : _applyXp,
+            ),
           ),
         ],
       ),
