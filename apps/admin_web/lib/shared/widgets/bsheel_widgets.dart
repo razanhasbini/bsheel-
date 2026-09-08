@@ -66,6 +66,8 @@ class BsheelEyebrow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '— ${text.toUpperCase()}',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: BsheelType.labelMd.copyWith(
         color: color ?? BsheelColors.inkMuted,
       ),
@@ -111,20 +113,22 @@ class BsheelPill extends StatelessWidget {
           BsheelColors.pureWhite,
           BsheelColors.ink
         ),
-      // Status = hairline pill, semantic colour only on the text.
+      // Status = hairline pill, semantic colour only on the text. The
+      // accent *fills* fail 4.5:1 as 10–11px type on paper, so each takes
+      // its darkened text-only twin via `onCream`.
       BsheelPillTone.coral => (
           BsheelColors.paper,
-          BsheelColors.hot,
+          BsheelColors.onCream(BsheelColors.danger),
           BsheelColors.line
         ),
       BsheelPillTone.green => (
           BsheelColors.paper,
-          BsheelColors.success,
+          BsheelColors.onCream(BsheelColors.success),
           BsheelColors.line
         ),
       BsheelPillTone.sky => (
           BsheelColors.paper,
-          BsheelColors.cool,
+          BsheelColors.onCream(BsheelColors.cool),
           BsheelColors.line
         ),
       BsheelPillTone.ghost => (
@@ -150,6 +154,8 @@ class BsheelPill extends StatelessWidget {
       ),
       child: Text(
         label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: BsheelType.labelMd.copyWith(
           color: fg,
           fontSize: small ? 10 : 11,
@@ -273,16 +279,17 @@ class _BsheelButtonState extends State<BsheelButton> {
           BsheelColors.pureWhite,
           BsheelColors.ink
         ),
-      // Semantic actions.
+      // Semantic actions — ink on the accent, never white. White on coral
+      // measures 3.03:1 and fails AA; `onAccent` picks the passing ink.
       BsheelPillTone.coral => (
-          BsheelColors.hot,
-          BsheelColors.pureWhite,
-          BsheelColors.hot
+          BsheelColors.danger,
+          BsheelColors.onAccent(BsheelColors.danger),
+          BsheelColors.ink
         ),
       BsheelPillTone.green => (
           BsheelColors.success,
-          BsheelColors.pureWhite,
-          BsheelColors.success
+          BsheelColors.onAccent(BsheelColors.success),
+          BsheelColors.ink
         ),
       // Quiet variants — hairline outline, ink text.
       BsheelPillTone.sky => (
@@ -318,49 +325,61 @@ class _BsheelButtonState extends State<BsheelButton> {
                 widget.onPressed?.call();
               },
         onTapCancel: () => setState(() => _down = false),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 90),
-          opacity: disabled ? 0.45 : (_down ? 0.7 : 1.0),
-          child: Container(
-            height: widget.height,
-            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(BsheelRadii.full),
-              border: Border.all(color: border, width: BsheelBorders.thin),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (widget.loading)
-                  SizedBox(
-                    width: fontSize + 2,
-                    height: fontSize + 2,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      valueColor: AlwaysStoppedAnimation(fg),
-                    ),
-                  )
-                else if (widget.icon != null) ...[
-                  Icon(widget.icon, size: fontSize + 3, color: fg),
-                  const SizedBox(width: 8),
-                ],
-                Flexible(
-                  child: Text(
-                    widget.label.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: BsheelFonts.body,
-                      fontWeight: FontWeight.w400,
-                      fontSize: fontSize,
-                      letterSpacing: 1.1,
-                      color: fg,
-                      height: 1,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        // 44px minimum click target (spec §1) without inflating the pill:
+        // the hit box is at least 44 tall, the visual stays centred in it.
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: widget.height ?? BsheelLayout.minTarget,
+          ),
+          child: Align(
+            alignment: Alignment.center,
+            widthFactor: 1,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 90),
+              opacity: disabled ? 0.45 : (_down ? 0.7 : 1.0),
+              child: Container(
+                height: widget.height,
+                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(BsheelRadii.full),
+                  border: Border.all(color: border, width: BsheelBorders.thin),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (widget.loading)
+                      SizedBox(
+                        width: fontSize + 2,
+                        height: fontSize + 2,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor: AlwaysStoppedAnimation(fg),
+                        ),
+                      )
+                    else if (widget.icon != null) ...[
+                      Icon(widget.icon, size: fontSize + 3, color: fg),
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(
+                      child: Text(
+                        widget.label.toUpperCase(),
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontFamily: BsheelFonts.body,
+                          fontWeight: FontWeight.w400,
+                          fontSize: fontSize,
+                          letterSpacing: 1.1,
+                          color: fg,
+                          height: 1,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -462,9 +481,20 @@ class BsheelSectionHeader extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
-                    child: Text(
-                      '$actionLabel  →',
-                      style: BsheelType.labelLg,
+                    // 44px min target — padding, so the label keeps its
+                    // quiet visual weight.
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minHeight: BsheelLayout.minTarget,
+                      ),
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        '$actionLabel  →',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.labelLg,
+                      ),
                     ),
                   ),
                 ),
@@ -484,7 +514,6 @@ class BsheelTile extends StatelessWidget {
   final String? delta;
   final Color? deltaColor;
   final Color color;
-  final Color foreground;
   final VoidCallback? onTap;
 
   const BsheelTile({
@@ -494,67 +523,68 @@ class BsheelTile extends StatelessWidget {
     this.delta,
     this.deltaColor,
     this.color = BsheelColors.paper,
-    this.foreground = BsheelColors.ink,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final inverted = foreground != BsheelColors.ink;
+    // Foreground is derived, never passed: on coral / gold / jade / sky the
+    // text must be ink, and `onAccent` is the only place that decides.
+    final fg = BsheelColors.onAccent(color);
+    final soft = BsheelColors.onAccentSoft(color);
     return _Pressable(
       onTap: onTap,
       child: Container(
+        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(BsheelRadii.lg),
           border: Border.all(
-            color: inverted ? color : BsheelColors.line,
+            color: BsheelColors.line,
             width: BsheelBorders.thin,
           ),
         ),
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
+            // The affordance arrow shares the eyebrow row rather than
+            // floating over it, so a long eyebrow can never run under it.
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                BsheelEyebrow(
-                  eyebrow,
-                  color: inverted
-                      ? foreground.withValues(alpha: 0.7)
-                      : BsheelColors.inkMuted,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  value,
-                  style: BsheelType.displayXl.copyWith(
-                    color: foreground,
-                    letterSpacing: -1.5,
+                Expanded(child: BsheelEyebrow(eyebrow, color: soft)),
+                if (onTap != null) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.arrow_outward_rounded,
+                    size: 14,
+                    color: soft,
                   ),
-                ),
-                const SizedBox(height: 6),
-                if (delta != null)
-                  Text(
-                    delta!.toUpperCase(),
-                    style: BsheelType.labelMd.copyWith(
-                      color: deltaColor ??
-                          (inverted
-                              ? foreground.withValues(alpha: 0.8)
-                              : BsheelColors.inkSoft),
-                    ),
-                  ),
+                ],
               ],
             ),
-            if (onTap != null)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Icon(
-                  Icons.arrow_outward_rounded,
-                  size: 14,
-                  color: inverted
-                      ? foreground.withValues(alpha: 0.7)
-                      : BsheelColors.inkMuted,
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: BsheelType.displayXl.copyWith(
+                  color: fg,
+                  letterSpacing: -1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (delta != null)
+              Text(
+                delta!.toUpperCase(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: BsheelType.labelMd.copyWith(
+                  color: deltaColor ?? soft,
                 ),
               ),
           ],
@@ -590,8 +620,11 @@ class BsheelSegmented extends StatelessWidget {
           width: BsheelBorders.thin,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      // A long option list must never run outside the control: it wraps
+      // onto a second run instead of overflowing the shell.
+      child: Wrap(
+        spacing: 2,
+        runSpacing: 2,
         children: List.generate(options.length, (i) {
           final on = i == selected;
           return MouseRegion(
@@ -601,17 +634,24 @@ class BsheelSegmented extends StatelessWidget {
               onTap: () => onChanged?.call(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                // 44px minimum click target (spec §1).
+                constraints: const BoxConstraints(
+                  minHeight: BsheelLayout.minTarget,
+                ),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: on ? BsheelColors.ink : Colors.transparent,
                   borderRadius: BorderRadius.circular(BsheelRadii.full),
                 ),
                 child: Text(
                   options[i].toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: BsheelType.labelMd.copyWith(
-                    color: on ? BsheelColors.pureWhite : BsheelColors.inkMuted,
+                    color: on
+                        ? BsheelColors.onAccent(BsheelColors.ink)
+                        : BsheelColors.inkSoft,
                   ),
                 ),
               ),
@@ -788,6 +828,8 @@ class BsheelTextField extends StatelessWidget {
         filled: true,
         fillColor: fillColor,
         isDense: isDense,
+        // A dense field still has to clear the 44px target (spec §1).
+        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
           borderSide: BorderSide(color: borderColor, width: BsheelBorders.thin),
@@ -912,13 +954,19 @@ class BsheelDialog extends StatelessWidget {
                   BsheelType.displaySm.copyWith(color: BsheelColors.ink),
             ),
             const SizedBox(height: 16),
-            content,
+            // Tall content scrolls inside the dialog rather than pushing
+            // the action row off a short browser window.
+            Flexible(child: SingleChildScrollView(child: content)),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children:
-                  actions.expand((w) => [w, const SizedBox(width: 8)]).toList()
-                    ..removeLast(),
+            // Actions wrap instead of overflowing a narrow dialog.
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: actions,
+              ),
             ),
           ],
         ),

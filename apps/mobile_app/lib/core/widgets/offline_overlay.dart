@@ -65,10 +65,10 @@ class _OfflinePanel extends StatelessWidget {
                       BoxShadow(color: ink, offset: const Offset(4, 5)),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.wifi_off_rounded,
                     size: 48,
-                    color: QuestColors.osTextOnPrimary,
+                    color: QuestColors.onAccent(QuestColors.softRed),
                   ),
                 ),
                 const SizedBox(height: 28),

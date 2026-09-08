@@ -24,6 +24,19 @@ abstract final class QuestSpacing {
   // Card
   static const double cardBorderWidth = 2.0; // chunky 2px outline
 
+  /// Minimum comfortable hit target on any control, in logical pixels.
+  ///
+  /// Both design specs mandate 44 — the mobile one as a touch floor, the
+  /// admin one as "44px minimum touch/click target on every control", since
+  /// a moderator works a queue by pointer for hours. It lives here, with the
+  /// other tokens, because it had otherwise been redefined three times: once
+  /// per app and once in shared_ui. Three copies of one number is how a rule
+  /// ends up meaning something slightly different in each place.
+  ///
+  /// Apply it to the hit area, not the paint: a control may look small and
+  /// still be comfortably tappable.
+  static const double minTouchTarget = 44.0;
+
   // Hard-offset drop shadow (no blur) — the Arcade Pop signature
   static const Offset hardShadowOffset = Offset(0, 6);
 }

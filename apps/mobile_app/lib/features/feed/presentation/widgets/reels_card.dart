@@ -9,6 +9,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
 
+import '../../../../design/bs_widgets.dart';
 import 'collab_vote_button.dart';
 import '../providers/feed_provider.dart';
 import '../../../comments/presentation/widgets/comments_section.dart';
@@ -301,24 +302,26 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _toggleMute,
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: QuestColors.pureBlack.withAlpha(150),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: QuestColors.pureBlack.withAlpha(70),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                  color: QuestColors.textPrimary,
-                  size: 16,
+              child: BsMinTouch(
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: QuestColors.pureBlack.withAlpha(150),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: QuestColors.pureBlack.withAlpha(70),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                    color: QuestColors.textPrimary,
+                    size: 16,
+                  ),
                 ),
               ),
             ),
@@ -584,12 +587,16 @@ class _ReelsMediaItemState extends ConsumerState<_ReelsMediaItem> {
                           opacity: opacity.clamp(0.0, 1.0),
                           child: Transform.scale(
                             scale: scale,
-                            child: const Icon(
+                            child: Icon(
                               Icons.arrow_upward_rounded,
                               color: QuestColors.softRed,
                               size: 120,
                               shadows: [
-                                Shadow(color: Colors.black54, blurRadius: 12),
+                                Shadow(
+                                  color: QuestColors.pureBlack
+                                      .withAlpha(QuestColors.alphaInkSoft),
+                                  blurRadius: 12,
+                                ),
                               ],
                             ),
                           ),
@@ -775,7 +782,7 @@ class _MediaSpinner extends StatelessWidget {
         height: 28,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+          valueColor: AlwaysStoppedAnimation<Color>(QuestColors.textSecondary),
         ),
       ),
     );
@@ -788,9 +795,10 @@ class _MediaPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: QuestColors.pureBlack,
-      child: const Center(
+      child: Center(
         child: Icon(Icons.image_not_supported_rounded,
-            color: Colors.white24, size: 48),
+            color: QuestColors.pureWhite.withAlpha(QuestColors.alphaHairline),
+            size: 48),
       ),
     );
   }
@@ -1009,8 +1017,12 @@ class _RailButtonState extends State<_RailButton> {
     // ACTIVE (e.g. user has upvoted → red heart, saved → white filled).
     final iconColor =
         widget.isActive ? widget.activeColor : QuestColors.textPrimary;
-    const shadows = <Shadow>[
-      Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 1)),
+    final shadows = <Shadow>[
+      Shadow(
+        color: QuestColors.pureBlack.withAlpha(QuestColors.alphaInkSoft),
+        blurRadius: 8,
+        offset: const Offset(0, 1),
+      ),
     ];
 
     return GestureDetector(
@@ -1026,63 +1038,72 @@ class _RailButtonState extends State<_RailButton> {
         scale: _scale,
         duration: const Duration(milliseconds: 90),
         curve: Curves.easeOut,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Icon sits naked on the video. If a centerLabel is provided
-            // (the comment glyph carries the count inside the bubble) we
-            // keep that overlay, but stripped of the surrounding tile.
-            widget.centerLabel == null
-                ? Icon(
-                    widget.icon,
-                    color: iconColor,
-                    size: 30,
-                    shadows: shadows,
-                  )
-                : SizedBox(
-                    width: 34,
-                    height: 30,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Icon(widget.icon,
-                            color: iconColor, size: 30, shadows: shadows),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Text(
-                            widget.centerLabel!,
-                            style: const TextStyle(
-                              color: QuestColors.textPrimary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                              shadows: [
-                                Shadow(
-                                    color: Colors.black54,
+        // The glyph stays 30px so the rail keeps its Instagram look, but
+        // the hit box is padded out to the 44pt floor the spec requires.
+        child: BsMinTouch(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon sits naked on the video. If a centerLabel is provided
+              // (the comment glyph carries the count inside the bubble) we
+              // keep that overlay, but stripped of the surrounding tile.
+              widget.centerLabel == null
+                  ? Icon(
+                      widget.icon,
+                      color: iconColor,
+                      size: 30,
+                      shadows: shadows,
+                    )
+                  : SizedBox(
+                      width: 34,
+                      height: 30,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(widget.icon,
+                              color: iconColor, size: 30, shadows: shadows),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              widget.centerLabel!,
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: QuestColors.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                                shadows: [
+                                  Shadow(
+                                    color: QuestColors.pureBlack
+                                        .withAlpha(QuestColors.alphaInkSoft),
                                     blurRadius: 4,
-                                    offset: Offset(0, 1)),
-                              ],
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+              if (widget.label.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: QuestColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                    height: 1.1,
+                    shadows: shadows,
                   ),
-            if (widget.label.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  color: QuestColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.1,
-                  height: 1.1,
-                  shadows: shadows,
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1179,6 +1200,12 @@ class _BottomMeta extends StatelessWidget {
 
   bool get _isVersus => collabMode == 'versus';
 
+  /// Coop badges go green to match the rest of the coop chrome, versus
+  /// stays coral. Anything else falls back to coral too.
+  Color get _modeBadgeGround => _isVersus
+      ? QuestColors.softRed
+      : (collabMode == 'with' ? QuestColors.successGreen : QuestColors.softRed);
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1196,20 +1223,16 @@ class _BottomMeta extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              // Coop badges go green to match the rest of the coop chrome,
-              // versus stays red. Anything else falls back to red too.
-              color: _isVersus
-                  ? QuestColors.softRed
-                  : (collabMode == 'with'
-                      ? QuestColors.successGreen
-                      : QuestColors.softRed),
+              color: _modeBadgeGround,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: QuestColors.pureWhite, width: 1.5),
             ),
             child: Text(
               modeBadge!.toUpperCase(),
-              style: const TextStyle(
-                color: QuestColors.osTextOnPrimary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: QuestColors.onAccent(_modeBadgeGround),
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.8,
@@ -1475,12 +1498,20 @@ class _WaitingForMember extends StatelessWidget {
               Text(
                 '@$name',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
                   color: QuestColors.textPrimary,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.4,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 6)],
+                  shadows: [
+                    Shadow(
+                      color: QuestColors.pureBlack
+                          .withAlpha(QuestColors.alphaInkSoft),
+                      blurRadius: 6,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 6),

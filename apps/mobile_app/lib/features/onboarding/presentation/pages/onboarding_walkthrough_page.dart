@@ -202,8 +202,9 @@ class _OnboardingWalkthroughPageState
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: ink, width: 2),
                     ),
-                    child: const Icon(Icons.gavel_rounded,
-                        color: QuestColors.osTextOnPrimary, size: 20),
+                    child: Icon(Icons.gavel_rounded,
+                        color: QuestColors.onAccent(QuestColors.softRed),
+                        size: 20),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -325,6 +326,10 @@ class _OnboardingWalkthroughPageState
     final l = AppLocalizations.of(context)!;
     final ink = QuestColors.text(context);
     final isLast = _currentPage == _totalPages - 1;
+    // Both CTA grounds are accent fills, so the label/icon colour comes
+    // from the helper rather than being chosen by eye.
+    final ctaGround = isLast ? QuestColors.softRed : QuestColors.accentYellow;
+    final onCta = QuestColors.onAccent(ctaGround);
 
     final steps = [
       _StepData(
@@ -431,8 +436,7 @@ class _OnboardingWalkthroughPageState
                   width: double.infinity,
                   height: 58,
                   decoration: BoxDecoration(
-                    color:
-                        isLast ? QuestColors.softRed : QuestColors.accentYellow,
+                    color: ctaGround,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: ink, width: 2.5),
                     boxShadow: [
@@ -447,13 +451,17 @@ class _OnboardingWalkthroughPageState
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          (isLast ? l.letsGo : l.next).toUpperCase(),
-                          style: QuestTypography.buttonText.copyWith(
-                            color: isLast ? QuestColors.osTextOnPrimary : ink,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
+                        Flexible(
+                          child: Text(
+                            (isLast ? l.letsGo : l.next).toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: QuestTypography.buttonText.copyWith(
+                              color: onCta,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -461,7 +469,7 @@ class _OnboardingWalkthroughPageState
                           isLast
                               ? Icons.rocket_launch_rounded
                               : Icons.arrow_forward_rounded,
-                          color: isLast ? QuestColors.osTextOnPrimary : ink,
+                          color: onCta,
                           size: 20,
                         ),
                       ],
@@ -554,7 +562,7 @@ class _WalkthroughStepState extends State<_WalkthroughStep>
               child: Icon(
                 widget.data.icon,
                 size: 64,
-                color: QuestColors.osTextOnPrimary,
+                color: QuestColors.onAccent(widget.data.tint),
               ),
             ),
           ),

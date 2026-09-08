@@ -121,8 +121,8 @@ class _PendingSubmissionsPageState
         ),
         child: Padding(
           padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: SizedBox(
-            width: 420,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,10 +135,14 @@ class _PendingSubmissionsPageState
                       size: 24,
                     ),
                     const SizedBox(width: QuestSpacing.sm),
-                    Text(
-                      'APPROVE ALL',
-                      style: BsheelType.displaySm
-                          .copyWith(color: BsheelColors.ink),
+                    Expanded(
+                      child: Text(
+                        'APPROVE ALL',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.displaySm
+                            .copyWith(color: BsheelColors.ink),
+                      ),
                     ),
                   ],
                 ),
@@ -154,31 +158,34 @@ class _PendingSubmissionsPageState
                       .copyWith(color: BsheelColors.inkSoft, height: 1.4),
                 ),
                 const SizedBox(height: QuestSpacing.lg),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: QuestSpacing.sm,
+                  runSpacing: QuestSpacing.sm,
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       child: Text(
                         'CANCEL',
                         style: BsheelType.labelSm
-                            .copyWith(color: BsheelColors.inkMuted),
+                            .copyWith(color: BsheelColors.inkSoft),
                       ),
                     ),
-                    const SizedBox(width: QuestSpacing.sm),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: BsheelColors.success,
-                        foregroundColor: BsheelColors.pureWhite,
+                        foregroundColor:
+                            BsheelColors.onAccent(BsheelColors.success),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
                       ),
                       child: Text(
                         'APPROVE $eligibleCount',
-                        style: BsheelType.labelSm
-                            .copyWith(color: BsheelColors.pureWhite),
+                        style: BsheelType.labelSm.copyWith(
+                          color: BsheelColors.onAccent(BsheelColors.success),
+                        ),
                       ),
                     ),
                   ],
@@ -301,11 +308,16 @@ class _PendingSubmissionsPageState
                       'Oldest first. Approve/deny is locked until you view '
                       'every photo and watch every video.',
                       style: BsheelType.bodySm.copyWith(
-                        color: BsheelColors.inkMuted,
+                        color: BsheelColors.inkSoft,
                       ),
                     ),
                   ),
-                  const _ShortcutsHint(),
+                  // The shortcut legend is a fixed-width strip: it is
+                  // dropped rather than allowed to crush the caption.
+                  if (MediaQuery.of(context).size.width >= 900) ...[
+                    const SizedBox(width: 12),
+                    const _ShortcutsHint(),
+                  ],
                 ],
               ),
               const SizedBox(height: QuestSpacing.lg),
@@ -326,8 +338,9 @@ class _PendingSubmissionsPageState
                   error: (e, _) => Center(
                     child: Text(
                       'Error: $e',
+                      textAlign: TextAlign.center,
                       style: BsheelType.bodySm.copyWith(
-                        color: BsheelColors.hot,
+                        color: BsheelColors.onCream(BsheelColors.danger),
                       ),
                     ),
                   ),
@@ -407,52 +420,75 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BsheelCard(
-      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Moderation · Pending'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Review the {queue.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${submissions.length} submissions waiting · use '
-                  'A approve · D deny · ↑↓ to navigate.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, c) {
+        // The hero type and the action pills cannot share a line on a
+        // narrow window, so they stack instead of overflowing the card.
+        final narrow = c.maxWidth < 720;
+
+        final headline = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const BsheelEyebrow('Moderation · Pending'),
+            const SizedBox(height: 14),
+            BsheelDisplay(
+              'Review the {queue.}',
+              baseStyle:
+                  BsheelType.displayXl.copyWith(fontSize: narrow ? 30 : 44),
             ),
-          ),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (submissions.length > 1)
-                BsheelButton.primary(
-                  label: 'APPROVE ALL (${submissions.length})',
-                  icon: Icons.done_all_rounded,
-                  small: true,
-                  onPressed: busy ? null : onApproveAll,
-                ),
-              BsheelButton.ghost(
-                label: 'REFRESH',
-                icon: Icons.refresh_rounded,
+            const SizedBox(height: 8),
+            Text(
+              '${submissions.length} submissions waiting · use '
+              'A approve · D deny · ↑↓ to navigate.',
+              style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+            ),
+          ],
+        );
+
+        final actions = Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            if (submissions.length > 1)
+              BsheelButton.primary(
+                label: 'APPROVE ALL (${submissions.length})',
+                icon: Icons.done_all_rounded,
                 small: true,
-                onPressed: onRefresh,
+                onPressed: busy ? null : onApproveAll,
               ),
-            ],
+            BsheelButton.ghost(
+              label: 'REFRESH',
+              icon: Icons.refresh_rounded,
+              small: true,
+              onPressed: onRefresh,
+            ),
+          ],
+        );
+
+        return BsheelCard(
+          padding: EdgeInsets.symmetric(
+            horizontal: narrow ? 20 : 36,
+            vertical: narrow ? 22 : 32,
           ),
-        ],
-      ),
+          child: narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    headline,
+                    const SizedBox(height: 16),
+                    actions,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: headline),
+                    const SizedBox(width: 16),
+                    Flexible(child: actions),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -479,7 +515,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: QuestSpacing.sm),
           Text(
             'All caught up! Check back later.',
-            style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+            textAlign: TextAlign.center,
+            style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
           ),
         ],
       ),
@@ -572,231 +609,275 @@ class _SubmissionCard extends StatelessWidget {
         onTap: onTapCard,
         child: Padding(
           padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MediaSection(
+          // Below ~660px of card width the three columns cannot all hold
+          // their minimums, so the card stacks instead of overflowing.
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final narrow = c.maxWidth < 660;
+
+              final media = MediaSection(
                 submission: submission,
                 viewedIndices: viewedIndices,
                 onMediaViewed: onMediaViewed,
-              ),
-              const SizedBox(width: QuestSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: BsheelColors.pureWhite.withAlpha(30),
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.pureWhite,
-                              fontWeight: FontWeight.w500,
+                maxWidth: narrow ? c.maxWidth : 320,
+              );
+
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name + chips wrap: a long display name plus a history
+                  // chip and the ACTIVE pill will not fit one line.
+                  Wrap(
+                    spacing: QuestSpacing.sm,
+                    runSpacing: QuestSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor:
+                                BsheelColors.pureWhite.withAlpha(30),
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: BsheelType.labelSm.copyWith(
+                                color: BsheelColors.pureWhite,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: QuestSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            name,
-                            style: BsheelType.bodyMdBold.copyWith(
-                              color: BsheelColors.pureWhite,
-                              fontSize: 15,
+                          const SizedBox(width: QuestSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              style: BsheelType.bodyMdBold.copyWith(
+                                color: BsheelColors.pureWhite,
+                                fontSize: 15,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (hasHistory) ...[
-                          const SizedBox(width: QuestSpacing.sm),
-                          _UserHistoryChip(
-                            approved: submission.userApprovedCount,
-                            rejected: submission.userRejectedCount,
                           ),
                         ],
-                        if (isSelected) ...[
-                          const SizedBox(width: QuestSpacing.sm),
-                          _ActivePill(),
-                        ],
-                      ],
-                    ),
-                    if (submission.questTitle != null) ...[
-                      const SizedBox(height: QuestSpacing.sm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.sm,
-                          vertical: 3,
+                      ),
+                      if (hasHistory)
+                        _UserHistoryChip(
+                          approved: submission.userApprovedCount,
+                          rejected: submission.userRejectedCount,
                         ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                          border: Border.all(
-                            color: _mediaPanelBorder,
-                          ),
-                        ),
-                        child: Text(
-                          submission.questTitle!,
-                          style: BsheelType.labelSm.copyWith(
-                            color: _mediaPanelSoft,
-                            fontSize: 11,
-                          ),
+                      if (isSelected) _ActivePill(),
+                    ],
+                  ),
+                  if (submission.questTitle != null) ...[
+                    const SizedBox(height: QuestSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: QuestSpacing.sm,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
+                        border: Border.all(
+                          color: _mediaPanelBorder,
                         ),
                       ),
-                    ],
-                    if (flags.isNotEmpty) ...[
-                      const SizedBox(height: QuestSpacing.sm),
-                      Wrap(
-                        spacing: QuestSpacing.sm,
-                        runSpacing: QuestSpacing.xs,
-                        children: flags,
-                      ),
-                    ],
-                    if (submission.appealed) ...[
-                      const SizedBox(height: QuestSpacing.md),
-                      _AppealBanner(note: submission.appealNote),
-                    ],
-                    if (submission.caption != null &&
-                        submission.caption!.isNotEmpty) ...[
-                      const SizedBox(height: QuestSpacing.md),
-                      Text(
-                        submission.caption!,
-                        style: BsheelType.bodyMd.copyWith(
-                          color: _mediaPanelSoft,
-                          height: 1.4,
-                        ),
-                        maxLines: 4,
+                      child: Text(
+                        submission.questTitle!,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
+                        style: BsheelType.labelSm.copyWith(
+                          color: _mediaPanelSoft,
+                          fontSize: 11,
+                        ),
                       ),
-                    ],
+                    ),
+                  ],
+                  if (flags.isNotEmpty) ...[
+                    const SizedBox(height: QuestSpacing.sm),
+                    Wrap(
+                      spacing: QuestSpacing.sm,
+                      runSpacing: QuestSpacing.xs,
+                      children: flags,
+                    ),
+                  ],
+                  if (submission.appealed) ...[
+                    const SizedBox(height: QuestSpacing.md),
+                    _AppealBanner(note: submission.appealNote),
+                  ],
+                  if (submission.caption != null &&
+                      submission.caption!.isNotEmpty) ...[
                     const SizedBox(height: QuestSpacing.md),
                     Text(
-                      'Submitted ${_formatTime(submission.submittedAt)}',
-                      style: BsheelType.labelSm.copyWith(
-                        color:
-                            _isStale ? BsheelColors.hot : BsheelColors.inkMuted,
-                        fontSize: 11,
-                        fontWeight: _isStale ? FontWeight.w500 : null,
+                      submission.caption!,
+                      style: BsheelType.bodyMd.copyWith(
+                        color: _mediaPanelSoft,
+                        height: 1.4,
                       ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: QuestSpacing.lg),
-              SizedBox(
-                width: 130,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!allMediaViewed) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.sm,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: BsheelColors.pureWhite.withAlpha(25),
-                          borderRadius: BorderRadius.circular(BsheelRadii.md),
-                          border: Border.all(
-                            color: BsheelColors.pureWhite.withAlpha(120),
-                          ),
-                        ),
-                        child: Text(
-                          'VIEW ALL\nMEDIA FIRST',
-                          textAlign: TextAlign.center,
-                          style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.pureWhite,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.8,
-                            height: 1.2,
-                          ),
+                  const SizedBox(height: QuestSpacing.md),
+                  Text(
+                    'Submitted ${_formatTime(submission.submittedAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: BsheelType.labelSm.copyWith(
+                      color: _isStale
+                          ? BsheelColors.danger
+                          : BsheelColors.inkMuted,
+                      fontSize: 11,
+                      fontWeight: _isStale ? FontWeight.w500 : null,
+                    ),
+                  ),
+                ],
+              );
+
+              final actions = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!allMediaViewed) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: QuestSpacing.sm,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: BsheelColors.pureWhite.withAlpha(25),
+                        borderRadius: BorderRadius.circular(BsheelRadii.md),
+                        border: Border.all(
+                          color: BsheelColors.pureWhite.withAlpha(120),
                         ),
                       ),
-                      const SizedBox(height: QuestSpacing.sm),
-                    ],
-                    ElevatedButton.icon(
-                      onPressed: onApprove,
-                      icon: const Icon(Icons.check, size: 16),
-                      label: Text(
-                        'APPROVE',
+                      child: Text(
+                        'VIEW ALL\nMEDIA FIRST',
+                        textAlign: TextAlign.center,
                         style: BsheelType.labelSm.copyWith(
                           color: BsheelColors.pureWhite,
-                          fontSize: 11,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.success,
-                        foregroundColor: BsheelColors.pureWhite,
-                        disabledBackgroundColor:
-                            BsheelColors.success.withAlpha(50),
-                        disabledForegroundColor: Colors.white54,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.md,
-                          vertical: QuestSpacing.md,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.8,
+                          height: 1.2,
                         ),
                       ),
                     ),
                     const SizedBox(height: QuestSpacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: onDeny,
-                      icon: const Icon(Icons.close, size: 16),
-                      label: Text(
-                        'DENY',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.hot,
-                          fontSize: 11,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: BsheelColors.hot,
-                        side: const BorderSide(
-                          color: BsheelColors.hot,
-                          width: BsheelBorders.thin,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.md,
-                          vertical: QuestSpacing.md,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: QuestSpacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: () => context.goNamed(
-                        AdminRouteNames.submissionReview,
-                        pathParameters: {'id': submission.id},
-                      ),
-                      icon: const Icon(Icons.open_in_new, size: 14),
-                      label: Text(
-                        'OPEN',
-                        style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.inkMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: BsheelColors.inkMuted,
-                        side: const BorderSide(
-                          color: _mediaPanelBorder,
-                          width: BsheelBorders.thin,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
                   ],
-                ),
-              ),
-            ],
+                  ElevatedButton.icon(
+                    onPressed: onApprove,
+                    icon: const Icon(Icons.check, size: 16),
+                    label: Text(
+                      'APPROVE',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BsheelType.labelSm.copyWith(
+                        color: BsheelColors.onAccent(BsheelColors.success),
+                        fontSize: 11,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BsheelColors.success,
+                      foregroundColor:
+                          BsheelColors.onAccent(BsheelColors.success),
+                      disabledBackgroundColor:
+                          BsheelColors.success.withAlpha(50),
+                      disabledForegroundColor:
+                          BsheelColors.onAccent(BsheelColors.success)
+                              .withAlpha(140),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: QuestSpacing.md,
+                        vertical: QuestSpacing.md,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: QuestSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: onDeny,
+                    icon: const Icon(Icons.close, size: 16),
+                    label: Text(
+                      'DENY',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BsheelType.labelSm.copyWith(
+                        color: BsheelColors.danger,
+                        fontSize: 11,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: BsheelColors.danger,
+                      side: const BorderSide(
+                        color: BsheelColors.danger,
+                        width: BsheelBorders.thin,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: QuestSpacing.md,
+                        vertical: QuestSpacing.md,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: QuestSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: () => context.goNamed(
+                      AdminRouteNames.submissionReview,
+                      pathParameters: {'id': submission.id},
+                    ),
+                    icon: const Icon(Icons.open_in_new, size: 14),
+                    label: Text(
+                      'OPEN',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BsheelType.labelSm.copyWith(
+                        color: BsheelColors.inkMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: BsheelColors.inkMuted,
+                      side: const BorderSide(
+                        color: _mediaPanelBorder,
+                        width: BsheelBorders.thin,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ],
+              );
+
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    media,
+                    const SizedBox(height: QuestSpacing.md),
+                    details,
+                    const SizedBox(height: QuestSpacing.md),
+                    actions,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  media,
+                  const SizedBox(width: QuestSpacing.lg),
+                  Expanded(child: details),
+                  const SizedBox(width: QuestSpacing.lg),
+                  SizedBox(width: 130, child: actions),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -875,8 +956,8 @@ class _DenyDialogState extends State<_DenyDialog> {
       title: 'DENY SUBMISSION',
       backgroundColor: _mediaPanelDeep,
       titleStyle: BsheelType.displaySm.copyWith(color: BsheelColors.pureWhite),
-      content: SizedBox(
-        width: 460,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -895,16 +976,19 @@ class _DenyDialogState extends State<_DenyDialog> {
                   label: Text(
                     reason,
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.pureWhite,
+                      // Selected chips sit on coral, unselected on ink.
+                      color: BsheelColors.onAccent(
+                        on ? BsheelColors.danger : BsheelColors.ink,
+                      ),
                       fontSize: 11,
                     ),
                   ),
                   selected: on,
                   showCheckmark: false,
                   backgroundColor: BsheelColors.ink,
-                  selectedColor: BsheelColors.hot,
+                  selectedColor: BsheelColors.danger,
                   side: BorderSide(
-                    color: on ? BsheelColors.hot : _mediaPanelBorder,
+                    color: on ? BsheelColors.danger : _mediaPanelBorder,
                     width: BsheelBorders.thin,
                   ),
                   shape: RoundedRectangleBorder(
@@ -947,15 +1031,17 @@ class _DenyDialogState extends State<_DenyDialog> {
         ElevatedButton(
           onPressed: canSubmit ? _submit : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: BsheelColors.hot,
-            foregroundColor: BsheelColors.pureWhite,
+            backgroundColor: BsheelColors.danger,
+            foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.full),
             ),
           ),
           child: Text(
             'DENY',
-            style: BsheelType.labelSm.copyWith(color: BsheelColors.pureWhite),
+            style: BsheelType.labelSm.copyWith(
+              color: BsheelColors.onAccent(BsheelColors.danger),
+            ),
           ),
         ),
       ],
@@ -1130,13 +1216,17 @@ class _FlagBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: BsheelType.labelSm.copyWith(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 1,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BsheelType.labelSm.copyWith(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ],
@@ -1210,7 +1300,9 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Text(
         error,
-        style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+        style: BsheelType.bodySm.copyWith(
+          color: BsheelColors.onCream(BsheelColors.danger),
+        ),
       ),
     );
   }

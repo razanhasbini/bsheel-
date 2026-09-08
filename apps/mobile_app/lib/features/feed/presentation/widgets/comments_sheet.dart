@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -397,8 +398,10 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                   GestureDetector(
                     onTap: widget.onCancelReply,
                     behavior: HitTestBehavior.opaque,
-                    child: Icon(Icons.close_rounded,
-                        size: 16, color: ink.withAlpha(140)),
+                    child: BsMinTouch(
+                      child: Icon(Icons.close_rounded,
+                          size: 16, color: ink.withAlpha(140)),
+                    ),
                   ),
                 ],
               ),
@@ -418,9 +421,8 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                     GestureDetector(
                       onTap: () => _insertEmoji(e),
                       behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 2, vertical: 4),
+                      child: BsMinTouch(
+                        minWidth: 34,
                         child: Text(e, style: const TextStyle(fontSize: 24)),
                       ),
                     ),
@@ -470,11 +472,15 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                 curve: Curves.easeOut,
                 alignment: Alignment.centerLeft,
                 child: !canPost && !widget.submitting
-                    ? const SizedBox(width: 0, height: 36)
+                    ? const SizedBox(width: 0, height: kMinTouchTarget)
                     : GestureDetector(
                         onTap: widget.submitting ? null : widget.onSend,
                         behavior: HitTestBehavior.opaque,
-                        child: Padding(
+                        child: Container(
+                          constraints: const BoxConstraints(
+                              minWidth: kMinTouchTarget,
+                              minHeight: kMinTouchTarget),
+                          alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 8),
                           child: widget.submitting
@@ -489,6 +495,8 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                                 )
                               : Text(
                                   'Post',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: QuestTypography.labelLarge.copyWith(
                                     color: QuestColors.osPrimary,
                                     fontWeight: FontWeight.w700,

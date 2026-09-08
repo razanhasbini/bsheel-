@@ -8,6 +8,7 @@ import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_service.dart';
@@ -592,6 +593,7 @@ class _ModeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final onFill = QuestColors.onAccent(color);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -623,13 +625,15 @@ class _ModeTile extends StatelessWidget {
             Icon(
               icon,
               size: 34,
-              color: selected ? QuestColors.osTextOnPrimary : color,
+              color: selected ? onFill : accentAsTextOnCream(color),
             ),
             const SizedBox(height: 8),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.headlineSmall.copyWith(
-                color: selected ? QuestColors.osTextOnPrimary : ink,
+                color: selected ? onFill : ink,
                 letterSpacing: 1.6,
               ),
             ),
@@ -637,9 +641,12 @@ class _ModeTile extends StatelessWidget {
             Text(
               description,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.bodySmall.copyWith(
-                color: (selected ? QuestColors.osTextOnPrimary : ink)
-                    .withAlpha(QuestColors.alphaInkMuted),
+                color: selected
+                    ? QuestColors.onAccentSoft(color)
+                    : ink.withAlpha(QuestColors.alphaInkMuted),
                 fontSize: 11,
               ),
             ),
@@ -689,12 +696,16 @@ class _InviteCodeCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: accentColor, width: 2),
               ),
-              child: Text(
-                code,
-                style: QuestTypography.displaySmall.copyWith(
-                  color: accentColor,
-                  letterSpacing: 8,
-                  fontFamily: 'JetBrainsMono',
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  code,
+                  maxLines: 1,
+                  style: QuestTypography.displaySmall.copyWith(
+                    color: accentAsTextOnCream(accentColor),
+                    letterSpacing: 8,
+                    fontFamily: 'JetBrainsMono',
+                  ),
                 ),
               ),
             ),
@@ -767,18 +778,24 @@ class _GroupCard extends StatelessWidget {
                 ),
                 child: Text(
                   isVersus ? 'VERSUS' : 'WITH',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: QuestTypography.labelSmall.copyWith(
-                    color: QuestColors.osTextOnPrimary,
+                    color: QuestColors.onAccent(accentColor),
                     letterSpacing: 2,
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                '${group.members.length}/${group.maxMembers ?? 5} MEMBERS',
-                style: QuestTypography.labelSmall.copyWith(
-                  color: ink.withAlpha(QuestColors.alphaInkMuted),
-                  letterSpacing: 1,
+              Flexible(
+                child: Text(
+                  '${group.members.length}/${group.maxMembers ?? 5} MEMBERS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.labelSmall.copyWith(
+                    color: ink.withAlpha(QuestColors.alphaInkMuted),
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
             ],
@@ -821,12 +838,16 @@ class _GroupCard extends StatelessWidget {
                         size: 16,
                         color: ink.withAlpha(QuestColors.alphaInkMuted)),
                     const SizedBox(width: 6),
-                    Text(
-                      'CODE ${group.code}',
-                      style: QuestTypography.labelMedium.copyWith(
-                        color: ink,
-                        letterSpacing: 3,
-                        fontFamily: 'JetBrainsMono',
+                    Flexible(
+                      child: Text(
+                        'CODE ${group.code}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: QuestTypography.labelMedium.copyWith(
+                          color: ink,
+                          letterSpacing: 3,
+                          fontFamily: 'JetBrainsMono',
+                        ),
                       ),
                     ),
                   ],
@@ -885,7 +906,7 @@ class _MemberTile extends StatelessWidget {
       return (label, QuestColors.softRed);
     }
     if (member.questStatus == 'expired') {
-      return (label, QuestColors.textMuted);
+      return (label, QuestColors.osTextMuted);
     }
     return (label, QuestColors.osPrimary);
   }
@@ -977,6 +998,7 @@ class _MemberTile extends StatelessWidget {
           ],
           const SizedBox(width: 8),
           Container(
+            constraints: const BoxConstraints(maxWidth: 96),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor,
@@ -985,8 +1007,10 @@ class _MemberTile extends StatelessWidget {
             ),
             child: Text(
               statusText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.labelSmall.copyWith(
-                color: QuestColors.osTextOnPrimary,
+                color: QuestColors.onAccent(statusColor),
                 fontSize: 9,
                 letterSpacing: 1.1,
               ),

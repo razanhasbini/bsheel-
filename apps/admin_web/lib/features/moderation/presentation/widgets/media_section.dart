@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../../../core/theme/bsheel_design.dart';
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
@@ -22,9 +24,15 @@ class MediaSection extends StatefulWidget {
     required this.submission,
     required this.viewedIndices,
     required this.onMediaViewed,
+    this.maxWidth = double.infinity,
   });
 
   final PendingSubmission submission;
+
+  /// Room the card can actually give this block. The natural widths (140
+  /// for a thumbnail, 320 for the mixed stack) are clamped to it so the
+  /// media never paints outside the card on a narrow window.
+  final double maxWidth;
 
   /// Indices the page has already recorded as viewed. Drives the green
   /// checkmark state on each tile.
@@ -55,6 +63,9 @@ class _MediaSectionState extends State<MediaSection> {
 
   bool _isViewed(int i) => widget.viewedIndices.contains(i);
 
+  /// Natural width, clamped to whatever the card can spare.
+  double _fit(double natural) => math.min(natural, widget.maxWidth);
+
   @override
   Widget build(BuildContext context) {
     final urls = widget.submission.mediaUrls;
@@ -64,14 +75,15 @@ class _MediaSectionState extends State<MediaSection> {
     final allImages = urls.every((u) => !_urlIsVideo(u));
 
     if (urls.length == 1 && allImages) {
+      final size = _fit(140);
       return _wrapWithToggle(
         index: 0,
         child: _ImageThumb(
           url: urls.first,
-          size: 140,
+          size: size,
           onLoaded: () => widget.onMediaViewed(0),
         ),
-        width: 140,
+        width: size,
       );
     }
 
@@ -81,9 +93,10 @@ class _MediaSectionState extends State<MediaSection> {
   }
 
   Widget _placeholder() {
+    final size = _fit(140);
     return Container(
-      width: 140,
-      height: 140,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: BsheelColors.ink,
         borderRadius: BorderRadius.circular(BsheelRadii.md),
@@ -98,8 +111,9 @@ class _MediaSectionState extends State<MediaSection> {
     final videoCount = urls.where(_urlIsVideo).length;
     final imageCount = urls.length - videoCount;
 
+    final width = _fit(320);
     return SizedBox(
-      width: 320,
+      width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -114,7 +128,7 @@ class _MediaSectionState extends State<MediaSection> {
           for (var i = 0; i < urls.length; i++) ...[
             _wrapWithToggle(
               index: i,
-              width: 320,
+              width: width,
               child: _urlIsVideo(urls[i])
                   ? InlineVideo(
                       url: urls[i],
@@ -144,20 +158,21 @@ class _MediaSectionState extends State<MediaSection> {
 
   Widget _imageBlockMulti(List<String> urls) {
     final activeUrl = urls[_activeImage];
+    final width = _fit(140);
 
     return SizedBox(
-      width: 140,
+      width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _wrapWithToggle(
             index: _activeImage,
-            width: 140,
+            width: width,
             child: Stack(
               children: [
                 _ImageThumb(
                   url: activeUrl,
-                  size: 140,
+                  size: width,
                   key: ValueKey(activeUrl),
                   onLoaded: () => widget.onMediaViewed(_activeImage),
                 ),
@@ -174,7 +189,7 @@ class _MediaSectionState extends State<MediaSection> {
           ),
           const SizedBox(height: QuestSpacing.xs),
           SizedBox(
-            height: 36,
+            height: BsheelLayout.minTarget,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: urls.length,
@@ -183,8 +198,10 @@ class _MediaSectionState extends State<MediaSection> {
                 final selected = i == _activeImage;
                 final viewed = _isViewed(i);
                 return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => setState(() => _activeImage = i),
                   child: Stack(
+                    alignment: Alignment.center,
                     children: [
                       Container(
                         width: 36,
@@ -287,40 +304,52 @@ class _ViewedToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = viewed ? BsheelColors.success : BsheelColors.pureWhite;
-    return Material(
-      color: BsheelColors.pureBlack.withAlpha(190),
-      borderRadius: BorderRadius.circular(BsheelRadii.full),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(BsheelRadii.full),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
+    // The pill keeps its 22px visual; the transparent box around it carries
+    // the 44px minimum click target (spec 1).
+    return SizedBox(
+      height: BsheelLayout.minTarget,
+      child: Center(
+        widthFactor: 1,
+        child: Material(
+          color: BsheelColors.pureBlack.withAlpha(190),
+          borderRadius: BorderRadius.circular(BsheelRadii.full),
+          child: InkWell(
             borderRadius: BorderRadius.circular(BsheelRadii.full),
-            border: Border.all(
-              color: color.withAlpha(180),
-              width: BsheelBorders.thin,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                viewed ? Icons.check_circle : Icons.visibility_outlined,
-                size: 12,
-                color: color,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                viewed ? 'VIEWED' : 'MARK VIEWED',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.6,
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(BsheelRadii.full),
+                border: Border.all(
+                  color: color.withAlpha(180),
+                  width: BsheelBorders.thin,
                 ),
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    viewed ? Icons.check_circle : Icons.visibility_outlined,
+                    size: 12,
+                    color: color,
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      viewed ? 'VIEWED' : 'MARK VIEWED',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -438,6 +467,8 @@ class _MediaCountBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: BsheelColors.pureWhite,
               fontSize: 10,

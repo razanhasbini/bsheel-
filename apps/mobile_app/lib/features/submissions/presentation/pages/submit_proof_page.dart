@@ -1,3 +1,4 @@
+import '../../../../design/bs_widgets.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File;
@@ -122,7 +123,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                       : Icons.photo_camera_rounded,
                   label: isVideo ? 'RECORD LIVE' : 'TAKE LIVE PHOTO',
                   fillColor: QuestColors.softRed,
-                  textColor: QuestColors.osTextOnPrimary,
+                  textColor: QuestColors.onAccent(QuestColors.softRed),
                   onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
                 ),
                 const SizedBox(height: QuestSpacing.sm),
@@ -530,28 +531,31 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                     children: [
                       GestureDetector(
                         onTap: () => safeBack(context),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: QuestColors.cardBg(context),
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(
-                              color: QuestColors.text(context),
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
+                        behavior: HitTestBehavior.opaque,
+                        child: BsMinTouch(
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: QuestColors.cardBg(context),
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(
                                 color: QuestColors.text(context),
-                                offset: const Offset(2, 3),
-                                blurRadius: 0,
+                                width: 2,
                               ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: QuestColors.text(context),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: QuestColors.text(context),
+                                  offset: const Offset(2, 3),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.arrow_back_rounded,
+                              size: 20,
+                              color: QuestColors.text(context),
+                            ),
                           ),
                         ),
                       ),
@@ -560,13 +564,17 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              'SUBMIT PROOF',
-                              style: QuestTypography.headlineSmall.copyWith(
-                                color: QuestColors.text(context),
-                                fontSize: 14,
-                                letterSpacing: 1,
-                                height: 1,
+                            Flexible(
+                              child: Text(
+                                'SUBMIT PROOF',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: QuestTypography.headlineSmall.copyWith(
+                                  color: QuestColors.text(context),
+                                  fontSize: 14,
+                                  letterSpacing: 1,
+                                  height: 1,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -808,7 +816,8 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                         : Icons.lock_outline_rounded,
                                     size: 20,
                                     color: _showInFeed
-                                        ? QuestColors.osTextOnPrimary
+                                        ? QuestColors.onAccent(
+                                            QuestColors.successGreen)
                                         : QuestColors.text(context),
                                   ),
                                 ),
@@ -847,34 +856,40 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                       ? null
                                       : () => setState(
                                           () => _showInFeed = !_showInFeed),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    width: 50,
-                                    height: 28,
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      color: _showInFeed
-                                          ? QuestColors.successGreen
-                                          : QuestColors.cardBg(context),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: QuestColors.text(context),
-                                        width: 1.6,
-                                      ),
-                                    ),
-                                    child: AnimatedAlign(
+                                  behavior: HitTestBehavior.opaque,
+                                  child: BsMinTouch(
+                                    minWidth: 50,
+                                    child: AnimatedContainer(
                                       duration:
                                           const Duration(milliseconds: 200),
-                                      alignment: _showInFeed
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      child: Container(
-                                        width: 22,
-                                        height: 22,
-                                        decoration: BoxDecoration(
+                                      width: 50,
+                                      height: 28,
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color: _showInFeed
+                                            ? QuestColors.successGreen
+                                            : QuestColors.cardBg(context),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        border: Border.all(
                                           color: QuestColors.text(context),
-                                          borderRadius: BorderRadius.circular(
-                                              QuestSpacing.radiusFull),
+                                          width: 1.6,
+                                        ),
+                                      ),
+                                      child: AnimatedAlign(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        alignment: _showInFeed
+                                            ? Alignment.centerRight
+                                            : Alignment.centerLeft,
+                                        child: Container(
+                                          width: 22,
+                                          height: 22,
+                                          decoration: BoxDecoration(
+                                            color: QuestColors.text(context),
+                                            borderRadius: BorderRadius.circular(
+                                                QuestSpacing.radiusFull),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1039,14 +1054,12 @@ class _RetroEmptyMediaBox extends StatelessWidget {
                 type: 'IMG',
                 limit: '${maxImageMb.toInt()} MB',
                 fill: QuestColors.osPrimary,
-                fg: QuestColors.osTextOnPrimary,
               ),
               const SizedBox(width: 8),
               _LimitChip(
                 type: 'VID',
                 limit: '${maxVideoMb.toInt()} MB',
                 fill: QuestColors.softRed,
-                fg: QuestColors.osTextOnPrimary,
               ),
             ],
           ),
@@ -1061,16 +1074,15 @@ class _LimitChip extends StatelessWidget {
     required this.type,
     required this.limit,
     required this.fill,
-    required this.fg,
   });
   final String type;
   final String limit;
   final Color fill;
-  final Color fg;
 
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final fg = QuestColors.onAccent(fill);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -1431,10 +1443,12 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
               c != null &&
               c.value.isInitialized &&
               !c.value.isPlaying)
-            const IgnorePointer(
+            IgnorePointer(
               child: Center(
                 child: Icon(Icons.play_arrow_rounded,
-                    color: Colors.white70, size: 80),
+                    color: QuestColors.pureWhite
+                        .withAlpha(QuestColors.alphaInkMuted),
+                    size: 80),
               ),
             ),
           Positioned(
@@ -1475,16 +1489,18 @@ class _PreviewIconButton extends StatelessWidget {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: QuestColors.pureBlack.withAlpha(140),
-            shape: BoxShape.circle,
-            border:
-                Border.all(color: tint ?? QuestColors.textPrimary, width: 1.5),
+        child: BsMinTouch(
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: QuestColors.pureBlack.withAlpha(140),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: tint ?? QuestColors.textPrimary, width: 1.5),
+            ),
+            child: Icon(icon, color: tint ?? QuestColors.textPrimary, size: 22),
           ),
-          child: Icon(icon, color: tint ?? QuestColors.textPrimary, size: 22),
         ),
       ),
     );
@@ -1763,14 +1779,18 @@ class _SheetAction extends StatelessWidget {
           children: [
             Icon(icon, color: textColor, size: 20),
             const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Syne',
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                letterSpacing: 1.4,
-                color: textColor,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Syne',
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 1.4,
+                  color: textColor,
+                ),
               ),
             ),
           ],

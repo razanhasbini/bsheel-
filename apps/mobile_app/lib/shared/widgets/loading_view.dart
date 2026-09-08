@@ -124,14 +124,18 @@ class OfflineBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.wifi_off, size: 14, color: QuestColors.softRed),
+            const Icon(Icons.wifi_off, size: 14, color: QuestColors.osRedText),
             const SizedBox(width: QuestSpacing.sm),
-            Text(
-              'NO CONNECTION',
-              style: QuestTypography.labelSmall.copyWith(
-                color: QuestColors.softRed,
-                fontSize: 10,
-                letterSpacing: 1,
+            Flexible(
+              child: Text(
+                'NO CONNECTION',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.labelSmall.copyWith(
+                  color: QuestColors.osRedText,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ],

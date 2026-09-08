@@ -48,7 +48,7 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
               const SizedBox(height: 14),
               BsheelDisplay(
                 'The {ledger.}',
-                baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                baseStyle: BsheelType.hero(context),
               ),
               const SizedBox(height: 12),
               Text(
@@ -163,8 +163,9 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
+                textAlign: TextAlign.center,
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -218,38 +219,47 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                       ),
                       borderRadius: BorderRadius.circular(BsheelRadii.lg),
                     ),
+                    // Seven columns cannot fit a narrow window: the
+                    // table scrolls sideways inside its card rather than
+                    // painting outside it.
                     child: SingleChildScrollView(
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all(
-                            BsheelColors.surface,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth:
+                                constraints.maxWidth - BsheelBorders.thick * 2,
                           ),
-                          dataRowColor: WidgetStateProperty.resolveWith(
-                            (states) => BsheelColors.paper,
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              BsheelColors.surface,
+                            ),
+                            dataRowColor: WidgetStateProperty.resolveWith(
+                              (states) => BsheelColors.paper,
+                            ),
+                            columnSpacing: 20,
+                            headingTextStyle: BsheelType.labelSm.copyWith(
+                              color: BsheelColors.inkMuted,
+                              letterSpacing: 1.5,
+                            ),
+                            dataTextStyle: BsheelType.bodySm.copyWith(
+                              color: BsheelColors.ink,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('MEDIA')),
+                              DataColumn(label: Text('USER')),
+                              DataColumn(label: Text('QUEST')),
+                              DataColumn(label: Text('CAPTION')),
+                              DataColumn(label: Text('STATUS')),
+                              DataColumn(label: Text('SUBMITTED')),
+                              DataColumn(label: Text('ACTIONS')),
+                            ],
+                            rows: filtered
+                                .asMap()
+                                .entries
+                                .map((e) => _buildRow(context, e.value, e.key))
+                                .toList(),
                           ),
-                          columnSpacing: 20,
-                          headingTextStyle: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkMuted,
-                            letterSpacing: 1.5,
-                          ),
-                          dataTextStyle: BsheelType.bodySm.copyWith(
-                            color: BsheelColors.ink,
-                          ),
-                          columns: const [
-                            DataColumn(label: Text('MEDIA')),
-                            DataColumn(label: Text('USER')),
-                            DataColumn(label: Text('QUEST')),
-                            DataColumn(label: Text('CAPTION')),
-                            DataColumn(label: Text('STATUS')),
-                            DataColumn(label: Text('SUBMITTED')),
-                            DataColumn(label: Text('ACTIONS')),
-                          ],
-                          rows: filtered
-                              .asMap()
-                              .entries
-                              .map((e) => _buildRow(context, e.value, e.key))
-                              .toList(),
                         ),
                       ),
                     ),
@@ -567,27 +577,36 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = value == current;
     final c = color ?? BsheelColors.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: QuestSpacing.md,
-          vertical: QuestSpacing.sm - 2,
-        ),
-        decoration: BoxDecoration(
-          color: isActive ? c.withAlpha(30) : Colors.transparent,
-          borderRadius: BorderRadius.circular(BsheelRadii.full),
-          border: Border.all(
-            color: isActive ? c : BsheelColors.line,
-            width: BsheelBorders.thin,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          // 44px minimum click target (spec 1).
+          constraints: const BoxConstraints(
+            minHeight: BsheelLayout.minTarget,
           ),
-        ),
-        child: Text(
-          label,
-          style: BsheelType.labelSm.copyWith(
-            color: isActive ? c : BsheelColors.inkMuted,
-            fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-            fontSize: 10,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: QuestSpacing.md),
+          decoration: BoxDecoration(
+            color: isActive ? c.withAlpha(30) : Colors.transparent,
+            borderRadius: BorderRadius.circular(BsheelRadii.full),
+            border: Border.all(
+              color: isActive ? c : BsheelColors.line,
+              width: BsheelBorders.thin,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: BsheelType.labelSm.copyWith(
+              // The active fill is a 12% tint, so the label reads on cream.
+              color: isActive ? BsheelColors.onCream(c) : BsheelColors.inkSoft,
+              fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
+              fontSize: 10,
+            ),
           ),
         ),
       ),

@@ -294,11 +294,13 @@ class _AdminFooter extends ConsumerWidget {
               children: [
                 Text(
                   name,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: BsheelType.bodyMdBold.copyWith(fontSize: 13),
                 ),
                 Text(
                   role,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: BsheelType.labelSm.copyWith(
                     fontSize: 9,
@@ -398,7 +400,7 @@ class _NavLinkState extends State<_NavLink> {
   Widget build(BuildContext context) {
     final active = widget.active;
     final fg = active
-        ? BsheelColors.pureWhite
+        ? BsheelColors.onAccent(BsheelColors.ink)
         : (_hover ? BsheelColors.ink : BsheelColors.inkSoft);
 
     return Padding(
@@ -412,6 +414,11 @@ class _NavLinkState extends State<_NavLink> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 110),
+            // 44px minimum click target (spec 1).
+            constraints: const BoxConstraints(
+              minHeight: BsheelLayout.minTarget,
+            ),
+            alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: active
@@ -424,6 +431,8 @@ class _NavLinkState extends State<_NavLink> {
                 Expanded(
                   child: Text(
                     widget.item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: BsheelType.bodyMd.copyWith(
                       color: fg,
                       fontWeight: FontWeight.w400,
@@ -452,7 +461,9 @@ class _NavLinkState extends State<_NavLink> {
                       style: BsheelType.labelSm.copyWith(
                         fontSize: 9.5,
                         letterSpacing: 0.5,
-                        color: active ? BsheelColors.ink : BsheelColors.hot,
+                        color: active
+                            ? BsheelColors.onAccent(BsheelColors.pureWhite)
+                            : BsheelColors.onCream(BsheelColors.danger),
                         height: 1.2,
                       ),
                     ),
@@ -501,14 +512,16 @@ class _LogoutButton extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'CANCEL',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.inkMuted),
+              style: BsheelType.labelMd.copyWith(color: BsheelColors.inkSoft),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'SIGN OUT',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.hot),
+              style: BsheelType.labelMd.copyWith(
+                color: BsheelColors.onCream(BsheelColors.danger),
+              ),
             ),
           ),
         ],
@@ -525,22 +538,29 @@ class _LogoutButton extends StatelessWidget {
       child: InkWell(
         onTap: () => _signOut(context),
         customBorder: const CircleBorder(),
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: BsheelColors.bg,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: BsheelColors.line,
-              width: BsheelBorders.thin,
+        // The dot stays 28px; the hit area is 44px (spec 1).
+        child: SizedBox(
+          width: BsheelLayout.minTarget,
+          height: BsheelLayout.minTarget,
+          child: Center(
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: BsheelColors.bg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: BsheelColors.line,
+                  width: BsheelBorders.thin,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.logout_rounded,
+                size: 13,
+                color: BsheelColors.ink,
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.logout_rounded,
-            size: 13,
-            color: BsheelColors.ink,
           ),
         ),
       ),

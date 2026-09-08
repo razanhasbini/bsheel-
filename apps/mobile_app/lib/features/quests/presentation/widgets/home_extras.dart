@@ -11,6 +11,7 @@ import 'package:app_contracts/app_contracts.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/route_names.dart';
@@ -231,9 +232,7 @@ class BsMoodOfDayCard extends ConsumerWidget {
                 GestureDetector(
                   onTap: () => _pick(ref, e),
                   behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                  child: BsMinTouch(
                     child: Text(e,
                         style: const TextStyle(fontSize: 28, height: 1)),
                   ),
@@ -299,6 +298,8 @@ class BsWeeklyXpMeter extends StatelessWidget {
           Row(children: [
             Text(
               'THIS WEEK',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.labelSmall.copyWith(
                 color: ink.withAlpha(160),
                 fontSize: 10,
@@ -306,12 +307,17 @@ class BsWeeklyXpMeter extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Text(
-              '$xp / $weeklyGoal XP',
-              style: QuestTypography.headlineSmall.copyWith(
-                color: hitGoal ? QuestColors.successGreen : ink,
-                fontSize: 13,
-                letterSpacing: 0.3,
+            Flexible(
+              child: Text(
+                '$xp / $weeklyGoal XP',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: QuestTypography.headlineSmall.copyWith(
+                  color: hitGoal ? QuestColors.osSuccessText : ink,
+                  fontSize: 13,
+                  letterSpacing: 0.3,
+                ),
               ),
             ),
           ]),
@@ -605,13 +611,17 @@ class _ActiveChip extends StatelessWidget {
             Row(children: [
               const _PulseDot(color: QuestColors.softRed),
               const SizedBox(width: 5),
-              Text(
-                'DOING NOW',
-                style: QuestTypography.labelSmall.copyWith(
-                  color: QuestColors.softRed,
-                  fontSize: 9,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w800,
+              Flexible(
+                child: Text(
+                  'DOING NOW',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.labelSmall.copyWith(
+                    color: QuestColors.osRedText,
+                    fontSize: 9,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ]),
@@ -1003,34 +1013,47 @@ class _QotdTopHalf extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "★ TODAY'S QUEST TICKET",
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: QuestColors.accentYellow,
-                        fontSize: 10,
-                        letterSpacing: 1.4,
-                        fontWeight: FontWeight.w800,
+                    Flexible(
+                      child: Text(
+                        "★ TODAY'S QUEST TICKET",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: QuestTypography.labelSmall.copyWith(
+                          color: QuestColors.accentYellow,
+                          fontSize: 10,
+                          letterSpacing: 1.4,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     // Ticket # is static; the clock ticks inside its own
                     // micro-widget so the rest of the top half doesn't
-                    // rebuild every second.
-                    Row(
-                      children: [
-                        Text(
-                          '№ ${qotd.displayTicketNo}  ·  ',
-                          style: const TextStyle(
-                            fontFamily: 'JetBrainsMono',
+                    // rebuild every second. Mono digits keep the width
+                    // constant as it ticks.
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '№ ${qotd.displayTicketNo}  ·  ',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'JetBrainsMono',
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: QuestColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const _ResetClockText(
                             fontSize: 10,
-                            fontWeight: FontWeight.w700,
                             color: QuestColors.textPrimary,
                           ),
-                        ),
-                        const _ResetClockText(
-                          fontSize: 10,
-                          color: QuestColors.textPrimary,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1299,6 +1322,8 @@ class _QotdBodyStub extends StatelessWidget {
                   ),
                   child: Text(
                     'APPEAL THIS DECISION',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: QuestTypography.labelLarge.copyWith(
                       color: QuestColors.accentYellowInk,
                       fontSize: 12,
@@ -1338,28 +1363,28 @@ class _StatusStamp extends StatelessWidget {
         return (
           label: 'DAILY QUEST · SUBMITTED',
           bg: QuestColors.osPrimary,
-          fg: QuestColors.osTextOnPrimary,
+          fg: QuestColors.onAccent(QuestColors.osPrimary),
           icon: Icons.send_rounded,
         );
       case _QotdStatus.approved:
         return (
           label: 'DAILY QUEST · APPROVED  +${qotd.totalXpReward} XP',
           bg: QuestColors.successGreen,
-          fg: QuestColors.osTextOnPrimary,
+          fg: QuestColors.onAccent(QuestColors.successGreen),
           icon: Icons.check_circle_rounded,
         );
       case _QotdStatus.rejected:
         return (
           label: 'DAILY QUEST · REJECTED',
           bg: QuestColors.softRed,
-          fg: QuestColors.osTextOnPrimary,
+          fg: QuestColors.onAccent(QuestColors.softRed),
           icon: Icons.cancel_rounded,
         );
       case _QotdStatus.reRejected:
         return (
           label: 'DAILY QUEST · REJECTED ×2  · FINAL',
           bg: QuestColors.softRed,
-          fg: QuestColors.osTextOnPrimary,
+          fg: QuestColors.onAccent(QuestColors.softRed),
           icon: Icons.block_rounded,
         );
       case _QotdStatus.expired:
@@ -1398,6 +1423,8 @@ class _StatusStamp extends StatelessWidget {
           Expanded(
             child: Text(
               s.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.labelLarge.copyWith(
                 color: s.fg,
                 fontSize: 12,
@@ -1446,13 +1473,17 @@ class _AcceptButton extends StatelessWidget {
                 color: ink,
               ),
               const SizedBox(width: 8),
-              Text(
-                busy ? 'ACCEPTING…' : 'ACCEPT QUEST',
-                style: QuestTypography.labelLarge.copyWith(
-                  color: ink,
-                  fontSize: 12,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w800,
+              Flexible(
+                child: Text(
+                  busy ? 'ACCEPTING…' : 'ACCEPT QUEST',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.labelLarge.copyWith(
+                    color: ink,
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -1830,19 +1861,26 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
                   // ── Headline row: DAILY JACKPOT + meta ────────────
                   Row(
                     children: [
-                      _NeonLabel(
-                        meta: _meta,
-                        text: '★ DAILY JACKPOT ★',
+                      Flexible(
+                        child: _NeonLabel(
+                          meta: _meta,
+                          text: '★ DAILY JACKPOT ★',
+                        ),
                       ),
                       const Spacer(),
-                      Text(
-                        '№ ${_metaTicket()} · ROLL ME',
-                        style: const TextStyle(
-                          fontFamily: 'JetBrainsMono',
-                          color: QuestColors.osTextOnPrimary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
+                      Flexible(
+                        child: Text(
+                          '№ ${_metaTicket()} · ROLL ME',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontFamily: 'JetBrainsMono',
+                            color: QuestColors.onAccent(QuestColors.softRed),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -1954,13 +1992,17 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                Text(
-                                  'LOCK IN · GENERATE QUEST',
-                                  style: QuestTypography.labelLarge.copyWith(
-                                    color: QuestColors.accentYellowInk,
-                                    fontSize: 13,
-                                    letterSpacing: 1.2,
-                                    fontWeight: FontWeight.w800,
+                                Flexible(
+                                  child: Text(
+                                    'LOCK IN · GENERATE QUEST',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: QuestTypography.labelLarge.copyWith(
+                                      color: QuestColors.accentYellowInk,
+                                      fontSize: 13,
+                                      letterSpacing: 1.2,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -2048,6 +2090,8 @@ class _NeonLabel extends StatelessWidget {
         final glow = (0.7 + (1 - dim) * 0.3);
         return Text(
           text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontFamily: 'Syne',
             fontSize: 13,

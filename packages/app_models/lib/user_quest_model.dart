@@ -13,6 +13,14 @@ class UserQuestModel {
   final DateTime? expiresAt;
   final QuestModel? quest;
 
+  /// True when this quest's rejection can still be appealed.
+  ///
+  /// Server-computed, and only present on the history list. It cannot be
+  /// derived from [status]: a first rejection and a re-rejection after a
+  /// spent appeal are both `rejected`. Defaults to false so a response that
+  /// omits it never offers an action that would fail.
+  final bool appealAvailable;
+
   const UserQuestModel({
     required this.id,
     required this.userId,
@@ -22,6 +30,7 @@ class UserQuestModel {
     this.completedAt,
     this.expiresAt,
     this.quest,
+    this.appealAvailable = false,
   });
 
   factory UserQuestModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +47,7 @@ class UserQuestModel {
         json[UserQuestColumns.expiresAt],
       ),
       quest: _parseQuest(json),
+      appealAvailable: json[UserQuestColumns.appealAvailable] == true,
     );
   }
 
@@ -51,6 +61,7 @@ class UserQuestModel {
       UserQuestColumns.completedAt: completedAt?.toIso8601String(),
       UserQuestColumns.expiresAt: expiresAt?.toIso8601String(),
       if (quest != null) EmbedKeys.quests: quest!.toJson(),
+      UserQuestColumns.appealAvailable: appealAvailable,
     };
   }
 

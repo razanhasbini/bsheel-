@@ -110,53 +110,73 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const BsheelEyebrow('Community · Users'),
-                    const SizedBox(height: 14),
-                    BsheelDisplay(
-                      'Mind the {community.}',
-                      baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Search, export, and moderate every user account.',
-                      style: BsheelType.bodyMd
-                          .copyWith(color: BsheelColors.inkSoft),
-                    ),
-                  ],
+        LayoutBuilder(
+          builder: (context, c) {
+            final narrow = c.maxWidth < 720;
+            final headline = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const BsheelEyebrow('Community · Users'),
+                const SizedBox(height: 14),
+                BsheelDisplay(
+                  'Mind the {community.}',
+                  baseStyle: BsheelType.displayXl.copyWith(
+                    fontSize: narrow ? 30 : 44,
+                  ),
                 ),
+                const SizedBox(height: 12),
+                Text(
+                  'Search, export, and moderate every user account.',
+                  style:
+                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+                ),
+              ],
+            );
+            final actions = Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                BsheelButton.ghost(
+                  label: 'EXPORT',
+                  icon: Icons.file_download_rounded,
+                  small: true,
+                  onPressed: usersAsync.maybeWhen(
+                    data: (users) => () => _exportToExcel(users),
+                    orElse: () => null,
+                  ),
+                ),
+                BsheelButton.primary(
+                  label: 'ADD USER',
+                  icon: Icons.person_add_rounded,
+                  small: true,
+                  onPressed: () => _showCreateUserDialog(context),
+                ),
+              ],
+            );
+            return BsheelCard(
+              padding: EdgeInsets.symmetric(
+                horizontal: narrow ? 20 : 36,
+                vertical: narrow ? 22 : 32,
               ),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  BsheelButton.ghost(
-                    label: 'EXPORT',
-                    icon: Icons.file_download_rounded,
-                    small: true,
-                    onPressed: usersAsync.maybeWhen(
-                      data: (users) => () => _exportToExcel(users),
-                      orElse: () => null,
+              child: narrow
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        headline,
+                        const SizedBox(height: 16),
+                        actions,
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: headline),
+                        const SizedBox(width: 16),
+                        Flexible(child: actions),
+                      ],
                     ),
-                  ),
-                  BsheelButton.primary(
-                    label: 'ADD USER',
-                    icon: Icons.person_add_rounded,
-                    small: true,
-                    onPressed: () => _showCreateUserDialog(context),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         Padding(
@@ -199,8 +219,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
+                textAlign: TextAlign.center,
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -243,35 +264,44 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                       ),
                       borderRadius: BorderRadius.circular(BsheelRadii.sm),
                     ),
+                    // Seven columns cannot fit a narrow window: the table
+                    // scrolls sideways inside its card instead of painting
+                    // outside it.
                     child: SingleChildScrollView(
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all(
-                            BsheelColors.surface,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth:
+                                constraints.maxWidth - BsheelBorders.thick * 2,
                           ),
-                          columnSpacing: 24,
-                          headingTextStyle: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkMuted,
-                            letterSpacing: 1.5,
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              BsheelColors.surface,
+                            ),
+                            columnSpacing: 24,
+                            headingTextStyle: BsheelType.labelSm.copyWith(
+                              color: BsheelColors.inkMuted,
+                              letterSpacing: 1.5,
+                            ),
+                            dataTextStyle: BsheelType.bodySm.copyWith(
+                              color: BsheelColors.ink,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('USER')),
+                              DataColumn(label: Text('XP'), numeric: true),
+                              DataColumn(label: Text('LEVEL'), numeric: true),
+                              DataColumn(label: Text('QUESTS'), numeric: true),
+                              DataColumn(label: Text('ROLE')),
+                              DataColumn(label: Text('JOINED')),
+                              DataColumn(label: Text('ACTIONS')),
+                            ],
+                            rows: filtered
+                                .asMap()
+                                .entries
+                                .map((e) => _buildRow(context, e.value, e.key))
+                                .toList(),
                           ),
-                          dataTextStyle: BsheelType.bodySm.copyWith(
-                            color: BsheelColors.ink,
-                          ),
-                          columns: const [
-                            DataColumn(label: Text('USER')),
-                            DataColumn(label: Text('XP'), numeric: true),
-                            DataColumn(label: Text('LEVEL'), numeric: true),
-                            DataColumn(label: Text('QUESTS'), numeric: true),
-                            DataColumn(label: Text('ROLE')),
-                            DataColumn(label: Text('JOINED')),
-                            DataColumn(label: Text('ACTIONS')),
-                          ],
-                          rows: filtered
-                              .asMap()
-                              .entries
-                              .map((e) => _buildRow(context, e.value, e.key))
-                              .toList(),
                         ),
                       ),
                     ),
@@ -307,7 +337,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                         ? user.displayName[0].toUpperCase()
                         : '?',
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.cool,
+                      color: BsheelColors.onCream(BsheelColors.cool),
                       fontWeight: FontWeight.bold,
                     ),
                   )
@@ -320,6 +350,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               children: [
                 Text(
                   user.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: BsheelType.bodySm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: BsheelColors.ink,
@@ -327,8 +359,10 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 ),
                 Text(
                   '@${user.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.inkMuted,
+                    color: BsheelColors.inkSoft,
                     fontSize: 10,
                   ),
                 ),
@@ -340,7 +374,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                     Text(
                       '${user.xp} XP',
                       style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.accent,
+                        // Gold is 1.6:1 as small type on cream.
+                        color: BsheelColors.onCream(BsheelColors.accent),
                         fontSize: 10,
                       ),
                     ),
@@ -455,7 +490,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                             ? user.displayName[0].toUpperCase()
                             : '?',
                         style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.cool,
+                          color: BsheelColors.onCream(BsheelColors.cool),
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
                         ),
@@ -489,7 +524,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
         DataCell(
           Text(
             '${user.xp}',
-            style: BsheelType.labelSm.copyWith(color: BsheelColors.accent),
+            style: BsheelType.labelSm.copyWith(
+              color: BsheelColors.onCream(BsheelColors.accent),
+            ),
           ),
         ),
         DataCell(
@@ -634,8 +671,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: user.displayName.toUpperCase(),
-        content: SizedBox(
-          width: 400,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,8 +721,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: 'EDIT ${user.displayName.toUpperCase()}',
-        content: SizedBox(
-          width: 420,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -769,14 +806,16 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.pureBlack,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.sm),
               ),
             ),
             child: Text(
               'SAVE',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+              style: BsheelType.labelSm.copyWith(
+                color: BsheelColors.onAccent(BsheelColors.primary),
+              ),
             ),
           ),
         ],
@@ -827,8 +866,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => BsheelDialog(
           title: 'MANAGE ROLE: ${user.displayName.toUpperCase()}',
-          content: SizedBox(
-            width: 360,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -884,15 +923,16 @@ class _UsersPageState extends ConsumerState<UsersPage> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: BsheelColors.primary,
-                foregroundColor: BsheelColors.pureBlack,
+                foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(BsheelRadii.sm),
                 ),
               ),
               child: Text(
                 'SAVE',
-                style:
-                    BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+                style: BsheelType.labelSm.copyWith(
+                  color: BsheelColors.onAccent(BsheelColors.primary),
+                ),
               ),
             ),
           ],
@@ -934,8 +974,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: 'RESET PASSWORD: ${user.displayName.toUpperCase()}',
-        content: SizedBox(
-          width: 360,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
           child: Form(
             key: formKey,
             child: BsheelFormField(
@@ -967,14 +1007,16 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.pureBlack,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.sm),
               ),
             ),
             child: Text(
               'RESET',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+              style: BsheelType.labelSm.copyWith(
+                color: BsheelColors.onAccent(BsheelColors.primary),
+              ),
             ),
           ),
         ],
@@ -1154,8 +1196,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: 'SEND NOTIFICATION TO ${user.displayName.toUpperCase()}',
-        content: SizedBox(
-          width: 420,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
             key: formKey,
             child: Column(
@@ -1261,8 +1303,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       context: context,
       builder: (ctx) => BsheelDialog(
         title: 'CREATE NEW USER',
-        content: SizedBox(
-          width: 420,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -1326,14 +1368,16 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: BsheelColors.primary,
-              foregroundColor: BsheelColors.pureBlack,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.sm),
               ),
             ),
             child: Text(
               'CREATE',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+              style: BsheelType.labelSm.copyWith(
+                color: BsheelColors.onAccent(BsheelColors.primary),
+              ),
             ),
           ),
         ],
@@ -1500,18 +1544,18 @@ class _RoleBadge extends StatelessWidget {
     }
     final (Color bg, Color fg, String label) = switch (role) {
       'super_admin' => (
-          BsheelColors.hot.withAlpha(30),
-          BsheelColors.hot,
+          BsheelColors.danger.withAlpha(30),
+          BsheelColors.onCream(BsheelColors.danger),
           'SUPER ADMIN',
         ),
       'moderator' => (
           BsheelColors.cool.withAlpha(30),
-          BsheelColors.cool,
+          BsheelColors.onCream(BsheelColors.cool),
           'MODERATOR',
         ),
       _ => (
           BsheelColors.inkMuted.withAlpha(30),
-          BsheelColors.inkMuted,
+          BsheelColors.inkSoft,
           role!.toUpperCase(),
         ),
     };
@@ -1527,6 +1571,8 @@ class _RoleBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: BsheelType.labelSm.copyWith(
           color: fg,
           fontSize: 10,
@@ -1546,14 +1592,22 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? BsheelColors.hot : BsheelColors.pureWhite;
+    // The menu ground is `BsheelColors.paper`: white-on-white made every
+    // item invisible. Destructive rows take the coral text twin.
+    final color = isDestructive
+        ? BsheelColors.onCream(BsheelColors.danger)
+        : BsheelColors.ink;
     return Row(
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: QuestSpacing.sm),
-        Text(
-          label,
-          style: BsheelType.bodySm.copyWith(color: color),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: BsheelType.bodySm.copyWith(color: color),
+          ),
         ),
       ],
     );
@@ -1573,16 +1627,19 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 160,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
             child: Text(
               label,
               style: BsheelType.labelSm.copyWith(
-                color: BsheelColors.inkMuted,
+                color: BsheelColors.inkSoft,
                 letterSpacing: 1,
               ),
             ),
           ),
+          const SizedBox(width: QuestSpacing.sm),
+          // A user id is long and has no break points — it wraps rather
+          // than running past the dialog edge.
           Expanded(
             child: SelectableText(
               value,
@@ -1700,8 +1757,8 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
   Widget build(BuildContext context) {
     return BsheelDialog(
       title: 'ASSIGN QUEST TO ${widget.user.displayName.toUpperCase()}',
-      content: SizedBox(
-        width: 460,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
         child: _loading
             ? const Center(
                 child: CircularProgressIndicator(color: BsheelColors.primary),
@@ -1780,7 +1837,9 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                                 Text(
                                   '+$xp XP',
                                   style: BsheelType.labelSm.copyWith(
-                                    color: BsheelColors.accent,
+                                    color: BsheelColors.onCream(
+                                      BsheelColors.accent,
+                                    ),
                                     fontSize: 10,
                                   ),
                                 ),
@@ -1804,24 +1863,24 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
           onPressed: (_selectedQuestId == null || _assigning) ? null : _assign,
           style: ElevatedButton.styleFrom(
             backgroundColor: BsheelColors.primary,
-            foregroundColor: BsheelColors.pureBlack,
+            foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.sm),
             ),
           ),
           child: _assigning
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: BsheelColors.pureBlack,
+                    color: BsheelColors.onAccent(BsheelColors.primary),
                   ),
                 )
               : Text(
                   'ASSIGN',
-                  style: BsheelType.labelSm
-                      .copyWith(color: BsheelColors.pureBlack),
+                  style: BsheelType.labelSm.copyWith(
+                      color: BsheelColors.onAccent(BsheelColors.primary)),
                 ),
         ),
       ],

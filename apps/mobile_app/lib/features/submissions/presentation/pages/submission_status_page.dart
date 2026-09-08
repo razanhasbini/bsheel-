@@ -1,3 +1,4 @@
+import '../../../../design/bs_widgets.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -155,26 +156,36 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
                         context.goNamed(RouteNames.home);
                       }
                     },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: _chunkyDecoration(
-                        radius: QuestSpacing.radiusSm,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.arrow_back,
-                        size: 20,
-                        color: QuestColors.osTextPrimary,
+                    behavior: HitTestBehavior.opaque,
+                    child: BsMinTouch(
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: _chunkyDecoration(
+                          radius: QuestSpacing.radiusSm,
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.arrow_back,
+                          size: 20,
+                          color: QuestColors.osTextPrimary,
+                        ),
                       ),
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    AppLocalizations.of(context)!.submissionTitle.toUpperCase(),
-                    style: QuestTypography.headlineSmall.copyWith(
-                      color: QuestColors.osTextPrimary,
-                      letterSpacing: 1.2,
+                  Flexible(
+                    child: Text(
+                      AppLocalizations.of(context)!
+                          .submissionTitle
+                          .toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: QuestTypography.headlineSmall.copyWith(
+                        color: QuestColors.osTextPrimary,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                   const Spacer(),
@@ -281,7 +292,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
                                   ),
                                   alignment: Alignment.center,
                                   child: Icon(statusIcon,
-                                      color: QuestColors.osTextOnPrimary,
+                                      color: QuestColors.onAccent(statusColor),
                                       size: 32),
                                 ),
                                 const SizedBox(height: QuestSpacing.md),
@@ -565,7 +576,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
         SubmissionStatus.pending => QuestColors.accentYellow,
         SubmissionStatus.approved => QuestColors.successGreen,
         SubmissionStatus.rejected => QuestColors.softRed,
-        _ => QuestColors.textMuted,
+        _ => QuestColors.osTextMuted,
       };
 
   IconData _statusIcon(String status) => switch (status) {
@@ -840,10 +851,12 @@ class _RevalidationSheetContentState extends State<_RevalidationSheetContent> {
               child: Text(
                 widget.buttonLabel.toUpperCase(),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: QuestTypography.buttonText.copyWith(
                   color: _canSubmit
-                      ? QuestColors.osTextOnPrimary
-                      : QuestColors.osTextMuted,
+                      ? QuestColors.onAccent(QuestColors.violet)
+                      : QuestColors.osTextSecondary,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -1065,8 +1078,10 @@ class _ChunkyButtonState extends State<_ChunkyButton> {
           child: Text(
             widget.label,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: QuestTypography.buttonText.copyWith(
-              color: QuestColors.osTextOnPrimary,
+              color: QuestColors.onAccent(QuestColors.violet),
               letterSpacing: 1.5,
             ),
           ),

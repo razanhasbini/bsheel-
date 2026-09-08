@@ -137,8 +137,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               'FORCE UPDATE',
               style: TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
             ),
-            content: SizedBox(
-              width: 460,
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,8 +245,11 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor:
-                  turningOn ? BsheelColors.hot : BsheelColors.success,
-              foregroundColor: BsheelColors.pureWhite,
+                  turningOn ? BsheelColors.danger : BsheelColors.success,
+              // Coral and jade both take ink, never white.
+              foregroundColor: BsheelColors.onAccent(
+                turningOn ? BsheelColors.danger : BsheelColors.success,
+              ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(turningOn ? 'LOCK USERS OUT' : 'RESTORE ACCESS'),
@@ -276,7 +279,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Tune the {economy.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -298,7 +301,9 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               ),
               error: (e, _) => Text(
                 'Error loading config: $e',
-                style: const TextStyle(color: BsheelColors.hot),
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onCream(BsheelColors.danger),
+                ),
               ),
               data: (config) {
                 final socialEnabled = config['social_login_enabled'] != 'false';
@@ -476,20 +481,23 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = danger && value ? BsheelColors.hot : BsheelColors.success;
+    final accent = danger && value ? BsheelColors.danger : BsheelColors.success;
+    // The icon sits on cream, so it takes the accent's text twin (the
+    // fills are 2.2–2.9:1 there and miss the 3:1 graphics threshold).
+    final accentInk = BsheelColors.onCream(accent);
     return Container(
       padding: const EdgeInsets.all(QuestSpacing.md),
       decoration: BoxDecoration(
         color: BsheelColors.paper,
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
         border: Border.all(
-          color: danger && value ? BsheelColors.hot : BsheelColors.line,
+          color: danger && value ? BsheelColors.danger : BsheelColors.line,
           width: BsheelBorders.thin,
         ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: accent, size: 24),
+          Icon(icon, color: accentInk, size: 24),
           const SizedBox(width: QuestSpacing.md),
           Expanded(
             child: Column(

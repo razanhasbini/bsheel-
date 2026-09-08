@@ -201,7 +201,7 @@ class AutoNotificationsPage extends ConsumerWidget {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Know the {triggers.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -256,16 +256,16 @@ class AutoNotificationsPage extends ConsumerWidget {
               child: Padding(
                 padding: EdgeInsets.all(QuestSpacing.xxl),
                 child: CircularProgressIndicator(
-                  color: BsheelColors.cool,
+                  color: BsheelColors.ink,
                 ),
               ),
             ),
             error: (e, _) => Container(
               padding: const EdgeInsets.all(QuestSpacing.md),
               decoration: BoxDecoration(
-                color: BsheelColors.hot.withAlpha(20),
+                color: BsheelColors.danger.withAlpha(20),
                 border: Border.all(
-                  color: BsheelColors.hot.withAlpha(80),
+                  color: BsheelColors.danger,
                   width: BsheelBorders.thin,
                 ),
                 borderRadius: BorderRadius.circular(BsheelRadii.md),
@@ -273,7 +273,7 @@ class AutoNotificationsPage extends ConsumerWidget {
               child: Text(
                 'Failed to load notifications: $e',
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -369,7 +369,7 @@ class _RuleCard extends StatelessWidget {
                 ),
                 child: Icon(
                   rule.icon,
-                  color: BsheelColors.cool,
+                  color: BsheelColors.onCream(BsheelColors.cool),
                   size: 16,
                 ),
               ),

@@ -11,6 +11,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_contracts/app_contracts.dart' show UserQuestStatus;
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/providers/account_status_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
@@ -295,7 +296,6 @@ class _HomePageState extends ConsumerState<HomePage>
                                       sublabel:
                                           AppLocalizations.of(context)!.allTime,
                                       tint: QuestColors.accentYellow,
-                                      onTint: QuestColors.accentYellowInk,
                                       icon: Icons.flag_rounded,
                                     ),
                             ),
@@ -309,7 +309,6 @@ class _HomePageState extends ConsumerState<HomePage>
                                       value: _fmtXp(xpTotal),
                                       sublabel: 'ALL TIME',
                                       tint: QuestColors.osPrimary,
-                                      onTint: QuestColors.osTextOnPrimary,
                                       icon: Icons.bolt_rounded,
                                     ),
                             ),
@@ -530,13 +529,17 @@ class _Headline extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              AppLocalizations.of(context)!.homeHeadlineTagline,
-              style: QuestTypography.labelSmall.copyWith(
-                color: ink.withAlpha(170),
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
+            Flexible(
+              child: Text(
+                AppLocalizations.of(context)!.homeHeadlineTagline,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.labelSmall.copyWith(
+                  color: ink.withAlpha(170),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
               ),
             ),
           ],
@@ -618,7 +621,7 @@ class _PendingReviewCard extends StatelessWidget {
                       child: Text(
                         '$count',
                         style: QuestTypography.labelSmall.copyWith(
-                          color: QuestColors.osTextOnPrimary,
+                          color: QuestColors.onAccent(QuestColors.softRed),
                           fontSize: 10,
                           height: 1,
                           letterSpacing: 0.2,
@@ -784,7 +787,10 @@ class _RetroArcadeSceneState extends State<_RetroArcadeScene>
         decoration: BoxDecoration(
           color: QuestColors.pureBlack,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24, width: 1.5),
+          border: Border.all(
+            color: QuestColors.pureWhite.withAlpha(QuestColors.alphaHairline),
+            width: 1.5,
+          ),
         ),
         child: AnimatedBuilder(
           animation: _ac,
@@ -1011,7 +1017,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
           title: Text(
             'CANCEL QUEST?',
             style: QuestTypography.headlineSmall.copyWith(
-              color: QuestColors.softRed,
+              color: QuestColors.osRedText,
               letterSpacing: 1,
             ),
           ),
@@ -1038,7 +1044,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
               child: Text(
                 'CANCEL',
                 style: QuestTypography.labelMedium.copyWith(
-                  color: QuestColors.softRed,
+                  color: QuestColors.osRedText,
                   letterSpacing: 1,
                 ),
               ),
@@ -1226,7 +1232,7 @@ class _HeroAction extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
-        height: 42,
+        height: kMinTouchTarget,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: fill,
@@ -1258,6 +1264,7 @@ class _TimeOverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final onCoral = QuestColors.onAccent(QuestColors.softRed);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1273,15 +1280,18 @@ class _TimeOverCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.timer_off_rounded,
-                  color: QuestColors.osTextOnPrimary, size: 18),
+              Icon(Icons.timer_off_rounded, color: onCoral, size: 18),
               const SizedBox(width: 6),
-              Text(
-                'TIME OVER',
-                style: QuestTypography.labelSmall.copyWith(
-                  color: QuestColors.osTextOnPrimary,
-                  fontSize: 11,
-                  letterSpacing: 1.8,
+              Flexible(
+                child: Text(
+                  'TIME OVER',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.labelSmall.copyWith(
+                    color: onCoral,
+                    fontSize: 11,
+                    letterSpacing: 1.8,
+                  ),
                 ),
               ),
             ],
@@ -1290,7 +1300,7 @@ class _TimeOverCard extends StatelessWidget {
           Text(
             title,
             style: QuestTypography.headlineLarge.copyWith(
-              color: QuestColors.osTextOnPrimary,
+              color: onCoral,
               fontSize: 20,
               height: 1.2,
             ),
@@ -1301,7 +1311,7 @@ class _TimeOverCard extends StatelessWidget {
           Text(
             "You didn't submit before the timer ended. Roll a new quest to keep going.",
             style: QuestTypography.bodyMedium.copyWith(
-              color: QuestColors.osTextOnPrimary.withAlpha(220),
+              color: QuestColors.onAccentSoft(QuestColors.softRed),
               fontSize: 12.5,
               height: 1.35,
             ),
@@ -1598,8 +1608,8 @@ class _LockedCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: ink, width: 2),
             ),
-            child: const Icon(Icons.lock_rounded,
-                color: QuestColors.osTextOnPrimary, size: 26),
+            child: Icon(Icons.lock_rounded,
+                color: QuestColors.onAccent(QuestColors.softRed), size: 26),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1640,7 +1650,7 @@ class _RollPickerSheet extends ConsumerStatefulWidget {
 
 class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
   // Screen-specific colour — not a theme token.
-  static const Color _dialogBg = Color(0xFF1A1A24);
+  static const Color _dialogBg = QuestColors.darkCard;
 
   static const _spinDuration = Duration(milliseconds: 2200);
   // 5 rerolls per rolling 24h window. Stored client-side as a list of
@@ -1842,7 +1852,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
           title: Text(
             'REROLL LIMIT',
             style: QuestTypography.headlineSmall.copyWith(
-              color: QuestColors.softRed,
+              color: QuestColors.osRedText,
               letterSpacing: 1,
             ),
           ),
@@ -1906,6 +1916,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final onCoral = QuestColors.onAccent(QuestColors.softRed);
     final showPicker = _spinDone && _options != null;
     final pickerReady = showPicker && _options!.isNotEmpty;
 
@@ -2019,7 +2030,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                           _assigning ? null : () => Navigator.of(context).pop(),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
-                        height: 38,
+                        height: kMinTouchTarget,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: QuestColors.pureWhite.withAlpha(12),
@@ -2031,6 +2042,8 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                         ),
                         child: Text(
                           'CANCEL',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: QuestTypography.labelMedium.copyWith(
                             color: QuestColors.textPrimary.withAlpha(220),
                             letterSpacing: 1.4,
@@ -2047,40 +2060,42 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                         onTap: (_assigning || _rerolling) ? null : _reroll,
                         behavior: HitTestBehavior.opaque,
                         child: Container(
-                          height: 38,
+                          height: kMinTouchTarget,
                           alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
                             color: QuestColors.softRed,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: QuestColors.osTextOnPrimary, width: 1.5),
+                            border: Border.all(color: onCoral, width: 1.5),
                           ),
                           child: _rerolling
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      QuestColors.osTextOnPrimary,
-                                    ),
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(onCoral),
                                   ),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.refresh_rounded,
-                                        color: QuestColors.osTextOnPrimary,
-                                        size: 14),
+                                    Icon(Icons.refresh_rounded,
+                                        color: onCoral, size: 14),
                                     const SizedBox(width: 6),
-                                    Text(
-                                      'RE-ROLL',
-                                      style:
-                                          QuestTypography.labelMedium.copyWith(
-                                        color: QuestColors.osTextOnPrimary,
-                                        letterSpacing: 1.4,
-                                        fontSize: 11,
+                                    Flexible(
+                                      child: Text(
+                                        'RE-ROLL',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: QuestTypography.labelMedium
+                                            .copyWith(
+                                          color: onCoral,
+                                          letterSpacing: 1.4,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 6),
@@ -2096,16 +2111,16 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                                             QuestColors.pureWhite.withAlpha(60),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                          color: QuestColors.osTextOnPrimary
-                                              .withAlpha(180),
+                                          color: onCoral,
                                           width: 1,
                                         ),
                                       ),
                                       child: Text(
                                         '$_rerollsRemaining/$_maxRerollsPerWindow',
+                                        maxLines: 1,
                                         style:
                                             QuestTypography.labelSmall.copyWith(
-                                          color: QuestColors.osTextOnPrimary,
+                                          color: onCoral,
                                           fontSize: 10,
                                           fontWeight: FontWeight.w800,
                                           letterSpacing: 0.6,
@@ -2272,9 +2287,7 @@ class _QuestChoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
     final tint = _tint();
-    final onTint = tint == QuestColors.accentYellow
-        ? QuestColors.accentYellowInk
-        : QuestColors.osTextOnPrimary;
+    final onTint = QuestColors.onAccent(tint);
     final (diffColor, diffLabel) = _difficultyStyle();
     // Tap and long-press both open the preview sheet — no auto-pick. The
     // sheet's PICK THIS QUEST button is the actual commit step, with
@@ -2351,7 +2364,7 @@ class _QuestChoiceCard extends StatelessWidget {
                 Text(
                   quest.description,
                   style: QuestTypography.bodySmall.copyWith(
-                    color: onTint.withAlpha(210),
+                    color: QuestColors.onAccentSoft(tint),
                     fontSize: 12,
                     height: 1.3,
                   ),
@@ -2360,7 +2373,10 @@ class _QuestChoiceCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   // Difficulty chip
                   Container(
@@ -2374,15 +2390,12 @@ class _QuestChoiceCard extends StatelessWidget {
                     child: Text(
                       diffLabel,
                       style: QuestTypography.labelSmall.copyWith(
-                        color: diffColor == QuestColors.accentYellow
-                            ? QuestColors.accentYellowInk
-                            : QuestColors.osTextOnPrimary,
+                        color: QuestColors.onAccent(diffColor),
                         fontSize: 10,
                         letterSpacing: 1.1,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   // XP chip
                   Container(
                     padding:
@@ -2399,6 +2412,7 @@ class _QuestChoiceCard extends StatelessWidget {
                         const SizedBox(width: 3),
                         Text(
                           '+${quest.xpReward} XP',
+                          maxLines: 1,
                           style: QuestTypography.labelSmall.copyWith(
                             color: onTint,
                             fontSize: 10,
@@ -2489,16 +2503,18 @@ class _PendingListDialog extends StatelessWidget {
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: ink, width: 1.6),
+                    child: BsMinTouch(
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: QuestColors.cardBg(context),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: ink, width: 1.6),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.close_rounded, color: ink, size: 16),
                       ),
-                      alignment: Alignment.center,
-                      child: Icon(Icons.close_rounded, color: ink, size: 16),
                     ),
                   ),
                 ],
@@ -2731,13 +2747,13 @@ class _RecentQuestRow extends StatelessWidget {
       case UserQuestStatus.rejected:
         return ('REJECTED', QuestColors.softRed);
       case UserQuestStatus.expired:
-        return ('TIMED OUT', QuestColors.textMuted);
+        return ('TIMED OUT', QuestColors.osTextMuted);
       case UserQuestStatus.submitted:
         return ('PENDING', QuestColors.accentYellow);
       case UserQuestStatus.assigned:
         return ('ACTIVE', QuestColors.osPrimary);
       default:
-        return (q.status.toUpperCase(), QuestColors.textMuted);
+        return (q.status.toUpperCase(), QuestColors.osTextMuted);
     }
   }
 
@@ -2789,10 +2805,10 @@ class _RecentQuestRow extends StatelessWidget {
             ),
             child: Text(
               statusText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.labelSmall.copyWith(
-                color: statusColor == QuestColors.accentYellow
-                    ? QuestColors.accentYellowInk
-                    : QuestColors.osTextOnPrimary,
+                color: QuestColors.onAccent(statusColor),
                 fontSize: 9,
                 letterSpacing: 0.8,
                 height: 1,
@@ -2867,9 +2883,7 @@ class _QuestPreviewSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final onTint = tint == QuestColors.accentYellow
-        ? QuestColors.accentYellowInk
-        : QuestColors.osTextOnPrimary;
+    final onTint = QuestColors.onAccent(tint);
     final (diffColor, diffLabel) = _difficultyStyle();
     final mediaH = MediaQuery.of(context).size.height;
 
@@ -2940,21 +2954,27 @@ class _QuestPreviewSheet extends StatelessWidget {
                               ),
                               const SizedBox(width: 12),
                               if (quest.category.trim().isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 9, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: QuestColors.pureWhite.withAlpha(36),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border:
-                                        Border.all(color: onTint, width: 1.3),
-                                  ),
-                                  child: Text(
-                                    quest.category.toUpperCase(),
-                                    style: QuestTypography.labelSmall.copyWith(
-                                      color: onTint,
-                                      fontSize: 10,
-                                      letterSpacing: 1.2,
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 9, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          QuestColors.pureWhite.withAlpha(36),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border:
+                                          Border.all(color: onTint, width: 1.3),
+                                    ),
+                                    child: Text(
+                                      quest.category.toUpperCase(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          QuestTypography.labelSmall.copyWith(
+                                        color: onTint,
+                                        fontSize: 10,
+                                        letterSpacing: 1.2,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2978,23 +2998,18 @@ class _QuestPreviewSheet extends StatelessWidget {
                           label: 'DIFFICULTY',
                           value: diffLabel,
                           tint: diffColor,
-                          onTint: diffColor == QuestColors.accentYellow
-                              ? QuestColors.accentYellowInk
-                              : QuestColors.osTextOnPrimary,
                         ),
                         const SizedBox(width: 10),
                         _PreviewStat(
                           label: 'REWARD',
                           value: '+${quest.xpReward} XP',
                           tint: QuestColors.osPrimary,
-                          onTint: QuestColors.osTextOnPrimary,
                         ),
                         const SizedBox(width: 10),
                         _PreviewStat(
                           label: 'TIME',
                           value: _durationLabel(),
                           tint: QuestColors.accentYellow,
-                          onTint: QuestColors.accentYellowInk,
                         ),
                       ]),
                       const SizedBox(height: 20),
@@ -3091,12 +3106,16 @@ class _QuestPreviewSheet extends StatelessWidget {
                           children: [
                             Icon(Icons.bolt_rounded, color: onTint, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              'PICK THIS QUEST',
-                              style: QuestTypography.labelLarge.copyWith(
-                                color: onTint,
-                                fontSize: 13,
-                                letterSpacing: 1.2,
+                            Flexible(
+                              child: Text(
+                                'PICK THIS QUEST',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: QuestTypography.labelLarge.copyWith(
+                                  color: onTint,
+                                  fontSize: 13,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
                             ),
                           ],
@@ -3119,17 +3138,18 @@ class _PreviewStat extends StatelessWidget {
     required this.label,
     required this.value,
     required this.tint,
-    required this.onTint,
   });
 
   final String label;
   final String value;
   final Color tint;
-  final Color onTint;
 
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    // Full-opacity on-ground colour: alpha-muting type on an accent fill
+    // drops it back under AA, so size and weight carry the hierarchy.
+    final onTint = QuestColors.onAccent(tint);
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -3146,8 +3166,10 @@ class _PreviewStat extends StatelessWidget {
           children: [
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.labelSmall.copyWith(
-                color: onTint.withAlpha(190),
+                color: onTint,
                 fontSize: 9,
                 letterSpacing: 1.2,
               ),

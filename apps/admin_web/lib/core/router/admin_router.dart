@@ -50,7 +50,8 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
       if (user == null && !loggingIn && !isPublic) {
         return AdminRoutePaths.login;
       }
-      if (user != null && loggingIn &&
+      if (user != null &&
+          loggingIn &&
           ref.read(isAdminUserProvider).valueOrNull == true) {
         return AdminRoutePaths.dashboard;
       }
@@ -82,12 +83,12 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             return const AdminLoginPage();
           }
           return ref.watch(isAdminUserProvider).when(
-            loading: () => const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
-            error: (_, __) => const AdminAccessDeniedPage(),
-            data: (_) => const AdminAccessDeniedPage(),
-          );
+                loading: () => const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, __) => const AdminAccessDeniedPage(),
+                data: (_) => const AdminAccessDeniedPage(),
+              );
         }),
       ),
       GoRoute(

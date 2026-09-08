@@ -33,9 +33,11 @@ class AdminAccessDeniedPage extends ConsumerWidget {
                         width: BsheelBorders.thin,
                       ),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.lock_outline,
-                      color: BsheelColors.hot,
+                      // Coral on white is 2.9:1 — under the 3:1 graphics
+                      // threshold, so the mark takes the text twin.
+                      color: BsheelColors.onCream(BsheelColors.danger),
                       size: 26,
                     ),
                   ),

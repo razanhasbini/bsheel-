@@ -119,8 +119,10 @@ class _FeedFilterSheet extends ConsumerWidget {
                       ),
                       child: Text(
                         'CLEAR',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: QuestTypography.labelSmall.copyWith(
-                          color: QuestColors.softRed,
+                          color: QuestColors.osRedText,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1,

@@ -105,10 +105,10 @@ class _MaintenancePanel extends StatelessWidget {
                           BoxShadow(color: _ink, offset: Offset(5, 6)),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.build_rounded,
                         size: 56,
-                        color: QuestColors.osTextOnPrimary,
+                        color: QuestColors.onAccent(_coral),
                       ),
                     ),
                     const SizedBox(height: 32),

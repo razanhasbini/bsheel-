@@ -56,58 +56,78 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BsheelCard(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const BsheelEyebrow('Content · Quests'),
-                    const SizedBox(height: 14),
-                    BsheelDisplay(
-                      'The {quest bank.}',
-                      baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Browse, write and retire every quest in the catalog.',
-                      style: BsheelType.bodyMd
-                          .copyWith(color: BsheelColors.inkSoft),
-                    ),
-                  ],
+        LayoutBuilder(
+          builder: (context, c) {
+            // Three action pills and a 44px hero cannot share a line on a
+            // narrow window, so the header stacks instead of overflowing.
+            final narrow = c.maxWidth < 780;
+            final headline = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const BsheelEyebrow('Content · Quests'),
+                const SizedBox(height: 14),
+                BsheelDisplay(
+                  'The {quest bank.}',
+                  baseStyle: BsheelType.hero(context),
                 ),
-              ),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  if (isSuperAdmin) ...[
-                    BsheelButton.ghost(
-                      label: 'IMPORT',
-                      icon: Icons.upload_file_rounded,
-                      small: true,
-                      onPressed: () => _showImportDialog(context),
-                    ),
-                    BsheelButton.coral(
-                      label: 'DELETE ALL',
-                      icon: Icons.delete_forever_rounded,
-                      small: true,
-                      onPressed: () => _confirmDeleteAll(context),
-                    ),
-                  ],
-                  BsheelButton.primary(
-                    label: 'NEW QUEST',
-                    icon: Icons.add_rounded,
+                const SizedBox(height: 12),
+                Text(
+                  'Browse, write and retire every quest in the catalog.',
+                  style:
+                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+                ),
+              ],
+            );
+            final actions = Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (isSuperAdmin) ...[
+                  BsheelButton.ghost(
+                    label: 'IMPORT',
+                    icon: Icons.upload_file_rounded,
                     small: true,
-                    onPressed: () => _showQuestDialog(context),
+                    onPressed: () => _showImportDialog(context),
+                  ),
+                  BsheelButton.coral(
+                    label: 'DELETE ALL',
+                    icon: Icons.delete_forever_rounded,
+                    small: true,
+                    onPressed: () => _confirmDeleteAll(context),
                   ),
                 ],
+                BsheelButton.primary(
+                  label: 'NEW QUEST',
+                  icon: Icons.add_rounded,
+                  small: true,
+                  onPressed: () => _showQuestDialog(context),
+                ),
+              ],
+            );
+            return BsheelCard(
+              padding: EdgeInsets.symmetric(
+                horizontal: narrow ? 20 : 36,
+                vertical: narrow ? 22 : 32,
               ),
-            ],
-          ),
+              child: narrow
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        headline,
+                        const SizedBox(height: 16),
+                        actions,
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: headline),
+                        const SizedBox(width: 16),
+                        Flexible(child: actions),
+                      ],
+                    ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         Padding(
@@ -154,8 +174,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
+                textAlign: TextAlign.center,
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -213,36 +234,45 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                       ),
                       borderRadius: BorderRadius.circular(BsheelRadii.lg),
                     ),
+                    // Eight columns cannot fit a narrow window: the
+                    // table scrolls sideways inside its card rather than
+                    // painting outside it.
                     child: SingleChildScrollView(
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all(
-                            BsheelColors.surface,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth:
+                                constraints.maxWidth - BsheelBorders.thick * 2,
                           ),
-                          columnSpacing: 24,
-                          headingTextStyle: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkMuted,
-                            letterSpacing: 1.5,
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              BsheelColors.surface,
+                            ),
+                            columnSpacing: 24,
+                            headingTextStyle: BsheelType.labelSm.copyWith(
+                              color: BsheelColors.inkMuted,
+                              letterSpacing: 1.5,
+                            ),
+                            dataTextStyle: BsheelType.bodySm.copyWith(
+                              color: BsheelColors.ink,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('TITLE')),
+                              DataColumn(label: Text('CATEGORY')),
+                              DataColumn(label: Text('DIFFICULTY')),
+                              DataColumn(label: Text('XP'), numeric: true),
+                              DataColumn(label: Text('DURATION')),
+                              DataColumn(label: Text('ACTIVE')),
+                              DataColumn(label: Text('CREATED')),
+                              DataColumn(label: Text('ACTIONS')),
+                            ],
+                            rows: filtered
+                                .asMap()
+                                .entries
+                                .map((e) => _buildRow(context, e.value, e.key))
+                                .toList(),
                           ),
-                          dataTextStyle: BsheelType.bodySm.copyWith(
-                            color: BsheelColors.ink,
-                          ),
-                          columns: const [
-                            DataColumn(label: Text('TITLE')),
-                            DataColumn(label: Text('CATEGORY')),
-                            DataColumn(label: Text('DIFFICULTY')),
-                            DataColumn(label: Text('XP'), numeric: true),
-                            DataColumn(label: Text('DURATION')),
-                            DataColumn(label: Text('ACTIVE')),
-                            DataColumn(label: Text('CREATED')),
-                            DataColumn(label: Text('ACTIONS')),
-                          ],
-                          rows: filtered
-                              .asMap()
-                              .entries
-                              .map((e) => _buildRow(context, e.value, e.key))
-                              .toList(),
                         ),
                       ),
                     ),
@@ -317,8 +347,11 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                 ),
                 child: Text(
                   '$xp XP · ${durationHours}h',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.accent,
+                    // Gold on a cream chip is 1.6:1 — text twin.
+                    color: BsheelColors.onCream(BsheelColors.accent),
                     fontSize: 10,
                   ),
                 ),
@@ -330,17 +363,17 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.edit_outlined,
-                  color: BsheelColors.cool,
+                  color: BsheelColors.onCream(BsheelColors.cool),
                 ),
                 tooltip: 'Edit',
                 onPressed: () => _showQuestDialog(context, quest: quest),
               ),
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.delete_outline,
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
                 tooltip: 'Delete',
                 onPressed: () => _confirmDelete(context, id, title),
@@ -388,7 +421,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
           Text(
             '$xp',
             style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.accent,
+              color: BsheelColors.onCream(BsheelColors.accent),
             ),
           ),
         ),
@@ -422,17 +455,17 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.edit_outlined,
-                  color: BsheelColors.cool,
+                  color: BsheelColors.onCream(BsheelColors.cool),
                 ),
                 tooltip: 'Edit',
                 onPressed: () => _showQuestDialog(context, quest: quest),
               ),
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.delete_outline,
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
                 tooltip: 'Delete',
                 onPressed: () => _confirmDelete(context, id, title),
@@ -480,8 +513,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.hot,
-              foregroundColor: BsheelColors.pureWhite,
+              backgroundColor: BsheelColors.danger,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.full),
               ),
@@ -492,7 +525,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             },
             child: Text(
               'DELETE',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureWhite),
+              style: BsheelType.labelSm.copyWith(
+                color: BsheelColors.onAccent(BsheelColors.danger),
+              ),
             ),
           ),
         ],
@@ -565,8 +600,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                   ),
                 ),
                 const SizedBox(height: QuestSpacing.md),
-                SizedBox(
-                  width: 460,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
                   child: Form(
                     key: formKey,
                     child: SingleChildScrollView(
@@ -881,8 +916,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(QuestSpacing.lg),
-            child: SizedBox(
-              width: 720,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1046,8 +1081,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                       const SizedBox(height: QuestSpacing.sm),
                       Text(
                         error!,
-                        style:
-                            BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+                        style: BsheelType.bodySm.copyWith(
+                          color: BsheelColors.onCream(BsheelColors.danger),
+                        ),
                       ),
                     ],
                     const SizedBox(height: QuestSpacing.md),
@@ -1346,30 +1382,34 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BsheelRadii.xl),
               side: const BorderSide(
-                color: BsheelColors.hot,
+                color: BsheelColors.danger,
                 width: BsheelBorders.thin,
               ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(QuestSpacing.lg),
-              child: SizedBox(
-                width: 460,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.warning_amber_rounded,
-                          color: BsheelColors.hot,
+                          color: BsheelColors.onCream(BsheelColors.danger),
                           size: 24,
                         ),
                         const SizedBox(width: QuestSpacing.sm),
-                        Text(
-                          'DELETE ALL QUESTS',
-                          style: BsheelType.displaySm.copyWith(
-                            color: BsheelColors.hot,
+                        Expanded(
+                          child: Text(
+                            'DELETE ALL QUESTS',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: BsheelType.displaySm.copyWith(
+                              color: BsheelColors.onCream(BsheelColors.danger),
+                            ),
                           ),
                         ),
                       ],
@@ -1413,7 +1453,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(BsheelRadii.md),
                           borderSide: const BorderSide(
-                            color: BsheelColors.hot,
+                            color: BsheelColors.danger,
                             width: BsheelBorders.thin,
                           ),
                         ),
@@ -1440,10 +1480,11 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                                 }
                               : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: BsheelColors.hot,
-                            foregroundColor: BsheelColors.pureWhite,
+                            backgroundColor: BsheelColors.danger,
+                            foregroundColor:
+                                BsheelColors.onAccent(BsheelColors.danger),
                             disabledBackgroundColor:
-                                BsheelColors.hot.withAlpha(70),
+                                BsheelColors.danger.withAlpha(70),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
                                 BsheelRadii.full,
@@ -1452,8 +1493,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                           ),
                           child: Text(
                             'DELETE ALL',
-                            style: BsheelType.labelSm
-                                .copyWith(color: BsheelColors.pureWhite),
+                            style: BsheelType.labelSm.copyWith(
+                              color: BsheelColors.onAccent(BsheelColors.danger),
+                            ),
                           ),
                         ),
                       ],

@@ -92,9 +92,9 @@ class _ConfirmEmailPageState extends State<ConfirmEmailPage> {
                               : Icons.mark_email_read_outlined,
                       size: 44,
                       color: _confirmed
-                          ? BsheelColors.success
+                          ? BsheelColors.onCream(BsheelColors.success)
                           : _error != null
-                              ? BsheelColors.hot
+                              ? BsheelColors.onCream(BsheelColors.danger)
                               : BsheelColors.ink,
                     ),
                     const SizedBox(height: 18),

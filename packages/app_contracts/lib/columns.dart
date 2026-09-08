@@ -43,6 +43,9 @@ abstract final class UserQuestColumns {
   static const String assignedAt = 'assigned_at';
   static const String completedAt = 'completed_at';
   static const String expiresAt = 'expires_at';
+
+  /// Computed by the quest-history query, not a stored column.
+  static const String appealAvailable = 'appeal_available';
 }
 
 abstract final class SubmissionColumns {

@@ -81,7 +81,7 @@ class XpManagementPage extends ConsumerWidget {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Mind the {ledger.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -154,8 +154,9 @@ class XpManagementPage extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
+                textAlign: TextAlign.center,
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -168,7 +169,7 @@ class XpManagementPage extends ConsumerWidget {
                   if (inconsistent.isNotEmpty) ...[
                     _SectionHeader(
                       title: 'INCONSISTENCIES FOUND (${inconsistent.length})',
-                      color: BsheelColors.hot,
+                      color: BsheelColors.onCream(BsheelColors.danger),
                     ),
                     const SizedBox(height: QuestSpacing.sm),
                     ElevatedButton.icon(
@@ -177,12 +178,13 @@ class XpManagementPage extends ConsumerWidget {
                       label: Text(
                         'FIX ALL',
                         style: BsheelType.labelSm.copyWith(
-                          color: BsheelColors.pureWhite,
+                          color: BsheelColors.onAccent(BsheelColors.danger),
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.hot,
-                        foregroundColor: BsheelColors.pureWhite,
+                        backgroundColor: BsheelColors.danger,
+                        foregroundColor:
+                            BsheelColors.onAccent(BsheelColors.danger),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(BsheelRadii.full),
                         ),
@@ -199,7 +201,7 @@ class XpManagementPage extends ConsumerWidget {
                   ],
                   _SectionHeader(
                     title: 'ALL USERS (${users.length})',
-                    color: BsheelColors.cool,
+                    color: BsheelColors.onCream(BsheelColors.cool),
                   ),
                   const SizedBox(height: QuestSpacing.md),
                   LayoutBuilder(
@@ -217,7 +219,7 @@ class XpManagementPage extends ConsumerWidget {
                                 border: Border.all(
                                   color: u.isConsistent
                                       ? BsheelColors.line
-                                      : BsheelColors.hot.withAlpha(80),
+                                      : BsheelColors.danger,
                                   width: BsheelBorders.thin,
                                 ),
                                 borderRadius: BorderRadius.circular(
@@ -239,14 +241,18 @@ class XpManagementPage extends ConsumerWidget {
                                         ),
                                       ),
                                       u.isConsistent
-                                          ? const Icon(
+                                          ? Icon(
                                               Icons.check_circle,
-                                              color: BsheelColors.success,
+                                              color: BsheelColors.onCream(
+                                                BsheelColors.success,
+                                              ),
                                               size: 16,
                                             )
-                                          : const Icon(
+                                          : Icon(
                                               Icons.warning,
-                                              color: BsheelColors.hot,
+                                              color: BsheelColors.onCream(
+                                                BsheelColors.danger,
+                                              ),
                                               size: 16,
                                             ),
                                     ],
@@ -258,8 +264,9 @@ class XpManagementPage extends ConsumerWidget {
                                     'Q: ${u.currentQuests} (exp ${u.expectedQuests})',
                                     style: BsheelType.labelSm.copyWith(
                                       color: u.isConsistent
-                                          ? BsheelColors.inkMuted
-                                          : BsheelColors.hot,
+                                          ? BsheelColors.inkSoft
+                                          : BsheelColors.onCream(
+                                              BsheelColors.danger),
                                       fontSize: 10,
                                     ),
                                   ),
@@ -341,10 +348,12 @@ class XpManagementPage extends ConsumerWidget {
                                         Text(
                                           '${e.value.currentXp}',
                                           style: BsheelType.labelSm.copyWith(
-                                            color: e.value.currentXp !=
-                                                    e.value.expectedXp
-                                                ? BsheelColors.hot
-                                                : BsheelColors.accent,
+                                            color: BsheelColors.onCream(
+                                              e.value.currentXp !=
+                                                      e.value.expectedXp
+                                                  ? BsheelColors.danger
+                                                  : BsheelColors.accent,
+                                            ),
                                             fontWeight: e.value.currentXp !=
                                                     e.value.expectedXp
                                                 ? FontWeight.w500
@@ -366,7 +375,8 @@ class XpManagementPage extends ConsumerWidget {
                                           style: BsheelType.labelSm.copyWith(
                                             color: e.value.currentLevel !=
                                                     e.value.expectedLevel
-                                                ? BsheelColors.hot
+                                                ? BsheelColors.onCream(
+                                                    BsheelColors.danger)
                                                 : BsheelColors.primary,
                                           ),
                                         ),
@@ -385,7 +395,8 @@ class XpManagementPage extends ConsumerWidget {
                                           style: BsheelType.labelSm.copyWith(
                                             color: e.value.currentQuests !=
                                                     e.value.expectedQuests
-                                                ? BsheelColors.hot
+                                                ? BsheelColors.onCream(
+                                                    BsheelColors.danger)
                                                 : BsheelColors.ink,
                                           ),
                                         ),
@@ -400,14 +411,18 @@ class XpManagementPage extends ConsumerWidget {
                                       ),
                                       DataCell(
                                         e.value.isConsistent
-                                            ? const Icon(
+                                            ? Icon(
                                                 Icons.check_circle,
-                                                color: BsheelColors.success,
+                                                color: BsheelColors.onCream(
+                                                  BsheelColors.success,
+                                                ),
                                                 size: 18,
                                               )
-                                            : const Icon(
+                                            : Icon(
                                                 Icons.warning,
-                                                color: BsheelColors.hot,
+                                                color: BsheelColors.onCream(
+                                                  BsheelColors.danger,
+                                                ),
                                                 size: 18,
                                               ),
                                       ),
@@ -519,9 +534,9 @@ class _AuditCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: QuestSpacing.sm),
       padding: const EdgeInsets.all(QuestSpacing.md),
       decoration: BoxDecoration(
-        color: BsheelColors.hot.withAlpha(15),
+        color: BsheelColors.danger.withAlpha(15),
         border: Border.all(
-          color: BsheelColors.hot.withAlpha(80),
+          color: BsheelColors.danger,
           width: BsheelBorders.thin,
         ),
         borderRadius: BorderRadius.circular(BsheelRadii.lg),
@@ -545,7 +560,7 @@ class _AuditCard extends StatelessWidget {
                   'Level: ${user.currentLevel} → ${user.expectedLevel}  |  '
                   'Quests: ${user.currentQuests} → ${user.expectedQuests}',
                   style: BsheelType.labelSm.copyWith(
-                    color: BsheelColors.hot,
+                    color: BsheelColors.onCream(BsheelColors.danger),
                     fontSize: 11,
                   ),
                 ),

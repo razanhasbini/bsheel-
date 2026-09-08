@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/shared_ui.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/safe_back.dart';
 import '../../../../core/backend/app_backend.dart';
 
@@ -57,32 +58,38 @@ class BlockedUsersPage extends ConsumerWidget {
                   GestureDetector(
                     onTap: () => safeBack(context),
                     behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: ink, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ink,
-                            offset: const Offset(2, 2),
-                            blurRadius: 0,
-                          ),
-                        ],
+                    child: BsMinTouch(
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: QuestColors.cardBg(context),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: ink, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: ink,
+                              offset: const Offset(2, 2),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.arrow_back_rounded,
+                            size: 18, color: ink),
                       ),
-                      child:
-                          Icon(Icons.arrow_back_rounded, size: 18, color: ink),
                     ),
                   ),
                   const SizedBox(width: QuestSpacing.md),
-                  Text(
-                    'BLOCKED USERS',
-                    style: QuestTypography.headlineLarge.copyWith(
-                      color: ink,
-                      fontSize: 20,
-                      letterSpacing: 1.4,
+                  Flexible(
+                    child: Text(
+                      'BLOCKED USERS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.headlineLarge.copyWith(
+                        color: ink,
+                        fontSize: 20,
+                        letterSpacing: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -254,6 +261,9 @@ class _BlockedRowState extends ConsumerState<_BlockedRow> {
             behavior: HitTestBehavior.opaque,
             onTap: _busy ? null : _unblock,
             child: Container(
+              constraints: const BoxConstraints(
+                  minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
+              alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 6,

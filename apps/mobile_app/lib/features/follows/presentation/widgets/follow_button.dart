@@ -187,16 +187,20 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
           else
             Icon(icon, size: 16, color: fg),
           const SizedBox(width: 8),
-          Text(
-            (isFollowing ? l.followed : l.follow).toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'Syne',
-              fontVariations: const [FontVariation('wght', 800)],
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: fg,
-              letterSpacing: 1.1,
-              height: 1,
+          Flexible(
+            child: Text(
+              (isFollowing ? l.followed : l.follow).toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Syne',
+                fontVariations: const [FontVariation('wght', 800)],
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: fg,
+                letterSpacing: 1.1,
+                height: 1,
+              ),
             ),
           ),
         ],

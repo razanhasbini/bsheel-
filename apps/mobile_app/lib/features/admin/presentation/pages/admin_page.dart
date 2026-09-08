@@ -630,14 +630,19 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
           // ── Header ──────────────────────────────────────
           Row(
             children: [
-              const Icon(Icons.campaign, size: 18, color: QuestColors.xpGold),
+              const Icon(Icons.campaign,
+                  size: 18, color: QuestColors.osAccentText),
               const SizedBox(width: QuestSpacing.sm),
-              Text(AppLocalizations.of(context)!.broadcastTitle,
-                  style: QuestTypography.labelSmall.copyWith(
-                    color: QuestColors.xpGold,
-                    fontSize: 11,
-                    letterSpacing: 1,
-                  )),
+              Flexible(
+                child: Text(AppLocalizations.of(context)!.broadcastTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.labelSmall.copyWith(
+                      color: QuestColors.osAccentText,
+                      fontSize: 11,
+                      letterSpacing: 1,
+                    )),
+              ),
             ],
           ),
           const SizedBox(height: QuestSpacing.lg),
@@ -759,13 +764,17 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(Icons.send,
-                                  size: 16, color: QuestColors.xpGold),
+                                  size: 16, color: QuestColors.osAccentText),
                               const SizedBox(width: QuestSpacing.sm),
-                              Text(
-                                'SEND PUSH TO ALL USERS',
-                                style: QuestTypography.labelMedium.copyWith(
-                                  color: QuestColors.xpGold,
-                                  letterSpacing: 1.5,
+                              Flexible(
+                                child: Text(
+                                  'SEND PUSH TO ALL USERS',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: QuestTypography.labelMedium.copyWith(
+                                    color: QuestColors.osAccentText,
+                                    letterSpacing: 1.5,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1143,8 +1152,10 @@ class _SubmissionCard extends StatelessWidget {
                         padding: EdgeInsets.symmetric(vertical: 10),
                         child: Center(
                           child: Text('REJECT',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                  color: QuestColors.softRed,
+                                  color: QuestColors.osRedText,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                   letterSpacing: 1)),

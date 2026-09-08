@@ -65,7 +65,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'SEND',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.hot),
+              style: BsheelType.labelMd.copyWith(
+                color: BsheelColors.onCream(BsheelColors.danger),
+              ),
             ),
           ),
         ],
@@ -110,7 +112,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
         content: Text(
           msg,
           style: BsheelType.bodySm.copyWith(
-            color: error ? BsheelColors.hot : BsheelColors.ink,
+            color: error
+                ? BsheelColors.onCream(BsheelColors.danger)
+                : BsheelColors.ink,
           ),
         ),
       ),
@@ -133,7 +137,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Send a {broadcast.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -200,10 +204,11 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(
+                      child: Icon(
                         Icons.check_rounded,
                         size: 16,
-                        color: BsheelColors.paper,
+                        // Jade ground: ink, never white.
+                        color: BsheelColors.onAccent(BsheelColors.success),
                       ),
                     ),
                     const SizedBox(width: 14),

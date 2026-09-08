@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:app_core/app_core.dart';
 import 'package:shared_ui/shared_ui.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/providers/profile_repository_provider.dart';
 import '../../../../core/providers/auth_repository_provider.dart';
@@ -352,19 +353,23 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                             right: 0,
                             child: GestureDetector(
                               onTap: _isLoading ? null : _pickAvatar,
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: navyColor,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: QuestColors.bg(context), width: 2),
-                                ),
-                                child: Icon(
-                                  Icons.camera_alt,
-                                  size: 16,
-                                  color: QuestColors.bg(context),
+                              behavior: HitTestBehavior.opaque,
+                              child: BsMinTouch(
+                                child: Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: navyColor,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: QuestColors.bg(context),
+                                        width: 2),
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 16,
+                                    color: QuestColors.bg(context),
+                                  ),
                                 ),
                               ),
                             ),
@@ -388,10 +393,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                             const SizedBox(width: QuestSpacing.lg),
                             GestureDetector(
                               onTap: _isLoading ? null : _deleteAvatar,
-                              child: Text(
-                                l.remove,
-                                style: QuestTypography.labelSmall.copyWith(
-                                  color: QuestColors.softRed,
+                              behavior: HitTestBehavior.opaque,
+                              child: BsMinTouch(
+                                child: Text(
+                                  l.remove,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: QuestTypography.labelSmall.copyWith(
+                                    color: QuestColors.osRedText,
+                                  ),
                                 ),
                               ),
                             ),

@@ -131,3 +131,11 @@ jobs:
 
       - name: Test (Flutter packages and apps)
         run: melos run test:flutter
+
+      # admin_web is excluded from test:flutter and runs here instead: it
+      # imports dart:js_interop, dart:ui_web and package:web, so it cannot
+      # compile for the VM target that bare `flutter test` uses. Until this
+      # split, test:flutter included it and failed to compile it, so the
+      # admin dashboard's tests never ran.
+      - name: Test (admin web, on Chrome)
+        run: melos run test:web

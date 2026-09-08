@@ -73,15 +73,18 @@ class AdminDashboardPage extends ConsumerWidget {
                   ),
                 ),
                 if (!isMobile)
-                  statsAsync.when(
-                    data: (s) => Text(
-                      '${s['pending']} PENDING · ${s['appeals']} APPEALS\n'
-                      '${s['pendingReports']} REPORTS · ${s['activeQuests']} ACTIVE QUESTS',
-                      textAlign: TextAlign.right,
-                      style: BsheelType.labelLg,
+                  Flexible(
+                    child: statsAsync.when(
+                      data: (s) => Text(
+                        '${s['pending']} PENDING · ${s['appeals']} APPEALS\n'
+                        '${s['pendingReports']} REPORTS · '
+                        '${s['activeQuests']} ACTIVE QUESTS',
+                        textAlign: TextAlign.right,
+                        style: BsheelType.labelLg,
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
                   ),
               ],
             ),
@@ -105,7 +108,6 @@ class AdminDashboardPage extends ConsumerWidget {
                   eyebrow: 'Reports open',
                   value: '${s['pendingReports']}',
                   color: BsheelColors.hot,
-                  foreground: BsheelColors.paper,
                   onTap: () => context.goNamed(AdminRouteNames.reports),
                 ),
                 BsheelTile(
@@ -118,7 +120,6 @@ class AdminDashboardPage extends ConsumerWidget {
                   eyebrow: 'Active quests',
                   value: '${s['activeQuests']}',
                   color: BsheelColors.primary,
-                  foreground: BsheelColors.paper,
                   onTap: () => context.goNamed(AdminRouteNames.questManagement),
                 ),
               ],
@@ -225,20 +226,7 @@ class _TilesSkeleton extends StatelessWidget {
             ),
           ),
         );
-    return LayoutBuilder(
-      builder: (context, c) {
-        return Row(
-          children: List.generate(4, (i) {
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: i == 3 ? 0 : 18),
-                child: shell(),
-              ),
-            );
-          }),
-        );
-      },
-    );
+    return _TileGrid(tiles: List.generate(4, (_) => shell()));
   }
 }
 
@@ -251,7 +239,9 @@ class _ErrorBanner extends StatelessWidget {
     return BsheelCard.flat(
       child: Text(
         error,
-        style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+        style: BsheelType.bodySm.copyWith(
+          color: BsheelColors.onCream(BsheelColors.danger),
+        ),
       ),
     );
   }
@@ -361,15 +351,15 @@ class _QueueProgressCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BsheelEyebrow(
+          const BsheelEyebrow(
             "Today's queue",
-            color: BsheelColors.paper.withValues(alpha: 0.85),
+            color: BsheelColors.inkPanelText,
           ),
           const SizedBox(height: 6),
           Text(
             'Clear it\nout.',
             style: BsheelType.displayMd.copyWith(
-              color: BsheelColors.paper,
+              color: BsheelColors.onAccent(BsheelColors.ink),
               fontSize: 26,
               height: 1.05,
             ),
@@ -377,18 +367,22 @@ class _QueueProgressCard extends ConsumerWidget {
           const SizedBox(height: 18),
           Row(
             children: [
-              Text(
-                'CLEARED · 24H',
-                style: BsheelType.labelMd.copyWith(
-                  color: BsheelColors.paper.withValues(alpha: 0.7),
+              Expanded(
+                child: Text(
+                  'CLEARED · 24H',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: BsheelType.labelMd.copyWith(
+                    color: BsheelColors.inkPanelText,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 progress == null ? '—' : '${(progress * 100).round()}%',
                 style: BsheelType.displaySm.copyWith(
                   fontSize: 18,
-                  color: BsheelColors.paper,
+                  color: BsheelColors.onAccent(BsheelColors.ink),
                 ),
               ),
             ],

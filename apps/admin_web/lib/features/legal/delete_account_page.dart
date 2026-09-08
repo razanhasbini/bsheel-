@@ -64,10 +64,10 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 60),
-        const Icon(
+        Icon(
           Icons.check_circle_outline,
           size: 80,
-          color: BsheelColors.success,
+          color: BsheelColors.onCream(BsheelColors.success),
         ),
         const SizedBox(height: 24),
         Text(
@@ -183,7 +183,10 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           decoration: BoxDecoration(
             color: BsheelColors.paper,
             borderRadius: BorderRadius.circular(BsheelRadii.md),
-            border: Border.all(color: BsheelColors.hot, width: 1),
+            border: Border.all(
+              color: BsheelColors.danger,
+              width: BsheelBorders.thin,
+            ),
           ),
           child: Form(
             key: _formKey,
@@ -193,7 +196,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                 Text(
                   'REQUEST ACCOUNT DELETION',
                   style: BsheelType.displaySm.copyWith(
-                    color: BsheelColors.hot,
+                    color: BsheelColors.onCream(BsheelColors.danger),
                     fontSize: 14,
                     letterSpacing: 2,
                     fontWeight: FontWeight.w800,
@@ -273,8 +276,9 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: BsheelColors.hot,
-                      foregroundColor: BsheelColors.pureWhite,
+                      backgroundColor: BsheelColors.danger,
+                      foregroundColor:
+                          BsheelColors.onAccent(BsheelColors.danger),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(BsheelRadii.md),
@@ -288,7 +292,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                     child: Text(
                       'DELETE MY ACCOUNT',
                       style: BsheelType.labelLg.copyWith(
-                        color: BsheelColors.pureWhite,
+                        color: BsheelColors.onAccent(BsheelColors.danger),
                         fontSize: 14,
                         letterSpacing: 1.5,
                       ),

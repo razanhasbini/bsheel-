@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:app_core/app_core.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/backend/app_backend.dart';
@@ -116,8 +117,9 @@ class _PostActionsSheet extends StatelessWidget {
                       border: Border.all(color: ink, width: 2),
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.flag_rounded,
-                        color: QuestColors.osTextOnPrimary, size: 20),
+                    child: Icon(Icons.flag_rounded,
+                        color: QuestColors.onAccent(QuestColors.softRed),
+                        size: 20),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -188,6 +190,8 @@ class _PostActionsSheet extends StatelessWidget {
                       onTap: () => Navigator.pop(c, controller.text.trim()),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
+                        constraints:
+                            const BoxConstraints(minHeight: kMinTouchTarget),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: QuestColors.softRed,
@@ -204,8 +208,10 @@ class _PostActionsSheet extends StatelessWidget {
                         alignment: Alignment.center,
                         child: Text(
                           'REPORT',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: QuestTypography.labelMedium.copyWith(
-                            color: QuestColors.osTextOnPrimary,
+                            color: QuestColors.onAccent(QuestColors.softRed),
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.2,

@@ -13,6 +13,7 @@ import 'package:app_models/app_models.dart'
     show CollabFeedMember, CommentModel, FeedPostModel;
 import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/config/deep_link_config.dart';
@@ -614,14 +615,19 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                                   color: QuestColors.text(context),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  AppLocalizations.of(context)!
-                                      .comments
-                                      .toUpperCase(),
-                                  style: QuestTypography.headlineSmall.copyWith(
-                                    color: QuestColors.text(context),
-                                    fontSize: 14,
-                                    letterSpacing: 1,
+                                Flexible(
+                                  child: Text(
+                                    AppLocalizations.of(context)!
+                                        .comments
+                                        .toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        QuestTypography.headlineSmall.copyWith(
+                                      color: QuestColors.text(context),
+                                      fontSize: 14,
+                                      letterSpacing: 1,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -741,6 +747,13 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    // The collab pill's ground is either an accent fill (coral / jade,
+    // which take ink) or the ink panel colour used when there is no
+    // collab accent (which takes white).
+    final collabPillAccent = collabAccent;
+    final onCollabPill = collabPillAccent == null
+        ? QuestColors.pureWhite
+        : QuestColors.onAccent(collabPillAccent);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: QuestColors.bg(context),
@@ -800,19 +813,20 @@ class _TopBar extends StatelessWidget {
                             ? Icons.bolt_rounded
                             : Icons.handshake_rounded,
                         size: 16,
-                        color: QuestColors.osTextOnPrimary,
+                        color: onCollabPill,
                       ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           collabLabel!,
-                          style: const TextStyle(
-                            color: QuestColors.osTextOnPrimary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: onCollabPill,
                             fontWeight: FontWeight.w900,
                             fontSize: 12,
                             letterSpacing: 1.4,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -911,13 +925,15 @@ class _TopBar extends StatelessWidget {
                         child: Row(
                           children: [
                             const Icon(Icons.visibility_outlined,
-                                size: 16, color: QuestColors.successGreen),
+                                size: 16, color: QuestColors.osSuccessText),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 l.addToFeed,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.successGreen,
+                                  color: QuestColors.osSuccessText,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -938,8 +954,10 @@ class _TopBar extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 l.hideFromFeed,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.accentYellow,
+                                  color: QuestColors.osAccentText,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -960,8 +978,10 @@ class _TopBar extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 l.permanentlyDelete,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.softRed,
+                                  color: QuestColors.osRedText,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -982,8 +1002,10 @@ class _TopBar extends StatelessWidget {
                             const SizedBox(width: 8),
                             Text(
                               'REPORT',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: QuestTypography.labelLarge.copyWith(
-                                color: QuestColors.accentYellow,
+                                color: QuestColors.osAccentText,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1000,8 +1022,10 @@ class _TopBar extends StatelessWidget {
                             const SizedBox(width: 8),
                             Text(
                               'BLOCK USER',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: QuestTypography.labelLarge.copyWith(
-                                color: QuestColors.softRed,
+                                color: QuestColors.osRedText,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1706,18 +1730,20 @@ class _VideoSlideState extends State<_VideoSlide> {
               urls: widget.allUrls,
               initialIndex: widget.indexInAll,
             ),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: QuestColors.pureBlack.withAlpha(140),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: QuestColors.pureWhite.withAlpha(80), width: 1),
+            child: BsMinTouch(
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: QuestColors.pureBlack.withAlpha(140),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: QuestColors.pureWhite.withAlpha(80), width: 1),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.fullscreen_rounded,
+                    color: QuestColors.textPrimary, size: 18),
               ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.fullscreen_rounded,
-                  color: QuestColors.textPrimary, size: 18),
             ),
           ),
         ),
@@ -1877,8 +1903,8 @@ class _ParticipantRowState extends State<_ParticipantRow> {
             accentColor: accent,
             isLeader: widget.isLeader,
             avatarSize: 24,
-            tapBoxWidth: 34,
-            tapBoxHeight: 34,
+            tapBoxWidth: kMinTouchTarget,
+            tapBoxHeight: kMinTouchTarget,
             showCountChip: false,
             onLongPress: () => context.pushNamed(
               RouteNames.userProfile,
@@ -1919,6 +1945,9 @@ class _ParticipantRowState extends State<_ParticipantRow> {
             onTap: () => _voteKey.currentState?.triggerToggle(),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 140),
+              constraints: const BoxConstraints(
+                  minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
+              alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: voted ? accent : Colors.transparent,
@@ -1936,18 +1965,19 @@ class _ParticipantRowState extends State<_ParticipantRow> {
                         ? Icons.thumb_up_alt_rounded
                         : Icons.thumb_up_alt_outlined,
                     size: 12,
-                    color: voted ? QuestColors.osTextOnPrimary : navyColor,
+                    color: voted ? QuestColors.onAccent(accent) : navyColor,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     member.voteCount.toString(),
+                    maxLines: 1,
                     style: TextStyle(
                       fontFamily: 'Syne',
                       fontWeight: FontWeight.w800,
                       fontSize: 13,
                       height: 1.0,
                       letterSpacing: 0.2,
-                      color: voted ? QuestColors.osTextOnPrimary : navyColor,
+                      color: voted ? QuestColors.onAccent(accent) : navyColor,
                     ),
                   ),
                 ],
@@ -2120,7 +2150,8 @@ class _CollabSlideItem extends StatelessWidget {
               placeholder: (_, __) => Container(color: navyColor.withAlpha(10)),
               errorWidget: (_, __, ___) => Container(
                 color: navyColor.withAlpha(10),
-                child: const Icon(Icons.broken_image, color: Colors.grey),
+                child: const Icon(Icons.broken_image,
+                    color: QuestColors.osTextMuted),
               ),
             ),
           )
@@ -2156,15 +2187,18 @@ class _CollabSlideItem extends StatelessWidget {
             member.displayName.isNotEmpty
                 ? member.displayName
                 : member.username,
-            style: const TextStyle(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
               color: QuestColors.textPrimary,
               fontWeight: FontWeight.w800,
               fontSize: 13,
               shadows: [
                 Shadow(
-                  color: Colors.black54,
+                  color:
+                      QuestColors.pureBlack.withAlpha(QuestColors.alphaInkSoft),
                   blurRadius: 4,
-                  offset: Offset(0, 1),
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -2179,8 +2213,12 @@ class _CollabSlideItem extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: QuestColors.xpGold.withAlpha(60),
+                // Solid gold plate rather than a 24% wash: the chip sits on
+                // arbitrary user media, so it needs its own ground before
+                // ink type on it can be relied on.
+                color: QuestColors.xpGold,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: QuestColors.osTextPrimary, width: 1),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2189,8 +2227,9 @@ class _CollabSlideItem extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     '${member.voteCount}',
-                    style: const TextStyle(
-                      color: QuestColors.xpGold,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: QuestColors.onAccent(QuestColors.xpGold),
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
@@ -2283,7 +2322,7 @@ class _PostActionBar extends StatelessWidget {
             label: '$upvotes',
             active: upActive,
             activeFill: QuestColors.softRed,
-            activeFg: QuestColors.osTextOnPrimary,
+            activeFg: QuestColors.onAccent(QuestColors.softRed),
             onTap: onUpvote,
           ),
           const SizedBox(width: 8),
@@ -2347,8 +2386,10 @@ class _ActionPill extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        // Tighter pill: icon-only buttons are square-ish (38), labelled
-        // buttons (vote counts) keep just enough padding for the number.
+        // Tighter pill visually, but never below the 44pt touch floor.
+        constraints: const BoxConstraints(
+            minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
+        alignment: Alignment.center,
         padding: EdgeInsets.symmetric(
           horizontal: hasLabel ? 9 : 8,
           vertical: 6,
@@ -2369,6 +2410,8 @@ class _ActionPill extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: QuestTypography.labelMedium.copyWith(
                   color: fg,
                   fontSize: 11,
@@ -2761,9 +2804,11 @@ class _FullscreenImageSlide extends StatelessWidget {
           placeholder: (_, __) => const Center(
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          errorWidget: (_, __, ___) => const Center(
+          errorWidget: (_, __, ___) => Center(
             child: Icon(Icons.broken_image_outlined,
-                color: Colors.white54, size: 64),
+                color:
+                    QuestColors.pureWhite.withAlpha(QuestColors.alphaOverlay),
+                size: 64),
           ),
         ),
       ),
@@ -2853,9 +2898,10 @@ class _FullscreenVideoSlideState extends State<_FullscreenVideoSlide> {
   @override
   Widget build(BuildContext context) {
     if (_hasError) {
-      return const Center(
-        child:
-            Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 64),
+      return Center(
+        child: Icon(Icons.videocam_off_rounded,
+            color: QuestColors.pureWhite.withAlpha(QuestColors.alphaOverlay),
+            size: 64),
       );
     }
     final c = _controller;
@@ -2883,20 +2929,22 @@ class _FullscreenVideoSlideState extends State<_FullscreenVideoSlide> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _toggleMute,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: QuestColors.pureBlack.withAlpha(140),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: QuestColors.pureWhite.withAlpha(80), width: 1),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                _muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                color: QuestColors.textPrimary,
-                size: 18,
+            child: BsMinTouch(
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: QuestColors.pureBlack.withAlpha(140),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: QuestColors.pureWhite.withAlpha(80), width: 1),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  _muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                  color: QuestColors.textPrimary,
+                  size: 18,
+                ),
               ),
             ),
           ),

@@ -68,7 +68,7 @@ class _Avatar extends StatelessWidget {
           fontVariations: const [FontVariation('wght', 800)],
           fontSize: fontSize,
           fontWeight: FontWeight.w800,
-          color: QuestColors.osTextOnPrimary,
+          color: QuestColors.onAccent(tint),
         ),
       ),
     );
@@ -380,9 +380,7 @@ class _PodiumCard extends StatelessWidget {
                 fontVariations: const [FontVariation('wght', 800)],
                 fontSize: rankFontSize,
                 fontWeight: FontWeight.w800,
-                color: entry.rank == 1
-                    ? QuestColors.osTextPrimary
-                    : QuestColors.osTextOnPrimary,
+                color: QuestColors.onAccent(color),
                 height: 1)),
       ),
     ]);

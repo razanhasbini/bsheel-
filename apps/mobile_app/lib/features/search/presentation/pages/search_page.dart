@@ -206,18 +206,21 @@ class _SearchHeader extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: QuestColors.cardBg(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ink, width: 1.8),
-                boxShadow: [
-                  BoxShadow(color: ink, offset: const Offset(1.5, 2)),
-                ],
+            behavior: HitTestBehavior.opaque,
+            child: BsMinTouch(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: QuestColors.cardBg(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ink, width: 1.8),
+                  boxShadow: [
+                    BoxShadow(color: ink, offset: const Offset(1.5, 2)),
+                  ],
+                ),
+                child: Icon(Icons.arrow_back, color: ink, size: 20),
               ),
-              child: Icon(Icons.arrow_back, color: ink, size: 20),
             ),
           ),
           const SizedBox(width: 10),
@@ -587,8 +590,10 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                   ),
                   child: Text(
                     quest.category.toUpperCase(),
-                    style: const TextStyle(
-                      color: QuestColors.osTextOnPrimary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: QuestColors.onAccent(QuestColors.softRed),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
@@ -672,13 +677,17 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                         color: ink,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        saved ? 'SAVED' : 'BSHEEEL',
-                        style: QuestTypography.labelMedium.copyWith(
-                          color: ink,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.4,
+                      Flexible(
+                        child: Text(
+                          saved ? 'SAVED' : 'BSHEEEL',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: QuestTypography.labelMedium.copyWith(
+                            color: ink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -859,13 +868,17 @@ class _PromptState extends ConsumerWidget {
         if (recents.isNotEmpty) ...[
           Row(
             children: [
-              Text(
-                l.searchRecent,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.4,
+              Flexible(
+                child: Text(
+                  l.searchRecent,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
                 ),
               ),
               const Spacer(),

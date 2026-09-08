@@ -21,5 +21,12 @@ export interface UserQuestRecord {
   readonly completed_at: Date | null;
   readonly expires_at: Date;
   readonly quests?: QuestRecord;
+
+  /// True when this quest's rejection can still be appealed.
+  ///
+  /// Only the history query computes it; elsewhere it is absent. `status`
+  /// alone cannot express it, because a first rejection and a re-rejection
+  /// after a spent appeal are both 'rejected'.
+  readonly appeal_available?: boolean;
 }
 

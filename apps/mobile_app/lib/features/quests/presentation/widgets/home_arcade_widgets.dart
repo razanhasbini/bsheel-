@@ -161,6 +161,7 @@ class ArcadeStreakPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
+    final onCoral = QuestColors.onAccent(QuestColors.softRed);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -172,13 +173,13 @@ class ArcadeStreakPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.local_fire_department,
-              size: 16, color: QuestColors.osTextOnPrimary),
+          Icon(Icons.local_fire_department, size: 16, color: onCoral),
           const SizedBox(width: 3),
           Text(
             '$streak',
+            maxLines: 1,
             style: QuestTypography.headlineSmall.copyWith(
-              color: QuestColors.osTextOnPrimary,
+              color: onCoral,
               fontSize: 14,
               height: 1,
             ),
@@ -238,8 +239,9 @@ class ArcadeNotificationBell extends StatelessWidget {
                   child: Text(
                     unreadCount > 9 ? '9+' : '$unreadCount',
                     textAlign: TextAlign.center,
+                    maxLines: 1,
                     style: QuestTypography.headlineSmall.copyWith(
-                      color: QuestColors.osTextOnPrimary,
+                      color: QuestColors.onAccent(QuestColors.softRed),
                       fontSize: 10,
                       height: 1,
                     ),
@@ -276,6 +278,8 @@ class ArcadeHero extends StatelessWidget {
           ),
         const SizedBox(height: 4),
         RichText(
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
           text: TextSpan(
             style: QuestTypography.displayLarge.copyWith(
               color: ink,
@@ -310,12 +314,16 @@ class ArcadeSectionHeader extends StatelessWidget {
       children: [
         Container(width: 20, height: 2, color: ink),
         const SizedBox(width: 8),
-        Text(
-          text.toUpperCase(),
-          style: QuestTypography.headlineSmall.copyWith(
-            color: ink,
-            fontSize: 14,
-            letterSpacing: 0.8,
+        Flexible(
+          child: Text(
+            text.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.headlineSmall.copyWith(
+              color: ink,
+              fontSize: 14,
+              letterSpacing: 0.8,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -334,7 +342,6 @@ class ArcadeStatTile extends StatelessWidget {
     required this.value,
     this.sublabel,
     required this.tint,
-    required this.onTint,
     this.icon,
   });
 
@@ -350,14 +357,15 @@ class ArcadeStatTile extends StatelessWidget {
   /// card background
   final Color tint;
 
-  /// text/icon colour on that tint
-  final Color onTint;
-
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
+    // Derived, never passed in: the ground decides the text colour, and the
+    // sublabel stays full-opacity because dimming ink on an accent fill
+    // drops it back under AA.
+    final onTint = QuestColors.onAccent(tint);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -374,6 +382,8 @@ class ArcadeStatTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label.toUpperCase(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: QuestTypography.labelSmall.copyWith(
                     color: onTint,
                     fontSize: 10,
@@ -381,25 +391,36 @@ class ArcadeStatTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (icon != null) Icon(icon, color: onTint, size: 16),
+              if (icon != null) ...[
+                const SizedBox(width: 4),
+                Icon(icon, color: onTint, size: 16),
+              ],
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: QuestTypography.displayLarge.copyWith(
-              color: onTint,
-              fontSize: 40,
-              height: 1,
-              letterSpacing: -0.5,
+          // Big numbers scale down rather than clip once they run long.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: QuestTypography.displayLarge.copyWith(
+                color: onTint,
+                fontSize: 40,
+                height: 1,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           if (sublabel != null) ...[
             const SizedBox(height: 2),
             Text(
               sublabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: QuestTypography.bodySmall.copyWith(
-                color: onTint.withAlpha(180),
+                color: QuestColors.onAccentSoft(tint),
                 fontSize: 11,
               ),
             ),
@@ -478,19 +499,24 @@ class ArcadeStreakCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           '$currentStreak',
+                          maxLines: 1,
                           style: QuestTypography.displayLarge.copyWith(
-                            color: QuestColors.softRed,
+                            color: QuestColors.osRedText,
                             fontSize: 30,
                             height: 1,
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            'days',
-                            style: QuestTypography.bodyMedium.copyWith(
-                              color: _inkSoft(context),
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              'days',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: QuestTypography.bodyMedium.copyWith(
+                                color: _inkSoft(context),
+                              ),
                             ),
                           ),
                         ),
@@ -499,24 +525,32 @@ class ArcadeStreakCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'LONGEST',
-                    style: QuestTypography.labelSmall.copyWith(
-                      color: _inkSoft(context),
-                      letterSpacing: 0.8,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'LONGEST',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.labelSmall.copyWith(
+                        color: _inkSoft(context),
+                        letterSpacing: 0.8,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '$longestStreak days',
-                    style: QuestTypography.headlineSmall.copyWith(
-                      color: ink,
-                      fontSize: 14,
+                    Text(
+                      '$longestStreak days',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: QuestTypography.headlineSmall.copyWith(
+                        color: ink,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -707,6 +741,8 @@ class _ArcadeSlotMachineState extends State<ArcadeSlotMachine>
                               widget.lockLabel != null
                                   ? 'LOCKED'
                                   : 'DAILY ROLL',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: QuestTypography.labelSmall.copyWith(
                                 color: QuestColors.accentYellow,
                                 fontSize: 10,
@@ -718,11 +754,16 @@ class _ArcadeSlotMachineState extends State<ArcadeSlotMachine>
                       ),
                       const Spacer(),
                       if (widget.resetsIn != null)
-                        Text(
-                          widget.resetsIn!,
-                          style: QuestTypography.bodySmall.copyWith(
-                            color: QuestColors.textPrimary.withAlpha(160),
-                            fontSize: 11,
+                        Flexible(
+                          child: Text(
+                            widget.resetsIn!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: QuestTypography.bodySmall.copyWith(
+                              color: QuestColors.textPrimary.withAlpha(160),
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                     ],
@@ -930,13 +971,18 @@ class _GenerateButtonState extends State<_GenerateButton> {
                 ),
               ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: QuestTypography.displayMedium.copyWith(
-                color: fg,
-                fontSize: 18,
-                letterSpacing: 0.5,
-                height: 1,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: QuestTypography.displayMedium.copyWith(
+                  color: fg,
+                  fontSize: 18,
+                  letterSpacing: 0.5,
+                  height: 1,
+                ),
               ),
             ),
           ],
@@ -1015,6 +1061,27 @@ class ArcadeQuestOption extends StatelessWidget {
     }
   }
 
+  /// The same category hue, darkened where the fill fails contrast as 9px
+  /// type on a cream/white chip. Sky has no darkened twin in the palette, so
+  /// it falls back to ink — the fill behind it still carries the colour.
+  Color _categoryTextColor() {
+    switch (category.toLowerCase()) {
+      case 'fitness':
+        return QuestColors.osRedText;
+      case 'learning':
+      case 'learn':
+        return QuestColors.osSuccessText;
+      case 'adventure':
+        return QuestColors.osAccentText;
+      case 'social':
+        return QuestColors.osTextPrimary;
+      case 'creativity':
+      case 'creative':
+      default:
+        return QuestColors.osPrimary;
+    }
+  }
+
   IconData _categoryIcon() {
     switch (category.toLowerCase()) {
       case 'fitness':
@@ -1069,7 +1136,7 @@ class ArcadeQuestOption extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(_categoryIcon(),
-                    color: QuestColors.osTextOnPrimary, size: 28),
+                    color: QuestColors.onAccent(_tileColor()), size: 28),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1085,8 +1152,10 @@ class ArcadeQuestOption extends StatelessWidget {
                       ),
                       child: Text(
                         category.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: QuestTypography.labelSmall.copyWith(
-                          color: _categoryColor(),
+                          color: _categoryTextColor(),
                           fontSize: 9,
                           letterSpacing: 0.8,
                         ),
@@ -1109,21 +1178,29 @@ class ArcadeQuestOption extends StatelessWidget {
                         Icon(Icons.timer_outlined,
                             size: 12, color: _inkSoft(context)),
                         const SizedBox(width: 3),
-                        Text(
-                          _timeStr(),
-                          style: QuestTypography.bodySmall.copyWith(
-                            color: _inkSoft(context),
-                            fontSize: 12,
+                        Flexible(
+                          child: Text(
+                            _timeStr(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: QuestTypography.bodySmall.copyWith(
+                              color: _inkSoft(context),
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         const Icon(Icons.bolt,
                             size: 12, color: QuestColors.osPrimary),
-                        Text(
-                          '+$xp XP',
-                          style: QuestTypography.headlineSmall.copyWith(
-                            color: QuestColors.osPrimary,
-                            fontSize: 12,
+                        Flexible(
+                          child: Text(
+                            '+$xp XP',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: QuestTypography.headlineSmall.copyWith(
+                              color: QuestColors.osPrimary,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],

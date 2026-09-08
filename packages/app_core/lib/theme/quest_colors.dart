@@ -155,6 +155,9 @@ abstract final class QuestColors {
   /// Gold as text on cream. `osAccent` measures 1.6:1 — nearly invisible.
   static const Color osAccentText = Color(0xFF8A5F09);
 
+  /// Sky as text on cream. `osCool` measures 1.9:1 and fails.
+  static const Color osCoolText = Color(0xFF0B6B8A);
+
   // ──────────────────────────────────────────────
   // CONTRAST — pick text by the ground it sits on
   // ──────────────────────────────────────────────
@@ -179,6 +182,20 @@ abstract final class QuestColors {
     return osTextPrimary;
   }
 
+  /// The readable twin of an accent used *as* text or an icon on cream.
+  ///
+  /// [onAccent] answers "what ink goes on this fill". This answers the
+  /// opposite question: the accent itself is the foreground, and at small
+  /// sizes on cream the fills fail — coral 2.9:1, jade 2.2:1, sky 1.9:1,
+  /// gold 1.6:1. Anything else passes through unchanged.
+  static Color onCream(Color accent) {
+    if (accent == osRed) return osRedText;
+    if (accent == osSuccess) return osSuccessText;
+    if (accent == osAccent) return osAccentText;
+    if (accent == osCool) return osCoolText;
+    return accent;
+  }
+
   /// Secondary text on [ground] — the same rule, softer only where the
   /// ground has the contrast headroom to allow it.
   ///
@@ -187,10 +204,12 @@ abstract final class QuestColors {
   /// On an accent, this returns full-opacity [onAccent] and lets size and
   /// weight carry the hierarchy instead.
   static Color onAccentSoft(Color ground) {
-    if (ground == osCard || ground == osBg || ground == osSurface)
+    if (ground == osCard || ground == osBg || ground == osSurface) {
       return osTextSecondary;
-    if (ground == darkBg || ground == darkCard || ground == darkSurface)
+    }
+    if (ground == darkBg || ground == darkCard || ground == darkSurface) {
       return textSecondary;
+    }
     return onAccent(ground);
   }
 

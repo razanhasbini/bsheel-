@@ -1,3 +1,4 @@
+import '../../../../design/bs_widgets.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,7 +118,6 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
                                 label: l.difficulty,
                                 value: quest.difficulty.toUpperCase(),
                                 tint: QuestColors.accentYellow,
-                                fgOnTint: ink,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -127,7 +127,6 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
                                 label: l.reward,
                                 value: '+${quest.xpReward} XP',
                                 tint: QuestColors.osPrimary,
-                                fgOnTint: QuestColors.osTextOnPrimary,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -138,8 +137,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
                                 value: timeLeft,
                                 tint: isActiveQuest
                                     ? QuestColors.softRed
-                                    : QuestColors.textMuted,
-                                fgOnTint: QuestColors.osTextOnPrimary,
+                                    : QuestColors.osTextMuted,
                               ),
                             ),
                           ],
@@ -270,22 +268,25 @@ class _TopBar extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () => safeBack(context),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: QuestColors.cardBg(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ink, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: ink,
-                    offset: const Offset(2, 3),
-                    blurRadius: 0,
-                  ),
-                ],
+            behavior: HitTestBehavior.opaque,
+            child: BsMinTouch(
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: QuestColors.cardBg(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ink, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ink,
+                      offset: const Offset(2, 3),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
               ),
-              child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
             ),
           ),
           const Spacer(),
@@ -433,18 +434,19 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.tint,
-    required this.fgOnTint,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color tint;
-  final Color fgOnTint;
 
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    // Derived from the fill: coral, jade and sky take ink, gold takes
+    // osAccentInk, violet takes white. Never alpha-muted on an accent.
+    final fgOnTint = QuestColors.onAccent(tint);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
@@ -465,8 +467,10 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             label.toUpperCase(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: QuestTypography.labelSmall.copyWith(
-              color: fgOnTint.withAlpha(204),
+              color: QuestColors.onAccentSoft(tint),
               fontSize: 8.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
@@ -578,13 +582,15 @@ class _BriefingCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.terminal_rounded,
-                    color: QuestColors.osTextOnPrimary, size: 11),
+                Icon(Icons.terminal_rounded,
+                    color: QuestColors.onAccent(QuestColors.softRed), size: 11),
                 const SizedBox(width: 5),
                 Text(
                   '> DECRYPTED INTEL',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: QuestTypography.labelSmall.copyWith(
-                    color: QuestColors.osTextOnPrimary,
+                    color: QuestColors.onAccent(QuestColors.softRed),
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1,
@@ -635,8 +641,8 @@ class _CriteriaItem extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 1.5),
             ),
-            child: const Icon(Icons.check_rounded,
-                color: QuestColors.osTextOnPrimary, size: 15),
+            child: Icon(Icons.check_rounded,
+                color: QuestColors.onAccent(QuestColors.softRed), size: 15),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -690,8 +696,9 @@ class _RequirementItem extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: isComplete
-                ? const Icon(Icons.check_rounded,
-                    color: QuestColors.osTextOnPrimary, size: 17)
+                ? Icon(Icons.check_rounded,
+                    color: QuestColors.onAccent(QuestColors.successGreen),
+                    size: 17)
                 : Text(
                     '$index',
                     style: QuestTypography.labelMedium.copyWith(
@@ -907,13 +914,17 @@ class _BottomActionBar extends StatelessWidget {
           children: [
             Icon(icon, size: 20, color: fg),
             const SizedBox(width: 10),
-            Text(
-              label,
-              style: QuestTypography.buttonText.copyWith(
-                color: fg,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.buttonText.copyWith(
+                  color: fg,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                ),
               ),
             ),
           ],

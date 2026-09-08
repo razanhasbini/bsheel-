@@ -2,6 +2,72 @@ import 'package:flutter/material.dart';
 
 import 'package:app_core/app_core.dart';
 
+// ── Touch targets ─────────────────────────────────────────────────────────────
+
+/// 44pt — the minimum touch target the design spec mandates (section 1,
+/// "44pt minimum on every touch target").
+///
+/// Not a mobile-only floor, as this once assumed: the admin spec mandates the
+/// same 44 for pointer input, because a moderator works a queue for hours.
+/// So the value lives in [QuestSpacing.minTouchTarget] and this is an alias.
+const double kMinTouchTarget = QuestSpacing.minTouchTarget;
+
+/// Grows the hit area of [child] to at least [kMinTouchTarget] on both axes
+/// while leaving the painted size untouched, so a deliberately small chip or
+/// icon stays visually small but is still comfortably tappable.
+///
+/// Wrap the *child* of the gesture detector, not the other way round:
+/// ```dart
+/// GestureDetector(
+///   onTap: ...,
+///   behavior: HitTestBehavior.opaque,
+///   child: const BsMinTouch(child: _TinyIcon()),
+/// )
+/// ```
+class BsMinTouch extends StatelessWidget {
+  const BsMinTouch({
+    super.key,
+    required this.child,
+    this.minWidth = kMinTouchTarget,
+    this.minHeight = kMinTouchTarget,
+  });
+
+  final Widget child;
+  final double minWidth;
+  final double minHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(minWidth: minWidth, minHeight: minHeight),
+      child: Center(widthFactor: 1, heightFactor: 1, child: child),
+    );
+  }
+}
+
+// ── Accent as type on cream ───────────────────────────────────────────────────
+
+/// Maps an accent *fill* to the darkened twin that is legible as small type
+/// on cream or white.
+///
+/// The Arcade Pop accents are tuned to be read as grounds with ink on top;
+/// used directly as text on cream they fall under 4.5:1 (coral 2.9:1, jade
+/// 2.2:1, gold 1.6:1). Violet and sky have no darkened twin in the palette,
+/// so violet passes as-is and sky falls back to ink.
+Color accentAsTextOnCream(Color accent) {
+  if (accent == QuestColors.osRed || accent == QuestColors.softRed) {
+    return QuestColors.osRedText;
+  }
+  if (accent == QuestColors.osSuccess || accent == QuestColors.successGreen) {
+    return QuestColors.osSuccessText;
+  }
+  if (accent == QuestColors.osAccent || accent == QuestColors.accentYellow) {
+    return QuestColors.osAccentText;
+  }
+  if (accent == QuestColors.osCool) return QuestColors.osTextPrimary;
+  return accent;
+}
+
 // ── ChunkyCard ────────────────────────────────────────────────────────────────
 
 class ChunkyCard extends StatelessWidget {
@@ -123,15 +189,20 @@ class _ChunkyButtonState extends State<ChunkyButton> {
             widget.leading!,
             const SizedBox(width: 10)
           ],
-          Text(
-            widget.label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'Syne',
-              fontVariations: const [FontVariation('wght', 800)],
-              fontWeight: FontWeight.w800,
-              fontSize: widget.fontSize,
-              letterSpacing: 0.3,
-              color: fg,
+          Flexible(
+            child: Text(
+              widget.label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Syne',
+                fontVariations: const [FontVariation('wght', 800)],
+                fontWeight: FontWeight.w800,
+                fontSize: widget.fontSize,
+                letterSpacing: 0.3,
+                color: fg,
+              ),
             ),
           ),
         ],
@@ -178,15 +249,19 @@ class BsChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (leading != null) ...[leading!, const SizedBox(width: 6)],
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'DMSans',
-              fontVariations: const [FontVariation('wght', 500)],
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-              color: fg ?? QuestColors.osPrimary,
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'DMSans',
+                fontVariations: const [FontVariation('wght', 500)],
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+                color: fg ?? QuestColors.osPrimary,
+              ),
             ),
           ),
         ],
@@ -261,14 +336,18 @@ class BsSectionHeader extends StatelessWidget {
       child: Row(children: [
         Container(width: 20, height: 2, color: QuestColors.osTextPrimary),
         const SizedBox(width: 8),
-        Text(label,
-            style: const TextStyle(
-                fontFamily: 'Syne',
-                fontVariations: [FontVariation('wght', 800)],
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: QuestColors.osTextPrimary,
-                letterSpacing: 0.5)),
+        Flexible(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontFamily: 'Syne',
+                  fontVariations: [FontVariation('wght', 800)],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: QuestColors.osTextPrimary,
+                  letterSpacing: 0.5)),
+        ),
         const SizedBox(width: 8),
         Flexible(
             child: Container(
@@ -311,8 +390,11 @@ class BsSegBar extends StatelessWidget {
         return Expanded(
             child: GestureDetector(
           onTap: () => onChange(o),
+          behavior: HitTestBehavior.opaque,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
+            constraints:
+                BoxConstraints(minHeight: small ? 36 : kMinTouchTarget),
             padding: EdgeInsets.symmetric(vertical: small ? 6 : 10),
             decoration: BoxDecoration(
               color: active ? QuestColors.osTextPrimary : Colors.transparent,
@@ -320,6 +402,8 @@ class BsSegBar extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(o.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Syne',
                   fontVariations: const [FontVariation('wght', 800)],
@@ -347,34 +431,38 @@ class BsToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 48,
-        height: 28,
-        decoration: BoxDecoration(
-          color: value ? QuestColors.osPrimary : QuestColors.osSurface,
-          border: Border.all(
-              color: QuestColors.osTextPrimary,
-              width: QuestSpacing.cardBorderWidth),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Stack(children: [
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 150),
-            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(
-              margin: const EdgeInsets.all(2),
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: QuestColors.osAccent,
-                border:
-                    Border.all(color: QuestColors.osTextPrimary, width: 1.5),
-                borderRadius: BorderRadius.circular(10),
+      behavior: HitTestBehavior.opaque,
+      child: BsMinTouch(
+        minWidth: 48,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 48,
+          height: 28,
+          decoration: BoxDecoration(
+            color: value ? QuestColors.osPrimary : QuestColors.osSurface,
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Stack(children: [
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 150),
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: QuestColors.osAccent,
+                  border:
+                      Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       ),
     );
   }

@@ -47,7 +47,7 @@ class _WebQuestSuggestionsPageState
               const SizedBox(height: 14),
               BsheelDisplay(
                 'Community quest {ideas.}',
-                baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                baseStyle: BsheelType.hero(context),
               ),
               const SizedBox(height: 12),
               Text(
@@ -74,7 +74,10 @@ class _WebQuestSuggestionsPageState
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
-                style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+                textAlign: TextAlign.center,
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onCream(BsheelColors.danger),
+                ),
               ),
             ),
             data: (rows) {
@@ -165,7 +168,7 @@ class _WebQuestSuggestionsPageState
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: BsheelColors.success,
-              foregroundColor: BsheelColors.pureBlack,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.success),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(BsheelRadii.sm),
               ),
@@ -173,7 +176,9 @@ class _WebQuestSuggestionsPageState
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'APPROVE',
-              style: BsheelType.labelSm.copyWith(color: BsheelColors.pureBlack),
+              style: BsheelType.labelSm.copyWith(
+                color: BsheelColors.onAccent(BsheelColors.primary),
+              ),
             ),
           ),
         ],
@@ -259,7 +264,9 @@ class _FilterTabs extends StatelessWidget {
             t.$2,
             style: BsheelType.labelSm.copyWith(
               letterSpacing: 1.2,
-              color: selected ? BsheelColors.ink : BsheelColors.inkMuted,
+              color: selected
+                  ? BsheelColors.onAccent(BsheelColors.accent)
+                  : BsheelColors.inkSoft,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
@@ -381,12 +388,16 @@ class _SuggestionCard extends StatelessWidget {
                   label: Text(
                     'REJECT',
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.hot,
+                      color: BsheelColors.onCream(BsheelColors.danger),
                       letterSpacing: 1.2,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: BsheelColors.hot, width: 1),
+                    foregroundColor: BsheelColors.onCream(BsheelColors.danger),
+                    side: const BorderSide(
+                      color: BsheelColors.danger,
+                      width: BsheelBorders.thin,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(BsheelRadii.sm),
                     ),
@@ -399,13 +410,14 @@ class _SuggestionCard extends StatelessWidget {
                   label: Text(
                     'APPROVE',
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.pureBlack,
+                      color: BsheelColors.onAccent(BsheelColors.success),
                       letterSpacing: 1.2,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: BsheelColors.success,
-                    foregroundColor: BsheelColors.pureBlack,
+                    foregroundColor:
+                        BsheelColors.onAccent(BsheelColors.success),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(BsheelRadii.sm),
                     ),
@@ -431,10 +443,18 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Coral, jade and gold grounds all take ink — `onAccent` decides,
+    // never the call site. White on coral measures 3.03:1 and fails.
     final (Color bg, Color fg) = switch (status) {
-      'approved' => (BsheelColors.success, BsheelColors.pureBlack),
-      'rejected' => (BsheelColors.hot, BsheelColors.paper),
-      _ => (BsheelColors.accent, BsheelColors.ink),
+      'approved' => (
+          BsheelColors.success,
+          BsheelColors.onAccent(BsheelColors.success),
+        ),
+      'rejected' => (
+          BsheelColors.danger,
+          BsheelColors.onAccent(BsheelColors.danger),
+        ),
+      _ => (BsheelColors.accent, BsheelColors.onAccent(BsheelColors.accent)),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -445,6 +465,8 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: BsheelType.labelSm.copyWith(
           color: fg,
           letterSpacing: 1.2,
@@ -471,8 +493,11 @@ class _Chip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: BsheelType.labelSm.copyWith(
-          color: color,
+          // The chip fill is a 16% tint, so the label reads on cream.
+          color: BsheelColors.onCream(color),
           letterSpacing: 1.2,
           fontWeight: FontWeight.w700,
         ),

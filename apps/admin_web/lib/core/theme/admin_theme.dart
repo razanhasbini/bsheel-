@@ -19,14 +19,15 @@ abstract final class AdminTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: BsheelColors.bg,
       canvasColor: BsheelColors.bg,
-      colorScheme: const ColorScheme.light(
+      colorScheme: ColorScheme.light(
         primary: BsheelColors.ink,
-        onPrimary: BsheelColors.pureWhite,
+        onPrimary: BsheelColors.onAccent(BsheelColors.ink),
         secondary: BsheelColors.inkSoft,
-        onSecondary: BsheelColors.pureWhite,
+        onSecondary: BsheelColors.onAccent(BsheelColors.inkSoft),
         tertiary: BsheelColors.inkMuted,
         error: BsheelColors.error,
-        onError: BsheelColors.pureWhite,
+        // Ink, not white: white on coral is 3.03:1 and fails AA.
+        onError: BsheelColors.onAccent(BsheelColors.danger),
         surface: BsheelColors.paper,
         onSurface: BsheelColors.ink,
         outline: BsheelColors.line,
@@ -75,7 +76,8 @@ abstract final class AdminTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: BsheelColors.ink,
-          foregroundColor: BsheelColors.pureWhite,
+          foregroundColor: BsheelColors.onAccent(BsheelColors.ink),
+          minimumSize: const Size(64, BsheelLayout.minTarget),
           textStyle: const TextStyle(
             fontFamily: BsheelFonts.body,
             fontWeight: FontWeight.w400,
@@ -106,13 +108,20 @@ abstract final class AdminTheme {
             color: BsheelColors.ink,
             width: BsheelBorders.thin,
           ),
+          minimumSize: const Size(64, BsheelLayout.minTarget),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: BsheelColors.ink),
+        style: TextButton.styleFrom(
+          foregroundColor: BsheelColors.ink,
+          minimumSize: const Size(48, BsheelLayout.minTarget),
+        ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(foregroundColor: BsheelColors.ink),
+        style: IconButton.styleFrom(
+          foregroundColor: BsheelColors.ink,
+          minimumSize: const Size.square(BsheelLayout.minTarget),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -127,15 +136,24 @@ abstract final class AdminTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(color: BsheelColors.hot, width: 1),
+          borderSide: const BorderSide(
+            color: BsheelColors.danger,
+            width: BsheelBorders.thin,
+          ),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),
-          borderSide: const BorderSide(color: BsheelColors.hot, width: 1),
+          borderSide: const BorderSide(
+            color: BsheelColors.danger,
+            width: BsheelBorders.thin,
+          ),
         ),
         hintStyle: BsheelType.bodyMd.copyWith(color: BsheelColors.inkMuted),
         labelStyle: BsheelType.labelMd.copyWith(color: BsheelColors.inkSoft),
-        errorStyle: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+        errorStyle: BsheelType.bodySm.copyWith(
+          color: BsheelColors.onCream(BsheelColors.danger),
+        ),
+        constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
       ),
       dividerTheme: const DividerThemeData(
         color: BsheelColors.line,
@@ -144,8 +162,8 @@ abstract final class AdminTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: BsheelColors.ink,
-        contentTextStyle:
-            BsheelType.bodyMd.copyWith(color: BsheelColors.pureWhite),
+        contentTextStyle: BsheelType.bodyMd
+            .copyWith(color: BsheelColors.onAccent(BsheelColors.ink)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BsheelRadii.md),

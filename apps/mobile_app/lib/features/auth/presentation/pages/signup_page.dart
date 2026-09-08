@@ -284,7 +284,7 @@ class _SignupPageState extends ConsumerState<SignupPage>
                           child: Text(
                             _ageError!,
                             style: QuestTypography.bodySmall.copyWith(
-                              color: QuestColors.softRed,
+                              color: QuestColors.osRedText,
                             ),
                           ),
                         ),

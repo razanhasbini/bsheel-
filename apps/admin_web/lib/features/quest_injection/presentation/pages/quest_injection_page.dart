@@ -133,9 +133,9 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.lock_outline,
-                    color: BsheelColors.hot,
+                    color: BsheelColors.onCream(BsheelColors.danger),
                     size: 20,
                   ),
                   const SizedBox(width: QuestSpacing.sm),
@@ -167,7 +167,7 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               const SizedBox(height: 14),
               BsheelDisplay(
                 'Inject a {quest.}',
-                baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                baseStyle: BsheelType.hero(context),
               ),
               const SizedBox(height: 12),
               Text(
@@ -258,7 +258,9 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               ),
               error: (e, _) => Text(
                 'Error: $e',
-                style: const TextStyle(color: BsheelColors.hot),
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onCream(BsheelColors.danger),
+                ),
               ),
               data: (users) {
                 final filtered = _userSearch.isEmpty
@@ -436,23 +438,25 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                   alignment: Alignment.centerRight,
                   child: ElevatedButton.icon(
                     icon: _injectingQuest
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: BsheelColors.pureBlack,
+                              color:
+                                  BsheelColors.onAccent(BsheelColors.primary),
                             ),
                           )
                         : const Icon(Icons.send, size: 16),
                     label: Text(
                       'INJECT QUEST',
-                      style: BsheelType.labelSm
-                          .copyWith(color: BsheelColors.pureBlack),
+                      style: BsheelType.labelSm.copyWith(
+                          color: BsheelColors.onAccent(BsheelColors.primary)),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: BsheelColors.primary,
-                      foregroundColor: BsheelColors.pureBlack,
+                      foregroundColor:
+                          BsheelColors.onAccent(BsheelColors.primary),
                       padding: const EdgeInsets.symmetric(
                         horizontal: QuestSpacing.lg,
                         vertical: QuestSpacing.sm,
@@ -480,7 +484,9 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
             ),
             error: (e, _) => Text(
               'Error: $e',
-              style: const TextStyle(color: BsheelColors.hot),
+              style: BsheelType.bodySm.copyWith(
+                color: BsheelColors.onCream(BsheelColors.danger),
+              ),
             ),
             data: (rows) {
               if (rows.isEmpty) {
@@ -523,9 +529,10 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
                             ),
                             IconButton(
                               tooltip: 'Cancel injection',
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.delete_outline,
-                                color: BsheelColors.hot,
+                                color:
+                                    BsheelColors.onCream(BsheelColors.danger),
                                 size: 18,
                               ),
                               onPressed: () => _cancelInjection(r),
@@ -652,23 +659,23 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(
                 icon: _sendingNotif
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: BsheelColors.pureBlack,
+                          color: BsheelColors.onAccent(BsheelColors.primary),
                         ),
                       )
                     : const Icon(Icons.notifications_active, size: 16),
                 label: Text(
                   'SEND NOTIFICATION',
-                  style: BsheelType.labelSm
-                      .copyWith(color: BsheelColors.pureBlack),
+                  style: BsheelType.labelSm.copyWith(
+                      color: BsheelColors.onAccent(BsheelColors.primary)),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: BsheelColors.primary,
-                  foregroundColor: BsheelColors.pureBlack,
+                  foregroundColor: BsheelColors.onAccent(BsheelColors.primary),
                   padding: const EdgeInsets.symmetric(
                     horizontal: QuestSpacing.lg,
                     vertical: QuestSpacing.sm,
@@ -719,8 +726,16 @@ class _QuestInjectionPageState extends ConsumerState<QuestInjectionPage>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? BsheelColors.hot : BsheelColors.paper,
+        content: Text(
+          msg,
+          // The snack ground is coral on an error: ink, never white.
+          style: BsheelType.bodyMd.copyWith(
+            color: BsheelColors.onAccent(
+              isError ? BsheelColors.danger : BsheelColors.paper,
+            ),
+          ),
+        ),
+        backgroundColor: isError ? BsheelColors.danger : BsheelColors.paper,
       ),
     );
   }

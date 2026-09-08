@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_contracts/app_contracts.dart';
+import 'package:shared_ui/shared_ui.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/router/safe_back.dart';
 import '../../data/quest_providers.dart';
@@ -36,34 +38,41 @@ class QuestHistoryPage extends ConsumerWidget {
                 children: [
                   GestureDetector(
                     onTap: () => safeBack(context),
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: ink, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ink,
-                            offset: const Offset(2, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
+                    behavior: HitTestBehavior.opaque,
+                    child: BsMinTouch(
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: QuestColors.cardBg(context),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: ink, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: ink,
+                              offset: const Offset(2, 3),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.arrow_back_rounded,
+                            color: ink, size: 20),
                       ),
-                      child:
-                          Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    AppLocalizations.of(context)!.questHistoryTitle,
-                    style: QuestTypography.headlineSmall.copyWith(
-                      color: ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                      height: 1,
+                  Flexible(
+                    child: Text(
+                      AppLocalizations.of(context)!.questHistoryTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.headlineSmall.copyWith(
+                        color: ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                        height: 1,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -141,7 +150,7 @@ class QuestHistoryPage extends ConsumerWidget {
                                 child: _ArcadeCountTile(
                                   label: 'EXPIRED',
                                   value: expired,
-                                  tint: QuestColors.textMuted,
+                                  tint: QuestColors.osTextMuted,
                                 ),
                               ),
                             ],
@@ -170,6 +179,16 @@ class QuestHistoryPage extends ConsumerWidget {
                                 difficulty: quest?.difficulty ?? '',
                                 xpReward: quest?.xpReward ?? 0,
                                 status: uq.status,
+                                appealAvailable: uq.appealAvailable,
+                                // Routes on the user_quest id, the same
+                                // parameter the notification tap and the
+                                // QOTD stub already use.
+                                onAppeal: uq.appealAvailable
+                                    ? () => context.pushNamed(
+                                          RouteNames.submissionStatus,
+                                          pathParameters: {'id': uq.id},
+                                        )
+                                    : null,
                                 onTap: quest != null
                                     ? () => context.pushNamed(
                                           RouteNames.questDetails,
@@ -226,6 +245,7 @@ class _ArcadeCountTileState extends State<_ArcadeCountTile>
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final onTint = QuestColors.onAccent(widget.tint);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
@@ -250,8 +270,9 @@ class _ArcadeCountTileState extends State<_ArcadeCountTile>
                       .round();
               return Text(
                 '$v',
+                maxLines: 1,
                 style: QuestTypography.headlineLarge.copyWith(
-                  color: QuestColors.osTextOnPrimary,
+                  color: onTint,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   height: 1,
@@ -262,8 +283,10 @@ class _ArcadeCountTileState extends State<_ArcadeCountTile>
           const SizedBox(height: 4),
           Text(
             widget.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: QuestTypography.labelSmall.copyWith(
-              color: QuestColors.osTextOnPrimary,
+              color: QuestColors.onAccentSoft(widget.tint),
               fontSize: 9,
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
@@ -285,6 +308,8 @@ class _ArcadeHistoryCard extends StatelessWidget {
     required this.xpReward,
     required this.status,
     this.onTap,
+    this.appealAvailable = false,
+    this.onAppeal,
   });
 
   final String title;
@@ -293,6 +318,12 @@ class _ArcadeHistoryCard extends StatelessWidget {
   final int xpReward;
   final String status;
   final VoidCallback? onTap;
+
+  /// Server-computed: this rejection has not been appealed yet.
+  final bool appealAvailable;
+
+  /// Opens the appeal flow. Null disables the affordance entirely.
+  final VoidCallback? onAppeal;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +355,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  constraints: const BoxConstraints(maxWidth: 130),
                   decoration: BoxDecoration(
                     color: statusColor,
                     borderRadius: BorderRadius.circular(8),
@@ -331,8 +363,10 @@ class _ArcadeHistoryCard extends StatelessWidget {
                   ),
                   child: Text(
                     statusLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: QuestTypography.labelSmall.copyWith(
-                      color: QuestColors.osTextOnPrimary,
+                      color: QuestColors.onAccent(statusColor),
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
@@ -341,27 +375,32 @@ class _ArcadeHistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 if (category.isNotEmpty)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: QuestColors.osPrimary.withAlpha(40),
-                      borderRadius: BorderRadius.circular(8),
-                      border:
-                          Border.all(color: QuestColors.osPrimary, width: 1.5),
-                    ),
-                    child: Text(
-                      category.toUpperCase(),
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: QuestColors.osPrimary,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: QuestColors.osPrimary.withAlpha(40),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: QuestColors.osPrimary, width: 1.5),
+                      ),
+                      child: Text(
+                        category.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: QuestTypography.labelSmall.copyWith(
+                          color: QuestColors.osPrimary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
                       ),
                     ),
                   ),
                 const Spacer(),
-                if (xpReward > 0)
+                if (xpReward > 0) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -372,14 +411,16 @@ class _ArcadeHistoryCard extends StatelessWidget {
                     ),
                     child: Text(
                       '+$xpReward XP',
+                      maxLines: 1,
                       style: QuestTypography.labelSmall.copyWith(
-                        color: ink,
+                        color: QuestColors.onAccent(QuestColors.accentYellow),
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.4,
                       ),
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 10),
@@ -406,6 +447,47 @@ class _ArcadeHistoryCard extends StatelessWidget {
                 ),
               ),
             ],
+
+            // The durable route into the appeal flow.
+            //
+            // The other three ways to reach `submission_status_page` are all
+            // transient: a notification tap, the Quest-of-the-Day stub while
+            // it is today's quest, and the moment just after submitting. If
+            // push delivery fails, a rejected user has no way to find their
+            // appeal at all — and history is the one place they will look.
+            //
+            // Only rendered when the server says the appeal is unspent, so
+            // the label is a promise the API will keep.
+            if (appealAvailable && onAppeal != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '1 APPEAL AVAILABLE',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.labelSmall.copyWith(
+                        // Coral as small type on cream fails contrast; the
+                        // text-only twin is what passes.
+                        color: QuestColors.osRedText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ArcadeButton(
+                    label: 'APPEAL',
+                    variant: ArcadeButtonVariant.danger,
+                    size: ArcadeButtonSize.small,
+                    expand: false,
+                    onTap: onAppeal,
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -419,7 +501,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
       case UserQuestStatus.rejected:
         return ('REJECTED', QuestColors.softRed);
       case UserQuestStatus.expired:
-        return ('EXPIRED', QuestColors.textMuted);
+        return ('EXPIRED', QuestColors.osTextMuted);
       case UserQuestStatus.submitted:
         return ('IN REVIEW', QuestColors.accentYellow);
       default:
@@ -521,8 +603,8 @@ class _ErrorState extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(Icons.error_outline,
-                color: QuestColors.osTextOnPrimary, size: 36),
+            child: Icon(Icons.error_outline,
+                color: QuestColors.onAccent(QuestColors.softRed), size: 36),
           ),
         ),
         const SizedBox(height: 16),

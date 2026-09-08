@@ -15,10 +15,9 @@ import 'package:app_core/app_core.dart';
 
 /// The minimum comfortable touch target, in logical pixels.
 ///
-/// Apple's HIG and Material both land on ~44; the design spec makes it a hard
-/// floor on *every* control. Applied to the hit area, so a control can still
-/// look small while being comfortably tappable.
-const double kArcadeMinTouchTarget = 44;
+/// Alias for [QuestSpacing.minTouchTarget], which is the single definition.
+/// Kept as a name because the primitives below read better with it.
+const double kArcadeMinTouchTarget = QuestSpacing.minTouchTarget;
 
 /// Button variant. Drives the fill colour + foreground colour.
 enum ArcadeButtonVariant {

@@ -56,7 +56,7 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
               const SizedBox(height: 14),
               BsheelDisplay(
                 'Curate the {feed.}',
-                baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                baseStyle: BsheelType.hero(context),
               ),
               const SizedBox(height: 12),
               Text(
@@ -107,8 +107,9 @@ class _FeedManagementPageState extends ConsumerState<FeedManagementPage> {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
+                textAlign: TextAlign.center,
                 style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.hot,
+                  color: BsheelColors.onCream(BsheelColors.danger),
                 ),
               ),
             ),
@@ -320,11 +321,17 @@ class _FeedPostTile extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          '@$username',
-                          style: BsheelType.bodyMd.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: BsheelColors.ink,
+                        // A long handle has to clamp, not push the quest
+                        // chip out of the row.
+                        Flexible(
+                          child: Text(
+                            '@$username',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: BsheelType.bodyMd.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: BsheelColors.ink,
+                            ),
                           ),
                         ),
                         if (questTitle.isNotEmpty) ...[
@@ -346,8 +353,11 @@ class _FeedPostTile extends ConsumerWidget {
                               ),
                               child: Text(
                                 questTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: BsheelType.labelSm.copyWith(
-                                  color: BsheelColors.cool,
+                                  color:
+                                      BsheelColors.onCream(BsheelColors.cool),
                                   fontSize: 10,
                                 ),
                               ),
@@ -385,7 +395,10 @@ class _FeedPostTile extends ConsumerWidget {
                   color: BsheelColors.inkMuted, size: 20),
               const SizedBox(width: QuestSpacing.xs),
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: BsheelColors.hot),
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: BsheelColors.onCream(BsheelColors.danger),
+                ),
                 tooltip: 'Remove from feed',
                 onPressed: onRemove,
               ),
@@ -439,13 +452,16 @@ class _FeedPostTile extends ConsumerWidget {
                   // Header
                   Row(
                     children: [
-                      Text(
-                        'POST DETAILS',
-                        style: BsheelType.displaySm.copyWith(
-                          color: BsheelColors.ink,
+                      Expanded(
+                        child: Text(
+                          'POST DETAILS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: BsheelType.displaySm.copyWith(
+                            color: BsheelColors.ink,
+                          ),
                         ),
                       ),
-                      const Spacer(),
                       IconButton(
                         icon: const Icon(Icons.close,
                             color: BsheelColors.inkMuted),
@@ -463,48 +479,59 @@ class _FeedPostTile extends ConsumerWidget {
                         child: Text(
                           username.isNotEmpty ? username[0].toUpperCase() : '?',
                           style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.cool,
+                            color: BsheelColors.onCream(BsheelColors.cool),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                       const SizedBox(width: QuestSpacing.sm),
-                      Text(
-                        '@$username',
-                        style: BsheelType.bodyMd.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: BsheelColors.ink,
+                      Flexible(
+                        child: Text(
+                          '@$username',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: BsheelType.bodyMd.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: BsheelColors.ink,
+                          ),
                         ),
                       ),
                       if (questTitle.isNotEmpty) ...[
                         const SizedBox(width: QuestSpacing.sm),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: QuestSpacing.sm,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: BsheelColors.cool.withAlpha(30),
-                            borderRadius:
-                                BorderRadius.circular(BsheelRadii.full),
-                            border: Border.all(
-                                color: BsheelColors.cool.withAlpha(80)),
-                          ),
-                          child: Text(
-                            questTitle,
-                            style: BsheelType.labelSm.copyWith(
-                              color: BsheelColors.cool,
-                              fontSize: 10,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: QuestSpacing.sm,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: BsheelColors.cool.withAlpha(30),
+                              borderRadius:
+                                  BorderRadius.circular(BsheelRadii.full),
+                              border: Border.all(
+                                  color: BsheelColors.cool.withAlpha(80)),
+                            ),
+                            child: Text(
+                              questTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: BsheelType.labelSm.copyWith(
+                                color: BsheelColors.onCream(BsheelColors.cool),
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),
                       ],
-                      const Spacer(),
+                      const SizedBox(width: QuestSpacing.sm),
                       if (submittedAt != null)
                         Text(
-                          '${submittedAt.year}-${submittedAt.month.toString().padLeft(2, '0')}-${submittedAt.day.toString().padLeft(2, '0')}',
+                          '${submittedAt.year}-'
+                          '${submittedAt.month.toString().padLeft(2, '0')}-'
+                          '${submittedAt.day.toString().padLeft(2, '0')}',
+                          maxLines: 1,
                           style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkMuted,
+                            color: BsheelColors.inkSoft,
                           ),
                         ),
                     ],
@@ -591,8 +618,12 @@ class _FeedPostTile extends ConsumerWidget {
                                       children: [
                                         Text(
                                           '@$cUsername',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: BsheelType.labelSm.copyWith(
-                                            color: BsheelColors.cool,
+                                            color: BsheelColors.onCream(
+                                              BsheelColors.cool,
+                                            ),
                                             fontWeight: FontWeight.bold,
                                             fontSize: 11,
                                           ),

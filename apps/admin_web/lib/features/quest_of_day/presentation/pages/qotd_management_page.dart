@@ -121,8 +121,8 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: BsheelColors.hot,
-              foregroundColor: BsheelColors.pureWhite,
+              backgroundColor: BsheelColors.danger,
+              foregroundColor: BsheelColors.onAccent(BsheelColors.danger),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('DELETE'),
@@ -189,7 +189,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Stack a {ticket} per day.',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -232,7 +232,9 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
                 if (snap.hasError) {
                   return Text(
                     'Error loading entries: ${snap.error}',
-                    style: const TextStyle(color: BsheelColors.hot),
+                    style: BsheelType.bodySm.copyWith(
+                      color: BsheelColors.onCream(BsheelColors.danger),
+                    ),
                   );
                 }
                 final entries = snap.data ?? const <_QotdEntry>[];
@@ -382,16 +384,19 @@ class _QotdRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          SizedBox(
-            width: 110,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
             child: Text(
               dateStr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: BsheelType.labelMd.copyWith(
                 color: BsheelColors.ink,
                 letterSpacing: 0.8,
               ),
             ),
           ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +434,9 @@ class _QotdRow extends StatelessWidget {
             onPressed: onDelete,
             child: Text(
               'DELETE',
-              style: BsheelType.labelMd.copyWith(color: BsheelColors.hot),
+              style: BsheelType.labelMd.copyWith(
+                color: BsheelColors.onCream(BsheelColors.danger),
+              ),
             ),
           ),
         ],
@@ -515,8 +522,8 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
         widget.existing == null ? 'QUEUE NEW QOTD' : 'EDIT QOTD',
         style: const TextStyle(color: BsheelColors.ink, letterSpacing: 1.5),
       ),
-      content: SizedBox(
-        width: 520,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

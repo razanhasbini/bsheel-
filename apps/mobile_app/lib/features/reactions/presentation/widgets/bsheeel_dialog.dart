@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../providers/reaction_controller.dart';
@@ -238,6 +239,8 @@ class _ConfirmTakeQuestDialog extends StatelessWidget {
                     onTap: () => Navigator.pop(context, true),
                     behavior: HitTestBehavior.opaque,
                     child: Container(
+                      constraints:
+                          const BoxConstraints(minHeight: kMinTouchTarget),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
                         color: QuestColors.successGreen,
@@ -254,8 +257,10 @@ class _ConfirmTakeQuestDialog extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Text(
                         'YES',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: QuestTypography.labelMedium.copyWith(
-                          color: QuestColors.osTextOnPrimary,
+                          color: QuestColors.onAccent(QuestColors.successGreen),
                           letterSpacing: 1.2,
                         ),
                       ),

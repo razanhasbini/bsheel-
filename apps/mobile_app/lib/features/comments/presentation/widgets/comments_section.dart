@@ -7,6 +7,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:shared_ui/shared_ui.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/backend/app_backend.dart';
@@ -238,11 +239,15 @@ class _CommentTile extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        timeAgo(comment.createdAt),
-                        style: QuestTypography.labelSmall.copyWith(
-                          color: QuestColors.text(context).withAlpha(120),
-                          fontSize: 9,
+                      Flexible(
+                        child: Text(
+                          timeAgo(comment.createdAt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: QuestTypography.labelSmall.copyWith(
+                            color: QuestColors.text(context).withAlpha(120),
+                            fontSize: 9,
+                          ),
                         ),
                       ),
                     ],
@@ -253,17 +258,22 @@ class _CommentTile extends ConsumerWidget {
                     isReply: isReply,
                   ),
                   if (onReplyTap != null && !isReply)
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onReplyTap!(comment),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'REPLY',
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.textDim(context),
-                            fontSize: 10,
-                            letterSpacing: 1,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onReplyTap!(comment),
+                        child: BsMinTouch(
+                          minWidth: 56,
+                          child: Text(
+                            'REPLY',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: QuestTypography.labelSmall.copyWith(
+                              color: QuestColors.textDim(context),
+                              fontSize: 10,
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
                       ),

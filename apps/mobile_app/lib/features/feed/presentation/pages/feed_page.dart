@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_contracts/app_contracts.dart';
 
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/services/analytics_service.dart';
@@ -417,14 +418,14 @@ class _FeedScopeTabs extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
-        _tab(label: 'Following', key: feedScopeFollowing),
+        Flexible(child: _tab(label: 'Following', key: feedScopeFollowing)),
         const SizedBox(width: 16),
         Container(
             width: 0.5,
             height: 14,
             color: QuestColors.textPrimary.withAlpha(120)),
         const SizedBox(width: 16),
-        _tab(label: 'For You', key: feedScopeGlobal),
+        Flexible(child: _tab(label: 'For You', key: feedScopeGlobal)),
       ],
     );
   }
@@ -437,33 +438,41 @@ class _FeedScopeTabs extends StatelessWidget {
         onChange(key);
       },
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: active
-                  ? QuestColors.textPrimary
-                  : QuestColors.textPrimary.withAlpha(160),
-              fontSize: 15,
-              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              shadows: const [
-                Shadow(color: Colors.black54, blurRadius: 6),
-              ],
+      child: BsMinTouch(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: active
+                    ? QuestColors.textPrimary
+                    : QuestColors.textPrimary.withAlpha(160),
+                fontSize: 15,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                shadows: [
+                  Shadow(
+                    color: QuestColors.pureBlack
+                        .withAlpha(QuestColors.alphaInkSoft),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: active ? 18 : 0,
-            height: 2.5,
-            decoration: BoxDecoration(
-              color: QuestColors.textPrimary,
-              borderRadius: BorderRadius.circular(2),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: active ? 18 : 0,
+              height: 2.5,
+              decoration: BoxDecoration(
+                color: QuestColors.textPrimary,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -487,8 +496,8 @@ class _IconAction extends StatelessWidget {
     return _PressableScale(
       onTap: onTap,
       child: SizedBox(
-        width: 32,
-        height: 32,
+        width: kMinTouchTarget,
+        height: kMinTouchTarget,
         child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.center,
@@ -497,15 +506,19 @@ class _IconAction extends StatelessWidget {
               icon,
               color: QuestColors.textPrimary,
               size: 24,
-              shadows: const [
+              shadows: [
                 Shadow(
-                    color: Colors.black54, blurRadius: 8, offset: Offset(0, 1)),
+                  color:
+                      QuestColors.pureBlack.withAlpha(QuestColors.alphaInkSoft),
+                  blurRadius: 8,
+                  offset: const Offset(0, 1),
+                ),
               ],
             ),
             if (badge)
               Positioned(
-                top: -1,
-                right: -1,
+                top: 9,
+                right: 9,
                 child: Container(
                   width: 8,
                   height: 8,
@@ -624,8 +637,8 @@ class _ErrorState extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: QuestColors.pureWhite, width: 2.5),
                 ),
-                child: const Icon(Icons.error_outline,
-                    color: QuestColors.osTextOnPrimary, size: 36),
+                child: Icon(Icons.error_outline,
+                    color: QuestColors.onAccent(QuestColors.softRed), size: 36),
               ),
               const SizedBox(height: QuestSpacing.lg),
               Text(
@@ -638,7 +651,10 @@ class _ErrorState extends StatelessWidget {
               const SizedBox(height: QuestSpacing.md),
               GestureDetector(
                 onTap: onRetry,
+                behavior: HitTestBehavior.opaque,
                 child: Container(
+                  constraints: const BoxConstraints(minHeight: kMinTouchTarget),
+                  alignment: Alignment.center,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                   decoration: BoxDecoration(
@@ -648,6 +664,8 @@ class _ErrorState extends StatelessWidget {
                   ),
                   child: Text(
                     l.retry.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: QuestColors.pureBlack,
                       fontSize: 13,

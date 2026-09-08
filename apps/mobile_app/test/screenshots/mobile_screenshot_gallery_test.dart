@@ -112,7 +112,8 @@ void main() {
 
         // Engine image encoding and filesystem I/O complete outside the
         // widget test's fake clock. Awaiting them there can hang the gallery.
-        await tester.runAsync(() => _saveScreenshot(key, outputDir, screen.name));
+        await tester
+            .runAsync(() => _saveScreenshot(key, outputDir, screen.name));
         manifest.add('${screen.name}.png -> ${screen.path}');
       } catch (error, stackTrace) {
         failures.add('${screen.name}: $error\n$stackTrace');

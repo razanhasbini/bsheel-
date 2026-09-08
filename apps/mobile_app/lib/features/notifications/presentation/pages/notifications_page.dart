@@ -5,6 +5,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_contracts/app_contracts.dart';
 import 'package:shared_ui/shared_ui.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/router/safe_back.dart';
@@ -111,33 +112,41 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               children: [
                 GestureDetector(
                   onTap: () => safeBack(context),
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: QuestColors.cardBg(context),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: ink, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ink,
-                          offset: const Offset(2, 3),
-                          blurRadius: 0,
-                        ),
-                      ],
+                  behavior: HitTestBehavior.opaque,
+                  child: BsMinTouch(
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: QuestColors.cardBg(context),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: ink, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: ink,
+                            offset: const Offset(2, 3),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child:
+                          Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                     ),
-                    child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'SIGNALS',
-                  style: QuestTypography.headlineLarge.copyWith(
-                    color: ink,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                    height: 1,
+                Flexible(
+                  child: Text(
+                    'SIGNALS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.headlineLarge.copyWith(
+                      color: ink,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                      height: 1,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -520,7 +529,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: ink, width: 2),
       ),
-      child: Icon(icon, color: QuestColors.osTextOnPrimary, size: 20),
+      child: Icon(icon, color: QuestColors.onAccent(tint), size: 20),
     );
   }
 
@@ -535,7 +544,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
       case NotificationType.questAssigned:
         return (Icons.flag_rounded, QuestColors.accentYellow);
       case NotificationType.questExpired:
-        return (Icons.hourglass_empty_rounded, QuestColors.textMuted);
+        return (Icons.hourglass_empty_rounded, QuestColors.osTextMuted);
       case NotificationType.questTimerWarning:
         return (Icons.alarm_rounded, QuestColors.softRed);
       case NotificationType.reactionReceived:
@@ -692,8 +701,8 @@ class _ErrorState extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(Icons.error_outline,
-                color: QuestColors.osTextOnPrimary, size: 36),
+            child: Icon(Icons.error_outline,
+                color: QuestColors.onAccent(QuestColors.softRed), size: 36),
           ),
           const SizedBox(height: 20),
           Text(

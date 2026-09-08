@@ -27,12 +27,21 @@ scripts:
     description: Run the pure-Dart package tests with `dart test`.
 
   test:flutter:
-    run: melos exec --ignore="app_models,app_contracts" -- flutter test
+    run: melos exec --ignore="app_models,app_contracts,admin_web" -- flutter test
     description: Run the Flutter package and app tests with `flutter test`.
 
+  # admin_web is a web-only target and cannot be compiled for the VM: it
+  # imports dart:js_interop, dart:ui_web and package:web for the CSV export
+  # and the inline video element. Bare `flutter test` therefore fails to
+  # compile it, which is what `test:flutter` used to do — so the admin
+  # dashboard's tests never actually ran in CI.
+  test:web:
+    run: melos exec --scope="admin_web" -- flutter test --platform chrome
+    description: Run the admin dashboard's tests on Chrome, its real target.
+
   test:
-    run: melos run test:dart && melos run test:flutter
-    description: Run every package's tests (pure-Dart first, then Flutter).
+    run: melos run test:dart && melos run test:flutter && melos run test:web
+    description: Run every package's tests (pure-Dart, Flutter, then web).
 
   format:
     run: melos exec -- dart format .

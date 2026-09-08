@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_core/app_core.dart';
 
 /// Bsheel admin tokens — **Arcade Pop**, the same system the mobile app
 /// ships (`QuestColors` / `QuestTypography` in `app_core`), applied to the
@@ -16,43 +17,49 @@ import 'package:flutter/material.dart';
 /// always ink — never white. White on coral measures 3.03:1 and fails.
 /// Use [BsheelColors.onAccent] rather than picking by hand.
 ///
-/// This file is the single source of truth for the admin look. Reskin by
-/// editing values here (+ `admin_theme.dart`), nothing else.
+/// The palette itself is **not** restated here: each token names the matching
+/// `QuestColors` value in `app_core`, which is the one definition. Both
+/// files previously carried the same eleven hex literals, so a reskin of one
+/// silently drifted the other and nothing failed to tell you.
+///
+/// The semantic *names* stay admin-local on purpose — a moderator console
+/// talks about `danger` and `success`, not about `osRed` and `osSuccess` —
+/// and that mapping is the useful thing this file contributes.
 abstract final class BsheelColors {
   // ── Surfaces ──────────────────────────────────────────────────────
   /// Page ground.
-  static const Color bg = Color(0xFFFFF9EE);
+  static const Color bg = QuestColors.osBg;
 
   /// Headers, sidebars, secondary panels, quiet rows.
-  static const Color surface = Color(0xFFFFF1D6);
+  static const Color surface = QuestColors.osSurface;
 
   /// Cards, table bodies, inputs.
-  static const Color card = Color(0xFFFFFFFF);
+  static const Color card = QuestColors.osCard;
 
   /// Legacy alias for [card].
   static const Color paper = card;
 
   // ── Ink ───────────────────────────────────────────────────────────
   /// Text, every border, every shadow.
-  static const Color ink = Color(0xFF1A1330);
+  static const Color ink = QuestColors.osTextPrimary;
 
   /// Secondary text.
-  static const Color inkSoft = Color(0xFF5B5170);
+  static const Color inkSoft = QuestColors.osTextSecondary;
 
   /// Placeholders, disabled, retired.
-  static const Color inkMuted = Color(0xFF938AA8);
+  static const Color inkMuted = QuestColors.osTextMuted;
 
   // ── Accents (each carries exactly one meaning) ────────────────────
   /// Violet — navigation active, primary action.
-  static const Color primary = Color(0xFF6B3BFF);
+  static const Color primary = QuestColors.osPrimary;
   static const Color violet = primary;
 
   /// Jade — approve, live, in sync.
-  static const Color success = Color(0xFF17C27B);
+  static const Color success = QuestColors.osSuccess;
   static const Color jade = success;
 
   /// Coral — reject, ban, remove, fault.
-  static const Color danger = Color(0xFFFF5A6E);
+  static const Color danger = QuestColors.osRed;
   static const Color coral = danger;
 
   /// Legacy aliases for [danger].
@@ -60,18 +67,34 @@ abstract final class BsheelColors {
   static const Color error = danger;
 
   /// Gold — anything waiting on a person.
-  static const Color accent = Color(0xFFFFC224);
+  static const Color accent = QuestColors.osAccent;
   static const Color gold = accent;
 
   /// Sky — informational accent.
-  static const Color cool = Color(0xFF4CC9F0);
+  static const Color cool = QuestColors.osCool;
   static const Color sky = cool;
 
+  // ── Text-on-cream twins ───────────────────────────────────────────
+  // The accent fills above are tuned to be read as *grounds*, behind ink.
+  // Used as small type directly on cream they fall under 4.5:1, so each
+  // has a darkened text-only twin. These are for type, never for a fill.
+  // Values mirror `QuestColors.osRedText` / `osSuccessText` /
+  // `osAccentText` in `app_core`.
+
   /// Red *text* on cream (passes 4.5:1). Coral itself never carries text.
-  static const Color dangerText = Color(0xFFC0392F);
+  static const Color dangerText = QuestColors.osRedText;
+
+  /// Jade *text* on cream. [success] measures 2.2:1 and fails.
+  static const Color successText = QuestColors.osSuccessText;
+
+  /// Gold *text* on cream. [accent] measures 1.6:1 — nearly invisible.
+  static const Color accentText = QuestColors.osAccentText;
+
+  /// Sky *text* on cream. [cool] measures 1.9:1 and fails.
+  static const Color coolText = QuestColors.osCoolText;
 
   /// Ink used for text on a gold ground (mirrors `accentYellowInk`).
-  static const Color accentInk = Color(0xFF2A1B00);
+  static const Color accentInk = QuestColors.osAccentInk;
 
   // ── Structure ─────────────────────────────────────────────────────
   /// Every card, input, button, chip and tile outline is ink. Kept under
@@ -89,9 +112,12 @@ abstract final class BsheelColors {
 
   // ── Ink panel (sidebar, offline bar) ──────────────────────────────
   static const Color inkPanel = ink;
-  static const Color inkPanelBorder = Color(0xFF2A2450);
-  static const Color inkPanelText = Color(0xFFC7C0E0);
-  static const Color inkPanelTextStrong = Color(0xFFFFF9EE);
+  static const Color inkPanelBorder = QuestColors.border;
+  static const Color inkPanelText = QuestColors.textSecondary;
+
+  /// Cream, not white: on an ink panel the page ground reads as the same
+  /// design rather than as a second, colder palette.
+  static const Color inkPanelTextStrong = QuestColors.osBg;
 
   // ── Absolute neutrals — prefer a semantic token above ─────────────
   static const Color pureWhite = Color(0xFFFFFFFF);
@@ -138,6 +164,17 @@ abstract final class BsheelColors {
     if (ground == card || ground == bg || ground == surface) return inkSoft;
     return onAccent(ground);
   }
+
+  /// The readable twin of [accentColor] for small type drawn *on* cream or
+  /// white — i.e. the accent is the ink, not the ground. Use this instead
+  /// of the fill token whenever an accent carries text on a light surface.
+  static Color onCream(Color accentColor) {
+    if (accentColor == danger) return dangerText;
+    if (accentColor == success) return successText;
+    if (accentColor == accent) return accentText;
+    if (accentColor == cool) return coolText;
+    return accentColor;
+  }
 }
 
 /// Corner radii. 9–11 controls · 12–14 cards · 16 page frames · 999 pills.
@@ -177,7 +214,8 @@ abstract final class BsheelBorders {
 /// Hard offset shadows — zero blur, ink by default. A coloured shadow marks
 /// the one item in a list that needs attention; everything else takes ink.
 abstract final class BsheelShadows {
-  static List<BoxShadow> hard(double offset, {Color color = BsheelColors.ink}) =>
+  static List<BoxShadow> hard(double offset,
+          {Color color = BsheelColors.ink}) =>
       [BoxShadow(color: color, offset: Offset(offset, offset))];
 
   /// 3px — cards and small buttons.
@@ -235,6 +273,19 @@ abstract final class BsheelType {
     letterSpacing: -1.5,
     color: BsheelColors.ink,
   );
+
+  /// The page-hero display size, stepped down on a narrow window so a long
+  /// headline word can never paint outside its card. 44px is the size the
+  /// spec draws on a full-width 1280px shell.
+  static TextStyle hero(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final size = w < 560
+        ? 26.0
+        : w < 900
+            ? 34.0
+            : 44.0;
+    return displayXl.copyWith(fontSize: size);
+  }
 
   /// 30px — login title, secondary tile numerals.
   static const TextStyle displayLg = TextStyle(
@@ -455,7 +506,10 @@ abstract final class BsheelLayout {
   static const double headerHeight = 66;
 
   /// Minimum click target on every control.
-  static const double minTarget = 44;
+  ///
+  /// Aliases [QuestSpacing.minTouchTarget] so the admin and the mobile app
+  /// cannot drift apart on a number both specs state identically.
+  static const double minTarget = QuestSpacing.minTouchTarget;
 
   /// Content-pane padding (`22px 26px` on the dashboard, `20px 24px` on
   /// the rest — one value keeps pages aligned).

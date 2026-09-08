@@ -35,13 +35,17 @@ class SettingsPage extends ConsumerWidget {
                 icon: const Icon(Icons.arrow_back_rounded,
                     color: QuestColors.osTextPrimary),
               ),
-              Text(l.settings,
-                  style: const TextStyle(
-                      fontFamily: 'Syne',
-                      fontVariations: [FontVariation('wght', 800)],
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: QuestColors.osTextPrimary)),
+              Flexible(
+                child: Text(l.settings,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontFamily: 'Syne',
+                        fontVariations: [FontVariation('wght', 800)],
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: QuestColors.osTextPrimary)),
+              ),
             ]),
           ),
           Expanded(

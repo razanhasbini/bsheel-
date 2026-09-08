@@ -187,8 +187,26 @@ export class QuestsRepository {
     limit: number,
     offset: number,
   ): Promise<readonly UserQuestRecord[]> {
+    // `appeal_available` mirrors the four guards SubmissionsService enforces
+    // on appeal — owner, status rejected, appeal unspent, not soft-deleted —
+    // so the client can offer the action only where it will succeed.
+    //
+    // The client cannot derive this. `user_quests.status` is 'rejected' both
+    // for a first rejection and for a re-rejection after a spent appeal;
+    // there is no separate terminal status. Without this flag the history
+    // list either hides the appeal from everyone who can still use it, or
+    // offers it to people whose appeal is gone and sends them to a dead end.
+    //
+    // Costs one indexed probe per row via submissions_user_quest_idx.
     const result = await this.database.query<UserQuestRecord>(
-      `SELECT uq.*, row_to_json(q.*) AS quests
+      `SELECT uq.*, row_to_json(q.*) AS quests,
+              EXISTS (
+                SELECT 1 FROM submissions s
+                WHERE s.user_quest_id = uq.id
+                  AND s.status = 'rejected'
+                  AND s.appealed = false
+                  AND s.deleted_at IS NULL
+              ) AS appeal_available
        FROM user_quests uq JOIN quests q ON q.id = uq.quest_id
        WHERE uq.user_id = $1
        ORDER BY uq.assigned_at DESC, uq.id DESC

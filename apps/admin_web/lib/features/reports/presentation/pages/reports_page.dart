@@ -44,7 +44,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'Content {reports.}',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -75,10 +75,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               ),
             ),
             error: (e, _) => BsheelCard.flat(
-              color: BsheelColors.hot,
+              color: BsheelColors.danger,
               child: Text(
                 'Error: $e',
-                style: BsheelType.bodySm.copyWith(color: BsheelColors.paper),
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onAccent(BsheelColors.danger),
+                ),
               ),
             ),
             data: (reports) {
@@ -156,24 +158,29 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         ),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: SizedBox(
-            width: 420,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.block_rounded,
-                      color: BsheelColors.hot,
+                      color: BsheelColors.onCream(BsheelColors.danger),
                       size: 24,
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      'BAN USER',
-                      style: BsheelType.displaySm
-                          .copyWith(color: BsheelColors.hot),
+                    Expanded(
+                      child: Text(
+                        'BAN USER',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BsheelType.displaySm.copyWith(
+                          color: BsheelColors.onCream(BsheelColors.danger),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -201,16 +208,18 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: BsheelColors.hot,
-                        foregroundColor: BsheelColors.pureWhite,
+                        backgroundColor: BsheelColors.danger,
+                        foregroundColor:
+                            BsheelColors.onAccent(BsheelColors.danger),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(BsheelRadii.sm),
                         ),
                       ),
                       child: Text(
                         'BAN USER',
-                        style: BsheelType.labelSm
-                            .copyWith(color: BsheelColors.pureWhite),
+                        style: BsheelType.labelSm.copyWith(
+                          color: BsheelColors.onAccent(BsheelColors.danger),
+                        ),
                       ),
                     ),
                   ],
@@ -230,7 +239,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         content: Text(
           msg,
           style: BsheelType.bodySm.copyWith(
-            color: error ? BsheelColors.hot : BsheelColors.ink,
+            color: error
+                ? BsheelColors.onCream(BsheelColors.danger)
+                : BsheelColors.ink,
           ),
         ),
       ),

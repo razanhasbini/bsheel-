@@ -90,7 +90,9 @@ class AdminTopbar extends ConsumerWidget implements PreferredSizeWidget {
             // Search — quiet surface pill.
             Container(
               width: 280,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              // The field itself carries the 44px minimum target, so the
+              // pill takes horizontal padding only and stays 44 tall.
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
                 color: BsheelColors.surface,
                 borderRadius: BorderRadius.circular(BsheelRadii.full),
@@ -132,6 +134,9 @@ class AdminTopbar extends ConsumerWidget implements PreferredSizeWidget {
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                         filled: false,
+                        constraints: const BoxConstraints(
+                          minHeight: BsheelLayout.minTarget,
+                        ),
                       ),
                       style: BsheelType.bodyMd.copyWith(fontSize: 13),
                     ),
@@ -165,7 +170,7 @@ class AdminTopbar extends ConsumerWidget implements PreferredSizeWidget {
             child: _IconBtn(
               icon: Icons.add_rounded,
               color: BsheelColors.ink,
-              fg: BsheelColors.pureWhite,
+              fg: BsheelColors.onAccent(BsheelColors.ink),
               onTap: () => context.goNamed(AdminRouteNames.questManagement),
             ),
           ),
@@ -175,7 +180,7 @@ class AdminTopbar extends ConsumerWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(BsheelLayout.minTarget + 28);
 }
 
 class _IconBtn extends StatelessWidget {
@@ -220,43 +225,49 @@ class _IconBtn extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: badge == null
-            ? btn
-            : Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  btn,
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
+        // The dot stays 36px; the hit box is 44px (spec 1). The badge sits
+        // inside that box rather than being painted outside the button.
+        child: SizedBox(
+          width: BsheelLayout.minTarget,
+          height: BsheelLayout.minTarget,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              btn,
+              if (badge != null)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: BsheelColors.ink,
+                      borderRadius: BorderRadius.circular(BsheelRadii.full),
+                      border: Border.all(
+                        color: BsheelColors.pureWhite,
+                        width: BsheelBorders.thin,
                       ),
-                      decoration: BoxDecoration(
-                        color: BsheelColors.ink,
-                        borderRadius: BorderRadius.circular(BsheelRadii.full),
-                        border: Border.all(
-                          color: BsheelColors.pureWhite,
-                          width: BsheelBorders.thin,
-                        ),
-                      ),
-                      child: Text(
-                        badge!,
-                        style: const TextStyle(
-                          fontFamily: BsheelFonts.body,
-                          fontWeight: FontWeight.w400,
-                          fontSize: 9,
-                          letterSpacing: 0.3,
-                          color: BsheelColors.pureWhite,
-                          height: 1.2,
-                        ),
+                    ),
+                    child: Text(
+                      badge!,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: BsheelFonts.body,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 9,
+                        letterSpacing: 0.3,
+                        color: BsheelColors.onAccent(BsheelColors.ink),
+                        height: 1.2,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

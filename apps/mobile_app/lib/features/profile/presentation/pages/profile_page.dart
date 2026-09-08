@@ -437,25 +437,35 @@ class ProfilePage extends ConsumerWidget {
                         Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('XP · LEVEL ${profile.level}',
-                                  style: const TextStyle(
-                                      fontFamily: 'DMSans',
-                                      fontVariations: [
-                                        FontVariation('wght', 500)
-                                      ],
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: QuestColors.osTextSecondary,
-                                      letterSpacing: 0.4)),
-                              Text('$xpInLevel / $xpForNextLevel',
-                                  style: const TextStyle(
-                                      fontFamily: 'Syne',
-                                      fontVariations: [
-                                        FontVariation('wght', 800)
-                                      ],
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: QuestColors.osTextPrimary)),
+                              Flexible(
+                                child: Text('XP · LEVEL ${profile.level}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontFamily: 'DMSans',
+                                        fontVariations: [
+                                          FontVariation('wght', 500)
+                                        ],
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: QuestColors.osTextSecondary,
+                                        letterSpacing: 0.4)),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text('$xpInLevel / $xpForNextLevel',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                        fontFamily: 'Syne',
+                                        fontVariations: [
+                                          FontVariation('wght', 800)
+                                        ],
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: QuestColors.osTextPrimary)),
+                              ),
                             ]),
                         const SizedBox(height: 6),
                         BsXpBar(
@@ -609,17 +619,22 @@ class ProfilePage extends ConsumerWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                   Row(children: [
-                                    Text(badge.label,
-                                        style: TextStyle(
-                                            fontFamily: 'Syne',
-                                            fontVariations: const [
-                                              FontVariation('wght', 800)
-                                            ],
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                            color: unlocked
-                                                ? QuestColors.osTextPrimary
-                                                : QuestColors.osTextSecondary)),
+                                    Flexible(
+                                      child: Text(badge.label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontFamily: 'Syne',
+                                              fontVariations: const [
+                                                FontVariation('wght', 800)
+                                              ],
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: unlocked
+                                                  ? QuestColors.osTextPrimary
+                                                  : QuestColors
+                                                      .osTextSecondary)),
+                                    ),
                                     if (unlocked) ...[
                                       const SizedBox(width: 6),
                                       const Icon(Icons.check_circle,
@@ -854,20 +869,23 @@ class _IconBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: QuestColors.osCard,
-          border: Border.all(
-              color: QuestColors.osTextPrimary,
-              width: QuestSpacing.cardBorderWidth),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
-          ],
+      behavior: HitTestBehavior.opaque,
+      child: BsMinTouch(
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
+            ],
+          ),
+          child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
         ),
-        child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
       ),
     );
   }
@@ -1197,7 +1215,7 @@ class _MonthGrid extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         color: active
-                            ? QuestColors.osTextOnPrimary
+                            ? QuestColors.onAccent(QuestColors.osSuccess)
                             : isFuture
                                 ? QuestColors.osTextMuted
                                 : QuestColors.osTextSecondary,
@@ -1685,21 +1703,23 @@ class _SavedPostTile extends ConsumerWidget {
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => _confirmUnsave(context, ref, saved.questTitle),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: QuestColors.osAccent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: QuestColors.osTextPrimary,
-                      width: QuestSpacing.cardBorderWidth),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.bookmark_remove_rounded,
-                  color: QuestColors.osAccentInk,
-                  size: 20,
+              child: BsMinTouch(
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: QuestColors.osAccent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: QuestColors.osTextPrimary,
+                        width: QuestSpacing.cardBorderWidth),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.bookmark_remove_rounded,
+                    color: QuestColors.osAccentInk,
+                    size: 20,
+                  ),
                 ),
               ),
             ),
@@ -1743,8 +1763,8 @@ class _SavedPostTile extends ConsumerWidget {
                     border: Border.all(color: ink, width: 2),
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(Icons.bookmark_remove_rounded,
-                      color: QuestColors.osTextOnPrimary, size: 24),
+                  child: Icon(Icons.bookmark_remove_rounded,
+                      color: QuestColors.onAccent(QuestColors.osRed), size: 24),
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -1780,6 +1800,8 @@ class _SavedPostTile extends ConsumerWidget {
                         onTap: () => Navigator.pop(ctx, false),
                         behavior: HitTestBehavior.opaque,
                         child: Container(
+                          constraints:
+                              const BoxConstraints(minHeight: kMinTouchTarget),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osCard,
@@ -1789,6 +1811,8 @@ class _SavedPostTile extends ConsumerWidget {
                           alignment: Alignment.center,
                           child: const Text(
                             'CANCEL',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontFamily: 'Syne',
                               fontVariations: [FontVariation('wght', 800)],
@@ -1807,6 +1831,8 @@ class _SavedPostTile extends ConsumerWidget {
                         onTap: () => Navigator.pop(ctx, true),
                         behavior: HitTestBehavior.opaque,
                         child: Container(
+                          constraints:
+                              const BoxConstraints(minHeight: kMinTouchTarget),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osRed,
@@ -1817,14 +1843,18 @@ class _SavedPostTile extends ConsumerWidget {
                             ],
                           ),
                           alignment: Alignment.center,
-                          child: const Text(
+                          child: Text(
                             'REMOVE',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontFamily: 'Syne',
-                              fontVariations: [FontVariation('wght', 800)],
+                              fontVariations: const [
+                                FontVariation('wght', 800)
+                              ],
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
-                              color: QuestColors.osTextOnPrimary,
+                              color: QuestColors.onAccent(QuestColors.osRed),
                               letterSpacing: 1,
                             ),
                           ),
@@ -2001,9 +2031,10 @@ class _AvatarFullscreen extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Icon(
+                  errorWidget: (_, __, ___) => Icon(
                     Icons.broken_image_outlined,
-                    color: Colors.white54,
+                    color: QuestColors.pureWhite
+                        .withAlpha(QuestColors.alphaOverlay),
                     size: 64,
                   ),
                 ),
@@ -2019,19 +2050,21 @@ class _AvatarFullscreen extends StatelessWidget {
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: () => Navigator.of(context).maybePop(),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: QuestColors.pureBlack.withAlpha(128),
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: QuestColors.pureWhite, width: 1.5),
-                  ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    color: QuestColors.textPrimary,
-                    size: 22,
+                child: BsMinTouch(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: QuestColors.pureBlack.withAlpha(128),
+                      shape: BoxShape.circle,
+                      border:
+                          Border.all(color: QuestColors.pureWhite, width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: QuestColors.textPrimary,
+                      size: 22,
+                    ),
                   ),
                 ),
               ),

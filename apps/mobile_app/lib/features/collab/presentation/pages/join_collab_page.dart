@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
+import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
@@ -383,8 +384,10 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                                   : _joining
                                       ? 'JOINING...'
                                       : 'ACCEPT & JOIN',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: QuestTypography.headlineSmall.copyWith(
-                                color: QuestColors.osTextOnPrimary,
+                                color: QuestColors.onAccent(accentColor),
                                 letterSpacing: 2,
                               ),
                               textAlign: TextAlign.center,
@@ -432,19 +435,21 @@ class _BackButton extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ink, width: 2),
-          boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 2), blurRadius: 0),
-          ],
+      child: BsMinTouch(
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: QuestColors.cardBg(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ink, width: 2),
+            boxShadow: [
+              BoxShadow(color: ink, offset: const Offset(2, 2), blurRadius: 0),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Icon(Icons.arrow_back_rounded, size: 18, color: ink),
         ),
-        alignment: Alignment.center,
-        child: Icon(Icons.arrow_back_rounded, size: 18, color: ink),
       ),
     );
   }

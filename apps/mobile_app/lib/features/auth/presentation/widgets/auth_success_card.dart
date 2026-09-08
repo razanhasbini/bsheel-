@@ -33,9 +33,9 @@ class AuthSuccessCard extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 2),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_rounded,
-              color: QuestColors.osTextOnPrimary,
+              color: QuestColors.onAccent(QuestColors.successGreen),
               size: 24,
             ),
           ),

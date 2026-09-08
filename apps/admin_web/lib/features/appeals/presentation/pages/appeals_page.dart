@@ -37,7 +37,7 @@ class AppealsPage extends ConsumerWidget {
                 const SizedBox(height: 14),
                 BsheelDisplay(
                   'The {appeals} desk.',
-                  baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                  baseStyle: BsheelType.hero(context),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -59,10 +59,12 @@ class AppealsPage extends ConsumerWidget {
               ),
             ),
             error: (e, _) => BsheelCard.flat(
-              color: BsheelColors.hot,
+              color: BsheelColors.danger,
               child: Text(
                 'Error: $e',
-                style: BsheelType.bodySm.copyWith(color: BsheelColors.paper),
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onAccent(BsheelColors.danger),
+                ),
               ),
             ),
             data: (appeals) {

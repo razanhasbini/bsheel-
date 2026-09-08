@@ -34,7 +34,7 @@ class WebSignupsPage extends ConsumerWidget {
               const SizedBox(height: 14),
               BsheelDisplay(
                 'The {waitlist.}',
-                baseStyle: BsheelType.displayXl.copyWith(fontSize: 44),
+                baseStyle: BsheelType.hero(context),
               ),
               const SizedBox(height: 12),
               Text(
@@ -53,7 +53,10 @@ class WebSignupsPage extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text(
                 'Error: $e',
-                style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+                textAlign: TextAlign.center,
+                style: BsheelType.bodySm.copyWith(
+                  color: BsheelColors.onCream(BsheelColors.danger),
+                ),
               ),
             ),
             data: (rows) {

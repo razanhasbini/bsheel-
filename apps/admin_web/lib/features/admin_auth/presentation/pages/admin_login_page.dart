@@ -159,14 +159,14 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
                           color: BsheelColors.paper,
                           borderRadius: BorderRadius.circular(BsheelRadii.md),
                           border: Border.all(
-                            color: BsheelColors.hot,
+                            color: BsheelColors.danger,
                             width: BsheelBorders.thin,
                           ),
                         ),
                         child: Text(
                           _error!,
                           style: BsheelType.bodySm.copyWith(
-                            color: BsheelColors.hot,
+                            color: BsheelColors.onCream(BsheelColors.danger),
                           ),
                         ),
                       ),

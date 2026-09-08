@@ -19,6 +19,7 @@ import '../../features/notifications/presentation/providers/notifications_provid
 import '../../features/follows/data/follows_providers.dart';
 import '../../features/quests/data/quest_providers.dart';
 import '../../features/submissions/data/submission_providers.dart';
+import '../../design/bs_widgets.dart';
 import '../widgets/loading_view.dart';
 import '../widgets/level_up_overlay.dart';
 
@@ -396,6 +397,10 @@ class _FloatingPillNav extends StatelessWidget {
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOut,
                   margin: const EdgeInsets.symmetric(horizontal: 2),
+                  // 44pt floor per spec section 1; the glyph + 8px label
+                  // only measure ~40 on their own.
+                  constraints: const BoxConstraints(minHeight: kMinTouchTarget),
+                  alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(
                     vertical: 10,
                     horizontal: 4,

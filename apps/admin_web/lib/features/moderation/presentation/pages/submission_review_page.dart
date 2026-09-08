@@ -38,7 +38,10 @@ class SubmissionReviewPage extends ConsumerWidget {
         error: (e, _) => Center(
           child: Text(
             'Error: $e',
-            style: BsheelType.bodySm.copyWith(color: BsheelColors.hot),
+            textAlign: TextAlign.center,
+            style: BsheelType.bodySm.copyWith(
+              color: BsheelColors.onCream(BsheelColors.danger),
+            ),
           ),
         ),
         data: (data) {
@@ -107,83 +110,72 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Hero header with back arrow + collab badge + status pill.
-          BsheelCard(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 36,
-              vertical: 28,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: BsheelColors.ink,
-                  ),
-                  onPressed: () =>
-                      context.goNamed(AdminRouteNames.pendingSubmissions),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const BsheelEyebrow('Moderation · Review'),
-                      const SizedBox(height: 12),
-                      BsheelDisplay(
-                        'Read it {carefully.}',
-                        baseStyle: BsheelType.displayLg.copyWith(fontSize: 36),
-                      ),
-                    ],
-                  ),
-                ),
-                // Retake badge
-                Builder(
-                  builder: (ctx) {
-                    final isRetake = data['is_retake'] == true;
-                    if (!isRetake) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(left: QuestSpacing.sm),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: BsheelColors.surface,
-                          borderRadius: BorderRadius.circular(BsheelRadii.lg),
-                          border: Border.all(color: BsheelColors.line),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.refresh,
-                              size: 12,
-                              color: BsheelColors.cool,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'RETAKE',
-                              style: BsheelType.labelSm.copyWith(
-                                color: BsheelColors.cool,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                if (collabGroupId != null) ...[
-                  const SizedBox(width: QuestSpacing.sm),
-                  _CollabBadge(mode: collabMode ?? 'with'),
+          LayoutBuilder(
+            builder: (context, c) {
+              final narrow = c.maxWidth < 720;
+              final badges = Wrap(
+                spacing: QuestSpacing.sm,
+                runSpacing: QuestSpacing.sm,
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (data['is_retake'] == true) const _RetakeBadge(),
+                  if (collabGroupId != null)
+                    _CollabBadge(mode: collabMode ?? 'with'),
+                  _StatusChip(status: status),
                 ],
-                const Spacer(),
-                _StatusChip(status: status),
-              ],
-            ),
+              );
+
+              final headline = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const BsheelEyebrow('Moderation · Review'),
+                  const SizedBox(height: 12),
+                  BsheelDisplay(
+                    'Read it {carefully.}',
+                    baseStyle: BsheelType.displayLg.copyWith(
+                      fontSize: narrow ? 26 : 36,
+                    ),
+                  ),
+                ],
+              );
+
+              return BsheelCard(
+                padding: EdgeInsets.symmetric(
+                  horizontal: narrow ? 20 : 36,
+                  vertical: narrow ? 20 : 28,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: BsheelColors.ink,
+                          ),
+                          tooltip: 'Back to the queue',
+                          onPressed: () => context
+                              .goNamed(AdminRouteNames.pendingSubmissions),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: headline),
+                        if (!narrow) ...[
+                          const SizedBox(width: QuestSpacing.md),
+                          Flexible(child: badges),
+                        ],
+                      ],
+                    ),
+                    if (narrow) ...[
+                      const SizedBox(height: 14),
+                      badges,
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
 
@@ -205,15 +197,20 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.gavel,
-                          size: 20, color: BsheelColors.accent),
+                      Icon(
+                        Icons.gavel,
+                        size: 20,
+                        color: BsheelColors.onCream(BsheelColors.accent),
+                      ),
                       const SizedBox(width: QuestSpacing.sm),
-                      Text(
-                        'APPEAL — THIS SUBMISSION WAS PREVIOUSLY REJECTED',
-                        style: BsheelType.labelMd.copyWith(
-                          color: BsheelColors.ink,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1,
+                      Expanded(
+                        child: Text(
+                          'APPEAL — THIS SUBMISSION WAS PREVIOUSLY REJECTED',
+                          style: BsheelType.labelMd.copyWith(
+                            color: BsheelColors.ink,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ],
@@ -223,7 +220,7 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                     Text(
                       'USER\'S APPEAL:',
                       style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
+                        color: BsheelColors.inkSoft,
                         letterSpacing: 1,
                       ),
                     ),
@@ -297,12 +294,13 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                   label: Text(
                     'APPROVE',
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.pureWhite,
+                      color: BsheelColors.onAccent(BsheelColors.success),
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: BsheelColors.success,
-                    foregroundColor: BsheelColors.pureWhite,
+                    foregroundColor:
+                        BsheelColors.onAccent(BsheelColors.success),
                     padding: const EdgeInsets.symmetric(
                       horizontal: QuestSpacing.xl,
                       vertical: QuestSpacing.md,
@@ -319,13 +317,13 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                   label: Text(
                     'DENY',
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.hot,
+                      color: BsheelColors.onCream(BsheelColors.danger),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: BsheelColors.hot,
+                    foregroundColor: BsheelColors.onCream(BsheelColors.danger),
                     side: const BorderSide(
-                      color: BsheelColors.hot,
+                      color: BsheelColors.danger,
                       width: BsheelBorders.thin,
                     ),
                     padding: const EdgeInsets.symmetric(
@@ -360,13 +358,14 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                     ],
                   );
                 }
-                return Row(
+                return Wrap(
+                  spacing: QuestSpacing.md,
+                  runSpacing: QuestSpacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     approveBtn,
-                    const SizedBox(width: QuestSpacing.md),
                     denyBtn,
-                    if (_isActioning) ...[
-                      const SizedBox(width: QuestSpacing.md),
+                    if (_isActioning)
                       const SizedBox(
                         width: 20,
                         height: 20,
@@ -375,7 +374,6 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                           color: BsheelColors.primary,
                         ),
                       ),
-                    ],
                   ],
                 );
               },
@@ -384,7 +382,7 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
             Text(
               'This submission has already been $status.',
               style: BsheelType.bodySm.copyWith(
-                color: BsheelColors.inkMuted,
+                color: BsheelColors.inkSoft,
               ),
             ),
         ],
@@ -531,15 +529,18 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                 children: [
                   Text(
                     'DENY SUBMISSION',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: BsheelType.displaySm.copyWith(
                       color: BsheelColors.ink,
                     ),
                   ),
                   const SizedBox(height: QuestSpacing.md),
                   Text(
-                    'Provide 1 to 3 rejection reasons. Users will see these as bullet points.',
+                    'Provide 1 to 3 rejection reasons. Users will see these '
+                    'as bullet points.',
                     style: BsheelType.bodySm.copyWith(
-                      color: BsheelColors.inkMuted,
+                      color: BsheelColors.inkSoft,
                     ),
                   ),
                   const SizedBox(height: QuestSpacing.md),
@@ -561,19 +562,20 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                     onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: QuestSpacing.lg),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: QuestSpacing.sm,
+                    runSpacing: QuestSpacing.sm,
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
                         child: Text(
                           'CANCEL',
                           style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.inkMuted,
+                            color: BsheelColors.inkSoft,
                           ),
                         ),
                       ),
-                      const SizedBox(width: QuestSpacing.sm),
                       ElevatedButton(
                         onPressed: canSubmit
                             ? () {
@@ -582,8 +584,9 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: BsheelColors.hot,
-                          foregroundColor: BsheelColors.pureWhite,
+                          backgroundColor: BsheelColors.danger,
+                          foregroundColor:
+                              BsheelColors.onAccent(BsheelColors.danger),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(BsheelRadii.full),
@@ -592,7 +595,7 @@ class _ReviewContentState extends ConsumerState<_ReviewContent> {
                         child: Text(
                           'DENY',
                           style: BsheelType.labelSm.copyWith(
-                            color: BsheelColors.pureWhite,
+                            color: BsheelColors.onAccent(BsheelColors.danger),
                           ),
                         ),
                       ),
@@ -759,6 +762,8 @@ class _DetailsSection extends StatelessWidget {
                   children: [
                     Text(
                       displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: BsheelType.bodyMd.copyWith(
                         fontWeight: FontWeight.w500,
                         color: BsheelColors.ink,
@@ -766,26 +771,32 @@ class _DetailsSection extends StatelessWidget {
                     ),
                     Text(
                       '@$username',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: BsheelType.bodySm.copyWith(
-                        color: BsheelColors.inkMuted,
+                        color: BsheelColors.inkSoft,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: QuestSpacing.sm),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     'LEVEL $userLevel',
+                    maxLines: 1,
                     style: BsheelType.labelSm.copyWith(
                       color: BsheelColors.primary,
                     ),
                   ),
                   Text(
                     '$userXp XP',
+                    maxLines: 1,
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.accent,
+                      // Gold is 1.6:1 as 9px type on cream — text twin.
+                      color: BsheelColors.onCream(BsheelColors.accent),
                     ),
                   ),
                 ],
@@ -812,7 +823,7 @@ class _DetailsSection extends StatelessWidget {
               Text(
                 'QUEST',
                 style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.inkMuted,
+                  color: BsheelColors.inkSoft,
                   letterSpacing: 2,
                 ),
               ),
@@ -864,7 +875,7 @@ class _DetailsSection extends StatelessWidget {
           Text(
             'CAPTION',
             style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.inkMuted,
+              color: BsheelColors.inkSoft,
               letterSpacing: 2,
             ),
           ),
@@ -880,7 +891,7 @@ class _DetailsSection extends StatelessWidget {
           Text(
             'SUBMITTED: ${submittedAt!.year}-${submittedAt!.month.toString().padLeft(2, '0')}-${submittedAt!.day.toString().padLeft(2, '0')} ${submittedAt!.hour.toString().padLeft(2, '0')}:${submittedAt!.minute.toString().padLeft(2, '0')}',
             style: BsheelType.labelSm.copyWith(
-              color: BsheelColors.inkMuted,
+              color: BsheelColors.inkSoft,
             ),
           ),
       ],
@@ -911,12 +922,21 @@ class _InfoChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
+            Icon(icon, size: 12, color: BsheelColors.onCream(color)),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: BsheelType.labelSm.copyWith(color: color, fontSize: 10),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BsheelType.labelSm.copyWith(
+                // The chip fill is a 12% tint, so the label is drawn on
+                // what is effectively cream — accent fills fail there.
+                color: BsheelColors.onCream(color),
+                fontSize: 10,
+              ),
+            ),
           ),
         ],
       ),
@@ -930,10 +950,24 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (Color bg, Color fg) = switch (status) {
-      'approved' => (BsheelColors.success.withAlpha(30), BsheelColors.success),
-      'rejected' => (BsheelColors.hot.withAlpha(30), BsheelColors.hot),
-      _ => (BsheelColors.cool.withAlpha(30), BsheelColors.cool),
+    // The pill ground is a 12% tint of the accent, i.e. effectively cream:
+    // the label takes the accent's text twin, the outline the accent itself.
+    final (Color bg, Color fg, Color line) = switch (status) {
+      'approved' => (
+          BsheelColors.success.withAlpha(30),
+          BsheelColors.onCream(BsheelColors.success),
+          BsheelColors.success,
+        ),
+      'rejected' => (
+          BsheelColors.danger.withAlpha(30),
+          BsheelColors.onCream(BsheelColors.danger),
+          BsheelColors.danger,
+        ),
+      _ => (
+          BsheelColors.cool.withAlpha(30),
+          BsheelColors.onCream(BsheelColors.cool),
+          BsheelColors.cool,
+        ),
     };
     final icon = switch (status) {
       'approved' => Icons.check_circle,
@@ -950,7 +984,7 @@ class _StatusChip extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(BsheelRadii.full),
         border: Border.all(
-          color: fg.withAlpha(100),
+          color: line,
           width: BsheelBorders.thin,
         ),
       ),
@@ -961,6 +995,8 @@ class _StatusChip extends StatelessWidget {
           const SizedBox(width: QuestSpacing.xs),
           Text(
             status.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: BsheelType.labelSm.copyWith(
               color: fg,
               fontWeight: FontWeight.w500,
@@ -984,7 +1020,8 @@ class _CollabBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isVersus = mode == 'versus';
-    final badgeColor = isVersus ? BsheelColors.hot : BsheelColors.ink;
+    final badgeColor = isVersus ? BsheelColors.danger : BsheelColors.ink;
+    final badgeInk = BsheelColors.onCream(badgeColor);
     final badgeLabel = isVersus ? 'VERSUS' : 'COLLAB';
 
     return Container(
@@ -997,14 +1034,51 @@ class _CollabBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.group, size: 12, color: badgeColor),
+          Icon(Icons.group, size: 12, color: badgeInk),
           const SizedBox(width: 4),
           Text(
             badgeLabel,
+            maxLines: 1,
             style: BsheelType.labelSm.copyWith(
-              color: badgeColor,
+              color: badgeInk,
               fontWeight: FontWeight.w500,
               fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Retake marker — a submission the user re-shot after a rejection.
+class _RetakeBadge extends StatelessWidget {
+  const _RetakeBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    // Sky is 1.9:1 as 10px type on cream, so the label takes its twin.
+    final ink = BsheelColors.onCream(BsheelColors.cool);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: BsheelColors.surface,
+        borderRadius: BorderRadius.circular(BsheelRadii.lg),
+        border: Border.all(color: BsheelColors.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.refresh, size: 12, color: ink),
+          const SizedBox(width: 4),
+          Text(
+            'RETAKE',
+            maxLines: 1,
+            style: BsheelType.labelSm.copyWith(
+              color: ink,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1,
             ),
           ),
         ],
