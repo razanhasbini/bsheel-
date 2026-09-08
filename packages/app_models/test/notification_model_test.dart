@@ -1,5 +1,5 @@
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 Map<String, dynamic> notificationRow({
@@ -109,7 +109,7 @@ void main() {
 
       test('falls back to a plain profiles join', () {
         final n = NotificationModel.fromJson(notificationRow(overrides: {
-          Tables.profiles: <String, dynamic>{
+          EmbedKeys.profiles: <String, dynamic>{
             'username': 'grace',
             'avatar_url': 'https://cdn.test/grace.jpg',
           },
@@ -122,7 +122,7 @@ void main() {
       test('actor_profile wins over profiles when both are present', () {
         final n = NotificationModel.fromJson(notificationRow(overrides: {
           'actor_profile': <String, dynamic>{'username': 'from-alias'},
-          Tables.profiles: <String, dynamic>{'username': 'from-plain'},
+          EmbedKeys.profiles: <String, dynamic>{'username': 'from-plain'},
         }));
 
         expect(n.actorUsername, 'from-alias');
@@ -135,7 +135,7 @@ void main() {
         // All four join readers share `coerceEmbed` now.
         final fromPlain =
             NotificationModel.fromJson(notificationRow(overrides: {
-          Tables.profiles: <dynamic>[
+          EmbedKeys.profiles: <dynamic>[
             <String, dynamic>{
               'username': 'grace',
               'avatar_url': 'https://cdn.test/grace.jpg',
@@ -158,7 +158,7 @@ void main() {
 
       test('an empty array join leaves the actor fields null', () {
         final n = NotificationModel.fromJson(notificationRow(overrides: {
-          Tables.profiles: <dynamic>[],
+          EmbedKeys.profiles: <dynamic>[],
         }));
 
         expect(n.actorUsername, isNull);

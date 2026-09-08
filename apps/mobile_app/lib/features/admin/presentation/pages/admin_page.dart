@@ -4,7 +4,7 @@ import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../l10n/app_localizations.dart';

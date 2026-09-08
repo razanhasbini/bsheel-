@@ -22,8 +22,8 @@ dependencies:
     path: ../../packages/app_repositories
   shared_ui:
     path: ../../packages/shared_ui
-  supabase_contracts:
-    path: ../../packages/supabase_contracts
+  app_contracts:
+    path: ../../packages/app_contracts
 
   # State management
   flutter_riverpod: ^2.4.0

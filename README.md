@@ -75,7 +75,7 @@ packages/
   app_models/            shared data models
   app_repositories/      repository contracts + HTTP implementations
   shared_ui/             reusable widgets
-  supabase_contracts/    domain value constants (statuses, categories, roles)
+  app_contracts/         domain value constants + API field names
 backend/
   src/modules/           one folder per domain
   src/integrations/      telegram

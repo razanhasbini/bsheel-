@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart' show AppLogger;
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../feed/presentation/providers/feed_provider.dart'

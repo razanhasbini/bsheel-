@@ -59,7 +59,7 @@ packages/
   app_models/          shared data models
   app_repositories/    repository contracts + their HTTP implementations
   shared_ui/           reusable widgets
-  supabase_contracts/  domain value constants (statuses, categories, roles)
+  app_contracts/       domain value constants + API field names
 backend/
   src/modules/         auth, profiles, quests, submissions, feed, social,
                        collab, notifications, media, admin, account,
@@ -85,7 +85,7 @@ docs/                  architecture, security, deployment, API
   abstract repository from `app_repositories`; the concrete `Api*Repository` is
   wired only in the composition root.
 - **Never hardcode domain strings.** Statuses, categories, difficulties and
-  roles come from `packages/supabase_contracts/lib/statuses.dart`.
+  roles come from `packages/app_contracts/lib/statuses.dart`.
 - **Models live in** `packages/app_models/lib/`.
 - **Use `withAlpha()`, not `withOpacity()`** — the latter is deprecated.
 - **Never hardcode colours.** Mobile: everything comes from `QuestColors`

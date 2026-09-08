@@ -14,8 +14,8 @@ dependencies:
     path: ../app_core
   app_models:
     path: ../app_models
-  supabase_contracts:
-    path: ../supabase_contracts
+  app_contracts:
+    path: ../app_contracts
   http: ^1.2.2
   mime: ^2.0.0
   sign_in_with_apple: ^6.1.0

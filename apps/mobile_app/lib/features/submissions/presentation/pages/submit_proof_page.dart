@@ -9,7 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import '../../../../core/providers/auth_session_provider.dart';

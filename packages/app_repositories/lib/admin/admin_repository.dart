@@ -4,7 +4,7 @@
 /// the caller's admin role without each rolling its own provider that
 /// reads the `admins` table directly. Solves ARC-021.
 ///
-/// Named `AdminRoleEnum` (not `AdminRole`) because supabase_contracts
+/// Named `AdminRoleEnum` (not `AdminRole`) because app_contracts
 /// already exposes an abstract-final `AdminRole` class with static
 /// constants for the DB string values. The two are complementary — the
 /// enum here is the typed in-memory shape, the constants over there are

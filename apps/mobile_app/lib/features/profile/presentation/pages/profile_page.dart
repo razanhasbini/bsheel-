@@ -8,7 +8,7 @@ import 'package:app_models/app_models.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:shared_ui/shared_ui.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/router/route_names.dart';

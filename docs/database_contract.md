@@ -130,7 +130,7 @@ failed silently every hour for a day, having never once succeeded.
 1. Write the migration as the next number, wrapped in `BEGIN; … COMMIT;`.
 2. Update the repository, service and DTO that use it.
 3. Add or update the domain value constants in
-   `packages/supabase_contracts/lib/statuses.dart` if you added a status or
+   `packages/app_contracts/lib/statuses.dart` if you added a status or
    enum-like value.
 4. Update the Dart model in `packages/app_models/lib/` if the API shape changed.
 5. Add an integration test that fails without the migration.

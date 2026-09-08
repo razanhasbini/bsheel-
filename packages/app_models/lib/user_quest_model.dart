@@ -1,4 +1,4 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import 'quest_model.dart';
 import 'src/json_coercions.dart';
@@ -50,12 +50,12 @@ class UserQuestModel {
       UserQuestColumns.assignedAt: assignedAt.toIso8601String(),
       UserQuestColumns.completedAt: completedAt?.toIso8601String(),
       UserQuestColumns.expiresAt: expiresAt?.toIso8601String(),
-      if (quest != null) Tables.quests: quest!.toJson(),
+      if (quest != null) EmbedKeys.quests: quest!.toJson(),
     };
   }
 
   static QuestModel? _parseQuest(Map<String, dynamic> json) {
-    final joinedQuest = coerceEmbed(json[Tables.quests]);
+    final joinedQuest = coerceEmbed(json[EmbedKeys.quests]);
     return joinedQuest == null ? null : QuestModel.fromJson(joinedQuest);
   }
 

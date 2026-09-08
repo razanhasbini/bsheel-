@@ -1,5 +1,5 @@
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 Map<String, dynamic> submissionRow({
@@ -230,8 +230,8 @@ void main() {
   group('SubmissionModel joined fields', () {
     test('reads quests.title through a nested object join', () {
       final sub = parse(overrides: {
-        Tables.userQuests: <String, dynamic>{
-          Tables.quests: <String, dynamic>{QuestColumns.title: 'Photo walk'},
+        EmbedKeys.userQuests: <String, dynamic>{
+          EmbedKeys.quests: <String, dynamic>{QuestColumns.title: 'Photo walk'},
         },
       });
 
@@ -240,8 +240,8 @@ void main() {
 
     test('reads quests.title through an array-shaped join', () {
       final sub = parse(overrides: {
-        Tables.userQuests: <String, dynamic>{
-          Tables.quests: <dynamic>[
+        EmbedKeys.userQuests: <String, dynamic>{
+          EmbedKeys.quests: <dynamic>[
             <String, dynamic>{QuestColumns.title: 'Photo walk'},
           ],
         },
@@ -252,7 +252,7 @@ void main() {
 
     test('an empty array join yields null, not a crash', () {
       final sub = parse(overrides: {
-        Tables.userQuests: <String, dynamic>{Tables.quests: <dynamic>[]},
+        EmbedKeys.userQuests: <String, dynamic>{EmbedKeys.quests: <dynamic>[]},
       });
 
       expect(sub.questTitle, isNull);
@@ -260,7 +260,7 @@ void main() {
 
     test('a user_quests join with no quests child yields null', () {
       final sub = parse(overrides: {
-        Tables.userQuests: <String, dynamic>{UserQuestColumns.id: 'uq-1'},
+        EmbedKeys.userQuests: <String, dynamic>{UserQuestColumns.id: 'uq-1'},
       });
 
       expect(sub.questTitle, isNull);
@@ -268,7 +268,7 @@ void main() {
 
     test('reads the author profile through an object join', () {
       final sub = parse(overrides: {
-        Tables.profiles: <String, dynamic>{
+        EmbedKeys.profiles: <String, dynamic>{
           ProfileColumns.username: 'ada',
           ProfileColumns.displayName: 'Ada L.',
         },
@@ -280,7 +280,7 @@ void main() {
 
     test('reads the author profile through an array join', () {
       final sub = parse(overrides: {
-        Tables.profiles: <dynamic>[
+        EmbedKeys.profiles: <dynamic>[
           <String, dynamic>{
             ProfileColumns.username: 'ada',
             ProfileColumns.displayName: 'Ada L.',
@@ -294,7 +294,7 @@ void main() {
 
     test('a profile join missing display_name yields null for that field', () {
       final sub = parse(overrides: {
-        Tables.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
+        EmbedKeys.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
       });
 
       expect(sub.authorUsername, 'ada');
@@ -469,7 +469,7 @@ void main() {
       // They belong to other tables — writing them back would be rejected
       // as unknown columns on `submissions`.
       final json = parse(overrides: {
-        Tables.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
+        EmbedKeys.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
       }).toJson();
 
       expect(json.containsKey(ProfileColumns.username), isFalse);
@@ -538,7 +538,7 @@ void main() {
     test('the joined fields participate in equality', () {
       expect(
         parse(overrides: {
-          Tables.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
+          EmbedKeys.profiles: <String, dynamic>{ProfileColumns.username: 'ada'},
         }),
         isNot(parse()),
       );

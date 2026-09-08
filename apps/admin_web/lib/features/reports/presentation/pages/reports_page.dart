@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
@@ -276,7 +276,7 @@ class _ReportCard extends StatelessWidget {
     final reason = data['reason']?.toString() ?? '';
     final status = data['status']?.toString() ?? 'pending';
     final createdAt = data['created_at']?.toString() ?? '';
-    final profile = data[Tables.profiles] as Map<String, dynamic>?;
+    final profile = data[EmbedKeys.profiles] as Map<String, dynamic>?;
     final reporter = profile?[ProfileColumns.username] ?? 'unknown';
     final isPending = status == 'pending';
 

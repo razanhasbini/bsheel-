@@ -54,7 +54,7 @@ import 'package:mobile_app/features/submissions/presentation/pages/submission_st
 import 'package:mobile_app/features/submissions/presentation/pages/submit_proof_page.dart';
 import 'package:mobile_app/l10n/app_localizations.dart';
 import 'package:mobile_app/shared/navigation/bottom_nav_shell.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 void main() {
   // Dev utility: every repository is faked, so this needs no backend — but

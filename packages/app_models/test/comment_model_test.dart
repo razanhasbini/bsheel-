@@ -1,5 +1,5 @@
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 /// The alias PostgREST needs to disambiguate the two profile FKs on
@@ -42,7 +42,7 @@ void main() {
 
     test('falls back to a plain profiles embed', () {
       final comment = CommentModel.fromJson(commentRow(overrides: {
-        Tables.profiles: <String, dynamic>{
+        EmbedKeys.profiles: <String, dynamic>{
           ProfileColumns.username: 'ada',
           ProfileColumns.displayName: 'Ada L.',
         },
@@ -55,7 +55,7 @@ void main() {
     test('the aliased embed wins over the plain one', () {
       final comment = CommentModel.fromJson(commentRow(overrides: {
         fkAlias: <String, dynamic>{ProfileColumns.username: 'from-alias'},
-        Tables.profiles: <String, dynamic>{
+        EmbedKeys.profiles: <String, dynamic>{
           ProfileColumns.username: 'from-plain',
         },
       }));
@@ -100,7 +100,7 @@ void main() {
       // this model hard-cast to Map, so the same PostgREST response threw
       // here. All four join readers share `coerceEmbed` now.
       final fromPlain = CommentModel.fromJson(commentRow(overrides: {
-        Tables.profiles: <dynamic>[
+        EmbedKeys.profiles: <dynamic>[
           <String, dynamic>{
             ProfileColumns.username: 'ada',
             ProfileColumns.displayName: 'Ada L.',
@@ -122,7 +122,7 @@ void main() {
 
     test('an empty array embed falls through to the flat columns', () {
       final comment = CommentModel.fromJson(commentRow(overrides: {
-        Tables.profiles: <dynamic>[],
+        EmbedKeys.profiles: <dynamic>[],
         'username': 'flat-ada',
       }));
 

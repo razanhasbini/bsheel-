@@ -54,7 +54,7 @@ updates:
     open-pull-requests-limit: 3
     labels: ["dependencies", "security"]
   - package-ecosystem: "pub"
-    directory: "/packages/supabase_contracts"
+    directory: "/packages/app_contracts"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3

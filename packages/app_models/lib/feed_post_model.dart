@@ -1,4 +1,4 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import 'collab_feed_member.dart';
 import 'src/json_coercions.dart';

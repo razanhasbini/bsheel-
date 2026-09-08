@@ -1,28 +1,14 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 import 'contract_invariants.dart';
 
-const Map<String, String> tables = {
-  'profiles': Tables.profiles,
-  'quests': Tables.quests,
-  'userQuests': Tables.userQuests,
-  'submissions': Tables.submissions,
-  'reactions': Tables.reactions,
-  'notifications': Tables.notifications,
-  'admins': Tables.admins,
-  'comments': Tables.comments,
-  'follows': Tables.follows,
-  'reports': Tables.reports,
-  'blockedUsers': Tables.blockedUsers,
-  'collabGroups': Tables.collabGroups,
-  'collabGroupMembers': Tables.collabGroupMembers,
-  'collabVotes': Tables.collabVotes,
-  'adminQuestInjections': Tables.adminQuestInjections,
-  'appConfig': Tables.appConfig,
-  'savedPosts': Tables.savedPosts,
-  'savedQuests': Tables.savedQuests,
-  'questOfTheDay': Tables.questOfTheDay,
+// Only the embeds the clients actually read are declared; the rest of the
+// legacy table list went with the direct-database access that needed it.
+const Map<String, String> embedKeys = {
+  'profiles': EmbedKeys.profiles,
+  'quests': EmbedKeys.quests,
+  'userQuests': EmbedKeys.userQuests,
 };
 
 const Map<String, String> profileColumns = {
@@ -199,40 +185,24 @@ const Map<String, Map<String, String>> allColumnClasses = {
 void main() {
   group('Tables', () {
     test('names are non-empty, lowercase, snake_case and unique', () {
-      expectValidContractValues('Tables', tables);
+      expectValidContractValues('EmbedKeys', embedKeys);
     });
 
-    test('is exactly the 19 tables the Dart clients touch', () {
-      expect(tables.values.toSet(), {
-        'profiles',
-        'quests',
-        'user_quests',
-        'submissions',
-        'reactions',
-        'notifications',
-        'admins',
-        'comments',
-        'follows',
-        'reports',
-        'blocked_users',
-        'collab_groups',
-        'collab_group_members',
-        'collab_votes',
-        'admin_quest_injections',
-        'app_config',
-        'saved_posts',
-        'saved_quests',
-        'quest_of_the_day',
-      });
-      expect(tables, hasLength(19));
+    test('is exactly the three embeds the clients read', () {
+      // Deliberately narrow. The legacy list named all 19 tables because the
+      // clients queried them directly; they now speak HTTP, so the only names
+      // that survive are the keys of objects the API nests in a response.
+      // Adding one here should mean the API actually embeds it.
+      expect(embedKeys.values.toSet(), {'profiles', 'quests', 'user_quests'});
+      expect(embedKeys, hasLength(3));
     });
 
     test('the join keys the models read are the plain table names', () {
       // SubmissionModel / UserQuestModel / CommentModel index the embedded
       // rows by these exact strings.
-      expect(Tables.userQuests, 'user_quests');
-      expect(Tables.quests, 'quests');
-      expect(Tables.profiles, 'profiles');
+      expect(EmbedKeys.userQuests, 'user_quests');
+      expect(EmbedKeys.quests, 'quests');
+      expect(EmbedKeys.profiles, 'profiles');
     });
   });
 
@@ -278,7 +248,7 @@ void main() {
     test('no column name collides with a table name', () {
       // A select string like `profiles(...)` is ambiguous if a column is
       // also called `profiles`.
-      final tableNames = tables.values.toSet();
+      final tableNames = embedKeys.values.toSet();
       allColumnClasses.forEach((label, columns) {
         columns.forEach((name, value) {
           expect(
@@ -291,7 +261,7 @@ void main() {
     });
   });
 
-  group('exact column sets for the tables Dart writes to', () {
+  group('exact column sets for the embedKeys Dart writes to', () {
     test('ProfileColumns covers all 14 columns incl. the 0142 consent pair',
         () {
       expect(profileColumns.values.toSet(), {
@@ -378,7 +348,8 @@ void main() {
       });
     });
 
-    test('the two block/follow join tables use distinct directional pairs', () {
+    test('the two block/follow join embedKeys use distinct directional pairs',
+        () {
       expect(FollowColumns.followerId, 'follower_id');
       expect(FollowColumns.followingId, 'following_id');
       expect(BlockedUserColumns.blockerId, 'blocker_id');

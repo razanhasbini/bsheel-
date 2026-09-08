@@ -33,6 +33,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.11.3"
+  app_contracts:
+    dependency: "direct main"
+    description:
+      path: "../../packages/app_contracts"
+      relative: true
+    source: path
+    version: "0.0.1"
   app_core:
     dependency: "direct main"
     description:
@@ -897,13 +904,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.0"
-  supabase_contracts:
-    dependency: "direct main"
-    description:
-      path: "../../packages/supabase_contracts"
-      relative: true
-    source: path
-    version: "0.0.1"
   term_glyph:
     dependency: transitive
     description:

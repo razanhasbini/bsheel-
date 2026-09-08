@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../collab/data/collab_providers.dart';

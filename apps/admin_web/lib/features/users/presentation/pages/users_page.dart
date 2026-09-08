@@ -8,7 +8,7 @@ import 'package:app_repositories/app_repositories.dart' show AdminRoleEnum;
 import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';

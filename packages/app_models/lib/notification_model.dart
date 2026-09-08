@@ -1,4 +1,4 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import 'src/json_coercions.dart';
 
@@ -34,7 +34,7 @@ class NotificationModel {
     // used to be a hard `as Map<String, dynamic>?` cast that threw on it
     // while SubmissionModel tolerated both shapes.
     final actorProfile = coerceEmbed(json['actor_profile']) ??
-        coerceEmbed(json[Tables.profiles]);
+        coerceEmbed(json[EmbedKeys.profiles]);
     return NotificationModel(
       id: (json[NotificationColumns.id] ?? '').toString(),
       userId: (json[NotificationColumns.userId] ?? '').toString(),

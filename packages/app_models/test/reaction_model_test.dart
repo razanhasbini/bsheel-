@@ -1,5 +1,5 @@
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 Map<String, dynamic> reactionRow({Map<String, dynamic> overrides = const {}}) =>

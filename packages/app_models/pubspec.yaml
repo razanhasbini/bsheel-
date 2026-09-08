@@ -9,8 +9,8 @@ environment:
 dependencies:
   app_core:
     path: ../app_core
-  supabase_contracts:
-    path: ../supabase_contracts
+  app_contracts:
+    path: ../app_contracts
 
 dev_dependencies:
   test: ^1.25.0

@@ -11,7 +11,7 @@ scripts:
   analyze:
     run: melos exec -- flutter analyze
 
-  # `app_models` and `supabase_contracts` are pure-Dart packages: neither
+  # `app_models` and `app_contracts` are pure-Dart packages: neither
   # depends on the Flutter SDK, so `dart test` is the right runner (and
   # skips the Flutter test harness bootstrap entirely). Everything else —
   # both apps plus app_core / app_repositories / shared_ui — pulls in
@@ -20,14 +20,14 @@ scripts:
   # Split into two scripts because no single command serves both, and
   # `test` runs both so `melos run test` still covers all 7 packages.
   # Previously `test` was `melos exec --ignore="app_models,app_repositories,
-  # supabase_contracts" -- flutter test`, which silently excluded the wire
+  # app_contracts" -- flutter test`, which silently excluded the wire
   # contract suite in packages/app_repositories/test from CI.
   test:dart:
-    run: melos exec --scope="app_models,supabase_contracts" -- dart test
+    run: melos exec --scope="app_models,app_contracts" -- dart test
     description: Run the pure-Dart package tests with `dart test`.
 
   test:flutter:
-    run: melos exec --ignore="app_models,supabase_contracts" -- flutter test
+    run: melos exec --ignore="app_models,app_contracts" -- flutter test
     description: Run the Flutter package and app tests with `flutter test`.
 
   test:

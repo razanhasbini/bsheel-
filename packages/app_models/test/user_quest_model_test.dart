@@ -1,5 +1,5 @@
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 Map<String, dynamic> nestedQuest({Map<String, dynamic> overrides = const {}}) =>
@@ -105,7 +105,7 @@ void main() {
     group('nested quest join', () {
       test('an object-shaped quests join builds a QuestModel', () {
         final uq = UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: nestedQuest(),
+          EmbedKeys.quests: nestedQuest(),
         }));
 
         expect(uq.quest, isNotNull);
@@ -117,7 +117,7 @@ void main() {
 
       test('an array-shaped quests join uses the first element', () {
         final uq = UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: <dynamic>[
+          EmbedKeys.quests: <dynamic>[
             nestedQuest(),
             nestedQuest(overrides: {QuestColumns.id: 'quest-2'}),
           ],
@@ -128,7 +128,7 @@ void main() {
 
       test('an empty array join yields a null quest', () {
         final uq = UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: <dynamic>[],
+          EmbedKeys.quests: <dynamic>[],
         }));
 
         expect(uq.quest, isNull);
@@ -136,7 +136,7 @@ void main() {
 
       test('a non-map, non-list quests value yields a null quest', () {
         final uq = UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: 'quest-1',
+          EmbedKeys.quests: 'quest-1',
         }));
 
         expect(uq.quest, isNull);
@@ -150,7 +150,7 @@ void main() {
         // nested quest now degrades its own timestamp instead.
         final bad = nestedQuest()..remove(QuestColumns.createdAt);
         final uq = UserQuestModel.fromJson(
-          userQuestRow(overrides: {Tables.quests: bad}),
+          userQuestRow(overrides: {EmbedKeys.quests: bad}),
         );
 
         expect(uq.quest, isNotNull);
@@ -180,18 +180,18 @@ void main() {
 
     test('nests the quest payload when the join was present', () {
       final json = UserQuestModel.fromJson(userQuestRow(overrides: {
-        Tables.quests: nestedQuest(),
+        EmbedKeys.quests: nestedQuest(),
       })).toJson();
 
-      expect(json.containsKey(Tables.quests), isTrue);
-      final quest = json[Tables.quests] as Map<String, dynamic>;
+      expect(json.containsKey(EmbedKeys.quests), isTrue);
+      final quest = json[EmbedKeys.quests] as Map<String, dynamic>;
       expect(quest[QuestColumns.id], 'quest-1');
       expect(quest[QuestColumns.xpReward], 150);
     });
 
     test('round-trips including the nested quest', () {
       final original = UserQuestModel.fromJson(userQuestRow(overrides: {
-        Tables.quests: nestedQuest(),
+        EmbedKeys.quests: nestedQuest(),
         UserQuestColumns.completedAt: '2026-05-03T14:30:00Z',
       }));
       final restored = UserQuestModel.fromJson(original.toJson());
@@ -217,19 +217,20 @@ void main() {
   group('UserQuestModel value equality', () {
     test('the nested quest participates in equality', () {
       final withQuest = UserQuestModel.fromJson(userQuestRow(overrides: {
-        Tables.quests: nestedQuest(),
+        EmbedKeys.quests: nestedQuest(),
       }));
 
       expect(
         withQuest,
         UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: nestedQuest(),
+          EmbedKeys.quests: nestedQuest(),
         })),
       );
       expect(
         withQuest,
         isNot(UserQuestModel.fromJson(userQuestRow(overrides: {
-          Tables.quests: nestedQuest(overrides: {QuestColumns.title: 'Other'}),
+          EmbedKeys.quests:
+              nestedQuest(overrides: {QuestColumns.title: 'Other'}),
         }))),
       );
       expect(withQuest, isNot(UserQuestModel.fromJson(userQuestRow())));

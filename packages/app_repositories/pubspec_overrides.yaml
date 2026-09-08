@@ -4,5 +4,5 @@ dependency_overrides:
     path: ../app_core
   app_models:
     path: ../app_models
-  supabase_contracts:
-    path: ../supabase_contracts
+  app_contracts:
+    path: ../app_contracts

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import 'package:test/test.dart';
 
 http.Response success(Object? data, [int status = 200]) => http.Response(

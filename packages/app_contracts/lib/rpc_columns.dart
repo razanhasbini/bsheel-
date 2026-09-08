@@ -23,15 +23,6 @@ abstract final class FeedRpcColumns {
   static const String hotScore = 'hot_score';
 }
 
-/// Columns returned by get_user_xp_stats RPC.
-abstract final class XpStatsRpcColumns {
-  static const String totalXp = 'total_xp';
-  static const String currentLevel = 'current_level';
-  static const String xpToNextLevel = 'xp_to_next_level';
-  static const String totalQuests = 'total_quests';
-  static const String rank = 'rank';
-}
-
 /// Collab group fields returned by the updated get_feed RPC.
 abstract final class CollabFeedRpcColumns {
   static const String isCollab = 'is_collab';

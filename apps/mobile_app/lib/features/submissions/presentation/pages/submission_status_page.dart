@@ -9,7 +9,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart'
     show RealtimeDomainEvent;
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 import '../../data/submission_providers.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../../feed/presentation/providers/feed_provider.dart';

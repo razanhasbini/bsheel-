@@ -9,8 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
-import 'package:supabase_contracts/supabase_contracts.dart'
-    show UserQuestStatus;
+import 'package:app_contracts/app_contracts.dart' show UserQuestStatus;
 
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/providers/account_status_provider.dart';

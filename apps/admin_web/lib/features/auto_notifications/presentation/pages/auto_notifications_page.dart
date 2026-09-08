@@ -1,7 +1,7 @@
 import 'package:app_core/app_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
@@ -434,7 +434,7 @@ class _NotificationTile extends StatelessWidget {
     final title = (data[NotificationColumns.title] as String?) ?? '';
     final body = (data[NotificationColumns.body] as String?) ?? '';
     final createdAt = data[NotificationColumns.createdAt] as String?;
-    final profileMap = data[Tables.profiles] as Map<String, dynamic>?;
+    final profileMap = data[EmbedKeys.profiles] as Map<String, dynamic>?;
     final username = profileMap?[ProfileColumns.username] as String?;
     final typeColor = _colorForType(type);
 

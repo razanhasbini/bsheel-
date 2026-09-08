@@ -112,7 +112,7 @@ jobs:
       # local entrypoint.
       #
       # Until 2026-09 the single `test` script carried
-      # --ignore="app_models,app_repositories,supabase_contracts", so the
+      # --ignore="app_models,app_repositories,app_contracts", so the
       # wire-contract suite in packages/app_repositories/test — including
       # api_repository_contract_test.dart, the whole Flutter-side contract
       # evidence layer — never executed in CI. Both pure-Dart packages are

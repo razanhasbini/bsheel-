@@ -1,4 +1,4 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import 'src/json_coercions.dart';
 
@@ -101,9 +101,10 @@ class SubmissionModel {
   /// the alternate non-aliased and array-shaped responses.
   static String? _readJoinedQuestTitle(Map<String, dynamic> json) {
     final userQuest =
-        coerceEmbed(json[Tables.userQuests] ?? json['user_quests']);
+        coerceEmbed(json[EmbedKeys.userQuests] ?? json['user_quests']);
     if (userQuest == null) return null;
-    final quest = coerceEmbed(userQuest[Tables.quests] ?? userQuest['quests']);
+    final quest =
+        coerceEmbed(userQuest[EmbedKeys.quests] ?? userQuest['quests']);
     return quest?[QuestColumns.title] as String?;
   }
 
@@ -111,7 +112,7 @@ class SubmissionModel {
     Map<String, dynamic> json,
     String field,
   ) {
-    final profile = coerceEmbed(json[Tables.profiles] ?? json['profiles']);
+    final profile = coerceEmbed(json[EmbedKeys.profiles] ?? json['profiles']);
     return profile?[field] as String?;
   }
 

@@ -82,7 +82,7 @@ Package dependency graph:
 
 ```text
 app_core              (pure Dart: theme tokens, logger, utils)
-supabase_contracts    (pure Dart: domain value constants)
+app_contracts         (pure Dart: domain values + API field names)
         \       /
        app_models     (models; depends on app_core + contracts)
             |

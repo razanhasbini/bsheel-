@@ -1,4 +1,4 @@
-import 'package:supabase_contracts/supabase_contracts.dart';
+import 'package:app_contracts/app_contracts.dart';
 
 import 'src/json_coercions.dart';
 
@@ -40,7 +40,7 @@ class CommentModel {
     // used to be a hard `as Map<String, dynamic>?` cast that threw on it
     // while SubmissionModel tolerated both shapes.
     final profile = coerceEmbed(json['profiles!comments_user_id_fkey']) ??
-        coerceEmbed(json[Tables.profiles]);
+        coerceEmbed(json[EmbedKeys.profiles]);
 
     return CommentModel(
       id: (json[CommentColumns.id] ?? '').toString(),

@@ -9,7 +9,7 @@ everywhere.
   crash the UI on a missing or wrongly-typed field. Coerce with an explicit
   default and make the default obvious (`(json['xp'] as num?)?.toInt() ?? 0`).
 - **Field names follow the API**, which is snake_case. The constant names for
-  those keys live in `supabase_contracts`.
+  those keys live in `app_contracts`.
 - **Models are immutable.** Add a `copyWith` when a screen needs to vary one
   field; do not add setters.
 - **No networking and no Flutter.** A model must be testable in a plain Dart
@@ -24,5 +24,5 @@ the same thing start to disagree.
 
 ## Depends on
 
-`app_core` and `supabase_contracts`. Both are pure Dart, so this package is
+`app_core` and `app_contracts`. Both are pure Dart, so this package is
 too.

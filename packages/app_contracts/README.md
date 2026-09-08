@@ -1,11 +1,7 @@
-# supabase_contracts
+# app_contracts
 
 Domain value constants shared by the clients: statuses, categories,
 difficulties, roles, notification types, and the field names the API uses.
-
-> **The package name is historical** and no longer accurate — nothing here
-> talks to Supabase. It is a plain constants package. Renaming it touches every
-> importing file, so it is a deliberate, separate change.
 
 ## Why this exists
 
@@ -33,4 +29,6 @@ status: 'pendign'
 
 - Anything with behaviour. This package is constants only, which is why it is
   pure Dart and sits at the bottom of the dependency graph.
-- Table or RPC names. The clients no longer speak SQL; they call HTTP routes.
+- Table names, RPC names or storage paths. The clients speak HTTP, so those
+  went with the direct-database access that needed them. What remains under
+  `EmbedKeys` are the JSON keys of objects the API nests in a response.
