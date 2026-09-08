@@ -126,6 +126,56 @@ abstract final class QuestColors {
   static const Color catAdventure = Color(0xFFFFC224); // gold
 
   // ──────────────────────────────────────────────
+  // TEXT ON CREAM — accent tokens that fail contrast as small type
+  // ──────────────────────────────────────────────
+  // The accent fills are tuned to be read as *grounds*, behind ink. Used as
+  // small text directly on cream they fall under 4.5:1, so each has a
+  // darkened text-only twin. These are for type, never for a fill.
+
+  /// Coral as text on cream. `osRed` measures 2.9:1 at 13px and fails.
+  static const Color osRedText = Color(0xFFC0392F);
+
+  /// Jade as text on cream. `osSuccess` measures 2.2:1 and fails.
+  static const Color osSuccessText = Color(0xFF0F7A4E);
+
+  /// Gold as text on cream. `osAccent` measures 1.6:1 — nearly invisible.
+  static const Color osAccentText = Color(0xFF8A5F09);
+
+  // ──────────────────────────────────────────────
+  // CONTRAST — pick text by the ground it sits on
+  // ──────────────────────────────────────────────
+
+  /// The text colour that passes contrast on [ground].
+  ///
+  /// Violet and the ink panels take white; gold takes [osAccentInk]; every
+  /// other accent — coral, jade, sky — takes ink.
+  ///
+  /// This encodes the one rule that is easiest to get wrong by eye: coral
+  /// and jade *look* dark enough for white text and are not. White on
+  /// coral measures 3.03:1 and fails WCAG AA; ink on coral measures
+  /// 5.88:1 and passes. Call this instead of choosing by hand.
+  static Color onAccent(Color ground) {
+    if (ground == osPrimary || ground == darkBg || ground == darkCard || ground == darkSurface) {
+      return pureWhite;
+    }
+    if (ground == osAccent) return osAccentInk;
+    return osTextPrimary;
+  }
+
+  /// Secondary text on [ground] — the same rule, softer only where the
+  /// ground has the contrast headroom to allow it.
+  ///
+  /// Never alpha-muted on an accent ground: dimming ink on coral drops it
+  /// back below AA, which is exactly what [onAccent] exists to prevent.
+  /// On an accent, this returns full-opacity [onAccent] and lets size and
+  /// weight carry the hierarchy instead.
+  static Color onAccentSoft(Color ground) {
+    if (ground == osCard || ground == osBg || ground == osSurface) return osTextSecondary;
+    if (ground == darkBg || ground == darkCard || ground == darkSurface) return textSecondary;
+    return onAccent(ground);
+  }
+
+  // ──────────────────────────────────────────────
   // SEMANTIC ALPHAS — use these instead of magic numbers
   // ──────────────────────────────────────────────
   /// ~12% — whisper / faint backgrounds, scanlines

@@ -7,10 +7,36 @@ import pg from 'pg';
 const { Pool } = pg;
 const directory = resolve('migrations');
 const checkOnly = process.argv.includes('--check');
-const databaseUrl = process.env.DATABASE_URL;
+
+// Read DATABASE_URL from backend/.env when it is not already exported.
+//
+// CLAUDE.md and the README both document `npm run db:migrate` as a bare
+// command, and the API itself resolves .env through Nest's ConfigModule — so
+// a developer who has a working .env would reasonably expect this to work.
+// It did not, and the failure ("DATABASE_URL is required") gave no hint that
+// a file sitting right there held the answer.
+//
+// An exported variable still wins, which is what CI and the migration-replay
+// check rely on to point at a scratch database.
+async function databaseUrlFromEnvFile() {
+  try {
+    const contents = await readFile(resolve('.env'), 'utf8');
+    for (const line of contents.split('\n')) {
+      const match = /^\s*DATABASE_URL\s*=\s*(.*)$/.exec(line);
+      if (!match) continue;
+      // Strip matched surrounding quotes and any trailing comment.
+      return match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+    }
+  } catch {
+    // No .env is normal in CI, where the variable is exported instead.
+  }
+  return undefined;
+}
+
+const databaseUrl = process.env.DATABASE_URL ?? (await databaseUrlFromEnvFile());
 
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required');
+  throw new Error('DATABASE_URL is required (export it, or set it in backend/.env)');
 }
 
 const pool = new Pool({ connectionString: databaseUrl, max: 1 });
