@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#F2E7D0; -webkit-font-smoothing:antialiased; }
+  a { color:#6B3BFF; text-decoration:none; }
+  a:hover { color:#4A22CC; text-decoration:underline; }
+</style>
+</helmet>
+
+<div style="font-family:'DM Sans',sans-serif;color:#1A1330;padding:56px 48px 88px;display:flex;flex-direction:column;gap:44px;background:#F2E7D0">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:800px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.16em;color:#5B5170">BSHEEL · ADMIN CONSOLE · 21 ROUTES</div>
+    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:48px;line-height:1;letter-spacing:-0.035em">THE ADMIN PANEL, END TO END</div>
+    <div style="font-size:16px;line-height:1.6;color:#5B5170;text-wrap:pretty">Arcade Pop throughout — same cream ground, 2px indigo outlines and hard offset shadows as the app. Colour carries meaning here: jade approves, coral rejects, gold marks anything waiting on a person, violet is navigation and primary action. Moderators see one queue, one decision, and the context needed to make it.</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#5B5170">
+      <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#17C27B"></span>APPROVE</div>
+      <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#FF5A6E"></span>REJECT</div>
+      <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#FFC224"></span>WAITING</div>
+      <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#6B3BFF"></span>ACTION</div>
+      <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;border-radius:3px;background:#1A1330"></span>INK</div>
+    </div>
+  </div>
+
+  <!-- ═══ 01 AUTH ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">01</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">AUTH &amp; PUBLIC PAGES</div>
+      <div style="font-size:14px;color:#5B5170">/login · /confirm-email · /delete-account</div>
+    </div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:620px;height:460px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:36px">
+          <div style="width:330px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;letter-spacing:-0.035em;line-height:1">BSHEEL ADMIN</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">MODERATOR SIGN IN</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">EMAIL</label>
+              <div style="height:48px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">your@email.com</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PASSWORD</label>
+              <div style="height:48px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">Enter your password</div>
+            </div>
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:11px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;gap:9px;align-items:center">
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:#1A1330">!</span>
+              <span style="font-size:13px;line-height:1.5;color:#1A1330;font-weight:500">You are not authorized.</span>
+            </div>
+            <button style="height:52px;border-radius:13px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.04em;cursor:pointer">LOG IN</button>
+            <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;align-self:center">FORGOT PASSWORD?</a>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/LOGIN · WITH AUTH ERROR</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:620px;height:460px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:36px">
+          <div style="width:380px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center">
+            <div style="width:60px;height:60px;border:2px solid #1A1330;border-radius:999px;background:#17C27B;box-shadow:4px 4px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:24px">✓</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.035em;line-height:1">CHECK YOUR EMAIL</div>
+            <div style="font-size:14px;line-height:1.6;color:#5B5170;text-wrap:pretty">We sent a confirmation link to <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#1A1330">s.haddad@bsheel.app</span>. The link expires in 30 minutes.</div>
+            <div style="display:flex;gap:9px;margin-top:2px">
+              <button style="height:48px;padding:0 18px;border-radius:12px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:14px;letter-spacing:0.04em;cursor:pointer">OPEN MAIL APP</button>
+              <button style="height:48px;padding:0 18px;border-radius:12px;border:2px solid #1A1330;background:#FFF1D6;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:14px;letter-spacing:0.04em;cursor:pointer">RESEND</button>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#938AA8">RESEND AVAILABLE IN 0:42</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/CONFIRM-EMAIL</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:620px;height:460px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:18px 32px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:baseline;gap:10px">
+            <span style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.03em">BSHEEL</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">DELETE ACCOUNT</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:24px 32px;display:flex;flex-direction:column;gap:15px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em;line-height:1.05">DELETE YOUR BSHEEL ACCOUNT</div>
+            <div style="font-size:14px;line-height:1.6;color:#5B5170;text-wrap:pretty">This will permanently delete your account and all data. This cannot be undone. Completed quests, posts, comments and XP are removed; deletion completes within 48 hours.</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">TYPE DELETE TO CONFIRM:</label>
+              <div style="height:48px;max-width:280px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;letter-spacing:0.14em;color:#938AA8">DELETE</div>
+            </div>
+            <button style="align-self:flex-start;height:48px;padding:0 20px;border-radius:12px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">DELETE ACCOUNT</button>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#938AA8">DATA REMOVED WITHIN 48 HOURS</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/DELETE-ACCOUNT · PUBLIC</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 02 DASHBOARD ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">02</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">DASHBOARD</div>
+      <div style="font-size:14px;color:#5B5170">/ — what needs a human, ordered by how long it has waited</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="width:1280px;flex:none;height:800px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+        <dc-import name="AdminSidebar" active="dashboard" hint-size="230px,100%"></dc-import>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:18px 26px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:14px">
+            <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em">DASHBOARD</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">UPDATED 14:02</div>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:22px 26px;display:flex;flex-direction:column;gap:22px">
+
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px 17px;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#2A1B00">AWAITING REVIEW</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:38px;letter-spacing:-0.04em;line-height:1;color:#2A1B00">14</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#2A1B00">OLDEST 6H 12M</div>
+              </div>
+              <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px 17px;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">APPEALS OPEN</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:38px;letter-spacing:-0.04em;line-height:1;color:#1A1330">3</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">SECOND REVIEW</div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px 17px;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#5B5170">REPORTS</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:38px;letter-spacing:-0.04em;line-height:1">2</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">UNTRIAGED</div>
+              </div>
+              <div style="background:#17C27B;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px 17px;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">DECIDED TODAY</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:38px;letter-spacing:-0.04em;line-height:1;color:#1A1330">38</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">MEDIAN 11M</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start">
+
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.13em;color:#5B5170">QUEUE — OLDEST FIRST</div>
+                  <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em">OPEN MODERATION</a>
+                </div>
+                <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+                  <div style="display:grid;grid-template-columns:1fr 96px 92px 82px;gap:12px;padding:9px 14px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#5B5170">
+                    <span>SUBMISSION</span><span>USER</span><span>WAITING</span><span>TYPE</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 96px 92px 82px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point…</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">rami.h</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#C0392F">6h 12m</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FFC224;border:2px solid #1A1330;border-radius:999px;padding:2px 7px;justify-self:start;color:#2A1B00">APPEAL</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 96px 92px 82px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Draw the view from the nearest window…</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">maya.z</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">3h 48m</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#5B5170">FIRST</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 96px 92px 82px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Get off two stops early and walk the rest</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">omar_dk</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">1h 05m</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#5B5170">FIRST</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 96px 92px 82px;gap:12px;padding:11px 14px;align-items:center">
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">nour.k</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px">22m</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#5B5170">FIRST</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:20px">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.13em;color:#5B5170">REVIEW THROUGHPUT · 14 DAYS</div>
+                  <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #4CC9F0;padding:15px;display:flex;align-items:flex-end;gap:4px;height:124px">
+                    <span style="flex:1;height:38%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:52%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:44%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:70%;background:#6B3BFF;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:61%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:83%;background:#6B3BFF;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:48%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:57%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:92%;background:#6B3BFF;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:66%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:40%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:74%;background:#6B3BFF;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:55%;background:#C7C0E0;border:2px solid #1A1330;border-radius:3px"></span>
+                    <span style="flex:1;height:100%;background:#FFC224;border:2px solid #1A1330;border-radius:3px"></span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.13em;color:#5B5170">RECENT ADMIN ACTIONS</div>
+                  <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;display:flex;flex-direction:column">
+                    <div style="padding:11px 14px;border-bottom:1px solid #EFE7D6;display:flex;gap:10px;align-items:baseline">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8;flex:none">13:58</span>
+                      <span style="font-size:12px;line-height:1.45">s.haddad approved <span style="font-family:'JetBrains Mono',monospace;font-weight:700">4c19a2</span></span>
+                    </div>
+                    <div style="padding:11px 14px;border-bottom:1px solid #EFE7D6;display:flex;gap:10px;align-items:baseline">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8;flex:none">13:41</span>
+                      <span style="font-size:12px;line-height:1.45">s.haddad rejected <span style="font-family:'JetBrains Mono',monospace;font-weight:700">8f21c4</span> — proof unclear</span>
+                    </div>
+                    <div style="padding:11px 14px;display:flex;gap:10px;align-items:baseline">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8;flex:none">12:07</span>
+                      <span style="font-size:12px;line-height:1.45">k.ayoub set Quest of the Day</span>
+                    </div>
+                  </div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#938AA8">IMMUTABLE — WRITTEN TO admin_audit_log</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/ · DASHBOARD</div>
+    </div>
+  </div>
+
+  <!-- ═══ 03 MODERATION ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">03</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">MODERATION</div>
+      <div style="font-size:14px;color:#5B5170">/moderation · /moderation/review/:id · /moderation/history</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px">
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:800px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="moderation" hint-size="230px,100%"></dc-import>
+
+          <div style="width:300px;flex:none;border-right:2px solid #1A1330;display:flex;flex-direction:column;background:#FFF1D6">
+            <div style="padding:15px 16px;border-bottom:2px solid #1A1330;display:flex;flex-direction:column;gap:10px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">PENDING REVIEW · 14</div>
+              <div style="display:flex;gap:5px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:4px 9px;border-radius:999px">ALL</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:4px 9px;border-radius:999px">APPEALS</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:4px 9px;border-radius:999px">FLAGGED</span>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #6B3BFF;padding:11px;display:flex;gap:10px">
+                <div style="width:44px;height:44px;border:2px solid #1A1330;border-radius:9px;background:repeating-linear-gradient(135deg,#FFF1D6 0 6px,#FFF9EE 6px 12px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">rami.h</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FFC224;border:2px solid #1A1330;border-radius:999px;padding:1px 6px;color:#2A1B00">APPEAL</span></div>
+                  <div style="font-size:12px;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point…</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#C0392F">WAITING 6H 12M</div>
+                </div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:11px;display:flex;gap:10px">
+                <div style="width:44px;height:44px;border:2px solid #1A1330;border-radius:9px;background:repeating-linear-gradient(135deg,#FFF1D6 0 6px,#FFF9EE 6px 12px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">maya.z</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FF5A6E;border:2px solid #1A1330;border-radius:999px;padding:1px 6px;color:#1A1330">FLAGGED</span></div>
+                  <div style="font-size:12px;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Draw the view from the nearest window…</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">WAITING 3H 48M</div>
+                </div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:11px;display:flex;gap:10px">
+                <div style="width:44px;height:44px;border:2px solid #1A1330;border-radius:9px;background:repeating-linear-gradient(135deg,#FFF1D6 0 6px,#FFF9EE 6px 12px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">omar_dk</div>
+                  <div style="font-size:12px;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Get off two stops early and walk the rest</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">WAITING 1H 05M</div>
+                </div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:11px;display:flex;gap:10px">
+                <div style="width:44px;height:44px;border:2px solid #1A1330;border-radius:9px;background:repeating-linear-gradient(135deg,#FFF1D6 0 6px,#FFF9EE 6px 12px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">nour.k</div>
+                  <div style="font-size:12px;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">WAITING 22M</div>
+                </div>
+              </div>
+            </div>
+            <div style="padding:10px 16px;border-top:2px solid #1A1330;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#5B5170">J / K MOVE · A APPROVE · R REJECT</div>
+          </div>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:15px 22px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.03em;line-height:1.1">TAKE A PHOTO AT THE HIGHEST POINT YOU CAN REACH TODAY</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#5B5170">8F21C4 · rami.h · LVL 12 · 2ND REVIEW (APPEALED)</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FF5A6E;border:2px solid #1A1330;border-radius:999px;padding:4px 10px;flex:none;color:#1A1330">FITNESS</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170;flex:none">1 / 14</span>
+            </div>
+            <div style="flex:1;display:flex;min-height:0">
+              <div style="flex:1;min-width:0;min-height:0;overflow:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px;border-right:2px solid #1A1330">
+                <div style="flex:1;min-height:220px;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #1A1330;background:repeating-linear-gradient(135deg,#FFF1D6 0 12px,#FFF9EE 12px 24px);display:flex;align-items:center;justify-content:center">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SUBMITTED PROOF · SIGNED URL</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">CAPTION</div>
+                  <div style="font-size:14px;line-height:1.55">"Climbed the stairwell at work, best I could do on a Tuesday."</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">APPEAL TEXT</div>
+                  <div style="font-size:14px;line-height:1.55;background:#FFC224;border:2px solid #1A1330;border-radius:11px;padding:12px 14px;color:#2A1B00">"The window in frame is on the 9th floor — it's the highest point in the building I can access."</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">FIRST DECISION</div>
+                  <div style="font-size:13px;line-height:1.55;color:#5B5170">Rejected 12 Mar 18:04 by s.haddad — proof unclear, intent mismatch.</div>
+                </div>
+              </div>
+
+              <div style="width:346px;flex:none;min-height:0;overflow:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px;background:#FFF1D6">
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">REVIEWER CONTEXT</div>
+                  <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:3px 13px">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Approval rate</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">86%</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Prior rejections</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">2</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Reports against</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">0</span></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0"><span style="color:#5B5170">Appeal</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#C0392F">SPENT</span></div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">REASON (OPTIONAL)</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.05em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 9px;border-radius:999px">PROOF UNCLEAR</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.05em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 9px;border-radius:999px">INTENT MISMATCH</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.05em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 9px;border-radius:999px">UNSAFE</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.05em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 9px;border-radius:999px">DUPLICATE</span>
+                  </div>
+                  <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:11px;padding:11px 13px;min-height:62px;font-size:13px;line-height:1.5;color:#938AA8">Why is this being rejected?</div>
+                </div>
+                <div style="margin-top:auto;display:flex;flex-direction:column;gap:9px">
+                  <button style="width:100%;height:50px;border-radius:12px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">APPROVE · +120 XP</button>
+                  <button style="width:100%;height:50px;border-radius:12px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">REJECT</button>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#C0392F;text-align:center">RE-REJECTION IS FINAL — NO FURTHER APPEALS</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/MODERATION/REVIEW/:ID · APPEAL, SECOND REVIEW</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:640px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="history" hint-size="230px,100%"></dc-import>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:16px 24px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.03em">SUBMISSION HISTORY</div>
+              <div style="height:42px;width:230px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 12px;font-size:13px;color:#938AA8">Search user or quest…</div>
+              <button style="height:42px;padding:0 15px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">EXPORT CSV</button>
+            </div>
+            <div style="padding:14px 24px 0;display:flex;gap:6px;flex-wrap:wrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">ALL</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">APPROVED</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">REJECTED</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">APPEALED</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">RE-REJECTED</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:14px 24px 22px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #1A1330;overflow:hidden">
+                <div style="display:grid;grid-template-columns:86px 1fr 100px 112px 116px 112px;gap:12px;padding:10px 14px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#5B5170">
+                  <span>ID</span><span>QUEST</span><span>USER</span><span>DECIDED</span><span>MODERATOR</span><span>OUTCOME</span>
+                </div>
+                <div style="display:grid;grid-template-columns:86px 1fr 100px 112px 116px 112px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">8f21c4</span>
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point…</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">rami.h</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">12 Mar 18:04</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">s.haddad</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FF5A6E;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">REJECTED</span>
+                </div>
+                <div style="display:grid;grid-template-columns:86px 1fr 100px 112px 116px 112px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">4c19a2</span>
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">nour.k</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">12 Mar 13:58</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">s.haddad</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">APPROVED</span>
+                </div>
+                <div style="display:grid;grid-template-columns:86px 1fr 100px 112px 116px 112px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">b7e330</span>
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cook something you've never cooked</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">maya.z</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">11 Mar 21:16</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">k.ayoub</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#1A1330;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#FFF9EE">RE-REJECTED</span>
+                </div>
+                <div style="display:grid;grid-template-columns:86px 1fr 100px 112px 116px 112px;gap:12px;padding:11px 14px;align-items:center">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">2a90f1</span>
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Run 5km before sunset</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">omar_dk</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">11 Mar 09:02</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">k.ayoub</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">APPROVED</span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-top:14px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">1–4 OF 1,284</span>
+                <div style="display:flex;gap:7px">
+                  <button style="height:38px;padding:0 14px;border-radius:10px;border:2px solid #1A1330;background:#FFFFFF;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">PREV</button>
+                  <button style="height:38px;padding:0 14px;border-radius:10px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">NEXT</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/MODERATION/HISTORY</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:620px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="appeals" hint-size="230px,100%"></dc-import>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:16px 24px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.03em">APPEALS</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">EVERY USER GETS EXACTLY ONE</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:13px 15px;display:flex;gap:11px;align-items:center">
+                <span style="font-family:Syne,sans-serif;font-weight:800;font-size:17px;color:#2A1B00">!</span>
+                <span style="font-size:14px;line-height:1.5;color:#2A1B00;font-weight:500">A re-rejection is final and cannot be undone. Read the appeal text before deciding — the user cannot write a second one.</span>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #FF5A6E;padding:16px;display:flex;gap:14px">
+                <div style="width:88px;height:88px;border:2px solid #1A1330;border-radius:11px;background:repeating-linear-gradient(135deg,#FFF1D6 0 8px,#FFF9EE 8px 16px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-family:Syne,sans-serif;font-weight:700;font-size:16px">rami.h</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#5B5170">8F21C4 · WAITING 6H 12M</span>
+                  </div>
+                  <div style="font-size:14px;font-weight:600">Take a photo at the highest point you can reach today</div>
+                  <div style="font-size:13px;line-height:1.55;color:#5B5170">"The window in frame is on the 9th floor — it's the highest point in the building I can access."</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;flex:none;width:200px">
+                  <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">OVERTURN · APPROVE</button>
+                  <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">UPHOLD · FINAL</button>
+                  <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;text-align:center">OPEN FULL REVIEW</a>
+                </div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;gap:14px">
+                <div style="width:88px;height:88px;border:2px solid #1A1330;border-radius:11px;background:repeating-linear-gradient(135deg,#FFF1D6 0 8px,#FFF9EE 8px 16px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-family:Syne,sans-serif;font-weight:700;font-size:16px">layla.b</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#5B5170">C41D08 · WAITING 2H 30M</span>
+                  </div>
+                  <div style="font-size:14px;font-weight:600">Photograph a stranger's smile</div>
+                  <div style="font-size:13px;line-height:1.55;color:#5B5170">"She agreed to the photo, you can see her nodding in the video I attached second."</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;flex:none;width:200px">
+                  <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">OVERTURN · APPROVE</button>
+                  <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">UPHOLD · FINAL</button>
+                  <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;text-align:center">OPEN FULL REVIEW</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/APPEALS</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 04 CONTENT ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">04</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">CONTENT</div>
+      <div style="font-size:14px;color:#5B5170">/quests · /qotd · /feed · /injection</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px">
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:640px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="quests" hint-size="230px,100%"></dc-import>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:16px 24px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.03em">QUEST BANK</div>
+              <div style="height:42px;width:220px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 12px;font-size:13px;color:#938AA8">Search quests…</div>
+              <button style="height:42px;padding:0 15px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;letter-spacing:0.04em;cursor:pointer">NEW QUEST</button>
+            </div>
+            <div style="padding:14px 24px 0;display:flex;gap:6px;flex-wrap:wrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">ALL 248</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FF5A6E;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#1A1330">FITNESS 52</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#6B3BFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#FFFFFF">CREATIVITY 61</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#4CC9F0;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#1A1330">SOCIAL 44</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#17C27B;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#1A1330">LEARNING 51</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFC224;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#2A1B00">ADVENTURE 40</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px dashed #938AA8;padding:5px 10px;border-radius:999px;color:#5B5170">RETIRED 12</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:14px 24px 22px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #1A1330;overflow:hidden">
+                <div style="display:grid;grid-template-columns:1fr 112px 92px 74px 74px 96px;gap:12px;padding:10px 14px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#5B5170">
+                  <span>TITLE</span><span>CATEGORY</span><span>DIFFICULTY</span><span>TIMER</span><span>XP</span><span>STATUS</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 112px 92px 74px 74px 96px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point you can reach today</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700">FITNESS</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">MEDIUM</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">3h</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">120</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">LIVE</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 112px 92px 74px 74px 96px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Draw the view from the nearest window without lifting your pen</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700">CREATIVITY</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">MEDIUM</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">3h</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">120</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">LIVE</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 112px 92px 74px 74px 96px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Get off two stops early and walk the rest</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700">ADVENTURE</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">HARD</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">6h</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">220</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">LIVE</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 112px 92px 74px 74px 96px;gap:12px;padding:11px 14px;align-items:center;background:#FFF1D6">
+                  <span style="font-size:13px;color:#938AA8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ask three strangers to rate your outfit</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">SOCIAL</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">EASY</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#938AA8">2h</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#938AA8">90</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FFFFFF;border:2px dashed #938AA8;border-radius:999px;padding:2px 8px;justify-self:start;color:#5B5170">RETIRED</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/QUESTS</div>
+      </div>
+
+      <div style="display:flex;gap:26px;flex-wrap:wrap">
+
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="width:640px;height:600px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">QUEST OF THE DAY</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SCHEDULE</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:9px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#2A1B00">TODAY · 12 MAR · LIVE</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.028em;color:#2A1B00">PHOTOGRAPH A STRANGER'S SMILE</div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#2A1B00">
+                  <span>SOCIAL</span><span>BONUS +50 XP</span><span>1,204 ACCEPTED</span><span>318 CLEARED</span>
+                </div>
+                <button style="align-self:flex-start;height:40px;padding:0 14px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE;color:#1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">PULL FROM ROTATION</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SCHEDULED</div>
+                <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+                  <div style="display:grid;grid-template-columns:76px 1fr 76px;gap:10px;padding:11px 13px;border-bottom:1px solid #EFE7D6;align-items:center">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#5B5170">13 MAR</span>
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">+50 XP</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:76px 1fr 76px;gap:10px;padding:11px 13px;border-bottom:1px solid #EFE7D6;align-items:center">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#5B5170">14 MAR</span>
+                    <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Get off two stops early and walk the rest</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">+80 XP</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:76px 1fr;gap:10px;padding:11px 13px;align-items:center;background:#FFF1D6">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#C0392F">15 MAR</span>
+                    <span style="font-size:13px;color:#C0392F;font-weight:500">Nothing scheduled — the QOTD ticket will not render that day</span>
+                  </div>
+                </div>
+              </div>
+              <button style="align-self:flex-start;height:44px;padding:0 16px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;letter-spacing:0.04em;cursor:pointer">SCHEDULE A DAY</button>
+            </div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/QOTD · CONTENT PANE</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="width:640px;height:600px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">FEED MANAGEMENT</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">VISIBILITY</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:6px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">VISIBLE</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">HIDDEN</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">DELETED</span>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #17C27B;padding:13px;display:flex;gap:12px">
+                <div style="width:66px;height:66px;border:2px solid #1A1330;border-radius:10px;background:repeating-linear-gradient(135deg,#FFF1D6 0 6px,#FFF9EE 6px 12px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">nour.k</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">142 ▲ · 23 ◌</span></div>
+                  <div style="font-size:13px;line-height:1.45;color:#5B5170">Learn 10 words in a new language</div>
+                  <div style="display:flex;gap:7px">
+                    <button style="height:36px;padding:0 11px;border-radius:9px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">HIDE FROM FEED</button>
+                    <button style="height:36px;padding:0 11px;border-radius:9px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">DELETE</button>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:13px;padding:13px;display:flex;gap:12px">
+                <div style="width:66px;height:66px;border:2px dashed #938AA8;border-radius:10px;background:#FFF9EE;flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#938AA8">HIDDEN</div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:#5B5170">tarek_s</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#5B5170;border:2px solid #938AA8;border-radius:999px;padding:1px 7px">HIDDEN FROM FEED</span></div>
+                  <div style="font-size:13px;line-height:1.45;color:#5B5170">Still visible on the author's profile. Hidden 11 Mar by k.ayoub.</div>
+                  <button style="align-self:flex-start;height:36px;padding:0 11px;border-radius:9px;border:2px solid #1A1330;background:#FFFFFF;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">RESTORE TO FEED</button>
+                </div>
+              </div>
+              <div style="border:2px dashed #938AA8;border-radius:13px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:5px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#938AA8">EMPTY STATE</div>
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:17px;color:#5B5170">NO DELETED POSTS</div>
+                <div style="font-size:13px;color:#938AA8">No posts have been deleted yet.</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/FEED · CONTENT PANE</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="width:640px;height:520px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">INJECTION</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#C0392F">DIRECT ASSIGNMENT</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+              <div style="font-size:14px;line-height:1.6;color:#5B5170;text-wrap:pretty">Assign a quest to a specific user, bypassing the roll. The server still enforces one active quest per user, so this fails if they already have one running or awaiting review.</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">USER</label>
+                <div style="height:46px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">Search by username or id…</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">QUEST</label>
+                <div style="height:46px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">Search the quest bank…</div>
+              </div>
+              <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:11px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;gap:9px;align-items:flex-start">
+                <span style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:#1A1330">!</span>
+                <span style="font-size:13px;line-height:1.5;color:#1A1330;font-weight:500">rami.h already has an active quest. Injection will be rejected by the unique partial index.</span>
+              </div>
+              <button style="align-self:flex-start;height:46px;padding:0 18px;border-radius:11px;border:2px dashed #938AA8;background:#FFF1D6;color:#938AA8;font-family:Syne,sans-serif;font-weight:800;font-size:14px;letter-spacing:0.04em;cursor:not-allowed">INJECT QUEST</button>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#938AA8">EVERY INJECTION IS WRITTEN TO admin_audit_log</div>
+            </div>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/INJECTION · BLOCKED STATE</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 05 COMMUNITY ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">05</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">COMMUNITY</div>
+      <div style="font-size:14px;color:#5B5170">/users · /reports</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:24px">
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:660px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="users" hint-size="230px,100%"></dc-import>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:16px 24px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.03em">USERS</div>
+              <div style="height:42px;width:230px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 12px;font-size:13px;color:#938AA8">Search username or email…</div>
+            </div>
+            <div style="padding:14px 24px 0;display:flex;gap:6px;flex-wrap:wrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">ALL 8,412</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:5px 10px;border-radius:999px">ACTIVE 6,220</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FFC224;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#2A1B00">SUSPENDED 14</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#FF5A6E;border:2px solid #1A1330;padding:5px 10px;border-radius:999px;color:#1A1330">BANNED 3</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:14px 24px 22px;display:flex;gap:18px">
+              <div style="flex:1;min-width:0;background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #1A1330;overflow:hidden;align-self:flex-start;width:100%">
+                <div style="display:grid;grid-template-columns:1fr 74px 92px 92px 108px;gap:12px;padding:10px 14px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#5B5170">
+                  <span>USER</span><span>LEVEL</span><span>XP</span><span>QUESTS</span><span>STATUS</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 74px 92px 92px 108px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="width:30px;height:30px;border-radius:15px;border:2px solid #1A1330;background:#4CC9F0;flex:none"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">layla.b</span></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">24</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">18,420</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">118</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">ACTIVE</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 74px 92px 92px 108px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center">
+                  <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="width:30px;height:30px;border-radius:15px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">rami.h</span></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">12</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">4,180</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">27</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">ACTIVE</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 74px 92px 92px 108px;gap:12px;padding:11px 14px;border-bottom:1px solid #EFE7D6;align-items:center;background:#FFF9EE">
+                  <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="width:30px;height:30px;border-radius:15px;border:2px solid #1A1330;background:#C7C0E0;flex:none"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ghost_04</span></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">3</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">340</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px">2</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FFC224;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#2A1B00">SUSPENDED</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 74px 92px 92px 108px;gap:12px;padding:11px 14px;align-items:center;background:#FFF9EE">
+                  <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="width:30px;height:30px;border-radius:15px;border:2px solid #1A1330;background:#938AA8;flex:none"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">spam_bot_11</span></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#938AA8">1</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#938AA8">0</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#938AA8">0</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FF5A6E;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">BANNED</span>
+                </div>
+              </div>
+
+              <div style="width:300px;flex:none;display:flex;flex-direction:column;gap:12px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SELECTED · rami.h</div>
+                <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #6B3BFF;padding:3px 14px">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Joined</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">04 Mar 25</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Approval rate</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">86%</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Reports against</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">0</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;padding:9px 0"><span style="color:#5B5170">Blocks received</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">1</span></div>
+                </div>
+                <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">VIEW SUBMISSIONS</button>
+                <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#FFC224;color:#2A1B00;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;cursor:pointer">SUSPEND</button>
+                <button style="height:44px;border-radius:11px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;cursor:pointer">BAN ACCOUNT</button>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#938AA8;line-height:1.5">SUSPENDING HIDES THE QOTD TICKET AND BLOCKS NEW QUESTS. BOTH ACTIONS ARE AUDITED.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/USERS · WITH DETAIL RAIL</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:1280px;flex:none;height:560px;background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:10px 10px 0 #1A1330;overflow:hidden;display:flex">
+          <dc-import name="AdminSidebar" active="reports" hint-size="230px,100%"></dc-import>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:16px 24px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;min-width:0;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.03em">REPORTS</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">2 UNTRIAGED</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #FF5A6E;padding:16px;display:flex;gap:14px">
+                <div style="width:80px;height:80px;border:2px solid #1A1330;border-radius:11px;background:repeating-linear-gradient(135deg,#FFF1D6 0 8px,#FFF9EE 8px 16px);flex:none"></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;background:#FF5A6E;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;color:#1A1330">UNSAFE CONTENT</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">3 REPORTS · POST 7D12AA</span>
+                  </div>
+                  <div style="font-size:14px;font-weight:600">Post by tarek_s — "Climbed the scaffolding behind the site"</div>
+                  <div style="font-size:13px;line-height:1.55;color:#5B5170">Reporters flagged this as physically dangerous and encouraging trespass.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;flex:none;width:190px">
+                  <button style="height:42px;border-radius:11px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;cursor:pointer">REMOVE POST</button>
+                  <button style="height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">DISMISS</button>
+                </div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;gap:14px">
+                <div style="width:80px;height:80px;border:2px solid #1A1330;border-radius:11px;background:#C7C0E0;flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#1A1330">USER</div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;background:#FFC224;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;color:#2A1B00">HARASSMENT</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">1 REPORT · USER spam_bot_11</span>
+                  </div>
+                  <div style="font-size:14px;font-weight:600">Repeated mentions across unrelated comment threads</div>
+                  <div style="font-size:13px;line-height:1.55;color:#5B5170">Reported by maya.z. Account already banned — this report is informational.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;flex:none;width:190px">
+                  <button style="height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">DISMISS</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/REPORTS</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 06 SYSTEM ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">06</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">SYSTEM &amp; INTAKE</div>
+      <div style="font-size:14px;color:#5B5170">/xp · /announcements · /auto-notifications · /settings · /web-signups · /web-quest-suggestions · /privacy</div>
+    </div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:560px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">XP RECONCILIATION</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">AUDIT</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+            <div style="font-size:14px;line-height:1.6;color:#5B5170;text-wrap:pretty">Compares <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#FFF1D6;border:2px solid #1A1330;padding:0 5px;border-radius:5px">profiles.xp</code> against the sum of approved submissions. A drift means an award, reversal or deletion did not settle.</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+              <div style="background:#17C27B;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;padding:13px 15px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">IN SYNC</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;letter-spacing:-0.035em;line-height:1;color:#1A1330">8,409</div>
+              </div>
+              <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;padding:13px 15px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">DRIFTED</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;letter-spacing:-0.035em;line-height:1;color:#1A1330">3</div>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1fr 84px 84px 80px;gap:10px;padding:10px 13px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#5B5170">
+                <span>USER</span><span>STORED</span><span>COMPUTED</span><span>DELTA</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 84px 84px 80px;gap:10px;padding:11px 13px;border-bottom:1px solid #EFE7D6;align-items:center">
+                <span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">maya.z</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px">11,780</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px">11,660</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#C0392F">+120</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 84px 84px 80px;gap:10px;padding:11px 13px;align-items:center">
+                <span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">omar_dk</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px">15,905</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px">15,995</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#C0392F">−90</span>
+              </div>
+            </div>
+            <button style="align-self:flex-start;height:44px;padding:0 16px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;letter-spacing:0.04em;cursor:pointer">RECONCILE ALL</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/XP · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:560px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">ANNOUNCEMENTS</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#C0392F">SENDS TO ALL USERS</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">NOTIFICATION TITLE</label>
+              <div style="height:46px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">e.g. NEW QUESTS DROPPED</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">MESSAGE BODY</label>
+              <div style="border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;padding:12px 13px;min-height:84px;font-size:14px;line-height:1.5;color:#938AA8">What do you want to tell your players?</div>
+            </div>
+            <div style="background:#FFC224;border:2px solid #1A1330;border-radius:11px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;gap:9px;align-items:center">
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:#2A1B00">!</span>
+              <span style="font-size:13px;line-height:1.5;color:#2A1B00;font-weight:500">This fans out to 8,412 devices through the queue. It cannot be recalled.</span>
+            </div>
+            <button style="align-self:flex-start;height:46px;padding:0 18px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;letter-spacing:0.04em;cursor:pointer">SEND BROADCAST</button>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170;margin-top:4px">RECENTLY SENT</div>
+            <div style="flex:none;background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;overflow:hidden">
+              <div style="padding:11px 13px;border-bottom:1px solid #EFE7D6;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">NEW QUESTS DROPPED</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">09 MAR · 8,390 DELIVERED · 22 INVALID TOKENS</div>
+              </div>
+              <div style="padding:11px 13px;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">WEEKEND DOUBLE XP</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">02 MAR · 8,204 DELIVERED</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/ANNOUNCEMENTS · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:560px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">AUTO NOTIFICATIONS</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">TRIGGERS</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:11px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;gap:9px;align-items:flex-start">
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:#1A1330">!</span>
+              <span style="font-size:13px;line-height:1.5;color:#1A1330;font-weight:500">Turning off <span style="font-family:'JetBrains Mono',monospace;font-weight:700">submission_rejected</span> makes the appeal flow unreachable for most users. It is the primary route in.</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+              <div style="padding:12px 14px;border-bottom:1px solid #EFE7D6;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">submission_rejected</div>
+                  <div style="font-size:12px;color:#5B5170">Fires on a moderator rejection. Routes to the appeal page.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+              <div style="padding:12px 14px;border-bottom:1px solid #EFE7D6;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">quest_timer_warning</div>
+                  <div style="font-size:12px;color:#5B5170">30 minutes before a quest expires.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+              <div style="padding:12px 14px;border-bottom:1px solid #EFE7D6;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">reaction_milestone</div>
+                  <div style="font-size:12px;color:#5B5170">At 50, 100 and 500 upvotes on a post.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#C7C0E0;position:relative;flex:none"><span style="position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+              <div style="padding:12px 14px;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">pending_review_reminder</div>
+                  <div style="font-size:12px;color:#5B5170">Nudges moderators when the queue ages past 4 hours.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#938AA8">19 TRIGGER TYPES TOTAL · SHOWING 4</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/AUTO-NOTIFICATIONS · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:560px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">SETTINGS</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FEATURE FLAGS</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:13px">
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+              <div style="padding:12px 14px;border-bottom:1px solid #EFE7D6;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">COLLAB GROUPS</div>
+                  <div style="font-size:12px;color:#5B5170">Join by code, head-to-head, public voting.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+              <div style="padding:12px 14px;border-bottom:1px solid #EFE7D6;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">WAITLIST MODE</div>
+                  <div style="font-size:12px;color:#5B5170">New signups queue instead of getting immediate access.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#C7C0E0;position:relative;flex:none"><span style="position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+              <div style="padding:12px 14px;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">PUSH NOTIFICATIONS</div>
+                  <div style="font-size:12px;color:#5B5170">Master switch for all FCM delivery.</div>
+                </div>
+                <div style="width:50px;height:28px;border-radius:15px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+              </div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">RUNTIME CONFIG</div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;padding:3px 14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:10px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Rerolls per 24h</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">5</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:10px 0;border-bottom:1px solid #EFE7D6"><span style="color:#5B5170">Appeals per submission</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">1</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:10px 0"><span style="color:#5B5170">Signed media URL TTL</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">15 min</span></div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;color:#938AA8;line-height:1.5">REROLL AND APPEAL LIMITS ARE SERVER-AUTHORITATIVE. CHANGING THEM HERE UPDATES app_config, NOT THE CLIENT BUILD.</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/SETTINGS · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:500px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">WEB SIGNUPS</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">WAITLIST · 412</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:9px;align-items:center">
+              <div style="flex:1;height:42px;border:2px solid #1A1330;border-radius:11px;background:#FFFFFF;display:flex;align-items:center;padding:0 12px;font-size:13px;color:#938AA8">Search email…</div>
+              <button style="height:42px;padding:0 15px;border-radius:11px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;cursor:pointer">INVITE 25</button>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #1A1330;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1fr 96px 92px;gap:10px;padding:10px 13px;border-bottom:2px solid #1A1330;background:#FFF1D6;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#5B5170">
+                <span>EMAIL</span><span>JOINED</span><span>STATUS</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 96px 92px;gap:10px;padding:11px 13px;border-bottom:1px solid #EFE7D6;align-items:center">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">hala.mansour@example.com</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">11 MAR</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#FFC224;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#2A1B00">WAITING</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 96px 92px;gap:10px;padding:11px 13px;border-bottom:1px solid #EFE7D6;align-items:center">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">j.khoury@example.com</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">10 MAR</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">INVITED</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 96px 92px;gap:10px;padding:11px 13px;align-items:center">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">n.saad@example.com</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5B5170">10 MAR</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;border-radius:999px;padding:2px 8px;justify-self:start;color:#1A1330">INVITED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/WEB-SIGNUPS · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:500px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.03em">QUEST SUGGESTIONS</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FROM PLAYERS</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:11px">
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:4px 4px 0 #17C27B;padding:13px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:15px;font-weight:600;line-height:1.35">Leave a handwritten note somewhere a stranger will find it</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">nour.k · 11 MAR · SUGGESTED SOCIAL</div>
+              <div style="display:flex;gap:7px">
+                <button style="height:38px;padding:0 13px;border-radius:10px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:12px;cursor:pointer">ADD TO BANK</button>
+                <button style="height:38px;padding:0 13px;border-radius:10px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">DISCARD</button>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:13px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:15px;font-weight:600;line-height:1.35">Ride a bus to the last stop and photograph what you find</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">tarek_s · 09 MAR · SUGGESTED ADVENTURE</div>
+              <div style="display:flex;gap:7px">
+                <button style="height:38px;padding:0 13px;border-radius:10px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:12px;cursor:pointer">ADD TO BANK</button>
+                <button style="height:38px;padding:0 13px;border-radius:10px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">DISCARD</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/WEB-QUEST-SUGGESTIONS · CONTENT PANE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <div style="width:640px;height:500px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:8px 8px 0 #1A1330;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:15px 20px;border-bottom:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:baseline;gap:10px">
+            <span style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.03em">BSHEEL</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">PRIVACY POLICY</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:22px 20px;display:flex;flex-direction:column;gap:14px;max-width:100%">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em;line-height:1.05">PRIVACY POLICY</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#938AA8">LAST UPDATED 04 MAR 2025</div>
+            <div style="font-size:14px;line-height:1.65;color:#1A1330;text-wrap:pretty">Bsheel stores the account details you give us, the quests you complete, and the photo or video proof you submit. Proof media is kept in private storage and served only through short-lived signed links.</div>
+            <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em;margin-top:4px">WHAT MODERATORS SEE</div>
+            <div style="font-size:14px;line-height:1.65;color:#5B5170;text-wrap:pretty">A moderator reviewing your submission sees your username, level, the proof and caption you submitted, and your prior approval history. They do not see your email address or device identifiers.</div>
+            <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em;margin-top:4px">DELETION</div>
+            <div style="font-size:14px;line-height:1.65;color:#5B5170;text-wrap:pretty">You can delete your account from Settings or from the public deletion page. Removal completes within 48 hours and cannot be reversed.</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">/PRIVACY · PUBLIC</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 07 SCENARIOS ═══ -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:14px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;color:#938AA8">07</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:23px;letter-spacing:-0.025em">SCENARIOS</div>
+      <div style="font-size:14px;color:#5B5170">Every non-happy path a moderator or player can land in</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:22px;max-width:1306px">
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">LOADING · SKELETON</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="height:16px;width:45%;border-radius:6px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+          <div style="height:56px;border-radius:11px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+          <div style="height:56px;border-radius:11px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+          <div style="height:56px;width:70%;border-radius:11px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Shapes match the real rows so nothing jumps on load. No spinner — the queue is never blank for long enough to earn one.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #17C27B;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">EMPTY · QUEUE CLEARED</div>
+        <div style="border:2px dashed #17C27B;border-radius:12px;padding:26px 18px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center">
+          <span style="font-size:28px">✓</span>
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.028em">ALL CLEAR</div>
+          <div style="font-size:13px;line-height:1.5;color:#5B5170">No pending submissions.</div>
+          <button style="margin-top:6px;height:42px;padding:0 15px;border-radius:10px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">REVIEW APPEALS (3)</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Every empty state names one thing worth doing next rather than ending the road.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #FF5A6E;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ERROR · RETRY</div>
+        <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:9px">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#1A1330">FAILED TO LOAD</div>
+          <div style="font-size:13px;line-height:1.5;color:#1A1330">The queue didn't come back. Nothing was lost — no decision has been recorded.</div>
+          <button style="align-self:flex-start;height:42px;padding:0 15px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">TAP TO RETRY</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Errors say what did <em>not</em> happen. A moderator's first fear is a half-applied decision.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #FFC224;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">OFFLINE</div>
+        <div style="background:#1A1330;border:2px solid #1A1330;border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:11px">
+          <span style="width:10px;height:10px;border-radius:5px;background:#FFC224;flex:none"></span>
+          <div style="flex:1;display:flex;flex-direction:column;gap:1px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#FFC224">OFFLINE</div>
+            <div style="font-size:13px;color:#FFF9EE">Reconnecting… decisions are queued locally.</div>
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">A persistent bar, not a toast. Approve and Reject stay tappable and sync when the connection returns.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ACCOUNT SUSPENDED / BANNED</div>
+        <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:7px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#5B5170">ACCOUNT SUSPENDED</div>
+          <div style="font-size:14px;line-height:1.5;color:#5B5170">New quests are paused. Reach out to support.</div>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">The QOTD ticket is hidden entirely, not disabled — a greyed CTA invites a tap that the server would reject anyway.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">BLOCKED USER</div>
+        <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:34px;height:34px;border-radius:17px;border:2px solid #938AA8;background:#EFE7D6;flex:none"></span>
+            <span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:#5B5170">tarek_s</span>
+          </div>
+          <div style="font-size:13px;line-height:1.55;color:#5B5170">You blocked this account. Their posts and comments are hidden from your feed, and yours from theirs.</div>
+          <button style="align-self:flex-start;height:40px;padding:0 14px;border-radius:10px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">UNBLOCK</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Blocks cut both directions. The profile is reachable but stripped, so a block never reads as a deleted account.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #FF5A6E;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">RATE LIMIT · REROLLS SPENT</div>
+        <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:9px">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em">NO REROLLS LEFT</div>
+          <div style="font-size:13px;line-height:1.55;color:#5B5170">You've used all 5 for today. The next one unlocks in 6h 14m — pick from what you rolled, or wait.</div>
+          <div style="display:flex;gap:5px">
+            <span style="flex:1;height:9px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+            <span style="flex:1;height:9px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+            <span style="flex:1;height:9px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+            <span style="flex:1;height:9px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+            <span style="flex:1;height:9px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">The limit is server-authoritative, so the client states the real reset time rather than hiding the button.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">DELETED / HIDDEN POST</div>
+        <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:12px;padding:20px 16px;display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#938AA8">POST REMOVED FROM FEED</div>
+          <div style="font-size:13px;line-height:1.5;color:#5B5170">Still visible on your profile. Add it back any time.</div>
+          <button style="margin-top:4px;height:40px;padding:0 14px;border-radius:10px;border:2px solid #1A1330;background:#FFFFFF;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">ADD TO FEED</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Hidden and deleted read differently: hidden is reversible and says so, permanent deletion never offers an action.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #6B3BFF;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">FIRST RUN · ZERO DATA</div>
+        <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:-0.03em;color:#FFFFFF;line-height:1.05">ROLL YOUR FIRST QUEST</div>
+          <div style="font-size:13px;line-height:1.55;color:#FFFFFF">No stats yet, no streak, no history. One button, nothing else competing with it.</div>
+          <button style="height:48px;border-radius:11px;border:2px solid #FFF9EE;background:#17C27B;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">GENERATE A QUEST</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Stat tiles, XP meter and streak card are suppressed at zero rather than shown reading 0 — an empty scoreboard is discouraging on day one.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+</body>
+</html>

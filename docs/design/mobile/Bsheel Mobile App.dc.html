@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#F2E7D0; -webkit-font-smoothing:antialiased; }
+  a { color:#6B3BFF; text-decoration:none; }
+  a:hover { color:#4A22CC; text-decoration:underline; }
+</style>
+</helmet>
+
+<div style="font-family:'DM Sans',sans-serif;color:#1A1330;padding:56px 48px 88px;display:flex;flex-direction:column;gap:48px;background:#F2E7D0">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:780px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.16em;color:#5B5170">BSHEEL · MOBILE + ADMIN · ARCADE POP</div>
+    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:52px;line-height:0.98;letter-spacing:-0.035em">THE FULL SET, IN ARCADE POP</div>
+    <div style="font-size:16px;line-height:1.6;color:#5B5170;text-wrap:pretty">Every screen on the shipped tokens: cream ground, 2px indigo outlines, hard offset shadows, violet / coral / gold / jade / sky. Copy verbatim from <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#FFF1D6;padding:1px 5px;border-radius:3px">app_en.arb</code>; hero states and appeal routing follow CLAUDE.md.</div>
+  </div>
+
+  <!-- ═══ 01 ENTRY ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">01</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">ONBOARDING</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;padding:24px 24px 26px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;gap:6px">
+                <span style="width:26px;height:6px;border-radius:3px;border:2px solid #1A1330;background:#6B3BFF"></span>
+                <span style="width:26px;height:6px;border-radius:3px;border:2px solid #1A1330;background:#FFF9EE"></span>
+                <span style="width:26px;height:6px;border-radius:3px;border:2px solid #1A1330;background:#FFF9EE"></span>
+                <span style="width:26px;height:6px;border-radius:3px;border:2px solid #1A1330;background:#FFF9EE"></span>
+              </div>
+              <button style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170;background:none;border:none;padding:12px 4px;cursor:pointer">SKIP</button>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:22px">
+              <div style="width:100%;aspect-ratio:4/3;border-radius:18px;border:2px solid #1A1330;box-shadow:6px 6px 0 #FFC224;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);display:flex;align-items:center;justify-content:center">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">ONBOARDING ILLUSTRATION</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:40px;line-height:0.96;letter-spacing:-0.04em;white-space:pre-line">WELCOME TO
+BSHEEL</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;line-height:1.7;letter-spacing:0.04em;color:#5B5170;white-space:pre-line">YOUR REAL-LIFE QUEST ENGINE.
+COMPLETE CHALLENGES.
+LEVEL UP IRL.</div>
+              </div>
+            </div>
+            <button style="width:100%;height:56px;border-radius:14px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">NEXT</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">ONBOARDING · 1 OF 4</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#1A1330;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #FF5A6E">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#FFFFFF"><span>9:41</span><span style="letter-spacing:0.1em;color:#7D759A">▮▮▮</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;padding:24px 24px 26px">
+            <div style="display:flex;gap:6px">
+              <span style="width:26px;height:6px;border-radius:3px;background:#2A2450"></span>
+              <span style="width:26px;height:6px;border-radius:3px;background:#2A2450"></span>
+              <span style="width:26px;height:6px;border-radius:3px;background:#2A2450"></span>
+              <span style="width:26px;height:6px;border-radius:3px;background:#FFC224"></span>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:48px;line-height:0.94;letter-spacing:-0.04em;color:#FFFFFF;white-space:pre-line">YOU'RE
+READY</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;line-height:1.7;letter-spacing:0.04em;color:#C7C0E0;white-space:pre-line">YOUR ADVENTURE
+STARTS NOW.
+GO ROLL YOUR
+FIRST QUEST!</div>
+            </div>
+            <button style="width:100%;height:56px;border-radius:14px;border:2px solid #FFF9EE;background:#FFC224;color:#2A1B00;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">LET'S GO</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">ONBOARDING · 4 OF 4</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 02 HOME ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">02</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">HOME · HERO ZONE STATES</div>
+      <div style="font-size:14px;color:#5B5170">Order is fixed: name → headline → stats → QOTD → hero → recent → XP meter → friends → streak. Only the hero is status-driven.</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <!-- Home: no active quest -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:13px;padding:14px 20px 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.03em;line-height:1">RAMI H.</div>
+              <div style="position:relative;width:44px;height:44px;border-radius:12px;border:2px solid #1A1330;background:#FFC224;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:17px">◔
+                <span style="position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px">3</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:-4px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:44px;letter-spacing:-0.04em;line-height:0.95">BSHEEL?</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">ONE QUEST · LIMITED TIME · BSHEEL?</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:12px 14px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#2A1B00">QUESTS DONE</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:32px;letter-spacing:-0.035em;line-height:1.05;color:#2A1B00">27</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#2A1B00;opacity:0.65">ALL TIME</div>
+              </div>
+              <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:12px 14px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF">XP EARNED</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:32px;letter-spacing:-0.035em;line-height:1.05;color:#FFFFFF">4,180</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF;opacity:0.75">ALL TIME</div>
+              </div>
+            </div>
+            <div style="background:#4CC9F0;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <div style="width:34px;height:34px;border-radius:9px;border:2px solid #1A1330;background:#FFF9EE;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none">🎫</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#1A1330">QUEST OF THE DAY · +50 XP</div>
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">PHOTOGRAPH A STRANGER'S SMILE</div>
+              </div>
+              <button style="height:38px;padding:0 13px;border-radius:9px;border:2px solid #1A1330;background:#1A1330;color:#FFF9EE;font-family:Syne,sans-serif;font-weight:700;font-size:12px;letter-spacing:0.05em;cursor:pointer">TAKE</button>
+            </div>
+
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:18px;box-shadow:6px 6px 0 #FF5A6E;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:16px">
+              <div style="display:flex;gap:9px;width:100%">
+                <div style="flex:1;height:78px;border-radius:12px;border:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;justify-content:center;font-size:26px">◇</div>
+                <div style="flex:1;height:78px;border-radius:12px;border:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;justify-content:center;font-size:26px">◇</div>
+                <div style="flex:1;height:78px;border-radius:12px;border:2px solid #1A1330;background:#FFF1D6;display:flex;align-items:center;justify-content:center;font-size:26px">◇</div>
+              </div>
+              <button style="width:100%;height:56px;border-radius:14px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:17px;letter-spacing:0.04em;cursor:pointer">GENERATE A QUEST</button>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">5 REROLLS LEFT · RESETS IN 6H</div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">RECENT QUESTS</div>
+              <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em">SEE MORE</a>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #17C27B;padding:11px 13px;display:flex;align-items:center;gap:10px">
+                <span style="width:10px;height:10px;border-radius:5px;border:2px solid #1A1330;background:#17C27B;flex:none"></span>
+                <span style="flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#5B5170">DONE</span>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #938AA8;padding:11px 13px;display:flex;align-items:center;gap:10px">
+                <span style="width:10px;height:10px;border-radius:5px;border:2px solid #1A1330;background:#938AA8;flex:none"></span>
+                <span style="flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Run 5km before sunset</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;color:#5B5170">EXPIRED</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;border-top:2px solid #1A1330;background:#FFF1D6;padding:8px 8px 22px">
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:17px">◼</span>HOME</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▤</span>FEED</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◎</span>SEARCH</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▲</span>RANKS</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">●</span>PROFILE</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">HOME · NO ACTIVE QUEST</div>
+      </div>
+
+      <!-- Home: active quest -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:13px;padding:14px 20px 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.03em;line-height:1">RAMI H.</div>
+              <div style="width:44px;height:44px;border-radius:12px;border:2px solid #1A1330;background:#FFC224;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:17px">◔</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:-4px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:44px;letter-spacing:-0.04em;line-height:0.95">BSHEEL?</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">ONE QUEST · LIMITED TIME · BSHEEL?</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:12px 14px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#2A1B00">QUESTS DONE</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:32px;letter-spacing:-0.035em;line-height:1.05;color:#2A1B00">27</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#2A1B00;opacity:0.65">ALL TIME</div>
+              </div>
+              <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:12px 14px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF">XP EARNED</div>
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:32px;letter-spacing:-0.035em;line-height:1.05;color:#FFFFFF">4,180</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF;opacity:0.75">ALL TIME</div>
+              </div>
+            </div>
+            <div style="background:#1A1330;border:2px solid #1A1330;border-radius:18px;box-shadow:6px 6px 0 #6B3BFF;padding:18px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#C7C0E0">ACTIVE QUEST</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#1A1330;background:#FF5A6E;border:2px solid #FFF9EE;padding:3px 8px;border-radius:7px">FITNESS</div>
+              </div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:26px;line-height:1.08;letter-spacing:-0.03em;color:#FFFFFF;text-wrap:pretty">TAKE A PHOTO AT THE HIGHEST POINT YOU CAN REACH TODAY</div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;border-top:2px solid #2A2450;padding-top:13px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#C7C0E0">TIME LEFT</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:#FFC224;line-height:1">02:47:11</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#C7C0E0">REWARD</div>
+                  <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;color:#17C27B;line-height:1">120 XP</div>
+                </div>
+              </div>
+              <div style="height:12px;border:2px solid #FFF9EE;border-radius:7px;padding:1px;display:flex"><div style="width:62%;background:#FFC224;border-radius:4px"></div></div>
+              <div style="display:flex;gap:9px">
+                <button style="flex:1;height:52px;border-radius:13px;border:2px solid #FFF9EE;background:#FF5A6E;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.05em;cursor:pointer">SUBMIT PROOF</button>
+                <button style="height:52px;padding:0 16px;border-radius:13px;border:2px solid #FFF9EE;background:none;color:#FFFFFF;font-family:Syne,sans-serif;font-weight:700;font-size:14px;letter-spacing:0.05em;cursor:pointer">DETAILS</button>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #4CC9F0;padding:14px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.12em;color:#5B5170">WEEKLY XP</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700">340 / 500</div>
+              </div>
+              <div style="display:flex;gap:4px;justify-content:space-between">
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#6B3BFF"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#6B3BFF"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#6B3BFF"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6"></span>
+                <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6"></span>
+              </div>
+            </div>
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:13px 15px;display:flex;align-items:center;gap:12px">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;color:#1A1330;line-height:1">12</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.015em;color:#1A1330">DAY STREAK</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">LONGEST: 19</div>
+              </div>
+              <span style="font-size:24px">🔥</span>
+            </div>
+          </div>
+          <div style="display:flex;border-top:2px solid #1A1330;background:#FFF1D6;padding:8px 8px 22px">
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:17px">◼</span>HOME</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▤</span>FEED</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◎</span>SEARCH</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▲</span>RANKS</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">●</span>PROFILE</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">HOME · ACTIVE QUEST</div>
+      </div>
+
+      <!-- Hero state set -->
+      <div style="display:flex;flex-direction:column;gap:10px;width:390px">
+        <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:20px;box-shadow:8px 8px 0 #1A1330;padding:22px;display:flex;flex-direction:column;gap:18px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">REMAINING HERO STATES</div>
+
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#938AA8">user_quest.status == submitted</div>
+            <div style="background:#FFC224;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:9px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#2A1B00">IN REVIEW · TAP TO SEE ALL</div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#2A1B00;text-wrap:pretty">2 SUBMISSIONS WAITING FOR A MODERATOR</div>
+              <div style="font-size:13px;line-height:1.5;color:#2A1B00">You can't start a new quest until these are reviewed.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#938AA8">assigned, past expires_at</div>
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">TIME OVER</div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#1A1330;text-wrap:pretty">RUN 5KM BEFORE SUNSET</div>
+              <div style="font-size:13px;line-height:1.5;color:#1A1330">The timer ran out. No XP awarded — roll again when you're ready.</div>
+              <button style="align-self:flex-start;height:44px;padding:0 16px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE;color:#1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:13px;letter-spacing:0.05em;cursor:pointer">GENERATE A QUEST</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#938AA8">suspended / banned · QOTD hidden</div>
+            <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#5B5170">ACCOUNT SUSPENDED</div>
+              <div style="font-size:14px;line-height:1.5;color:#5B5170">New quests are paused. Reach out to support.</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">HOME · HERO STATE SET</div>
+      </div>
+
+      <!-- Slot machine -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330;position:relative">
+          <div style="position:absolute;inset:0;background:rgba(26,19,48,0.72)"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#FFF9EE;border-top:2px solid #1A1330;border-radius:22px 22px 34px 34px;padding:20px 20px 28px;display:flex;flex-direction:column;gap:12px">
+            <div style="width:44px;height:5px;border-radius:3px;background:#1A1330;align-self:center"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;letter-spacing:-0.035em;line-height:1">PICK ONE</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#1A1330;background:#FFC224;border:2px solid #1A1330;padding:4px 9px;border-radius:7px">4 REROLLS</div>
+            </div>
+            <div style="font-size:13px;line-height:1.5;color:#5B5170;margin-top:-4px">Choosing locks the other two. The timer starts the moment you accept.</div>
+            <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:15px;box-shadow:5px 5px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#1A1330;background:#FFF9EE;border:2px solid #1A1330;padding:3px 8px;border-radius:6px">CREATIVITY</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#FFFFFF">3H · 120 XP · MED</span>
+              </div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:19px;line-height:1.15;letter-spacing:-0.025em;color:#FFFFFF;text-wrap:pretty">DRAW THE VIEW FROM THE NEAREST WINDOW WITHOUT LIFTING YOUR PEN</div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:15px;box-shadow:5px 5px 0 #4CC9F0;padding:15px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#1A1330;background:#4CC9F0;border:2px solid #1A1330;padding:3px 8px;border-radius:6px">SOCIAL</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">2H · 90 XP · EASY</span>
+              </div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:19px;line-height:1.15;letter-spacing:-0.025em;text-wrap:pretty">ASK A STRANGER FOR A BOOK RECOMMENDATION</div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:15px;box-shadow:5px 5px 0 #FFC224;padding:15px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.11em;color:#1A1330;background:#FFC224;border:2px solid #1A1330;padding:3px 8px;border-radius:6px">ADVENTURE</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">6H · 220 XP · HARD</span>
+              </div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:19px;line-height:1.15;letter-spacing:-0.025em;text-wrap:pretty">GET OFF TWO STOPS EARLY AND WALK THE REST</div>
+            </div>
+            <div style="display:flex;gap:9px;margin-top:2px">
+              <button style="height:54px;padding:0 18px;border-radius:13px;border:2px solid #1A1330;background:#FFF1D6;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;letter-spacing:0.05em;cursor:pointer">REROLL</button>
+              <button style="flex:1;height:54px;border-radius:13px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">ACCEPT</button>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SLOT MACHINE · 3 OPTIONS</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 03 QUEST → PROOF → REVIEW ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">03</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">QUEST → PROOF → REVIEW → APPEAL</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <!-- Quest detail -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 20px 12px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">QUEST DETAILS</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:0 20px">
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <span style="align-self:flex-start;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330;background:#FF5A6E;border:2px solid #1A1330;padding:4px 10px;border-radius:7px">FITNESS</span>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-0.035em;text-wrap:pretty">TAKE A PHOTO AT THE HIGHEST POINT YOU CAN REACH TODAY</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:10px 11px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#5B5170">DIFFICULTY</div>
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">MEDIUM</div>
+              </div>
+              <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:10px 11px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#FFFFFF">REWARD</div>
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:#FFFFFF">120 XP</div>
+              </div>
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:10px 11px;display:flex;flex-direction:column;gap:1px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#2A1B00">TIME LEFT</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#2A1B00">2:47:11</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">MISSION BRIEFING</div>
+              <div style="font-size:15px;line-height:1.6;text-wrap:pretty">Find the highest accessible spot near you — a rooftop, a hill, a top-floor landing — and photograph the view. Any elevation counts as long as you got there today.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ACCEPTANCE CRITERIA</div>
+              <div style="display:flex;gap:9px;align-items:flex-start"><span style="width:18px;height:18px;border-radius:5px;border:2px solid #1A1330;background:#17C27B;flex:none;margin-top:2px"></span><span style="font-size:14px;line-height:1.5">Proof clearly shows you completed the quest action.</span></div>
+              <div style="display:flex;gap:9px;align-items:flex-start"><span style="width:18px;height:18px;border-radius:5px;border:2px solid #1A1330;background:#17C27B;flex:none;margin-top:2px"></span><span style="font-size:14px;line-height:1.5">Submission content matches the quest intent and quality standards.</span></div>
+              <div style="display:flex;gap:9px;align-items:flex-start"><span style="width:18px;height:18px;border-radius:5px;border:2px solid #1A1330;background:#17C27B;flex:none;margin-top:2px"></span><span style="font-size:14px;line-height:1.5">Caption provides enough context for moderation review.</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SUBMISSION REQUIREMENTS</div>
+              <div style="display:flex;gap:9px;align-items:flex-start"><span style="width:18px;height:18px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6;flex:none;margin-top:2px"></span><span style="font-size:14px;line-height:1.5;color:#5B5170">Capture photo or video proof before the timer ends.</span></div>
+              <div style="display:flex;gap:9px;align-items:flex-start"><span style="width:18px;height:18px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6;flex:none;margin-top:2px"></span><span style="font-size:14px;line-height:1.5;color:#5B5170">Upload your proof to send it for review.</span></div>
+            </div>
+          </div>
+          <div style="padding:14px 20px 28px;background:#FFF1D6;border-top:2px solid #1A1330">
+            <button style="width:100%;height:56px;border-radius:14px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">SUBMIT PROOF</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">QUEST DETAIL</div>
+      </div>
+
+      <!-- Submit proof -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px 12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SUBMIT PROOF</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#1A1330;background:#FF5A6E;border:2px solid #1A1330;padding:5px 9px;border-radius:8px">2:47:11</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:0 20px">
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:10px">
+              <span style="width:10px;height:10px;border-radius:5px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></span>
+              <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point…</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">YOUR PROOF</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="aspect-ratio:3/4;border-radius:14px;border:2px solid #1A1330;box-shadow:4px 4px 0 #1A1330;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);display:flex;align-items:flex-end;padding:10px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.08em;background:#FFF9EE;border:2px solid #1A1330;padding:3px 7px;border-radius:6px">PHOTO 1</span>
+                </div>
+                <button style="aspect-ratio:3/4;border-radius:14px;border:2px dashed #1A1330;background:#FFF1D6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer">
+                  <span style="font-size:26px">＋</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#5B5170">ADD MEDIA</span>
+                </button>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">CAPTION</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:13px 14px;min-height:92px;font-size:14px;line-height:1.55;color:#938AA8">Describe how you completed the quest...</div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #4CC9F0;padding:13px 14px;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em">SHOW IN FEED</div>
+                <div style="font-size:12px;color:#5B5170">Everyone can see this quest in the feed</div>
+              </div>
+              <div style="width:52px;height:30px;border-radius:16px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+            </div>
+            <div style="background:#FFC224;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;gap:9px;align-items:center">
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:16px;color:#2A1B00">!</span>
+              <span style="font-size:13px;line-height:1.5;color:#2A1B00;font-weight:500">Add at least one image or video.</span>
+            </div>
+          </div>
+          <div style="padding:14px 20px 28px;background:#FFF1D6;border-top:2px solid #1A1330">
+            <button style="width:100%;height:56px;border-radius:14px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">SUBMIT PROOF</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SUBMIT PROOF</div>
+      </div>
+
+      <!-- Submission status -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 20px 12px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SUBMISSION</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:0 20px">
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:16px;box-shadow:5px 5px 0 #1A1330;padding:16px;display:flex;flex-direction:column;gap:7px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">REJECTED · 1 APPEAL AVAILABLE</div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.03em;color:#1A1330;line-height:1.1;text-wrap:pretty">TAKE A PHOTO AT THE HIGHEST POINT YOU CAN REACH TODAY</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">REVIEWED 12 MAR · 18:04</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">MODERATOR FEEDBACK</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:13px 14px;font-size:14px;line-height:1.55">The photo doesn't show any elevation or a recognisable vantage point. Re-shoot with the view visible.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">REJECTION REASONS</div>
+              <div style="display:flex;gap:7px;flex-wrap:wrap">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#FFFFFF;border:2px solid #1A1330;padding:6px 10px;border-radius:8px">PROOF UNCLEAR</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#FFFFFF;border:2px solid #1A1330;padding:6px 10px;border-radius:8px">INTENT MISMATCH</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">YOUR PROOF</div>
+              <div style="display:flex;gap:10px">
+                <div style="width:96px;height:118px;border-radius:12px;border:2px solid #1A1330;box-shadow:3px 3px 0 #1A1330;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);flex:none"></div>
+                <div style="flex:1;font-size:13px;line-height:1.55;color:#5B5170">"Climbed the stairwell at work, best I could do on a Tuesday."</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">REVALIDATION REQUEST</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:13px 14px;min-height:76px;font-size:14px;line-height:1.55;color:#938AA8">Write your revalidation request here...</div>
+              <div style="font-size:12px;line-height:1.5;color:#5B5170">You get one appeal. If it's rejected again, the decision is final.</div>
+            </div>
+          </div>
+          <div style="padding:14px 20px 28px;background:#FFF1D6;border-top:2px solid #1A1330">
+            <button style="width:100%;height:56px;border-radius:14px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.05em;cursor:pointer">SEND REQUEST</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SUBMISSION · REJECTED, APPEAL OPEN</div>
+      </div>
+
+      <!-- Submission state set -->
+      <div style="display:flex;flex-direction:column;gap:10px;width:390px">
+        <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:20px;box-shadow:8px 8px 0 #1A1330;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">SUBMISSION · OTHER STATES</div>
+          <div style="background:#17C27B;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#1A1330">APPROVED · +120 XP</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#1A1330">SUBMISSION APPROVED</div>
+            <div style="font-size:13px;line-height:1.5;color:#1A1330">XP is awarded once. Your post is live in the feed.</div>
+          </div>
+          <div style="background:#FFC224;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:15px;display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#2A1B00">PENDING · APPEALED</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#2A1B00">BACK IN THE REVIEW QUEUE</div>
+            <div style="font-size:13px;line-height:1.5;color:#2A1B00">You've used your one appeal for this submission.</div>
+          </div>
+          <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#5B5170">RE-REJECTED · FINAL</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.025em;color:#5B5170">DECISION IS FINAL</div>
+            <div style="font-size:13px;line-height:1.5;color:#5B5170">No further appeals. The quest stays in your history as rejected.</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SUBMISSION · STATE SET</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 04 SOCIAL ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">04</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">SOCIAL</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <!-- Feed -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 12px;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.03em">FEED</div>
+            <div style="display:flex;gap:5px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:6px 10px;border-radius:8px">HOT</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#1A1330;background:#FFFFFF;border:2px solid #1A1330;padding:6px 10px;border-radius:8px">NEW</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#1A1330;background:#FFFFFF;border:2px solid #1A1330;padding:6px 10px;border-radius:8px">FOLLOWING</span>
+            </div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:0 20px">
+
+            <div style="flex:none;background:#FFFFFF;border:2px solid #1A1330;border-radius:16px;box-shadow:5px 5px 0 #17C27B;overflow:hidden;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px">
+                <div style="width:38px;height:38px;border-radius:19px;border:2px solid #1A1330;background:#4CC9F0"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:0;min-width:0">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.015em">nour.k</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170">LVL 12 · MAGE · 2H AGO</div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#1A1330;background:#17C27B;border:2px solid #1A1330;padding:4px 8px;border-radius:7px">LEARNING</span>
+              </div>
+              <div style="aspect-ratio:4/3;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);border-top:2px solid #1A1330;border-bottom:2px solid #1A1330;display:flex;align-items:center;justify-content:center">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PROOF MEDIA</span>
+              </div>
+              <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em">LEARN 10 WORDS IN A NEW LANGUAGE</div>
+                <div style="font-size:13px;line-height:1.55;color:#5B5170">Ten Armenian words, written out and pronounced badly to my neighbour. She corrected all ten.</div>
+                <div style="display:flex;align-items:center;gap:7px">
+                  <button style="height:44px;padding:0 12px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">▲ 142</button>
+                  <button style="width:44px;height:44px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;cursor:pointer;font-size:14px">▼</button>
+                  <button style="height:44px;padding:0 12px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">◌ 23</button>
+                  <div style="flex:1"></div>
+                  <button style="height:44px;padding:0 11px;border-radius:11px;border:2px solid #1A1330;background:#FFC224;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.06em;color:#2A1B00">BSHEEEL</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="flex:none;background:#FFFFFF;border:2px solid #1A1330;border-radius:16px;box-shadow:5px 5px 0 #FFC224;overflow:hidden;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px">
+                <div style="width:38px;height:38px;border-radius:19px;border:2px solid #1A1330;background:#FF5A6E"></div>
+                <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+                  <div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.015em">tarek_s</div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170">LVL 7 · WARRIOR · 5H AGO</div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#1A1330;background:#FFC224;border:2px solid #1A1330;padding:4px 8px;border-radius:7px">ADVENTURE</span>
+              </div>
+              <div style="aspect-ratio:16/10;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);border-top:2px solid #1A1330"></div>
+            </div>
+
+          </div>
+          <div style="display:flex;border-top:2px solid #1A1330;background:#FFF1D6;padding:8px 8px 22px">
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◼</span>HOME</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:17px">▤</span>FEED</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◎</span>SEARCH</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▲</span>RANKS</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">●</span>PROFILE</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FEED · HOT</div>
+      </div>
+
+      <!-- Comments -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 20px 14px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:-0.025em">COMMENTS · 23</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:16px;padding:0 20px">
+
+            <div style="display:flex;gap:11px">
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#4CC9F0;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">maya.z</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">1H</span></div>
+                <div style="font-size:14px;line-height:1.55;text-wrap:pretty">The pronunciation attempt is the real quest here. Respect.</div>
+                <div style="display:flex;gap:12px;align-items:center">
+                  <button style="background:none;border:none;padding:10px 0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;color:#5B5170">▲ 12</button>
+                  <button style="background:none;border:none;padding:10px 0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;color:#5B5170">REPLY</button>
+                </div>
+                <div style="display:flex;gap:10px;padding-left:13px;border-left:3px solid #C7C0E0">
+                  <div style="width:28px;height:28px;border-radius:14px;border:2px solid #1A1330;background:#17C27B;flex:none"></div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+                    <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:13px">nour.k</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">42M</span></div>
+                    <div style="font-size:13px;line-height:1.55"><span style="color:#6B3BFF;font-weight:600">@maya.z</span> she made me repeat it four times</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:11px">
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">tarek_s</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">3H</span></div>
+                <div style="font-size:14px;line-height:1.55;text-wrap:pretty">Which ten words? Dropping this in the collab group.</div>
+                <div style="display:flex;gap:12px;align-items:center">
+                  <button style="background:none;border:none;padding:10px 0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;color:#5B5170">▲ 4</button>
+                  <button style="background:none;border:none;padding:10px 0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.06em;color:#5B5170">REPLY</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div style="padding:12px 20px 28px;background:#FFF1D6;border-top:2px solid #1A1330;display:flex;gap:9px;align-items:center">
+            <div style="flex:1;height:50px;border-radius:13px;border:2px solid #1A1330;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:14px;color:#938AA8">Add a comment...</div>
+            <button style="width:50px;height:50px;border-radius:13px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:17px;cursor:pointer">↑</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">COMMENTS</div>
+      </div>
+
+      <!-- Notifications -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:14px 20px 12px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="flex:1;font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.028em">NOTIFICATIONS</div>
+          </div>
+          <div style="display:flex;gap:6px;padding:0 20px 14px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">ALL</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#1A1330;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">SOCIAL</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#1A1330;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">REWARDS</span>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:10px;padding:0 20px">
+            <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:13px 14px;display:flex;flex-direction:column;gap:4px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#1A1330">SUBMISSION REJECTED</div>
+              <div style="font-size:14px;line-height:1.5;font-weight:600;color:#1A1330;text-wrap:pretty">Your proof for "Take a photo at the highest point" needs another look. Tap to appeal.</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">18:04</div>
+            </div>
+            <div style="background:#17C27B;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:13px 14px;display:flex;flex-direction:column;gap:4px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#1A1330">SUBMISSION APPROVED</div>
+              <div style="font-size:14px;line-height:1.5;font-weight:600;color:#1A1330">+120 XP for "Learn 10 words in a new language"</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330;opacity:0.7">YESTERDAY · 09:12</div>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #938AA8;padding:13px 14px;display:flex;flex-direction:column;gap:4px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">MENTION</div>
+              <div style="font-size:14px;line-height:1.5">maya.z mentioned you in a comment</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#938AA8">2D AGO</div>
+            </div>
+            <div style="border:2px dashed #938AA8;border-radius:13px;padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#938AA8">EMPTY STATE</div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:17px;color:#5B5170">NO NEW SIGNALS</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">NOTIFICATIONS · PRIMARY APPEAL ROUTE</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 05 PROGRESSION ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">05</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">PROGRESSION</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <!-- Profile -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:13px;padding:16px 20px 0">
+            <div style="display:flex;align-items:center;gap:13px">
+              <div style="width:68px;height:68px;border-radius:16px;border:2px solid #1A1330;background:#FF5A6E;box-shadow:4px 4px 0 #1A1330;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:26px;letter-spacing:-0.03em;line-height:1">RAMI H.</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#5B5170">@RAMI.H</div>
+              </div>
+              <button style="height:44px;padding:0 14px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;box-shadow:3px 3px 0 #1A1330;cursor:pointer;font-family:Syne,sans-serif;font-weight:700;font-size:13px;letter-spacing:0.04em">EDIT</button>
+            </div>
+            <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:18px;box-shadow:6px 6px 0 #1A1330;padding:16px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <div style="display:flex;align-items:baseline;gap:9px">
+                  <span style="font-family:Syne,sans-serif;font-weight:800;font-size:29px;letter-spacing:-0.035em;color:#FFFFFF;line-height:1">LVL 12</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#FFC224">MAGE</span>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#FFFFFF">4,180 / 4,600</span>
+              </div>
+              <div style="height:16px;border:2px solid #1A1330;border-radius:9px;padding:2px;background:#FFF9EE;display:flex"><div style="width:78%;background:#FFC224;border-radius:5px"></div></div>
+              <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.08em;color:#C7C0E0">
+                <span>SCOUT</span><span>WARRIOR</span><span style="color:#FFC224">MAGE</span><span>CHAMPION</span><span>LEGEND</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:12px;display:flex;flex-direction:column;gap:1px;align-items:center">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em;line-height:1">27</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#5B5170">POSTS</div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:12px;display:flex;flex-direction:column;gap:1px;align-items:center">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em;line-height:1">318</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FOLLOWERS</div>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:12px;display:flex;flex-direction:column;gap:1px;align-items:center">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.03em;line-height:1">204</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FOLLOWING</div>
+              </div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">BADGES</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+              <div style="aspect-ratio:1;border-radius:14px;border:2px solid #1A1330;background:#FFC224;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:22px">★</div>
+              <div style="aspect-ratio:1;border-radius:14px;border:2px solid #1A1330;background:#17C27B;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:22px">▲</div>
+              <div style="aspect-ratio:1;border-radius:14px;border:2px solid #1A1330;background:#FF5A6E;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;justify-content:center;font-size:22px">◆</div>
+              <div style="aspect-ratio:1;border-radius:14px;border:2px dashed #938AA8;background:#FFF1D6;display:flex;align-items:center;justify-content:center;font-size:20px;color:#938AA8">?</div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ACTIVITY</div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:13px;display:grid;grid-template-columns:repeat(14,1fr);gap:4px">
+              <span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#C7C0E0"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#C7C0E0"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#C7C0E0"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span>
+              <span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#C7C0E0"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#C7C0E0"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FFF1D6"></span><span style="aspect-ratio:1;border-radius:3px;background:#6B3BFF"></span><span style="aspect-ratio:1;border-radius:3px;background:#FF5A6E"></span>
+            </div>
+          </div>
+          <div style="display:flex;border-top:2px solid #1A1330;background:#FFF1D6;padding:8px 8px 22px">
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◼</span>HOME</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▤</span>FEED</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◎</span>SEARCH</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▲</span>RANKS</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:17px">●</span>PROFILE</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PROFILE</div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="padding:14px 20px 12px"><div style="font-family:Syne,sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.03em">LEADERBOARD</div></div>
+          <div style="display:flex;gap:6px;padding:0 20px 14px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">GLOBAL</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#1A1330;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">FOLLOWING</span>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:9px;padding:0 20px">
+            <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <span style="width:28px;font-family:Syne,sans-serif;font-weight:800;font-size:20px;color:#2A1B00">1</span>
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#FFF9EE"></div>
+              <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:#2A1B00">layla.b</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#2A1B00;opacity:0.7">LVL 24 · LEGEND</span></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#2A1B00">18,420</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <span style="width:28px;font-family:Syne,sans-serif;font-weight:800;font-size:19px;color:#5B5170">2</span>
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#4CC9F0"></div>
+              <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">omar_dk</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#5B5170">LVL 21 · CHAMPION</span></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">15,905</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <span style="width:28px;font-family:Syne,sans-serif;font-weight:800;font-size:19px;color:#5B5170">3</span>
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#17C27B"></div>
+              <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">nour.k</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#5B5170">LVL 19 · CHAMPION</span></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">14,110</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <span style="width:28px;font-family:Syne,sans-serif;font-weight:800;font-size:19px;color:#5B5170">4</span>
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#FF5A6E"></div>
+              <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">maya.z</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#5B5170">LVL 17 · MAGE</span></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">11,780</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;align-items:center;gap:11px">
+              <span style="width:28px;font-family:Syne,sans-serif;font-weight:800;font-size:19px;color:#5B5170">5</span>
+              <div style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#C7C0E0"></div>
+              <div style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">tarek_s</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#5B5170">LVL 15 · MAGE</span></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">9,340</span>
+            </div>
+          </div>
+          <div style="margin:0 20px 14px;background:#1A1330;border:2px solid #1A1330;border-radius:14px;box-shadow:5px 5px 0 #6B3BFF;padding:13px 14px;display:flex;align-items:center;gap:11px">
+            <span style="width:30px;font-family:Syne,sans-serif;font-weight:800;font-size:19px;color:#FFC224">47</span>
+            <div style="width:36px;height:36px;border-radius:18px;border:2px solid #FFF9EE;background:#FF5A6E"></div>
+            <div style="flex:1;display:flex;flex-direction:column"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:#FFFFFF">YOU</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#C7C0E0">LVL 12 · MAGE</span></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#FFC224">4,180</span>
+          </div>
+          <div style="display:flex;border-top:2px solid #1A1330;background:#FFF1D6;padding:8px 8px 22px">
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◼</span>HOME</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">▤</span>FEED</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">◎</span>SEARCH</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:17px">▲</span>RANKS</button>
+            <button style="flex:1;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#938AA8"><span style="font-size:17px">●</span>PROFILE</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">LEADERBOARD</div>
+      </div>
+
+      <!-- Collab -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:14px 20px 12px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.028em">COLLAB</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:0 20px">
+            <div style="background:#1A1330;border:2px solid #1A1330;border-radius:18px;box-shadow:6px 6px 0 #4CC9F0;padding:17px;display:flex;flex-direction:column;gap:13px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.11em;color:#4CC9F0">HEAD-TO-HEAD · VOTING OPEN</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#FFC224">4:12:08</span>
+              </div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:21px;line-height:1.1;letter-spacing:-0.028em;color:#FFFFFF;text-wrap:pretty">ASK A STRANGER FOR A BOOK RECOMMENDATION</div>
+              <div style="display:flex;gap:10px">
+                <div style="flex:1;background:#241E40;border:2px solid #FFF9EE;border-radius:12px;padding:11px;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:24px;height:24px;border-radius:12px;border:2px solid #FFF9EE;background:#17C27B"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:#FFFFFF">nour.k</span></div>
+                  <div style="height:10px;border:2px solid #FFF9EE;border-radius:6px;padding:1px;display:flex"><div style="width:64%;background:#FFC224;border-radius:3px"></div></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#C7C0E0">64% · 41 VOTES</span>
+                </div>
+                <div style="flex:1;background:#241E40;border:2px solid #FFF9EE;border-radius:12px;padding:11px;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:24px;height:24px;border-radius:12px;border:2px solid #FFF9EE;background:#FF5A6E"></span><span style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:#FFFFFF">tarek_s</span></div>
+                  <div style="height:10px;border:2px solid #FFF9EE;border-radius:6px;padding:1px;display:flex"><div style="width:36%;background:#FFC224;border-radius:3px"></div></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#C7C0E0">36% · 23 VOTES</span>
+                </div>
+              </div>
+              <button style="width:100%;height:50px;border-radius:12px;border:2px solid #FFF9EE;background:#4CC9F0;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.05em;cursor:pointer">CAST YOUR VOTE</button>
+            </div>
+
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">YOUR GROUPS</div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #17C27B;padding:13px 14px;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em">THURSDAY CREW</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;color:#5B5170">6 MEMBERS · CODE 4K2P9</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#1A1330;background:#17C27B;border:2px solid #1A1330;padding:5px 9px;border-radius:7px">ACTIVE</span>
+            </div>
+            <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #938AA8;padding:13px 14px;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.02em">ROOFTOP SOCIETY</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;color:#5B5170">3 MEMBERS · CODE M8XQ1</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;color:#5B5170;background:#FFF1D6;border:2px solid #938AA8;padding:5px 9px;border-radius:7px">IDLE</span>
+            </div>
+
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">JOIN BY CODE</div>
+            <div style="display:flex;gap:9px">
+              <div style="flex:1;height:54px;border-radius:13px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;padding:0 15px;font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;letter-spacing:0.28em;color:#938AA8">–––––</div>
+              <button style="height:54px;padding:0 20px;border-radius:13px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.05em;cursor:pointer">JOIN</button>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">COLLAB · HEAD-TO-HEAD</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 06 AUTH ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">06</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">AUTH</div>
+      <div style="font-size:14px;color:#5B5170">/splash · /login · /signup · /forgot-password · /reset-password</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#1A1330;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;box-shadow:8px 8px 0 #6B3BFF">
+          <div style="width:96px;height:96px;border-radius:24px;border:2px solid #FFF9EE;background:#FFC224;display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:44px;color:#2A1B00">B</div>
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:42px;letter-spacing:-0.04em;color:#FFF9EE;line-height:1">BSHEEL</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.16em;color:#C7C0E0">ONE QUEST · LIMITED TIME</div>
+          <div style="display:flex;gap:6px;margin-top:24px">
+            <span style="width:10px;height:10px;border-radius:5px;background:#FFC224"></span>
+            <span style="width:10px;height:10px;border-radius:5px;background:#6B3BFF"></span>
+            <span style="width:10px;height:10px;border-radius:5px;background:#2A2450"></span>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SPLASH</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:15px;padding:24px 22px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:42px;letter-spacing:-0.04em;line-height:0.95">LOG IN</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">EMAIL</label>
+              <div style="height:52px;border:2px solid #1A1330;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#938AA8">your@email.com</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PASSWORD</label>
+              <div style="height:52px;border:2px solid #FF5A6E;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#938AA8">Enter your password</div>
+              <div style="font-size:12px;color:#C0392F;font-weight:600">Please enter your password.</div>
+            </div>
+            <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;align-self:flex-end">FORGOT PASSWORD?</a>
+            <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:17px;letter-spacing:0.04em;cursor:pointer">LOG IN</button>
+            <div style="display:flex;align-items:center;gap:12px;margin:2px 0">
+              <span style="flex:1;height:2px;background:#C7C0E0"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">OR</span>
+              <span style="flex:1;height:2px;background:#C7C0E0"></span>
+            </div>
+            <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:15px;letter-spacing:0.03em;cursor:pointer">CONTINUE WITH GOOGLE</button>
+            <div style="display:flex;gap:7px;align-items:center;justify-content:center;margin-top:4px">
+              <span style="font-size:14px;color:#5B5170">No account yet?</span>
+              <a href="#" style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">SIGN UP</a>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">LOGIN · FIELD ERROR</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 22px 6px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:14px;padding:8px 22px 24px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:36px;letter-spacing:-0.04em;line-height:0.95">CREATE ACCOUNT</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">USERNAME</label>
+              <div style="height:52px;border:2px solid #1A1330;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px">
+                <span>shadow_hunter</span>
+                <span style="width:24px;height:24px;border-radius:12px;border:2px solid #1A1330;background:#17C27B;display:flex;align-items:center;justify-content:center;font-size:11px">✓</span>
+              </div>
+              <div style="font-size:12px;color:#5B5170">Letters, numbers, and underscores only.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">EMAIL</label>
+              <div style="height:52px;border:2px solid #1A1330;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#938AA8">your@email.com</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PASSWORD</label>
+              <div style="height:52px;border:2px solid #1A1330;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#938AA8">Create a password</div>
+              <div style="display:flex;gap:4px">
+                <span style="flex:1;height:8px;border-radius:4px;border:2px solid #1A1330;background:#17C27B"></span>
+                <span style="flex:1;height:8px;border-radius:4px;border:2px solid #1A1330;background:#17C27B"></span>
+                <span style="flex:1;height:8px;border-radius:4px;border:2px solid #1A1330;background:#17C27B"></span>
+                <span style="flex:1;height:8px;border-radius:4px;border:2px solid #1A1330;background:#FFF1D6"></span>
+              </div>
+            </div>
+            <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:17px;letter-spacing:0.04em;cursor:pointer;margin-top:2px">SIGN UP</button>
+            <div style="font-size:12px;line-height:1.55;color:#5B5170;text-align:center">By signing up you agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SIGNUP</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;width:390px">
+        <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:20px;box-shadow:8px 8px 0 #1A1330;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">PASSWORD RECOVERY · FULL SEQUENCE</div>
+          <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.03em">RESET PASSWORD</div>
+            <div style="font-size:13px;line-height:1.55;color:#5B5170">Enter the email on your account and we'll send a reset link. It works once and expires in 30 minutes.</div>
+            <div style="height:50px;border:2px solid #1A1330;border-radius:12px;background:#FFF9EE;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">your@email.com</div>
+            <button style="height:50px;border-radius:12px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">SEND RESET LINK</button>
+            <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;align-self:center">BACK TO LOGIN</a>
+          </div>
+          <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.03em">NEW PASSWORD</div>
+            <div style="height:50px;border:2px solid #1A1330;border-radius:12px;background:#FFF9EE;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">Enter new password</div>
+            <div style="height:50px;border:2px solid #FF5A6E;border-radius:12px;background:#FFF9EE;display:flex;align-items:center;padding:0 13px;font-size:14px;color:#938AA8">Confirm new password</div>
+            <div style="font-size:12px;color:#C0392F;font-weight:600">Passwords do not match.</div>
+            <button style="height:50px;border-radius:12px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:15px;letter-spacing:0.04em;cursor:pointer">SET NEW PASSWORD</button>
+          </div>
+          <div style="background:#17C27B;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:16px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.028em;color:#1A1330">PASSWORD UPDATED</div>
+            <div style="font-size:13px;line-height:1.5;color:#1A1330">You've been signed out everywhere else.</div>
+            <button style="align-self:flex-start;height:44px;padding:0 16px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer">GO TO LOGIN</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">FORGOT / RESET</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 07 REMAINING PAGES ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">07</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">SEARCH · HISTORY · POST · SETTINGS</div>
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="padding:14px 20px 12px">
+            <div style="height:50px;border:2px solid #1A1330;border-radius:13px;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;display:flex;align-items:center;gap:9px;padding:0 14px">
+              <span style="font-size:15px;color:#5B5170">◎</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#938AA8">SEARCH PEOPLE OR QUESTS</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;padding:0 20px 14px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF;background:#1A1330;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">PEOPLE</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">QUESTS</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:9px">POSTS</span>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:13px;padding:0 20px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">RECENT</div>
+              <a href="#" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em">CLEAR</a>
+            </div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:999px">nour.k</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:999px">rooftop</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:#FFFFFF;border:2px solid #1A1330;padding:7px 12px;border-radius:999px">armenian</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-top:2px">
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #4CC9F0;padding:11px;display:flex;align-items:center;gap:11px">
+                <span style="width:44px;height:44px;border-radius:22px;border:2px solid #1A1330;background:#4CC9F0;flex:none"></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">nour.k</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">LVL 12 · MAGE · 318 FOLLOWERS</span></div>
+                <button style="height:44px;padding:0 13px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">FOLLOW</button>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:11px;display:flex;align-items:center;gap:11px">
+                <span style="width:44px;height:44px;border-radius:22px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:15px">nour_official</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">LVL 4 · SCOUT · 12 FOLLOWERS</span></div>
+                <button style="height:44px;padding:0 13px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">FOLLOW</button>
+              </div>
+            </div>
+            <div style="border:2px dashed #938AA8;border-radius:13px;padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:4px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:#5B5170">EMPTY STATE</div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:17px;color:#5B5170">NO MATCHES</div>
+              <div style="font-size:13px;color:#5B5170">Try a different keyword.</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SEARCH</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:14px 20px 14px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.028em">QUEST HISTORY</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:15px;padding:0 20px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#0F7A4E">COMPLETED · 27</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #17C27B;padding:12px 13px;display:flex;align-items:center;gap:11px">
+                <span style="flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Learn 10 words in a new language</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#0F7A4E">+120</span>
+              </div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;padding:12px 13px;display:flex;align-items:center;gap:11px">
+                <span style="flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cook something you've never cooked</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#0F7A4E">+90</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#8A5F09">IN REVIEW · 2</div>
+              <div style="background:#FFC224;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:12px 13px;display:flex;align-items:center;gap:11px">
+                <span style="flex:1;font-size:14px;font-weight:600;color:#2A1B00;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Photograph a stranger's smile</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#2A1B00">4H</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#C0392F">REJECTED · 1</div>
+              <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:12px 13px;display:flex;align-items:center;gap:11px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                  <span style="font-size:14px;font-weight:600;color:#1A1330;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Take a photo at the highest point…</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#1A1330">1 APPEAL AVAILABLE</span>
+                </div>
+                <button style="height:40px;padding:0 12px;border-radius:10px;border:2px solid #1A1330;background:#FFF9EE;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">APPEAL</button>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">EXPIRED · 4</div>
+              <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:12px;padding:12px 13px;display:flex;align-items:center;gap:11px">
+                <span style="flex:1;font-size:14px;font-weight:600;color:#5B5170;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Run 5km before sunset</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">NO XP</span>
+              </div>
+            </div>
+            <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:12px 13px;display:flex;gap:9px;align-items:flex-start;margin-top:2px">
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:#FFFFFF">+</span>
+              <span style="font-size:12px;line-height:1.5;color:#FFFFFF">New: the REJECTED row routes straight to the appeal, so finding it no longer depends on push delivery.</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">QUEST HISTORY · DURABLE APPEAL ROUTE</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:14px 20px 12px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">POST</div>
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">⋯</button>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:13px;padding:0 20px">
+            <div style="display:flex;align-items:center;gap:11px">
+              <div style="width:44px;height:44px;border-radius:22px;border:2px solid #1A1330;background:#4CC9F0;flex:none"></div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+                <div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px">nour.k</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">LVL 12 · MAGE · 2H AGO</div>
+              </div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.09em;background:#17C27B;border:2px solid #1A1330;padding:5px 9px;border-radius:8px;color:#1A1330">LEARNING</span>
+            </div>
+            <div style="aspect-ratio:4/3;border:2px solid #1A1330;border-radius:16px;box-shadow:5px 5px 0 #1A1330;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);display:flex;align-items:center;justify-content:center">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PROOF MEDIA</span>
+            </div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:-0.03em;line-height:1.1">LEARN 10 WORDS IN A NEW LANGUAGE</div>
+            <div style="font-size:14px;line-height:1.55;color:#5B5170">Ten Armenian words, written out and pronounced badly to my neighbour. She corrected all ten.</div>
+            <div style="display:flex;align-items:center;gap:7px">
+              <button style="height:46px;padding:0 13px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">▲ 142</button>
+              <button style="width:46px;height:46px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;cursor:pointer;font-size:15px">▼</button>
+              <button style="height:46px;padding:0 13px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700">◌ 23</button>
+              <div style="flex:1"></div>
+              <button style="height:46px;padding:0 12px;border-radius:11px;border:2px solid #1A1330;background:#FFC224;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.06em;color:#2A1B00">BSHEEEL</button>
+            </div>
+            <div style="height:2px;background:#C7C0E0"></div>
+            <div style="display:flex;gap:11px">
+              <div style="width:34px;height:34px;border-radius:17px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:14px">maya.z</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">1H</span></div>
+                <div style="font-size:13px;line-height:1.5">The pronunciation attempt is the real quest here. Respect.</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:12px 20px 28px;background:#FFF1D6;border-top:2px solid #1A1330;display:flex;gap:9px;align-items:center">
+            <div style="flex:1;height:50px;border-radius:13px;border:2px solid #1A1330;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:14px;color:#938AA8">Add a comment...</div>
+            <button style="width:50px;height:50px;border-radius:13px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:17px;cursor:pointer">↑</button>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">POST DETAIL</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="width:390px;height:844px;background:#FFF9EE;border:2px solid #1A1330;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 #1A1330">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1A1330"><span>9:41</span><span style="letter-spacing:0.1em;color:#938AA8">▮▮▮</span></div>
+          <div style="display:flex;align-items:center;gap:11px;padding:14px 20px 14px">
+            <button style="width:42px;height:42px;border-radius:11px;border:2px solid #1A1330;background:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-size:15px;cursor:pointer">←</button>
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:23px;letter-spacing:-0.028em">SETTINGS</div>
+          </div>
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:15px;padding:0 20px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ACCOUNT</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;overflow:hidden">
+                <div style="padding:14px;border-bottom:2px solid #EFE7D6;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;font-weight:600">Edit profile</span><span style="color:#5B5170">›</span></div>
+                <div style="padding:14px;border-bottom:2px solid #EFE7D6;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;font-weight:600">Blocked users</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#5B5170">2</span><span style="color:#5B5170">›</span></div>
+                <div style="padding:14px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;font-weight:600">Sign out</span><span style="color:#5B5170">›</span></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">APP</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #4CC9F0;overflow:hidden">
+                <div style="padding:14px;border-bottom:2px solid #EFE7D6;display:flex;align-items:center;gap:10px">
+                  <span style="flex:1;font-size:15px;font-weight:600">Language</span>
+                  <div style="display:flex;gap:5px">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;background:#1A1330;color:#FFF9EE;border:2px solid #1A1330;padding:4px 9px;border-radius:999px">EN</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;background:#FFF1D6;border:2px solid #1A1330;padding:4px 9px;border-radius:999px">LB</span>
+                  </div>
+                </div>
+                <div style="padding:14px;display:flex;align-items:center;gap:10px">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Push notifications</span><span style="font-size:12px;line-height:1.4;color:#C0392F">Off means you won't be told if a submission is rejected.</span></div>
+                  <div style="width:52px;height:30px;border-radius:16px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">ABOUT BSHEEL</div>
+              <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;overflow:hidden">
+                <div style="padding:14px;border-bottom:2px solid #EFE7D6;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;font-weight:600">Privacy policy</span><span style="color:#5B5170">›</span></div>
+                <div style="padding:14px;border-bottom:2px solid #EFE7D6;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;font-weight:600">Terms of service</span><span style="color:#5B5170">›</span></div>
+                <div style="padding:14px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;color:#5B5170">Version 1.0.0</span></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#C0392F">DANGER ZONE</div>
+              <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:13px;box-shadow:3px 3px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:7px">
+                <div style="font-family:Syne,sans-serif;font-weight:800;font-size:17px;letter-spacing:-0.025em;color:#1A1330">DELETE ACCOUNT</div>
+                <div style="font-size:13px;line-height:1.5;color:#1A1330">This will permanently delete your account and all data. This cannot be undone.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SETTINGS</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;width:390px">
+        <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:20px;box-shadow:8px 8px 0 #1A1330;padding:22px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">EDIT PROFILE · USER PROFILE · JOIN · BLOCKED</div>
+
+          <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.028em">EDIT PROFILE</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:60px;height:60px;border-radius:15px;border:2px solid #1A1330;background:#FF5A6E;flex:none"></div>
+              <button style="height:44px;padding:0 12px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">CHANGE PHOTO</button>
+              <button style="height:44px;padding:0 12px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">REMOVE</button>
+            </div>
+            <div style="height:46px;border:2px solid #1A1330;border-radius:11px;background:#FFF9EE;display:flex;align-items:center;padding:0 12px;font-size:14px">Rami H.</div>
+            <div style="height:46px;border:2px solid #1A1330;border-radius:11px;background:#FFF9EE;display:flex;align-items:center;padding:0 12px;font-size:14px;color:#938AA8">Max 4 words...</div>
+            <button style="height:48px;border-radius:11px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">SAVE CHANGES</button>
+          </div>
+
+          <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.028em">ANOTHER USER'S PROFILE</div>
+            <div style="display:flex;align-items:center;gap:11px">
+              <div style="width:56px;height:56px;border-radius:28px;border:2px solid #1A1330;background:#4CC9F0;flex:none"></div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font-family:Syne,sans-serif;font-weight:700;font-size:17px">nour.k</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#5B5170">LVL 12 · MAGE</span></div>
+              <button style="height:44px;padding:0 14px;border-radius:11px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:3px 3px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:13px;cursor:pointer">FOLLOW</button>
+            </div>
+            <div style="display:flex;gap:7px">
+              <button style="flex:1;height:44px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">BLOCK</button>
+              <button style="flex:1;height:44px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">REPORT</button>
+            </div>
+          </div>
+
+          <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.028em;color:#FFFFFF">JOIN A COLLAB</div>
+            <div style="font-size:13px;line-height:1.5;color:#FFFFFF">tarek_s invited you to <span style="font-weight:700">Thursday Crew</span>.</div>
+            <div style="height:50px;border:2px solid #1A1330;border-radius:11px;background:#FFF9EE;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:700;letter-spacing:0.3em">4K2P9</div>
+            <button style="height:48px;border-radius:11px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer">JOIN GROUP</button>
+          </div>
+
+          <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-family:Syne,sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.028em">BLOCKED USERS</div>
+            <div style="display:flex;align-items:center;gap:11px">
+              <span style="width:40px;height:40px;border-radius:20px;border:2px dashed #938AA8;background:#EFE7D6;flex:none"></span>
+              <span style="flex:1;font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:#5B5170">tarek_s</span>
+              <button style="height:44px;padding:0 13px;border-radius:11px;border:2px solid #1A1330;background:#FFF1D6;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">UNBLOCK</button>
+            </div>
+            <div style="font-size:12px;line-height:1.5;color:#5B5170">Blocks cut both directions — their posts and comments are hidden from you, and yours from them.</div>
+          </div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">SECONDARY PAGES</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 08 NOTIFICATIONS ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">08</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">NOTIFICATION CATALOGUE</div>
+      <div style="font-size:14px;color:#5B5170">All 19 types, each with the destination it routes to</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:13px;max-width:1320px">
+
+      <div style="background:#17C27B;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#1A1330">submission_approved → SUBMISSION STATUS</div>
+        <div style="font-size:14px;font-weight:600;color:#1A1330">+120 XP for "Learn 10 words in a new language"</div>
+      </div>
+
+      <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#1A1330">submission_rejected → SUBMISSION STATUS · PRIMARY APPEAL ROUTE</div>
+        <div style="font-size:14px;font-weight:600;color:#1A1330">Your proof needs another look. Tap to appeal.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">new_submission → SUBMISSION STATUS</div>
+        <div style="font-size:14px;font-weight:600">A submission is waiting for review.</div>
+      </div>
+
+      <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#2A1B00">appeal_submitted → SUBMISSION STATUS</div>
+        <div style="font-size:14px;font-weight:600;color:#2A1B00">rami.h appealed a rejected submission.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">pending_review_reminder → HOME</div>
+        <div style="font-size:14px;font-weight:600">14 submissions have been waiting over 4 hours.</div>
+      </div>
+
+      <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#2A1B00">quest_assigned → HOME</div>
+        <div style="font-size:14px;font-weight:600;color:#2A1B00">Your quest is live. Three hours on the clock.</div>
+      </div>
+
+      <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#1A1330">quest_timer_warning → HOME</div>
+        <div style="font-size:14px;font-weight:600;color:#1A1330">30 minutes left. Submit your proof.</div>
+      </div>
+
+      <div style="background:#FFF1D6;border:2px dashed #938AA8;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">quest_expired → HOME</div>
+        <div style="font-size:14px;font-weight:600;color:#5B5170">Time ran out on "Run 5km before sunset".</div>
+      </div>
+
+      <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF">level_up → PROFILE</div>
+        <div style="font-size:14px;font-weight:600;color:#FFFFFF">Level 12. You're a Mage now.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">reaction_received → POST DETAIL</div>
+        <div style="font-size:14px;font-weight:600">maya.z upvoted your quest.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">reaction_milestone → POST DETAIL</div>
+        <div style="font-size:14px;font-weight:600">Your post passed 100 upvotes.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">new_comment → POST DETAIL</div>
+        <div style="font-size:14px;font-weight:600">tarek_s commented on your quest.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">comment_reply → POST DETAIL</div>
+        <div style="font-size:14px;font-weight:600">nour.k replied to your comment.</div>
+      </div>
+
+      <div style="background:#4CC9F0;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#1A1330">mention → POST DETAIL · FALLS BACK TO FEED</div>
+        <div style="font-size:14px;font-weight:600;color:#1A1330">maya.z mentioned you in a comment.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">follow_quest_completed → POST DETAIL</div>
+        <div style="font-size:14px;font-weight:600">nour.k cleared a quest you're following.</div>
+      </div>
+
+      <div style="background:#6B3BFF;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#FFFFFF">new_follower → USER PROFILE</div>
+        <div style="font-size:14px;font-weight:600;color:#FFFFFF">layla.b started following you.</div>
+      </div>
+
+      <div style="background:#FF5A6E;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#1A1330">leaderboard_overtaken → LEADERBOARD</div>
+        <div style="font-size:14px;font-weight:600;color:#1A1330">tarek_s passed you. You're rank 48.</div>
+      </div>
+
+      <div style="background:#FFC224;border:2px solid #1A1330;border-radius:13px;box-shadow:4px 4px 0 #1A1330;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#2A1B00">top_10_entry → LEADERBOARD</div>
+        <div style="font-size:14px;font-weight:600;color:#2A1B00">You broke into the top 10.</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:2px solid #1A1330;border-radius:13px;padding:14px;display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;color:#5B5170">announcement → HOME</div>
+        <div style="font-size:14px;font-weight:600">NEW QUESTS DROPPED</div>
+      </div>
+
+    </div>
+
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1;min-width:400px;background:#FF5A6E;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:9px">
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.028em;color:#1A1330">THE APPEAL FLOW HANGS ON ONE NOTIFICATION</div>
+        <div style="font-size:14px;line-height:1.6;color:#1A1330;text-wrap:pretty">Three things route to the submission status page: a notification tap, the Quest-of-the-Day ticket stub after a first-time rejection, and the redirect straight after submitting. Two of those are transient. If push delivery breaks, a rejected user has no way to find the appeal. The QUEST HISTORY frame above adds a fourth, durable route — a REJECTED row with its own APPEAL button — which is the single highest-value change in this set.</div>
+      </div>
+      <div style="flex:1;min-width:400px;background:#FFF9EE;border:2px solid #1A1330;border-radius:14px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:9px">
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.028em">READ AND UNREAD</div>
+        <div style="font-size:14px;line-height:1.6;color:#5B5170;text-wrap:pretty">Unread keeps its 2px ink border and hard shadow. Read drops the shadow and thins the border, but the fill stays white — dimming the text would punish someone for having already looked. Colour is reserved for what the notification is about, never for whether it has been opened.</div>
+        <div style="display:flex;gap:10px;margin-top:2px">
+          <div style="flex:1;background:#FFFFFF;border:2px solid #1A1330;border-radius:12px;box-shadow:3px 3px 0 #1A1330;padding:11px 13px;display:flex;flex-direction:column;gap:3px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#5B5170">UNREAD</div>
+            <div style="font-size:13px;font-weight:600">nour.k replied to your comment.</div>
+          </div>
+          <div style="flex:1;background:#FFFFFF;border:1px solid #938AA8;border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;gap:3px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#5B5170">READ</div>
+            <div style="font-size:13px;font-weight:500;color:#5B5170">maya.z upvoted your quest.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 09 COMPONENTS ═══ -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:2px solid #1A1330;padding-top:16px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.14em;color:#938AA8">09</div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em">COMPONENTS</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:22px;max-width:1320px">
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">BUTTONS · 44PT MINIMUM</div>
+        <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#6B3BFF;color:#FFFFFF;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.04em;cursor:pointer">PRIMARY</button>
+        <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#17C27B;color:#1A1330;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.04em;cursor:pointer">POSITIVE</button>
+        <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#FF5A6E;color:#1A1330;box-shadow:5px 5px 0 #1A1330;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.04em;cursor:pointer">DESTRUCTIVE</button>
+        <button style="height:56px;border-radius:14px;border:2px solid #1A1330;background:#FFF1D6;color:#1A1330;box-shadow:4px 4px 0 #1A1330;font-family:Syne,sans-serif;font-weight:700;font-size:16px;letter-spacing:0.04em;cursor:pointer">SECONDARY</button>
+        <button style="height:56px;border-radius:14px;border:2px dashed #938AA8;background:#FFF1D6;color:#5B5170;font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:0.04em;cursor:not-allowed">DISABLED</button>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Shadow depth signals weight: 5px primary, 4px secondary, none when disabled. Disabled loses its shadow and takes a dashed border, so it reads as unavailable rather than just dim.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:13px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">CATEGORY TAGS · STATUS PILLS</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#FF5A6E;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#1A1330">FITNESS</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#6B3BFF;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#FFFFFF">CREATIVITY</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#4CC9F0;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#1A1330">SOCIAL</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#17C27B;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#1A1330">LEARNING</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.09em;background:#FFC224;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#2A1B00">ADVENTURE</span>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#17C27B;border:2px solid #1A1330;padding:3px 9px;border-radius:999px;color:#1A1330">APPROVED</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#FFC224;border:2px solid #1A1330;padding:3px 9px;border-radius:999px;color:#2A1B00">IN REVIEW</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#FF5A6E;border:2px solid #1A1330;padding:3px 9px;border-radius:999px;color:#1A1330">REJECTED</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#1A1330;border:2px solid #1A1330;padding:3px 9px;border-radius:999px;color:#FFF9EE">FINAL</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.07em;background:#FFF1D6;border:2px dashed #938AA8;padding:3px 9px;border-radius:999px;color:#5B5170">EXPIRED</span>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Category tags are square-ish at 8px; status pills are fully round. The shape difference means you can tell them apart before you read them.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">INPUTS</div>
+        <div style="height:52px;border:2px solid #1A1330;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#938AA8">Placeholder</div>
+        <div style="height:52px;border:2px solid #6B3BFF;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px;box-shadow:3px 3px 0 #6B3BFF">Focused</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="height:52px;border:2px solid #FF5A6E;border-radius:12px;background:#FFFFFF;display:flex;align-items:center;padding:0 14px;font-size:15px">Invalid</div>
+          <div style="font-size:12px;color:#C0392F;font-weight:600">Username must be 3-30 characters.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:52px;height:30px;border-radius:16px;border:2px solid #1A1330;background:#17C27B;position:relative;flex:none"><span style="position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+          <div style="width:52px;height:30px;border-radius:16px;border:2px solid #1A1330;background:#C7C0E0;position:relative;flex:none"><span style="position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:11px;border:2px solid #1A1330;background:#FFF9EE"></span></div>
+          <span style="font-size:13px;color:#5B5170">Toggle on / off</span>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Focus adds a violet border and a matching coloured shadow. Errors recolour the border and add one line beneath — never a tooltip.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:13px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">METERS · TIMERS · AVATARS</div>
+        <div style="height:16px;border:2px solid #1A1330;border-radius:9px;padding:2px;background:#FFFFFF;display:flex"><div style="width:78%;background:#FFC224;border-radius:5px"></div></div>
+        <div style="display:flex;gap:4px">
+          <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#6B3BFF"></span>
+          <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#6B3BFF"></span>
+          <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#C7C0E0"></span>
+          <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6"></span>
+          <span style="flex:1;height:28px;border-radius:5px;border:2px solid #1A1330;background:#FFF1D6"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;letter-spacing:-0.01em">02:47:11</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;background:#FF5A6E;border:2px solid #1A1330;padding:5px 10px;border-radius:8px;color:#1A1330">00:04:52</span>
+        </div>
+        <div style="display:flex;gap:9px;align-items:center">
+          <span style="width:44px;height:44px;border-radius:22px;border:2px solid #1A1330;background:#4CC9F0"></span>
+          <span style="width:36px;height:36px;border-radius:18px;border:2px solid #1A1330;background:#FF5A6E"></span>
+          <span style="width:28px;height:28px;border-radius:14px;border:2px solid #1A1330;background:#17C27B"></span>
+          <span style="width:60px;height:60px;border-radius:15px;border:2px solid #1A1330;background:#FFC224"></span>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Timers are always mono and tabular so digits don't jitter. Under five minutes the countdown takes a coral chip. Avatars are circular for people, rounded-square for your own profile tile.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:13px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">BOTTOM NAV · 5 TABS</div>
+        <div style="display:flex;border:2px solid #1A1330;border-radius:14px;background:#FFF1D6;padding:6px;box-shadow:4px 4px 0 #1A1330">
+          <button style="flex:1;height:52px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#1A1330"><span style="font-size:18px">◼</span>HOME</button>
+          <button style="flex:1;height:52px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170"><span style="font-size:18px">▤</span>FEED</button>
+          <button style="flex:1;height:52px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170"><span style="font-size:18px">◎</span>SEARCH</button>
+          <button style="flex:1;height:52px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170"><span style="font-size:18px">▲</span>RANKS</button>
+          <button style="flex:1;height:52px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.06em;color:#5B5170"><span style="font-size:18px">●</span>PROFILE</button>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Active tab is ink, inactive is soft ink — no fill, no pill. Collab is reached from Feed rather than the nav; five tabs is already the ceiling.</div>
+      </div>
+
+      <div style="background:#FFF9EE;border:2px solid #1A1330;border-radius:16px;box-shadow:6px 6px 0 #1A1330;padding:20px;display:flex;flex-direction:column;gap:13px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;color:#5B5170">MEDIA PLACEHOLDER · SKELETON</div>
+        <div style="aspect-ratio:16/9;border:2px solid #1A1330;border-radius:14px;box-shadow:4px 4px 0 #1A1330;background:repeating-linear-gradient(135deg,#FFF1D6 0 10px,#FFF9EE 10px 20px);display:flex;align-items:center;justify-content:center">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#5B5170">PROOF MEDIA</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="height:16px;width:50%;border-radius:6px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+          <div style="height:56px;border-radius:12px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+          <div style="height:56px;width:72%;border-radius:12px;background:#EFE7D6;border:2px solid #C7C0E0"></div>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#5B5170">Skeletons keep the 2px border but drop to a muted violet-grey, so a loading card still reads as a card and nothing shifts when the data lands.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+</body>
+</html>
