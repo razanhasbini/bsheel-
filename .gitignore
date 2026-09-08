@@ -102,6 +102,17 @@ apps/mobile_app/android/key.properties
 *.jks
 apps/mobile_app/android/app/google-services.json
 
+# Firebase / Google service-account keys. CLAUDE.md states these are ignored
+# and, until now, no pattern actually matched them — the guarantee was in the
+# docs only. A service account grants server-side access to the whole Firebase
+# project, so it is the single worst file in this list to leak.
+#
+# Keep the file outside the repo and pass it through FIREBASE_SERVICE_ACCOUNT.
+# These patterns are the backstop for when someone drops one in anyway.
+*-adminsdk-*.json
+*service-account*.json
+*serviceAccount*.json
+
 # Local Claude state stays out, but the shipping runbooks are part of the project.
 # Note the `/*`: git cannot re-include anything inside a directory that is itself excluded,
 # so `.claude/` followed by `!.claude/skills/` silently does nothing.
