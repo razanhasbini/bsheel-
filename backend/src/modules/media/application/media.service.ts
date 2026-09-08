@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Environment } from '../../../config/environment.js';
 import { MediaRepository } from '../infrastructure/media.repository.js';
 import { ObjectStorageService } from '../infrastructure/object-storage.service.js';
 
@@ -13,15 +15,36 @@ export class MediaService {
   constructor(
     private readonly repository: MediaRepository,
     private readonly storage: ObjectStorageService,
+    private readonly config: ConfigService<Environment, true>,
   ) {}
 
   async createIntent(userId: string, requestId: string, kind: 'avatar' | 'submission', contentType: string, sizeBytes: number) {
     if (kind === 'avatar' && contentType.startsWith('video/')) {
       throw new BadRequestException({ code: 'AVATAR_VIDEO_NOT_ALLOWED', message: 'Videos are not allowed for avatars' });
     }
-    const maxSize = kind === 'avatar' ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+    const maxSize = kind === 'avatar'
+      ? this.config.get('MEDIA_MAX_AVATAR_BYTES', { infer: true })
+      : this.config.get('MEDIA_MAX_SUBMISSION_BYTES', { infer: true });
     if (sizeBytes > maxSize) {
-      throw new BadRequestException({ code: 'MEDIA_TOO_LARGE', message: `File exceeds the ${kind === 'avatar' ? 5 : 50}MB limit` });
+      const megabytes = Math.round(maxSize / (1024 * 1024));
+      throw new BadRequestException({
+        code: 'MEDIA_TOO_LARGE',
+        message: `File exceeds the ${megabytes}MB limit`,
+      });
+    }
+
+    // Per-user object cap. A retry of an existing intent creates nothing, so
+    // it is never refused here — otherwise a client at the cap could not
+    // resume an upload it had already started.
+    const maxObjects = kind === 'avatar'
+      ? this.config.get('MEDIA_MAX_AVATAR_OBJECTS_PER_USER', { infer: true })
+      : this.config.get('MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER', { infer: true });
+    const quota = await this.repository.quotaSnapshot(userId, kind, requestId);
+    if (!quota.isRetry && quota.liveCount >= maxObjects) {
+      throw new BadRequestException({
+        code: 'MEDIA_QUOTA_EXCEEDED',
+        message: `You have reached the limit of ${maxObjects} stored ${kind === 'avatar' ? 'avatars' : 'files'}`,
+      });
     }
     const prefix = kind === 'avatar' ? 'avatars' : 'submissions';
     const generatedKey = `${prefix}/${userId}/${randomUUID()}.${extensions[contentType]}`;

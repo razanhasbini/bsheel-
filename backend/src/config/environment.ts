@@ -94,6 +94,53 @@ const environmentSchema = z
     R2_BUCKET: optionalString,
     R2_PUBLIC_BASE_URL: optionalUrl,
     SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+
+    // Per-user object caps. The deleted Cloudflare worker enforced these by
+    // listing the user's bucket prefix on every upload; they are now an
+    // indexed COUNT. Generous on purpose — they exist to bound a runaway
+    // client or a scripted abuse case, not to ration normal use.
+    MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5000),
+    MEDIA_MAX_AVATAR_OBJECTS_PER_USER: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
+    // Size caps were hard-coded in the service. Same class of magic number.
+    MEDIA_MAX_AVATAR_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5 * 1024 * 1024),
+    MEDIA_MAX_SUBMISSION_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(50 * 1024 * 1024),
+
+    // How long an object may sit unreferenced before the reclaim sweep takes
+    // it. A user can hold a presigned URL and upload minutes later, and a
+    // submission is created after its object completes, so the grace period
+    // must comfortably exceed both. Too short reclaims live media.
+    MEDIA_RECLAIM_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    MEDIA_RECLAIM_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(60_000)
+      .default(3_600_000),
+    MEDIA_RECLAIM_GRACE_HOURS: z.coerce.number().int().min(1).default(24),
+    MEDIA_RECLAIM_BATCH_SIZE: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .default(200),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),

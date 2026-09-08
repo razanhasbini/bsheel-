@@ -23,6 +23,64 @@ let MediaRepository = class MediaRepository {
        RETURNING *`, [userId, clientRequestId, objectKey, kind, contentType, sizeBytes]);
         return result.rows[0];
     }
+    async quotaSnapshot(userId, kind, clientRequestId) {
+        const result = await this.database.query(`SELECT
+         (SELECT count(*)::int FROM media_objects
+          WHERE user_id = $1 AND kind = $2
+            AND deleted_at IS NULL AND status <> 'deleted') AS live_count,
+         EXISTS (
+           SELECT 1 FROM media_objects
+           WHERE user_id = $1 AND client_request_id = $3
+         ) AS is_retry`, [userId, kind, clientRequestId]);
+        const row = result.rows[0];
+        return { liveCount: row.live_count, isRetry: row.is_retry };
+    }
+    async claimReclaimable(graceHours, limit) {
+        const result = await this.database.query(`WITH candidate AS (
+         -- an intent the client never completed
+         SELECT id, object_key, 'abandoned_intent' AS reason
+         FROM media_objects
+         WHERE status = 'pending'
+           AND created_at < now() - make_interval(hours => $1)
+
+         UNION ALL
+
+         -- rejected at completion; complete() deletes the bytes first, so a
+         -- row here means that delete failed and the bytes leaked
+         SELECT id, object_key, 'rejected_upload' AS reason
+         FROM media_objects
+         WHERE status = 'rejected' AND deleted_at IS NULL
+
+         UNION ALL
+
+         -- a profile holds exactly one avatar_url, so changing it orphans the
+         -- previous object. Single column, never a JSON array, so equality is
+         -- exact and this cannot reach a live avatar.
+         SELECT m.id, m.object_key, 'superseded_avatar' AS reason
+         FROM media_objects m
+         JOIN profiles p ON p.id = m.user_id
+         WHERE m.status = 'ready'
+           AND m.kind = 'avatar'
+           AND m.deleted_at IS NULL
+           AND m.created_at < now() - make_interval(hours => $1)
+           AND (p.avatar_url IS NULL OR p.avatar_url <> m.object_key)
+       )
+       SELECT c.id, c.object_key, c.reason
+       FROM candidate c
+       JOIN media_objects locked ON locked.id = c.id
+       ORDER BY c.id
+       LIMIT $2
+       FOR UPDATE OF locked SKIP LOCKED`, [graceHours, limit]);
+        return result.rows;
+    }
+    async markReclaimed(ids) {
+        if (ids.length === 0)
+            return 0;
+        const result = await this.database.query(`UPDATE media_objects
+       SET status = 'deleted', deleted_at = now()
+       WHERE id = ANY($1::uuid[])`, [ids]);
+        return result.rowCount ?? 0;
+    }
     async findOwnedForUpdate(userId, id) {
         const result = await this.database.query('SELECT * FROM media_objects WHERE id = $1 AND user_id = $2', [id, userId]);
         const object = result.rows[0];

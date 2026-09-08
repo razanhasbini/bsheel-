@@ -1,9 +1,12 @@
+import { ConfigService } from '@nestjs/config';
+import type { Environment } from '../../../config/environment.js';
 import { MediaRepository } from '../infrastructure/media.repository.js';
 import { ObjectStorageService } from '../infrastructure/object-storage.service.js';
 export declare class MediaService {
     private readonly repository;
     private readonly storage;
-    constructor(repository: MediaRepository, storage: ObjectStorageService);
+    private readonly config;
+    constructor(repository: MediaRepository, storage: ObjectStorageService, config: ConfigService<Environment, true>);
     createIntent(userId: string, requestId: string, kind: 'avatar' | 'submission', contentType: string, sizeBytes: number): Promise<{
         objectId: string;
         key: string;

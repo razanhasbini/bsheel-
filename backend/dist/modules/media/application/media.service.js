@@ -9,6 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MediaRepository } from '../infrastructure/media.repository.js';
 import { ObjectStorageService } from '../infrastructure/object-storage.service.js';
 const extensions = {
@@ -18,17 +19,35 @@ const extensions = {
 let MediaService = class MediaService {
     repository;
     storage;
-    constructor(repository, storage) {
+    config;
+    constructor(repository, storage, config) {
         this.repository = repository;
         this.storage = storage;
+        this.config = config;
     }
     async createIntent(userId, requestId, kind, contentType, sizeBytes) {
         if (kind === 'avatar' && contentType.startsWith('video/')) {
             throw new BadRequestException({ code: 'AVATAR_VIDEO_NOT_ALLOWED', message: 'Videos are not allowed for avatars' });
         }
-        const maxSize = kind === 'avatar' ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+        const maxSize = kind === 'avatar'
+            ? this.config.get('MEDIA_MAX_AVATAR_BYTES', { infer: true })
+            : this.config.get('MEDIA_MAX_SUBMISSION_BYTES', { infer: true });
         if (sizeBytes > maxSize) {
-            throw new BadRequestException({ code: 'MEDIA_TOO_LARGE', message: `File exceeds the ${kind === 'avatar' ? 5 : 50}MB limit` });
+            const megabytes = Math.round(maxSize / (1024 * 1024));
+            throw new BadRequestException({
+                code: 'MEDIA_TOO_LARGE',
+                message: `File exceeds the ${megabytes}MB limit`,
+            });
+        }
+        const maxObjects = kind === 'avatar'
+            ? this.config.get('MEDIA_MAX_AVATAR_OBJECTS_PER_USER', { infer: true })
+            : this.config.get('MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER', { infer: true });
+        const quota = await this.repository.quotaSnapshot(userId, kind, requestId);
+        if (!quota.isRetry && quota.liveCount >= maxObjects) {
+            throw new BadRequestException({
+                code: 'MEDIA_QUOTA_EXCEEDED',
+                message: `You have reached the limit of ${maxObjects} stored ${kind === 'avatar' ? 'avatars' : 'files'}`,
+            });
         }
         const prefix = kind === 'avatar' ? 'avatars' : 'submissions';
         const generatedKey = `${prefix}/${userId}/${randomUUID()}.${extensions[contentType]}`;
@@ -108,7 +127,8 @@ let MediaService = class MediaService {
 MediaService = __decorate([
     Injectable(),
     __metadata("design:paramtypes", [MediaRepository,
-        ObjectStorageService])
+        ObjectStorageService,
+        ConfigService])
 ], MediaService);
 export { MediaService };
 export function matchesMagic(bytes, contentType) {

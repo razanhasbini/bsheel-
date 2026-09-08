@@ -65,6 +65,17 @@ declare const environmentSchema: z.ZodObject<{
     R2_BUCKET: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     R2_PUBLIC_BASE_URL: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     SIGNED_URL_TTL_SECONDS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_MAX_AVATAR_OBJECTS_PER_USER: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_MAX_AVATAR_BYTES: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_MAX_SUBMISSION_BYTES: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_RECLAIM_ENABLED: z.ZodPipe<z.ZodDefault<z.ZodEnum<{
+        true: "true";
+        false: "false";
+    }>>, z.ZodTransform<boolean, "true" | "false">>;
+    MEDIA_RECLAIM_INTERVAL_MS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_RECLAIM_GRACE_HOURS: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    MEDIA_RECLAIM_BATCH_SIZE: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     LOG_LEVEL: z.ZodDefault<z.ZodEnum<{
         error: "error";
         fatal: "fatal";

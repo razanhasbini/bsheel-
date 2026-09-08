@@ -57,21 +57,34 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   fonts:
-    - family: Inter
+    # Arcade Pop type — the same three families the mobile app bundles.
+    # Syne ships as a single ExtraBold snapshot; every requested weight maps
+    # to it so Flutter never falls back to the system sans.
+    - family: Syne
       fonts:
-        # No Light cut bundled — map w300 to Regular so the port theme's
-        # light headlines never fall back to the system sans.
-        - asset: assets/fonts/Inter-Regular.ttf
-          weight: 300
-        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Syne-ExtraBold.ttf
           weight: 400
-        - asset: assets/fonts/Inter-Medium.ttf
+        - asset: assets/fonts/Syne-ExtraBold.ttf
           weight: 500
-        - asset: assets/fonts/Inter-Bold.ttf
+        - asset: assets/fonts/Syne-ExtraBold.ttf
+          weight: 600
+        - asset: assets/fonts/Syne-ExtraBold.ttf
           weight: 700
-        - asset: assets/fonts/Inter-ExtraBold.ttf
+        - asset: assets/fonts/Syne-ExtraBold.ttf
           weight: 800
+        - asset: assets/fonts/Syne-ExtraBold.ttf
+          weight: 900
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/DMSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans-SemiBold.ttf
+          weight: 700
+    # Mono ships as a single Bold cut; Flutter aliases every weight to it.
     - family: JetBrainsMono
       fonts:
         - asset: assets/fonts/JetBrainsMono-Bold.ttf
-          weight: 700

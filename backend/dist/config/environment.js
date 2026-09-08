@@ -81,6 +81,42 @@ const environmentSchema = z
     R2_BUCKET: optionalString,
     R2_PUBLIC_BASE_URL: optionalUrl,
     SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+    MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(5000),
+    MEDIA_MAX_AVATAR_OBJECTS_PER_USER: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(20),
+    MEDIA_MAX_AVATAR_BYTES: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(5 * 1024 * 1024),
+    MEDIA_MAX_SUBMISSION_BYTES: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(50 * 1024 * 1024),
+    MEDIA_RECLAIM_ENABLED: z
+        .enum(['true', 'false'])
+        .default('true')
+        .transform((value) => value === 'true'),
+    MEDIA_RECLAIM_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .min(60_000)
+        .default(3_600_000),
+    MEDIA_RECLAIM_GRACE_HOURS: z.coerce.number().int().min(1).default(24),
+    MEDIA_RECLAIM_BATCH_SIZE: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(1000)
+        .default(200),
     LOG_LEVEL: z
         .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
         .default('info'),

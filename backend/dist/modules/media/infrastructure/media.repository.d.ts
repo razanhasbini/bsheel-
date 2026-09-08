@@ -13,10 +13,21 @@ export interface MediaObjectRecord {
     readonly created_at: Date;
     readonly completed_at: Date | null;
 }
+export interface ReclaimCandidate {
+    readonly id: string;
+    readonly object_key: string;
+    readonly reason: 'abandoned_intent' | 'rejected_upload' | 'superseded_avatar';
+}
 export declare class MediaRepository {
     private readonly database;
     constructor(database: DatabaseService);
     createOrFind(userId: string, clientRequestId: string, objectKey: string, kind: 'avatar' | 'submission', contentType: string, sizeBytes: number): Promise<MediaObjectRecord>;
+    quotaSnapshot(userId: string, kind: 'avatar' | 'submission', clientRequestId: string): Promise<{
+        liveCount: number;
+        isRetry: boolean;
+    }>;
+    claimReclaimable(graceHours: number, limit: number): Promise<readonly ReclaimCandidate[]>;
+    markReclaimed(ids: readonly string[]): Promise<number>;
     findOwnedForUpdate(userId: string, id: string): Promise<MediaObjectRecord>;
     findOwnedByKey(userId: string, key: string): Promise<MediaObjectRecord>;
     markReady(id: string, storedSize: number, etag?: string): Promise<MediaObjectRecord>;
