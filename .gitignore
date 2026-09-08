@@ -26,6 +26,12 @@ app.*.map.json
 # ─── Node (backend) ──────────────────────────────────────────────────────────
 node_modules/
 
+# Compiled TypeScript output. `nest build` regenerates it, and it was only ever
+# tracked because the Node section above listed node_modules and nothing else —
+# 360 build artifacts that rewrote themselves on every build and buried real
+# source changes in `git status`.
+dist/
+
 # ─── Platform build artifacts ────────────────────────────────────────────────
 # Android
 **/android/.gradle/
