@@ -40,7 +40,7 @@ dependencies:
   url_launcher: ^6.2.0
   video_player: ^2.11.1
   chewie: ^1.13.0
-  connectivity_plus: ^6.0.0
+  connectivity_plus: ^7.3.1
   flutter_image_compress: ^2.1.0
   shimmer: ^3.0.0
   haptic_feedback: ^0.5.1+1
