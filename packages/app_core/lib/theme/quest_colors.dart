@@ -125,6 +125,20 @@ abstract final class QuestColors {
   static const Color catLearning = Color(0xFF17C27B); // jade
   static const Color catAdventure = Color(0xFFFFC224); // gold
 
+  /// The tint for a category by its database string.
+  ///
+  /// Takes the raw value so a category added server-side degrades to violet
+  /// rather than throwing — the catalog is admin-editable, so the client
+  /// cannot assume it knows every value.
+  static Color category(String? category) => switch (category) {
+        'fitness' => catFitness,
+        'creativity' => catCreativity,
+        'social' => catSocial,
+        'learning' => catLearning,
+        'adventure' => catAdventure,
+        _ => osPrimary,
+      };
+
   // ──────────────────────────────────────────────
   // TEXT ON CREAM — accent tokens that fail contrast as small type
   // ──────────────────────────────────────────────
@@ -155,7 +169,10 @@ abstract final class QuestColors {
   /// coral measures 3.03:1 and fails WCAG AA; ink on coral measures
   /// 5.88:1 and passes. Call this instead of choosing by hand.
   static Color onAccent(Color ground) {
-    if (ground == osPrimary || ground == darkBg || ground == darkCard || ground == darkSurface) {
+    if (ground == osPrimary ||
+        ground == darkBg ||
+        ground == darkCard ||
+        ground == darkSurface) {
       return pureWhite;
     }
     if (ground == osAccent) return osAccentInk;
@@ -170,8 +187,10 @@ abstract final class QuestColors {
   /// On an accent, this returns full-opacity [onAccent] and lets size and
   /// weight carry the hierarchy instead.
   static Color onAccentSoft(Color ground) {
-    if (ground == osCard || ground == osBg || ground == osSurface) return osTextSecondary;
-    if (ground == darkBg || ground == darkCard || ground == darkSurface) return textSecondary;
+    if (ground == osCard || ground == osBg || ground == osSurface)
+      return osTextSecondary;
+    if (ground == darkBg || ground == darkCard || ground == darkSurface)
+      return textSecondary;
     return onAccent(ground);
   }
 

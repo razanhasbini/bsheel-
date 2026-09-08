@@ -13,6 +13,13 @@ import 'package:app_core/app_core.dart';
 ///   • local fonts via QuestTypography (Syne w800 / DMSans / JetBrainsMono)
 /// ──────────────────────────────────────────────────────────────────────────
 
+/// The minimum comfortable touch target, in logical pixels.
+///
+/// Apple's HIG and Material both land on ~44; the design spec makes it a hard
+/// floor on *every* control. Applied to the hit area, so a control can still
+/// look small while being comfortably tappable.
+const double kArcadeMinTouchTarget = 44;
+
 /// Button variant. Drives the fill colour + foreground colour.
 enum ArcadeButtonVariant {
   primary, // gold (accentYellow)
@@ -56,26 +63,36 @@ class _ArcadeButtonState extends State<ArcadeButton> {
     final ink = QuestColors.text(context);
     final enabled = widget.onTap != null && !widget.isLoading;
 
-    final (bg, fg) = switch (widget.variant) {
-      ArcadeButtonVariant.primary => (
-          QuestColors.accentYellow,
-          QuestColors.accentYellowInk
-        ),
-      ArcadeButtonVariant.secondary => (
-          QuestColors.osPrimary,
-          QuestColors.osTextOnPrimary
-        ),
-      ArcadeButtonVariant.danger => (
-          QuestColors.softRed,
-          QuestColors.osTextOnPrimary
-        ),
-      ArcadeButtonVariant.ghost => (QuestColors.cardBg(context), ink),
+    // The fill decides the foreground. Never pick the foreground by hand: the
+    // `danger` variant used to pair white with coral, which measures 3.03:1
+    // and fails WCAG AA, and it did so in the one primitive every page reuses.
+    final bg = switch (widget.variant) {
+      ArcadeButtonVariant.primary => QuestColors.osAccent,
+      ArcadeButtonVariant.secondary => QuestColors.osPrimary,
+      ArcadeButtonVariant.danger => QuestColors.osRed,
+      ArcadeButtonVariant.ghost => QuestColors.cardBg(context),
+    };
+    final fg = !enabled
+        ? QuestColors.osTextMuted
+        : widget.variant == ArcadeButtonVariant.ghost
+            ? ink
+            : QuestColors.onAccent(bg);
+
+    // Size drives density only.
+    final (paddingV, fontSize, iconSize) = switch (widget.size) {
+      ArcadeButtonSize.small => (10.0, 12.0, 16.0),
+      ArcadeButtonSize.medium => (14.0, 14.0, 18.0),
+      ArcadeButtonSize.large => (17.0, 16.0, 20.0),
     };
 
-    final (paddingV, fontSize, iconSize, shadowOffset) = switch (widget.size) {
-      ArcadeButtonSize.small => (10.0, 12.0, 16.0, 2.0),
-      ArcadeButtonSize.medium => (14.0, 14.0, 18.0, 3.0),
-      ArcadeButtonSize.large => (17.0, 16.0, 20.0, 4.0),
+    // Shadow depth is the weight scale, not the size scale — a small primary
+    // button still outranks a large secondary one, and depth is how the
+    // design says so. 5px primary · 4px secondary and danger · 3px ghost.
+    final shadowOffset = switch (widget.variant) {
+      ArcadeButtonVariant.primary => 5.0,
+      ArcadeButtonVariant.secondary => 4.0,
+      ArcadeButtonVariant.danger => 4.0,
+      ArcadeButtonVariant.ghost => 3.0,
     };
 
     void onTapUp() {
@@ -93,9 +110,12 @@ class _ArcadeButtonState extends State<ArcadeButton> {
       ),
       padding: EdgeInsets.symmetric(vertical: paddingV, horizontal: 20),
       decoration: BoxDecoration(
-        color: enabled ? bg : bg.withAlpha(120),
+        // A disabled control keeps its own hue rather than washing out to a
+        // dimmer version of the enabled one: "dim" reads as low contrast, not
+        // as unavailable. The dashed border below is what carries the state.
+        color: enabled ? bg : QuestColors.osSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ink, width: 2),
+        border: enabled ? Border.all(color: ink, width: 2) : null,
         boxShadow: _pressed || !enabled
             ? const []
             : [
@@ -140,6 +160,19 @@ class _ArcadeButtonState extends State<ArcadeButton> {
       ),
     );
 
+    // A disabled control swaps its solid outline for a dashed one, so it
+    // reads as unavailable at a glance instead of merely low-contrast.
+    final framed = enabled
+        ? child
+        : CustomPaint(
+            painter: _DashedRRectPainter(
+              color: QuestColors.osTextMuted,
+              radius: 14,
+              strokeWidth: 2,
+            ),
+            child: child,
+          );
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
@@ -150,11 +183,81 @@ class _ArcadeButtonState extends State<ArcadeButton> {
             }
           : null,
       onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
-      child: widget.expand
-          ? SizedBox(width: double.infinity, child: child)
-          : child,
+      // 44pt is the minimum comfortable touch target. `small` was ~34pt tall,
+      // which is a miss the design spec calls out explicitly. The floor is on
+      // the hit area, so the button's visual density is unchanged.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: kArcadeMinTouchTarget,
+          minWidth: widget.expand ? 0 : kArcadeMinTouchTarget,
+        ),
+        child: widget.expand
+            ? SizedBox(width: double.infinity, child: framed)
+            : framed,
+      ),
     );
   }
+}
+
+/// Strokes a dashed rounded rectangle around the child's bounds.
+///
+/// Flutter has no dashed [Border], and the design uses one to mark a
+/// disabled control. Kept private to this file and driven by the same ink
+/// tokens as every solid outline.
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({
+    required this.color,
+    required this.radius,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double radius;
+  final double strokeWidth;
+
+  /// Dash geometry. Fixed rather than configurable: the dashed outline means
+  /// exactly one thing (disabled), so a second rhythm would only make two
+  /// disabled controls look like two different states.
+  static const double _dash = 6;
+  static const double _gap = 4;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outline = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          // Inset by half the stroke so the dashes sit inside the bounds
+          // rather than straddling them.
+          Rect.fromLTWH(
+            strokeWidth / 2,
+            strokeWidth / 2,
+            size.width - strokeWidth,
+            size.height - strokeWidth,
+          ),
+          Radius.circular(radius),
+        ),
+      );
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    for (final metric in outline.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + _dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + _gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.radius != radius ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
