@@ -6,6 +6,7 @@ export 'src/atoms/fit_text.dart';
 export 'src/arcade/arcade_primitives.dart';
 export 'src/arcade/arcade_tags.dart';
 export 'src/arcade/arcade_skeleton.dart';
+export 'src/arcade/arcade_controls.dart';
 
 // Shared state widgets + confirm dialog
 export 'src/states/bsheel_states.dart';

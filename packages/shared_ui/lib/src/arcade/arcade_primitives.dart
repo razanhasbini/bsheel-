@@ -19,12 +19,36 @@ import 'package:app_core/app_core.dart';
 /// Kept as a name because the primitives below read better with it.
 const double kArcadeMinTouchTarget = QuestSpacing.minTouchTarget;
 
-/// Button variant. Drives the fill colour + foreground colour.
+/// Button variant, named as the design names them (section 09).
+///
+/// The fill decides the foreground; never pass a colour in. Values are read
+/// straight off the component sheet:
+///
+/// | Variant       | Fill      | Ink       | Shadow |
+/// |---------------|-----------|-----------|--------|
+/// | `primary`     | violet    | white     | 5px    |
+/// | `positive`    | jade      | ink       | 5px    |
+/// | `destructive` | coral     | ink       | 5px    |
+/// | `secondary`   | surface   | ink       | 4px    |
+/// | `ghost`       | card      | ink       | 3px    |
+///
+/// Disabled drops the shadow and swaps to a dashed muted border, so it reads
+/// as unavailable rather than merely dim.
 enum ArcadeButtonVariant {
-  primary, // gold (accentYellow)
-  secondary, // violet (primary)
-  danger, // coral (softRed)
-  ghost, // transparent w/ ink border
+  /// Violet. The one action the screen wants.
+  primary,
+
+  /// Jade. Approve, confirm, submit.
+  positive,
+
+  /// Coral. Reject, delete, cancel a quest.
+  destructive,
+
+  /// Warm surface. The lesser of two actions.
+  secondary,
+
+  /// White card. Quiet, still outlined.
+  ghost,
 }
 
 /// Button size.
@@ -66,9 +90,10 @@ class _ArcadeButtonState extends State<ArcadeButton> {
     // `danger` variant used to pair white with coral, which measures 3.03:1
     // and fails WCAG AA, and it did so in the one primitive every page reuses.
     final bg = switch (widget.variant) {
-      ArcadeButtonVariant.primary => QuestColors.osAccent,
-      ArcadeButtonVariant.secondary => QuestColors.osPrimary,
-      ArcadeButtonVariant.danger => QuestColors.osRed,
+      ArcadeButtonVariant.primary => QuestColors.osPrimary,
+      ArcadeButtonVariant.positive => QuestColors.osSuccess,
+      ArcadeButtonVariant.destructive => QuestColors.osRed,
+      ArcadeButtonVariant.secondary => QuestColors.osSurface,
       ArcadeButtonVariant.ghost => QuestColors.cardBg(context),
     };
     final fg = !enabled
@@ -77,11 +102,13 @@ class _ArcadeButtonState extends State<ArcadeButton> {
             ? ink
             : QuestColors.onAccent(bg);
 
-    // Size drives density only.
-    final (paddingV, fontSize, iconSize) = switch (widget.size) {
-      ArcadeButtonSize.small => (10.0, 12.0, 16.0),
-      ArcadeButtonSize.medium => (14.0, 14.0, 18.0),
-      ArcadeButtonSize.large => (17.0, 16.0, 20.0),
+    // Size drives density only. `medium` is the component sheet's button:
+    // 56pt tall with 16px display type. `small` exists for dense rows and
+    // still clears the 44pt floor via the constraints below.
+    final (minHeight, fontSize, iconSize) = switch (widget.size) {
+      ArcadeButtonSize.small => (kArcadeMinTouchTarget, 13.0, 16.0),
+      ArcadeButtonSize.medium => (56.0, 16.0, 18.0),
+      ArcadeButtonSize.large => (60.0, 17.0, 20.0),
     };
 
     // Shadow depth is the weight scale, not the size scale — a small primary
@@ -89,8 +116,9 @@ class _ArcadeButtonState extends State<ArcadeButton> {
     // design says so. 5px primary · 4px secondary and danger · 3px ghost.
     final shadowOffset = switch (widget.variant) {
       ArcadeButtonVariant.primary => 5.0,
+      ArcadeButtonVariant.positive => 5.0,
+      ArcadeButtonVariant.destructive => 5.0,
       ArcadeButtonVariant.secondary => 4.0,
-      ArcadeButtonVariant.danger => 4.0,
       ArcadeButtonVariant.ghost => 3.0,
     };
 
@@ -107,7 +135,7 @@ class _ArcadeButtonState extends State<ArcadeButton> {
         _pressed ? shadowOffset : 0,
         0,
       ),
-      padding: EdgeInsets.symmetric(vertical: paddingV, horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         // A disabled control keeps its own hue rather than washing out to a
         // dimmer version of the enabled one: "dim" reads as low contrast, not
@@ -128,6 +156,7 @@ class _ArcadeButtonState extends State<ArcadeButton> {
       child: Row(
         mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (widget.isLoading)
             SizedBox(
@@ -187,7 +216,7 @@ class _ArcadeButtonState extends State<ArcadeButton> {
       // the hit area, so the button's visual density is unchanged.
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minHeight: kArcadeMinTouchTarget,
+          minHeight: minHeight,
           minWidth: widget.expand ? 0 : kArcadeMinTouchTarget,
         ),
         child: widget.expand

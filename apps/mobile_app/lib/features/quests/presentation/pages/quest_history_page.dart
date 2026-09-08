@@ -480,7 +480,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   ArcadeButton(
                     label: 'APPEAL',
-                    variant: ArcadeButtonVariant.danger,
+                    variant: ArcadeButtonVariant.destructive,
                     size: ArcadeButtonSize.small,
                     expand: false,
                     onTap: onAppeal,

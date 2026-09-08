@@ -515,7 +515,7 @@ class _CreateGroupState extends StatelessWidget {
               isLoading: creating,
               size: ArcadeButtonSize.large,
               variant: isVersus
-                  ? ArcadeButtonVariant.danger
+                  ? ArcadeButtonVariant.destructive
                   : ArcadeButtonVariant.primary,
               onTap: creating ? null : onCreate,
             ),
