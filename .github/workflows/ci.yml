@@ -66,6 +66,15 @@ jobs:
         run: npm run db:migrate
       - name: Verify migration checksums
         run: npm run db:migrate:check
+
+      # database.types.ts is generated from the live schema and consumed by
+      # DatabaseService, so a migration that lands without regenerating it
+      # leaves the compiler agreeing with a schema that no longer exists.
+      # The generator existed but no script invoked it, so the drift went
+      # unnoticed through migrations 0017-0020.
+      - name: Verify database types match the schema
+        run: npm run db:types:check
+
       - name: Platform e2e
         run: npm run test:e2e
 

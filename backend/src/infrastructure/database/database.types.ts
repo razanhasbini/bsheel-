@@ -164,6 +164,17 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "completed_at": Timestamp | null;
     "deleted_at": Timestamp | null;
+    "submission_id": string | null;
+    "upload_expires_at": Generated<Timestamp>;
+    "reclaim_started_at": Timestamp | null;
+    "reclaim_lease_until": Timestamp | null;
+    "reclaim_token": string | null;
+    "reclaim_reason": string | null;
+    "storage_deleted_at": Timestamp | null;
+  };
+  "media_submission_links": {
+    "media_object_id": string;
+    "submission_id": string;
   };
   "notification_deliveries": {
     "notification_id": string;
@@ -328,6 +339,8 @@ export interface Database {
     "xp_awarded_amount": Generated<number>;
     "telegram_message_id": string | null;
     "version": Generated<number>;
+    "net_score": Generated<string>;
+    "moderation_removed_at": Timestamp | null;
   };
   "telegram_command_state": {
     "chat_id": string;
@@ -375,4 +388,3 @@ export interface Database {
     "created_at": Generated<Timestamp>;
   };
 }
-

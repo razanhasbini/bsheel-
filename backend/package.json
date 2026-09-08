@@ -24,6 +24,8 @@
     "test:all": "npm run lint && npm run test && npm run test:e2e && npm run build",
     "db:migrate": "node scripts/migrate.mjs",
     "db:migrate:check": "node scripts/migrate.mjs --check",
+    "db:types": "node scripts/database-types.mjs > src/infrastructure/database/database.types.ts",
+    "db:types:check": "node scripts/database-types.mjs --check",
     "test:smoke": "node scripts/smoke.mjs",
     "test:auth-confirmation": "node scripts/smoke-auth-confirmation.mjs",
     "test:realtime": "node scripts/smoke-realtime.mjs",
