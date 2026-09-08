@@ -48,7 +48,7 @@ jobs:
       DATABASE_URL: postgresql://bsheel:bsheel@127.0.0.1:5432/bsheel_ci
       REDIS_URL: redis://127.0.0.1:6379
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
@@ -75,7 +75,7 @@ jobs:
       # H12: SHA-pinned third-party actions so a malicious re-tag at
       # @v4 / @v2 can't replace the runner step out from under us.
       # Update by bumping the SHA AND the version comment together.
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # Runs before the toolchain setup so a leaked credential fails the
       # build in seconds rather than after a full Flutter bootstrap.
@@ -86,7 +86,7 @@ jobs:
       - name: Check for committed secrets
         run: bash scripts/check_secrets.sh
 
-      - uses: subosito/flutter-action@44ac965b96f18d999802d4b807e3256d5a3f9fa1  # v2.16.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
           flutter-version: "3.38.5"
           channel: stable
