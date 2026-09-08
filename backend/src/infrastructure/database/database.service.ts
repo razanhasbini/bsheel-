@@ -1,25 +1,32 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from 'pg';
+import { Kysely, PostgresDialect } from 'kysely';
+import type { Database } from './database.types.js';
 import type { Environment } from '../../config/environment.js';
 
 export type DatabaseTransaction = PoolClient;
 
 @Injectable()
-export class DatabaseService implements OnModuleDestroy {
+export class DatabaseService implements OnApplicationShutdown {
   private readonly logger = new Logger(DatabaseService.name);
   private readonly pool: Pool;
+  readonly typed: Kysely<Database>;
 
   constructor(config: ConfigService<Environment, true>) {
     this.pool = new Pool({
       connectionString: config.get('DATABASE_URL', { infer: true }),
       min: config.get('DATABASE_POOL_MIN', { infer: true }),
-      max: config.get('DATABASE_POOL_MAX', { infer: true }),
+      max: config.get(config.get('PROCESS_ROLE', { infer: true }) === 'worker' ? 'DATABASE_WORKER_POOL_MAX' : 'DATABASE_POOL_MAX', { infer: true }),
+      connectionTimeoutMillis: config.get('DATABASE_CONNECTION_TIMEOUT_MS', { infer: true }),
       idleTimeoutMillis: config.get('DATABASE_IDLE_TIMEOUT_MS', { infer: true }),
       statement_timeout: config.get('DATABASE_STATEMENT_TIMEOUT_MS', { infer: true }),
       application_name: config.get('APP_NAME', { infer: true }),
     });
     this.pool.on('error', (error) => this.logger.error(error, 'Idle database client error'));
+    // One pool is shared by typed reads and explicit pg transactions. The
+    // service alone owns its lifetime; never call typed.destroy() separately.
+    this.typed = new Kysely<Database>({ dialect: new PostgresDialect({ pool: this.pool }) });
   }
 
   query<Row extends QueryResultRow = QueryResultRow>(
@@ -49,8 +56,7 @@ export class DatabaseService implements OnModuleDestroy {
     await this.pool.query('SELECT 1');
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
   }
 }
-

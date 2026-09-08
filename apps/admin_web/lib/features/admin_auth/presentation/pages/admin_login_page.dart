@@ -49,11 +49,11 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
         GoRouter.of(context).go(AdminRoutePaths.dashboard);
       }
     } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = 'Sign in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

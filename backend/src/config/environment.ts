@@ -23,6 +23,7 @@ const environmentSchema = z
       .default('development'),
     PORT: z.coerce.number().int().positive().max(65_535).default(3000),
     APP_NAME: z.string().min(1).default('bsheel-api'),
+    PROCESS_ROLE: z.enum(['api', 'worker']).default('api'),
     APP_VERSION: z.string().min(1).default('1.0.0'),
     API_PREFIX: z.string().min(1).default('api'),
     CORS_ORIGINS: z.string().default('http://localhost:3000'),
@@ -31,7 +32,9 @@ const environmentSchema = z
       .min(1)
       .default('postgresql://bsheel:bsheel@localhost:5432/bsheel'),
     DATABASE_POOL_MIN: z.coerce.number().int().nonnegative().default(2),
-    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(20),
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+    DATABASE_WORKER_POOL_MAX: z.coerce.number().int().positive().default(12),
+    DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
     DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
     DATABASE_STATEMENT_TIMEOUT_MS: z.coerce
       .number()
@@ -40,7 +43,7 @@ const environmentSchema = z
       .default(15_000),
     REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
     REDIS_KEY_PREFIX: z.string().default('bsheel:dev:'),
-    OUTBOX_POLL_MS: z.coerce.number().int().min(250).max(60_000).default(1000),
+    OUTBOX_POLL_MS: z.coerce.number().int().min(250).max(60_000).default(250),
     OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(50),
     JWT_ACCESS_SECRET: z.string().min(16).default('development-access-secret-change-me'),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
@@ -149,7 +152,7 @@ const environmentSchema = z
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
   })
   .superRefine((environment, context) => {
-    if (environment.DATABASE_POOL_MIN > environment.DATABASE_POOL_MAX) {
+    if (environment.DATABASE_POOL_MIN > Math.min(environment.DATABASE_POOL_MAX, environment.DATABASE_WORKER_POOL_MAX)) {
       context.addIssue({
         code: 'custom',
         path: ['DATABASE_POOL_MIN'],

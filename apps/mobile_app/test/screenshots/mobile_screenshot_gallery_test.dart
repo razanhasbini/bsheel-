@@ -110,15 +110,17 @@ void main() {
           failures.add('${screen.name}: $exception');
         }
 
-        await _saveScreenshot(key, outputDir, screen.name);
+        // Engine image encoding and filesystem I/O complete outside the
+        // widget test's fake clock. Awaiting them there can hang the gallery.
+        await tester.runAsync(() => _saveScreenshot(key, outputDir, screen.name));
         manifest.add('${screen.name}.png -> ${screen.path}');
       } catch (error, stackTrace) {
         failures.add('${screen.name}: $error\n$stackTrace');
       }
     }
 
-    await File('${outputDir.path}/manifest.txt')
-        .writeAsString('${manifest.join('\n')}\n');
+    await tester.runAsync(() => File('${outputDir.path}/manifest.txt')
+        .writeAsString('${manifest.join('\n')}\n'));
 
     if (failures.isNotEmpty) {
       fail('Screenshot capture failures:\n${failures.join('\n\n')}');
@@ -137,6 +139,7 @@ Future<void> _saveScreenshot(
   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
   final bytes = byteData!.buffer.asUint8List();
   await File('${outputDir.path}/$name.png').writeAsBytes(bytes);
+  image.dispose();
 }
 
 class _ScreenshotApp extends StatelessWidget {

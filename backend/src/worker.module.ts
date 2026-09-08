@@ -5,7 +5,7 @@ import { validateEnvironment } from './config/environment.js';
 import { DatabaseModule } from './infrastructure/database/database.module.js';
 import { DomainEventsProcessor } from './infrastructure/messaging/domain-events.processor.js';
 import { DomainEventsRepository } from './infrastructure/messaging/domain-events.repository.js';
-import { MessagingQueueModule } from './infrastructure/messaging/messaging-queue.module.js';
+import { MessagingModule } from './infrastructure/messaging/messaging.module.js';
 import { DeviceTokenCipher } from './modules/notifications/infrastructure/device-token-cipher.js';
 import { FirebasePushService } from './modules/notifications/infrastructure/firebase-push.service.js';
 import { MediaModule } from './modules/media/media.module.js';
@@ -19,10 +19,10 @@ import { MediaReclaimScheduler } from './modules/media/application/media-reclaim
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: validateEnvironment }),
+    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: (configuration) => validateEnvironment({ ...configuration, PROCESS_ROLE: 'worker' }) }),
     LoggerModule.forRoot(),
     DatabaseModule,
-    MessagingQueueModule,
+    MessagingModule,
     MediaModule,
     RedisModule,
     TelegramModule,

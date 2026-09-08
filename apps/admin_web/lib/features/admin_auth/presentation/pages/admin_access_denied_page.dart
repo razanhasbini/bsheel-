@@ -48,8 +48,8 @@ class AdminAccessDeniedPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "Your account is signed in but isn't on the admins table. "
-                    'Ask a super admin to add your user in Supabase.',
+                    'This account does not have dashboard access. '
+                    'Ask a super admin to grant you an admin role.',
                     textAlign: TextAlign.center,
                     style:
                         BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),

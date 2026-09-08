@@ -19,6 +19,7 @@ export interface SubmissionRecord {
   readonly show_in_feed: boolean;
   readonly visibility: string;
   readonly deleted_at: Date | null;
+  readonly moderation_removed_at: Date | null;
   readonly xp_awarded: boolean;
   readonly xp_awarded_amount: number;
 }
@@ -50,7 +51,8 @@ export class SubmissionsRepository {
       const media = await transaction.query<{ object_key: string; content_type: string }>(
         `SELECT object_key, content_type FROM media_objects
          WHERE user_id = $1 AND kind = 'submission' AND status = 'ready'
-           AND object_key = ANY($2::text[])`,
+           AND deleted_at IS NULL AND reclaim_started_at IS NULL
+           AND object_key = ANY($2::text[]) ORDER BY id FOR UPDATE`,
         [userId, mediaKeys],
       );
       if (media.rowCount !== mediaKeys.length) {
@@ -72,10 +74,10 @@ export class SubmissionsRepository {
         [input.userQuestId, userId, input.mediaUrl, input.mediaType, input.caption?.trim() || null, input.showInFeed],
       );
       await transaction.query(
-        `UPDATE media_objects
-         SET submission_id = $1
+        `INSERT INTO media_submission_links (media_object_id, submission_id)
+         SELECT id, $1 FROM media_objects
          WHERE user_id = $2 AND kind = 'submission' AND status = 'ready'
-           AND object_key = ANY($3::text[]) AND submission_id IS NULL`,
+           AND object_key = ANY($3::text[])`,
         [result.rows[0].id, userId, mediaKeys],
       );
       await transaction.query("UPDATE user_quests SET status = 'submitted', version = version + 1 WHERE id = $1", [input.userQuestId]);
@@ -449,11 +451,21 @@ export class SubmissionsRepository {
     );
     const submission = locked.rows[0];
     if (!submission) throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Submission not found' });
+    if (ownerId && submission.moderation_removed_at && visibility !== 'deleted') {
+      throw new ForbiddenException({ code: 'MODERATION_TAKEDOWN', message: 'A moderator removed this post. It cannot be restored by its author.' });
+    }
+    if (!ownerId && visibility === 'deleted') {
+      // Record provenance even when a moderator removes an already owner-deleted
+      // post. The aggregate lock serializes this with any simultaneous restore.
+      await transaction.query('UPDATE submissions SET moderation_removed_at = COALESCE(moderation_removed_at, now()) WHERE id = $1', [id]);
+    }
     if (submission.visibility === visibility) return { submission, xpRolledBack: 0 };
 
     const xpRolledBack = visibility === 'deleted' && submission.xp_awarded
       ? submission.xp_awarded_amount
       : 0;
+    const restoreAward = submission.visibility === 'deleted' && visibility !== 'deleted'
+      && submission.status === 'approved' && !submission.xp_awarded;
     if (xpRolledBack > 0 || (visibility === 'deleted' && submission.xp_awarded)) {
       await transaction.query(
         `UPDATE profiles SET
@@ -464,16 +476,23 @@ export class SubmissionsRepository {
         [submission.user_id, xpRolledBack],
       );
     }
+    if (restoreAward) {
+      await transaction.query(
+        `UPDATE profiles SET xp = xp + $2, quests_completed = quests_completed + 1,
+           level = GREATEST(1, (xp + $2) / 100 + 1) WHERE id = $1`,
+        [submission.user_id, submission.xp_awarded_amount],
+      );
+    }
 
     await transaction.query(
       `UPDATE submissions SET
          visibility = $2::submission_visibility,
          show_in_feed = ($2::submission_visibility = 'visible'),
-         deleted_at = CASE WHEN $2::submission_visibility = 'visible' THEN NULL ELSE now() END,
-         xp_awarded = CASE WHEN $2::submission_visibility = 'deleted' THEN false ELSE xp_awarded END,
+         deleted_at = CASE WHEN $2::submission_visibility = 'deleted' THEN now() ELSE NULL END,
+         xp_awarded = CASE WHEN $2::submission_visibility = 'deleted' THEN false WHEN $3 THEN true ELSE xp_awarded END,
          version = version + 1
        WHERE id = $1`,
-      [id, visibility],
+      [id, visibility, restoreAward],
     );
     if (visibility === 'deleted') {
       await this.emit('submission', id, 'submission.deleted', {
@@ -493,6 +512,12 @@ export class SubmissionsRepository {
         userId: submission.user_id,
         visibility,
       }, transaction);
+      if (restoreAward) {
+        await this.emit('profile', submission.user_id, 'profile.updated', {
+          profileId: submission.user_id,
+          reason: 'xp_restored',
+        }, transaction);
+      }
     }
     return { submission, xpRolledBack };
   }
@@ -520,14 +545,14 @@ export class SubmissionsRepository {
     const title = appeal ? `${author.rows[0].name} is back for round two. 🔁` : `Inbox: ${author.rows[0].name} sent proof. 📥`;
     const body = appeal ? 'Resubmitted after rejection. Fresh eyes needed.' : 'New submission waiting on a verdict.';
     const type = appeal ? 'appeal_submitted' : 'new_submission';
-    const notifications = await transaction.query<{ id: string; user_id: string }>(
-      `INSERT INTO notifications (user_id, title, body, type, reference_id)
-       SELECT user_id, $1, $2, $3, $4 FROM admins RETURNING id, user_id`,
+    await transaction.query(
+      `WITH inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id)
+       SELECT user_id, $1, $2, $3, $4 FROM admins RETURNING id, user_id)
+       INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       SELECT 'notification', id, 'notification.created',
+         jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
       [title, body, type, submission.id],
     );
-    for (const notification of notifications.rows) {
-      await this.emit('notification', notification.id, 'notification.created', { notificationId: notification.id, userId: notification.user_id }, transaction);
-    }
   }
 
   private async createNotification(
@@ -558,11 +583,14 @@ export class SubmissionsRepository {
        FROM profiles WHERE id = $1`,
       [userId],
     );
-    const notifications = await transaction.query<{ id: string; user_id: string }>(
-      `INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
+    await transaction.query(
+      `WITH inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
        SELECT user_id, $2, $3, 'collab_partner_approved', $4, $5
        FROM collab_group_members WHERE group_id = $1 AND user_id <> $5
-       RETURNING id, user_id`,
+       RETURNING id, user_id)
+       INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       SELECT 'notification', id, 'notification.created',
+         jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
       [
         group.rows[0].group_id,
         `${author.rows[0]?.name ?? 'Someone'} delivered. ✅`,
@@ -571,12 +599,6 @@ export class SubmissionsRepository {
         userId,
       ],
     );
-    for (const notification of notifications.rows) {
-      await this.emit('notification', notification.id, 'notification.created', {
-        notificationId: notification.id,
-        userId: notification.user_id,
-      }, transaction);
-    }
   }
 
   private async emit(

@@ -31,11 +31,11 @@ export class NotificationsRepository {
   }
 
   async unreadCount(userId: string): Promise<number> {
-    const result = await this.database.query<{ count: number }>(
-      'SELECT count(*)::integer AS count FROM notifications WHERE user_id = $1 AND NOT is_read',
-      [userId],
-    );
-    return result.rows[0].count;
+    const result = await this.database.typed.selectFrom('notifications')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('user_id', '=', userId).where('is_read', '=', false)
+      .executeTakeFirstOrThrow();
+    return Number(result.count);
   }
 
   async markRead(userId: string, notificationId: string): Promise<void> {
@@ -74,7 +74,8 @@ export class NotificationsRepository {
   }
 
   async deleteDeviceToken(userId: string, tokenHash: Buffer): Promise<void> {
-    await this.database.query('DELETE FROM device_tokens WHERE user_id = $1 AND token_hash = $2', [userId, tokenHash]);
+    await this.database.typed.deleteFrom('device_tokens')
+      .where('user_id', '=', userId).where('token_hash', '=', tokenHash).execute();
   }
 
   private async emitReadEvent(

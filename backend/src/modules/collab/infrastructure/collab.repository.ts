@@ -123,14 +123,16 @@ export class CollabRepository {
         await transaction.query("UPDATE collab_groups SET status = 'closed' WHERE id = $1", [group.id]);
       }
       const actor = await this.actorName(userId, transaction);
-      const notifications = await transaction.query<{ id: string; user_id: string }>(
-        `INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
+      await transaction.query(
+        `WITH inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
          SELECT user_id, $2, $3, 'collab_joined', $1, $4
          FROM collab_group_members WHERE group_id = $1 AND user_id <> $4
-         RETURNING id, user_id`,
+         RETURNING id, user_id)
+         INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+         SELECT 'notification', id, 'notification.created',
+           jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
         [group.id, `${actor} signed up for the mission. 🤝`, "You've got a teammate on this one. Go win it together.", userId],
       );
-      for (const notification of notifications.rows) await this.emitNotification(notification, transaction);
       return {
         group_id: group.id,
         user_quest_id: assignment.rows[0].id,

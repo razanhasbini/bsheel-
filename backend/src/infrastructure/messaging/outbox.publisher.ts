@@ -16,7 +16,8 @@ interface OutboxRow {
 export class OutboxPublisher implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(OutboxPublisher.name);
   private timer?: NodeJS.Timeout;
-  private draining = false;
+  private activeDrain?: Promise<void>;
+  private stopping = false;
 
   constructor(
     private readonly database: DatabaseService,
@@ -31,20 +32,25 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnModuleDestroy 
     void this.drain();
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
+    await this.activeDrain;
   }
 
-  async drain(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
+  drain(): Promise<void> {
+    if (this.stopping) return Promise.resolve();
+    if (this.activeDrain) return this.activeDrain;
+    this.activeDrain = this.drainBatch().finally(() => { this.activeDrain = undefined; });
+    return this.activeDrain;
+  }
+
+  private async drainBatch(): Promise<void> {
     try {
       const events = await this.claimBatch();
-      for (const event of events) await this.publish(event);
+      if (events.length > 0) await this.publish(events);
     } catch (error) {
       this.logger.error(error, 'Outbox drain failed');
-    } finally {
-      this.draining = false;
     }
   }
 
@@ -66,27 +72,33 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnModuleDestroy 
     return result.rows;
   }
 
-  private async publish(event: OutboxRow): Promise<void> {
+  private async publish(events: readonly OutboxRow[]): Promise<void> {
+    const ids = events.map((event) => event.id);
     try {
-      await this.queue.add(event.event_type, event.payload, {
-        jobId: event.id,
-        attempts: 8,
-        backoff: { type: 'exponential', delay: 1000 },
-        removeOnComplete: { age: 86_400, count: 10_000 },
-        removeOnFail: { age: 604_800, count: 50_000 },
-      });
+      // BullMQ adds the batch atomically. Stable IDs make retries safe if the
+      // Redis write succeeds but the subsequent PostgreSQL acknowledgement fails.
+      await this.queue.addBulk(events.map((event) => ({
+        name: event.event_type,
+        data: event.payload,
+        opts: {
+          jobId: event.id,
+          attempts: 8,
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: { age: 86_400, count: 10_000 },
+          removeOnFail: { age: 604_800, count: 50_000 },
+        },
+      })));
       await this.database.query(
-        'UPDATE outbox_events SET processed_at = now(), last_error = NULL WHERE id = $1',
-        [event.id],
+        'UPDATE outbox_events SET processed_at = now(), last_error = NULL WHERE id = ANY($1::uuid[])',
+        [ids],
       );
     } catch (error) {
-      const delaySeconds = Math.min(300, 2 ** Math.min(event.attempts, 8));
       await this.database.query(
-        `UPDATE outbox_events SET last_error = $2, available_at = now() + make_interval(secs => $3)
-         WHERE id = $1 AND processed_at IS NULL`,
-        [event.id, error instanceof Error ? error.message.slice(0, 2000) : 'Unknown publish error', delaySeconds],
+        `UPDATE outbox_events SET last_error = $2,
+           available_at = now() + make_interval(secs => LEAST(300, power(2, LEAST(attempts, 8)))::double precision)
+         WHERE id = ANY($1::uuid[]) AND processed_at IS NULL`,
+        [ids, error instanceof Error ? error.message.slice(0, 2000) : 'Unknown publish error'],
       );
     }
   }
 }
-

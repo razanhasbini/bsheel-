@@ -1,5 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
+import { socialNotificationTemplates as copy } from '../../notifications/domain/social-notification.templates.js';
+import { insertNotificationBatch, type NotificationInsert } from '../../notifications/infrastructure/notification-batch.js';
 
 @Injectable()
 export class SocialRepository {
@@ -133,7 +135,7 @@ export class SocialRepository {
       );
       if (result.rows[0].inserted) {
         const actor = await this.actorName(userId, transaction);
-        await this.notification(targetId, `${actor} followed you. 👋`, 'Your party just got one person bigger.', 'new_follower', userId, userId, transaction);
+        await this.notification(targetId, ...copy.followed(actor), 'new_follower', userId, userId, transaction);
       }
       await this.emit('social.follow.changed', result.rows[0].id, {
         userId,
@@ -197,7 +199,7 @@ export class SocialRepository {
         [userId, targetId],
       );
       if (report.rows[0]) {
-        await this.notifyAdminsOfReport(report.rows[0].id, 'User Blocked', `A user was blocked. Reason: ${reason.slice(0, 100)}`, transaction);
+        await this.notifyAdminsOfReport(report.rows[0].id, ...copy.blocked(reason), transaction);
         await this.emit('report.created', report.rows[0].id, { reportId: report.rows[0].id }, transaction);
       }
       await this.emit('social.follow.changed', targetId, {
@@ -230,7 +232,7 @@ export class SocialRepository {
            VALUES ($1, $2, $3, $4) RETURNING id`,
           [userId, reportedType, reportedId, reason.trim()],
         );
-        await this.notifyAdminsOfReport(result.rows[0].id, 'New Content Report', `A user reported ${reportedType}: ${reason.slice(0, 100)}`, transaction);
+        await this.notifyAdminsOfReport(result.rows[0].id, ...copy.reported(reportedType, reason), transaction);
         await this.emit('report.created', result.rows[0].id, { reportId: result.rows[0].id }, transaction);
         return result.rows[0].id;
       });
@@ -314,38 +316,37 @@ export class SocialRepository {
 
   private async reactionNotifications(actorId: string, ownerId: string, submissionId: string, transaction: DatabaseTransaction): Promise<void> {
     const actor = await this.actorName(actorId, transaction);
-    await this.notification(ownerId, `${actor} just reacted. 🗳️`, 'Someone has thoughts about your quest. Go see.', 'reaction_received', submissionId, actorId, transaction);
+    await this.notification(ownerId, ...copy.reacted(actor), 'reaction_received', submissionId, actorId, transaction);
     const total = await transaction.query<{ count: number }>('SELECT count(*)::integer AS count FROM reactions WHERE submission_id = $1', [submissionId]);
-    const copies: Partial<Record<number, readonly [string, string]>> = {
-      10: ['10 reactions and counting. 🔥', 'Your post is doing numbers. Keep posting like this.'],
-      25: ['25 reactions. The squad sees you. 👀', "This one's hitting. Go take a bow."],
-      50: ['50 reactions. You broke containment. 🚀', 'Half a hundred people hit react. Your post is officially a moment.'],
-    };
-    const copy = copies[total.rows[0].count];
-    if (copy) await this.notification(ownerId, copy[0], copy[1], 'reaction_milestone', submissionId, null, transaction);
+    const milestone = copy.milestone(total.rows[0].count);
+    if (milestone) await this.notification(ownerId, ...milestone, 'reaction_milestone', submissionId, null, transaction);
   }
 
   private async commentNotifications(actorId: string, submissionId: string, ownerId: string, questTitle: string, body: string, transaction: DatabaseTransaction): Promise<void> {
     const actor = await this.actorName(actorId, transaction);
-    const short = body.length > 50 ? `${body.slice(0, 50)}…` : body;
+    const notifications: NotificationInsert[] = [];
+    const add = (userId: string, type: string, [title, text]: readonly [string, string]) => {
+      notifications.push({ userId, type, title, body: text, referenceId: submissionId, actorId });
+    };
     const mentionNames = [...body.matchAll(/@([\p{L}\p{N}_]{3,30})/gu)].map((match) => match[1].toLowerCase());
     const mentions = mentionNames.length
       ? (await transaction.query<{ id: string }>('SELECT id FROM profiles WHERE lower(username::text) = ANY($1::text[])', [mentionNames])).rows.map((row) => row.id)
       : [];
     const excluded = new Set([actorId, ...mentions]);
     if (ownerId !== actorId && !excluded.has(ownerId)) {
-      await this.notification(ownerId, `${actor} dropped a comment. 💬`, `"${short}"`, 'new_comment', submissionId, actorId, transaction);
+      add(ownerId, 'new_comment', copy.comment(actor, body));
     }
     const participants = await transaction.query<{ user_id: string }>('SELECT DISTINCT user_id FROM comments WHERE submission_id = $1', [submissionId]);
     for (const participant of participants.rows) {
       if (participant.user_id === ownerId || excluded.has(participant.user_id)) continue;
       excluded.add(participant.user_id);
-      await this.notification(participant.user_id, `${actor} jumped into the thread. 🧵`, `"${short}"`, 'comment_reply', submissionId, actorId, transaction);
+      add(participant.user_id, 'comment_reply', copy.reply(actor, body));
     }
     for (const mentionedId of mentions) {
       if (mentionedId === actorId) continue;
-      await this.notification(mentionedId, `${actor} pulled you in. 📣`, `On someone's post "${questTitle}": "${short}"`, 'mention', submissionId, actorId, transaction);
+      add(mentionedId, 'mention', copy.mention(actor, questTitle, body));
     }
+    await insertNotificationBatch(transaction, notifications);
   }
 
   private async actorName(id: string, transaction: DatabaseTransaction): Promise<string> {
@@ -356,27 +357,18 @@ export class SocialRepository {
   }
 
   private async notifyAdminsOfReport(id: string, title: string, body: string, transaction: DatabaseTransaction): Promise<void> {
-    const rows = await transaction.query<{ id: string; user_id: string }>(
-      `INSERT INTO notifications (user_id, title, body, type, reference_id)
-       SELECT user_id, $1, $2, 'content_report', $3 FROM admins RETURNING id, user_id`, [title, body, id],
+    await transaction.query(
+      `WITH inserted AS (
+         INSERT INTO notifications (user_id, title, body, type, reference_id)
+         SELECT user_id, $1, $2, 'content_report', $3 FROM admins RETURNING id, user_id
+       ) INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       SELECT 'notification', id, 'notification.created',
+              jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`, [title, body, id],
     );
-    for (const row of rows.rows) await this.emitNotification(row.id, row.user_id, transaction);
   }
 
   private async notification(userId: string, title: string, body: string, type: string, referenceId: string | null, actorId: string | null, transaction: DatabaseTransaction): Promise<void> {
-    const result = await transaction.query<{ id: string }>(
-      `INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, [userId, title, body, type, referenceId, actorId],
-    );
-    await this.emitNotification(result.rows[0].id, userId, transaction);
-  }
-
-  private async emitNotification(id: string, userId: string, transaction: DatabaseTransaction): Promise<void> {
-    await transaction.query(
-      `INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
-       VALUES ('notification', $1, 'notification.created', $2::jsonb)`,
-      [id, JSON.stringify({ notificationId: id, userId })],
-    );
+    await insertNotificationBatch(transaction, [{ userId, title, body, type, referenceId, actorId }]);
   }
 
   private async emit(

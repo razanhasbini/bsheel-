@@ -33,23 +33,17 @@ export class MediaService {
       });
     }
 
-    // Per-user object cap. A retry of an existing intent creates nothing, so
-    // it is never refused here — otherwise a client at the cap could not
-    // resume an upload it had already started.
+    // The repository atomically reserves quota and preserves idempotent retries.
     const maxObjects = kind === 'avatar'
       ? this.config.get('MEDIA_MAX_AVATAR_OBJECTS_PER_USER', { infer: true })
       : this.config.get('MEDIA_MAX_SUBMISSION_OBJECTS_PER_USER', { infer: true });
-    const quota = await this.repository.quotaSnapshot(userId, kind, requestId);
-    if (!quota.isRetry && quota.liveCount >= maxObjects) {
-      throw new BadRequestException({
-        code: 'MEDIA_QUOTA_EXCEEDED',
-        message: `You have reached the limit of ${maxObjects} stored ${kind === 'avatar' ? 'avatars' : 'files'}`,
-      });
-    }
     const prefix = kind === 'avatar' ? 'avatars' : 'submissions';
     const generatedKey = `${prefix}/${userId}/${randomUUID()}.${extensions[contentType]}`;
-    const object = await this.repository.createOrFind(userId, requestId, generatedKey, kind, contentType, sizeBytes);
-    if (object.status === 'deleted' || object.status === 'rejected') {
+    const object = await this.repository.createOrFind(
+      userId, requestId, generatedKey, kind, contentType, sizeBytes, maxObjects,
+      this.config.get('SIGNED_URL_TTL_SECONDS', { infer: true }),
+    );
+    if (object.reclaim_started_at || object.status === 'deleted' || object.status === 'rejected') {
       throw new BadRequestException({ code: 'MEDIA_INTENT_CLOSED', message: 'This upload intent is closed' });
     }
     const uploadUrl = await this.storage.presignUpload(
@@ -67,8 +61,8 @@ export class MediaService {
 
   async complete(userId: string, objectId: string) {
     const object = await this.repository.findOwnedForUpdate(userId, objectId);
-    if (object.status === 'ready') return { id: object.id, key: object.object_key, status: object.status };
-    if (object.status !== 'pending') {
+    if (object.status === 'ready' && !object.reclaim_started_at) return { id: object.id, key: object.object_key, status: object.status };
+    if (object.status !== 'pending' || object.reclaim_started_at) {
       throw new BadRequestException({ code: 'MEDIA_INTENT_CLOSED', message: 'This upload intent cannot be completed' });
     }
     try {
@@ -77,8 +71,9 @@ export class MediaService {
         && stored.contentType === object.content_type
         && matchesMagic(stored.header, object.content_type);
       if (!valid) {
-        await this.storage.delete(object.object_key).catch(() => undefined);
-        await this.repository.markRejected(object.id);
+        if (await this.repository.markRejected(object.id)) {
+          await this.storage.delete(object.object_key).catch(() => undefined);
+        }
         throw new BadRequestException({ code: 'INVALID_MEDIA_UPLOAD', message: 'Uploaded content does not match its declared type or size' });
       }
       const ready = await this.repository.markReady(object.id, stored.size, stored.etag);
@@ -99,15 +94,14 @@ export class MediaService {
 
   async delete(userId: string, objectId: string): Promise<void> {
     const object = await this.repository.findOwnedForUpdate(userId, objectId);
-    await this.storage.delete(object.object_key);
     await this.repository.markDeleted(userId, objectId);
+    await this.storage.delete(object.object_key);
   }
 
   async deleteByKey(userId: string, key: string): Promise<void> {
     const object = await this.repository.findOwnedByKey(userId, key);
-    if (object.status === 'deleted') return;
-    await this.storage.delete(object.object_key);
     await this.repository.markDeleted(userId, object.id);
+    await this.storage.delete(object.object_key);
   }
 
   private extractKey(raw: string): string | null {

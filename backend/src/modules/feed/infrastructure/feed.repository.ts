@@ -1,14 +1,47 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { FeedQueryDto } from '../presentation/feed.dto.js';
+import { decodeCursor, encodeCursor } from '../../../common/pagination/keyset-cursor.js';
 
 @Injectable()
 export class FeedRepository {
   constructor(private readonly database: DatabaseService) {}
 
   async list(viewerId: string, query: FeedQueryDto): Promise<readonly Record<string, unknown>[]> {
+    const context = `feed:${viewerId}:${query.scope}:${query.sort}`;
+    const cursor = decodeCursor(query.cursor, context);
+    const asOf = cursor?.asOf ?? new Date().toISOString();
+    // SQL fragments come only from this closed set, never from user-provided SQL.
+    const timeWeighted = query.sort === 'hot' || query.sort === 'graveyard';
+    const ranked = query.sort !== 'recent';
+    const ascending = query.sort === 'bottom' || query.sort === 'graveyard';
+    const score = timeWeighted
+      ? 's.net_score::double precision / power(GREATEST(EXTRACT(EPOCH FROM ($4::timestamptz - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5)'
+      : 's.net_score';
+    const order = `${ranked ? `${score} ${ascending ? 'ASC' : 'DESC'}, ` : ''}s.submitted_at DESC, s.id DESC`;
+    const seek = cursor
+      ? ranked
+        ? `AND (${score} ${ascending ? '>' : '<'} $7::double precision OR (${score} = $7::double precision AND (s.submitted_at, s.id) < ($5::timestamptz, $6::uuid)))`
+        : 'AND (s.submitted_at, s.id) < ($5::timestamptz, $6::uuid)'
+      : '';
+    const values: unknown[] = [viewerId, query.limit, cursor ? 0 : query.offset, asOf];
+    if (cursor) values.push(cursor.at, cursor.id, ...(ranked ? [cursor.score ?? 0] : []));
     const result = await this.database.query(
-      `SELECT
+      `WITH ranked AS MATERIALIZED (
+         SELECT s.id, ${score} AS rank_score, s.submitted_at,
+                row_number() OVER (ORDER BY ${order}) AS position
+         FROM submissions s
+         WHERE s.status = 'approved' AND s.show_in_feed AND s.visibility = 'visible' AND s.deleted_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM collab_group_members member JOIN collab_groups grp ON grp.id = member.group_id
+                           WHERE member.user_quest_id = s.user_quest_id AND member.user_id <> grp.creator_id)
+           ${query.scope === 'following' ? 'AND EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.following_id = s.user_id)' : ''}
+           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE b.blocker_id = $1 AND b.blocked_id = s.user_id)
+           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE b.blocker_id = s.user_id AND b.blocked_id = $1)
+           ${seek}
+         ORDER BY ${order} LIMIT $2 OFFSET $3
+       ) SELECT
+         ranked.rank_score AS pagination_score,
+         to_char(s.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS pagination_at,
          s.id AS submission_id, s.media_url, s.media_type::text, s.caption, s.submitted_at,
          p.id AS user_id, p.username::text, p.display_name, p.avatar_url, p.bio,
          q.id AS quest_id, q.title AS quest_title, q.description AS quest_description,
@@ -16,9 +49,9 @@ export class FeedRepository {
          COALESCE(r.total, 0)::bigint AS reaction_count,
          COALESCE(r.ups, 0)::bigint AS upvote_count,
          COALESCE(r.downs, 0)::bigint AS downvote_count,
-         (COALESCE(r.ups, 0) - COALESCE(r.downs, 0))::bigint AS net_score,
-         (COALESCE(r.ups, 0) - COALESCE(r.downs, 0))::double precision /
-           power(EXTRACT(EPOCH FROM (now() - s.submitted_at)) / 3600.0 + 2.0, 1.5) AS hot_score,
+         s.net_score,
+         s.net_score::double precision /
+           power(GREATEST(EXTRACT(EPOCH FROM ($4::timestamptz - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5) AS hot_score,
          (gm.group_id IS NOT NULL) AS is_collab, gm.group_id AS collab_group_id,
          g.mode::text AS collab_mode, COALESCE(mc.cnt, 0)::bigint AS collab_member_count,
          CASE WHEN gm.group_id IS NOT NULL THEN (
@@ -43,7 +76,7 @@ export class FeedRepository {
            WHERE m2.group_id = gm.group_id
          ) ELSE NULL END AS collab_members,
          uq.expires_at
-       FROM submissions s JOIN profiles p ON p.id = s.user_id
+       FROM ranked JOIN submissions s ON s.id = ranked.id JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
        LEFT JOIN LATERAL (
          SELECT count(*) AS total,
@@ -53,29 +86,13 @@ export class FeedRepository {
        ) r ON true
        LEFT JOIN collab_group_members gm ON gm.user_quest_id = uq.id
        LEFT JOIN collab_groups g ON g.id = gm.group_id
-       LEFT JOIN (SELECT group_id, count(*) AS cnt FROM collab_group_members GROUP BY group_id) mc ON mc.group_id = gm.group_id
-       WHERE s.status = 'approved' AND s.show_in_feed AND s.visibility = 'visible' AND s.deleted_at IS NULL
-         AND (gm.group_id IS NULL OR gm.user_id = g.creator_id)
-         AND ($5 <> 'following' OR EXISTS (
-           SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.following_id = s.user_id
-         ))
-         AND NOT EXISTS (
-           SELECT 1 FROM blocked_users bu
-           WHERE (bu.blocker_id = $1 AND bu.blocked_id = s.user_id)
-              OR (bu.blocker_id = s.user_id AND bu.blocked_id = $1)
-         )
-       ORDER BY
-         CASE WHEN $4 = 'top' THEN COALESCE(r.ups, 0) - COALESCE(r.downs, 0) END DESC NULLS LAST,
-         CASE WHEN $4 = 'hot' THEN (COALESCE(r.ups, 0) - COALESCE(r.downs, 0))::double precision /
-           power(EXTRACT(EPOCH FROM (now() - s.submitted_at)) / 3600.0 + 2.0, 1.5) END DESC NULLS LAST,
-         CASE WHEN $4 = 'bottom' THEN COALESCE(r.ups, 0) - COALESCE(r.downs, 0) END ASC NULLS LAST,
-         CASE WHEN $4 = 'graveyard' THEN (COALESCE(r.ups, 0) - COALESCE(r.downs, 0))::double precision /
-           power(EXTRACT(EPOCH FROM (now() - s.submitted_at)) / 3600.0 + 2.0, 1.5) END ASC NULLS LAST,
-         s.submitted_at DESC, s.id DESC
-       LIMIT $2 OFFSET $3`,
-      [viewerId, query.limit, query.offset, query.sort, query.scope],
+       LEFT JOIN LATERAL (SELECT count(*) AS cnt FROM collab_group_members WHERE group_id = gm.group_id) mc ON true
+       ORDER BY ranked.position`,
+      values,
     );
-    return result.rows;
+    return result.rows.map(({ pagination_at, pagination_score, ...row }) => ({
+      ...row,
+      next_cursor: encodeCursor({ context, at: pagination_at as string, id: row.submission_id as string, score: Number(pagination_score), asOf }),
+    }));
   }
 }
-

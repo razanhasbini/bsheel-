@@ -10,7 +10,7 @@ import { RolesGuard } from './common/auth/roles.guard.js';
 import { type Environment, validateEnvironment } from './config/environment.js';
 import { DatabaseModule } from './infrastructure/database/database.module.js';
 import { RedisModule } from './infrastructure/redis/redis.module.js';
-import { MessagingModule } from './infrastructure/messaging/messaging.module.js';
+import { MessagingQueueModule } from './infrastructure/messaging/messaging-queue.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { QuestsModule } from './modules/quests/quests.module.js';
@@ -78,7 +78,7 @@ import { TelegramModule } from './integrations/telegram/telegram.module.js';
     }),
     DatabaseModule,
     RedisModule,
-    MessagingModule,
+    MessagingQueueModule,
     AuthModule,
     QuestsModule,
     ProfilesModule,

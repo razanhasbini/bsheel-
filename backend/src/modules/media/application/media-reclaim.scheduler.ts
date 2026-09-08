@@ -12,7 +12,10 @@ export class MediaReclaimScheduler implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    if (!this.config.get('MEDIA_RECLAIM_ENABLED', { infer: true })) return;
+    if (!this.config.get('MEDIA_RECLAIM_ENABLED', { infer: true })) {
+      await this.queue.removeJobScheduler('media-reclaim-hourly');
+      return;
+    }
     await this.queue.upsertJobScheduler(
       'media-reclaim-hourly',
       { every: this.config.get('MEDIA_RECLAIM_INTERVAL_MS', { infer: true }) },

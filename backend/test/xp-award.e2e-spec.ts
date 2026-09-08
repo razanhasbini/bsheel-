@@ -336,7 +336,7 @@ describe('XP award idempotency (e2e)', { timeout: 120_000 }, () => {
     // Asserted as the invariant rather than as a status code, because either
     // refusing the transition or re-running it as a moderator-only action
     // would be a valid fix.
-    it.skip('does not let the author undo a moderator takedown', async () => {
+    it('does not let the author undo a moderator takedown', async () => {
       const author = await harness.createUser({ prefix: 'r1' });
       const viewer = await harness.createUser({ prefix: 'r2' });
       const submission = await harness.createApprovedPost(author, moderator, {
@@ -350,7 +350,8 @@ describe('XP award idempotency (e2e)', { timeout: 120_000 }, () => {
 
       await harness
         .patch(`/submissions/${submission.id}/visibility`, author)
-        .send({ visibility: 'visible' });
+        .send({ visibility: 'visible' })
+        .expect(403);
 
       const row = await harness.submission(submission.id);
       expect(row.visibility).toBe('deleted');
@@ -367,7 +368,7 @@ describe('XP award idempotency (e2e)', { timeout: 120_000 }, () => {
     // their own approved post and puts it back. Undoing your own delete has
     // to be symmetric with doing it, or the user is silently charged the
     // quest reward for changing their mind.
-    it.skip('repays the XP when the author restores a post they deleted themselves', async () => {
+    it('repays the XP when the author restores a post they deleted themselves', async () => {
       const author = await harness.createUser({ prefix: 'r3' });
       const submission = await harness.createApprovedPost(author, moderator, {
         questId: (await harness.createQuest({ xpReward: questXp })).id,
@@ -394,6 +395,9 @@ describe('XP award idempotency (e2e)', { timeout: 120_000 }, () => {
       const profile = await harness.profile(author.id);
       expect(profile.xp).toBe(questXp);
       expect(profile.quests_completed).toBe(1);
+      await harness.patch(`/submissions/${submission.id}/visibility`, author)
+        .send({ visibility: 'visible' }).expect(204);
+      expect((await harness.profile(author.id)).xp).toBe(questXp);
     });
   });
 

@@ -5,7 +5,10 @@ describe('validateEnvironment', () => {
   it('provides safe local defaults', () => {
     const environment = validateEnvironment({ NODE_ENV: 'test' });
     expect(environment.PORT).toBe(3000);
-    expect(environment.DATABASE_POOL_MAX).toBe(20);
+    expect(environment.DATABASE_POOL_MAX).toBe(10);
+    expect(environment.DATABASE_WORKER_POOL_MAX).toBe(12);
+    expect(environment.DATABASE_CONNECTION_TIMEOUT_MS).toBe(5000);
+    expect(environment.OUTBOX_POLL_MS).toBe(250);
     expect(environment.SWAGGER_ENABLED).toBe(true);
     expect(environment.PUSH_NOTIFICATIONS_ENABLED).toBe(false);
     expect(environment.AUTH_EMAIL_CONFIRMATION_REQUIRED).toBe(true);

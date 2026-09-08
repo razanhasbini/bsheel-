@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Environment } from '../../../config/environment.js';
-import { MediaRepository } from '../infrastructure/media.repository.js';
+import { MediaRepository, type ReclaimCandidate } from '../infrastructure/media.repository.js';
 import { ObjectStorageService } from '../infrastructure/object-storage.service.js';
 
 export interface ReclaimOutcome {
@@ -19,10 +19,9 @@ export interface ReclaimOutcome {
 /// `media_objects` tracks every object's lifecycle, the same question is an
 /// indexed query — see `MediaRepository.claimReclaimable`.
 ///
-/// Every step is idempotent, which is what makes the schedule safe:
-/// deleting an absent object is a no-op, and marking an already-deleted row
-/// deleted changes nothing. Two workers sweeping at once therefore duplicate
-/// work but cannot corrupt anything, so no distributed lock is needed.
+/// The repository commits a permanent lifecycle tombstone before returning a
+/// candidate. External deletes may safely retry, but the file cannot be bound
+/// to a profile/submission or completed after that point.
 @Injectable()
 export class MediaReclaimService {
   private readonly logger = new Logger(MediaReclaimService.name);
@@ -44,18 +43,19 @@ export class MediaReclaimService {
     if (candidates.length === 0) return empty;
 
     const byReason: Record<string, number> = {};
-    const reclaimed: string[] = [];
+    const reclaimed: ReclaimCandidate[] = [];
     let failed = 0;
 
     for (const candidate of candidates) {
       try {
-        // Bytes first. If this throws we leave the row untouched, so the next
-        // pass picks it up again rather than losing track of a live object.
+        // The tombstone remains even on failure, so a retry cannot delete a
+        // file which another request has since rebound.
         await this.storage.delete(candidate.object_key);
-        reclaimed.push(candidate.id);
+        reclaimed.push(candidate);
         byReason[candidate.reason] = (byReason[candidate.reason] ?? 0) + 1;
       } catch (error) {
         failed += 1;
+        await this.repository.releaseReclaim(candidate);
         this.logger.warn(
           { objectKey: candidate.object_key, reason: candidate.reason, error },
           'Could not delete a reclaimable object; leaving it for the next pass',

@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 
 export interface MediaObjectRecord {
@@ -14,12 +15,14 @@ export interface MediaObjectRecord {
   readonly etag: string | null;
   readonly created_at: Date;
   readonly completed_at: Date | null;
+  readonly reclaim_started_at: Date | null;
 }
 
 export interface ReclaimCandidate {
   readonly id: string;
   readonly object_key: string;
-  readonly reason: 'abandoned_intent' | 'rejected_upload' | 'superseded_avatar';
+  readonly reason: 'abandoned_intent' | 'rejected_upload' | 'superseded_avatar' | 'orphan_submission' | 'user_deleted';
+  readonly reclaim_token: string;
 }
 
 @Injectable()
@@ -33,126 +36,118 @@ export class MediaRepository {
     kind: 'avatar' | 'submission',
     contentType: string,
     sizeBytes: number,
+    maxObjects: number,
+    uploadTtlSeconds: number,
   ): Promise<MediaObjectRecord> {
-    const result = await this.database.query<MediaObjectRecord>(
-      `INSERT INTO media_objects
-         (user_id, client_request_id, object_key, kind, content_type, declared_size_bytes)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id, client_request_id) DO UPDATE
-       SET client_request_id = EXCLUDED.client_request_id
-       RETURNING *`,
-      [userId, clientRequestId, objectKey, kind, contentType, sizeBytes],
-    );
-    return result.rows[0];
+    return this.database.transaction(async (transaction) => {
+      // Serialize reservations, not a snapshot followed by an unlocked insert.
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`media-quota:${userId}`]);
+      const existing = await transaction.query<MediaObjectRecord>(
+        'SELECT * FROM media_objects WHERE user_id = $1 AND client_request_id = $2 FOR UPDATE',
+        [userId, clientRequestId],
+      );
+      const prior = existing.rows[0];
+      if (prior) {
+        if (prior.reclaim_started_at || prior.status === 'deleted' || prior.status === 'rejected') {
+          throw new BadRequestException({ code: 'MEDIA_INTENT_CLOSED', message: 'This upload intent is closed' });
+        }
+        if (prior.kind !== kind || prior.content_type !== contentType || Number(prior.declared_size_bytes) !== sizeBytes) {
+          throw new BadRequestException({ code: 'MEDIA_INTENT_CONFLICT', message: 'An upload retry must use the original file parameters' });
+        }
+        await transaction.query(
+          'UPDATE media_objects SET upload_expires_at = now() + make_interval(secs => $2) WHERE id = $1',
+          [prior.id, uploadTtlSeconds],
+        );
+        return prior;
+      }
+      const count = await transaction.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM media_objects
+         WHERE user_id = $1 AND kind = $2 AND deleted_at IS NULL AND status <> 'deleted'`,
+        [userId, kind],
+      );
+      if (count.rows[0].count >= maxObjects) {
+        throw new BadRequestException({ code: 'MEDIA_QUOTA_EXCEEDED', message: `You have reached the limit of ${maxObjects} stored ${kind === 'avatar' ? 'avatars' : 'files'}` });
+      }
+      const result = await transaction.query<MediaObjectRecord>(
+        `INSERT INTO media_objects
+           (user_id, client_request_id, object_key, kind, content_type, declared_size_bytes, upload_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7)) RETURNING *`,
+        [userId, clientRequestId, objectKey, kind, contentType, sizeBytes, uploadTtlSeconds],
+      );
+      return result.rows[0];
+    });
   }
 
-  /// How many live objects of one kind a user owns, and whether this request
-  /// is a retry of an intent that already exists.
-  ///
-  /// One round-trip, both answers from the partial index. The retry flag
-  /// matters because `createOrFind` is idempotent on `client_request_id`: a
-  /// client re-requesting the same intent must not be refused for quota when
-  /// it is not actually creating anything.
-  ///
-  /// Deleted rows are excluded, so a user who deletes and re-uploads is not
-  /// permanently capped.
-  ///
-  /// This is deliberately not serialised against concurrent inserts. Two
-  /// simultaneous uploads can both observe `limit - 1` and both proceed, so
-  /// the cap can be exceeded by at most the client's concurrency. For a cap
-  /// whose job is bounding runaway or scripted abuse, that is the right
-  /// trade against taking a lock on every upload.
-  async quotaSnapshot(
-    userId: string,
-    kind: 'avatar' | 'submission',
-    clientRequestId: string,
-  ): Promise<{ liveCount: number; isRetry: boolean }> {
-    const result = await this.database.query<{ live_count: number; is_retry: boolean }>(
-      `SELECT
-         (SELECT count(*)::int FROM media_objects
-          WHERE user_id = $1 AND kind = $2
-            AND deleted_at IS NULL AND status <> 'deleted') AS live_count,
-         EXISTS (
-           SELECT 1 FROM media_objects
-           WHERE user_id = $1 AND client_request_id = $3
-         ) AS is_retry`,
-      [userId, kind, clientRequestId],
-    );
-    const row = result.rows[0];
-    return { liveCount: row.live_count, isRetry: row.is_retry };
-  }
+  // Both selection and the post-lock recheck use this closed, static predicate.
+  // Ready objects use completion/upload-grant age, not just intent age.
+  private readonly reclaimPredicate = `m.storage_deleted_at IS NULL
+    AND (m.reclaim_lease_until IS NULL OR m.reclaim_lease_until < now())
+    AND m.upload_expires_at < now() - make_interval(hours => $1)
+    AND (
+      m.reclaim_started_at IS NOT NULL
+      OR m.status IN ('pending', 'rejected')
+      OR (m.status = 'ready' AND COALESCE(m.completed_at, m.created_at) < now() - make_interval(hours => $1)
+        AND (
+          (m.kind = 'avatar' AND NOT EXISTS (SELECT 1 FROM profiles p WHERE p.avatar_url = m.object_key))
+          OR (m.kind = 'submission' AND NOT EXISTS (
+            SELECT 1 FROM media_submission_links link WHERE link.media_object_id = m.id
+          ))
+        ))
+    )`;
 
-  /// Objects whose bytes nothing references any more.
-  ///
-  /// Three exact classes, all read from an index. None of this inspects the
-  /// bucket: the deleted Cloudflare sweeper LISTed every object and compared
-  /// against the database, which is O(bucket) and cannot be batched.
-  ///
-  /// `FOR UPDATE SKIP LOCKED` so several worker replicas can sweep at once
-  /// without handing the same object to two of them.
-  ///
-  /// Deliberately NOT included: a ready submission object is only reclaimable
-  /// once its link to a submission is modelled. `submissions.media_url` can
-  /// hold a JSON array of keys, so inferring orphanhood by matching that
-  /// column would classify live multi-file media as unreferenced and delete
-  /// a user's proof. See 0017 for the explicit link.
+  /// Commit a permanent tombstone before external I/O. Bind/complete operations
+  /// lock the same row and reject tombstones. A fresh statement after acquiring
+  /// locks sees references committed by a binder after our selection snapshot.
+  /// The lease only avoids duplicate work; even a crashed/late worker is safe
+  /// because a tombstoned object can never become referenced again.
   async claimReclaimable(
     graceHours: number,
     limit: number,
   ): Promise<readonly ReclaimCandidate[]> {
-    const result = await this.database.query<ReclaimCandidate>(
-      `WITH candidate AS (
-         -- an intent the client never completed
-         SELECT id, object_key, 'abandoned_intent' AS reason
-         FROM media_objects
-         WHERE status = 'pending'
-           AND created_at < now() - make_interval(hours => $1)
-
-         UNION ALL
-
-         -- rejected at completion; complete() deletes the bytes first, so a
-         -- row here means that delete failed and the bytes leaked
-         SELECT id, object_key, 'rejected_upload' AS reason
-         FROM media_objects
-         WHERE status = 'rejected' AND deleted_at IS NULL
-
-         UNION ALL
-
-         -- a profile holds exactly one avatar_url, so changing it orphans the
-         -- previous object. Single column, never a JSON array, so equality is
-         -- exact and this cannot reach a live avatar.
-         SELECT m.id, m.object_key, 'superseded_avatar' AS reason
-         FROM media_objects m
-         JOIN profiles p ON p.id = m.user_id
-         WHERE m.status = 'ready'
-           AND m.kind = 'avatar'
-           AND m.deleted_at IS NULL
-           AND m.created_at < now() - make_interval(hours => $1)
-           AND (p.avatar_url IS NULL OR p.avatar_url <> m.object_key)
-       )
-       SELECT c.id, c.object_key, c.reason
-       FROM candidate c
-       JOIN media_objects locked ON locked.id = c.id
-       ORDER BY c.id
-       LIMIT $2
-       FOR UPDATE OF locked SKIP LOCKED`,
-      [graceHours, limit],
-    );
-    return result.rows;
+    return this.database.transaction(async (transaction) => {
+      const candidates = await transaction.query<{ id: string }>(
+        `SELECT m.id FROM media_objects m WHERE ${this.reclaimPredicate}
+         ORDER BY m.created_at, m.id LIMIT $2 FOR UPDATE OF m SKIP LOCKED`,
+        [graceHours, limit],
+      );
+      if (!candidates.rowCount) return [];
+      const result = await transaction.query<ReclaimCandidate>(
+        `UPDATE media_objects m SET reclaim_started_at = COALESCE(m.reclaim_started_at, now()),
+           reclaim_token = $3, reclaim_lease_until = now() + interval '30 minutes',
+           reclaim_reason = COALESCE(m.reclaim_reason, CASE
+             WHEN m.status = 'pending' THEN 'abandoned_intent'
+             WHEN m.status = 'rejected' THEN 'rejected_upload'
+             WHEN m.kind = 'avatar' THEN 'superseded_avatar'
+             ELSE 'orphan_submission' END)
+         WHERE m.id = ANY($2::uuid[]) AND ${this.reclaimPredicate}
+         RETURNING m.id, m.object_key, m.reclaim_reason AS reason, m.reclaim_token`,
+        [graceHours, candidates.rows.map((row) => row.id), randomUUID()],
+      );
+      return result.rows;
+    });
   }
 
   /// Marks a swept object deleted. Separate from the storage delete so a
   /// failure to remove the bytes leaves the row claimable on the next pass
   /// rather than losing track of it.
-  async markReclaimed(ids: readonly string[]): Promise<number> {
-    if (ids.length === 0) return 0;
+  async markReclaimed(candidates: readonly ReclaimCandidate[]): Promise<number> {
+    if (candidates.length === 0) return 0;
     const result = await this.database.query(
       `UPDATE media_objects
-       SET status = 'deleted', deleted_at = now()
-       WHERE id = ANY($1::uuid[])`,
-      [ids],
+       SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()), storage_deleted_at = now(),
+           reclaim_lease_until = NULL
+       WHERE (id, reclaim_token) IN (SELECT * FROM unnest($1::uuid[], $2::uuid[]))
+         AND reclaim_started_at IS NOT NULL AND storage_deleted_at IS NULL`,
+      [candidates.map((candidate) => candidate.id), candidates.map((candidate) => candidate.reclaim_token)],
     );
     return result.rowCount ?? 0;
+  }
+
+  async releaseReclaim(candidate: ReclaimCandidate): Promise<void> {
+    await this.database.query(
+      'UPDATE media_objects SET reclaim_lease_until = NULL WHERE id = $1 AND reclaim_token = $2 AND storage_deleted_at IS NULL',
+      [candidate.id, candidate.reclaim_token],
+    );
   }
 
   async findOwnedForUpdate(userId: string, id: string): Promise<MediaObjectRecord> {
@@ -180,11 +175,17 @@ export class MediaRepository {
       const result = await transaction.query<MediaObjectRecord>(
         `UPDATE media_objects SET status = 'ready', stored_size_bytes = $2, etag = $3,
            completed_at = COALESCE(completed_at, now())
-         WHERE id = $1 AND status IN ('pending', 'ready') RETURNING *`,
+         WHERE id = $1 AND status = 'pending' AND reclaim_started_at IS NULL RETURNING *`,
         [id, storedSize, etag ?? null],
       );
       const object = result.rows[0];
-      if (!object) throw new NotFoundException({ code: 'MEDIA_OBJECT_NOT_FOUND', message: 'Media object is not completable' });
+      if (!object) {
+        const prior = await transaction.query<MediaObjectRecord>(
+          "SELECT * FROM media_objects WHERE id = $1 AND status = 'ready' AND reclaim_started_at IS NULL", [id],
+        );
+        if (prior.rows[0]) return prior.rows[0];
+        throw new BadRequestException({ code: 'MEDIA_INTENT_CLOSED', message: 'Media object is not completable' });
+      }
       await transaction.query(
         `INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
          VALUES ('media', $1, 'media.uploaded', $2::jsonb)`,
@@ -194,15 +195,18 @@ export class MediaRepository {
     });
   }
 
-  async markRejected(id: string): Promise<void> {
-    await this.database.query("UPDATE media_objects SET status = 'rejected' WHERE id = $1 AND status = 'pending'", [id]);
+  async markRejected(id: string): Promise<boolean> {
+    const result = await this.database.query("UPDATE media_objects SET status = 'rejected' WHERE id = $1 AND status = 'pending' AND reclaim_started_at IS NULL", [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async markDeleted(userId: string, id: string): Promise<void> {
     await this.database.transaction(async (transaction) => {
       const result = await transaction.query<{ object_key: string; kind: string }>(
-        `UPDATE media_objects SET status = 'deleted', deleted_at = now()
-         WHERE id = $1 AND user_id = $2 AND status <> 'deleted'
+        `UPDATE media_objects SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()),
+           reclaim_started_at = COALESCE(reclaim_started_at, now()),
+           reclaim_reason = COALESCE(reclaim_reason, 'user_deleted')
+         WHERE id = $1 AND user_id = $2
          RETURNING object_key, kind`,
         [id, userId],
       );

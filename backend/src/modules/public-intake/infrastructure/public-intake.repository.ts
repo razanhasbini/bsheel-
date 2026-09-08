@@ -7,21 +7,21 @@ export class PublicIntakeRepository {
   constructor(private readonly database: DatabaseService) {}
 
   async joinWaitlist(email: string, source?: string) {
-    return (await this.database.query(
-      `INSERT INTO waitlist (email, source) VALUES ($1, $2)
-       ON CONFLICT (email) DO UPDATE SET source = COALESCE(waitlist.source, EXCLUDED.source)
-       RETURNING id, email::text, source, created_at`, [email, source?.trim() || null],
-    )).rows[0];
+    return this.database.typed.insertInto('waitlist')
+      .values({ email, source: source?.trim() || null })
+      .onConflict((conflict) => conflict.column('email').doUpdateSet((eb) => ({
+        source: eb.fn.coalesce('waitlist.source', eb.ref('excluded.source')),
+      })))
+      .returning(['id', 'email', 'source', 'created_at'])
+      .executeTakeFirstOrThrow();
   }
 
   async submitSuggestion(input: SubmitQuestSuggestionDto) {
-    return (await this.database.query(
-      `INSERT INTO quest_suggestions
-         (title, description, category, difficulty, suggested_by_name, suggested_by_handle)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, status, created_at`,
-      [input.title.trim(), input.description.trim(), input.category, input.difficulty,
-        input.suggestedByName?.trim() || null, input.suggestedByHandle?.trim() || null],
-    )).rows[0];
+    return this.database.typed.insertInto('quest_suggestions').values({
+      title: input.title.trim(), description: input.description.trim(),
+      category: input.category, difficulty: input.difficulty,
+      suggested_by_name: input.suggestedByName?.trim() || null,
+      suggested_by_handle: input.suggestedByHandle?.trim() || null,
+    }).returning(['id', 'status', 'created_at']).executeTakeFirstOrThrow();
   }
 }

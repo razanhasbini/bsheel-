@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +7,7 @@ import '../providers/admin_role_provider.dart';
 import '../providers/repository_providers.dart';
 import 'admin_route_names.dart';
 import '../../features/admin_auth/presentation/pages/admin_login_page.dart';
+import '../../features/admin_auth/presentation/pages/admin_access_denied_page.dart';
 import '../../features/admin_auth/presentation/pages/confirm_email_page.dart';
 import '../../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../../features/moderation/presentation/pages/pending_submissions_page.dart';
@@ -48,7 +50,8 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
       if (user == null && !loggingIn && !isPublic) {
         return AdminRoutePaths.login;
       }
-      if (user != null && loggingIn) {
+      if (user != null && loggingIn &&
+          ref.read(isAdminUserProvider).valueOrNull == true) {
         return AdminRoutePaths.dashboard;
       }
       // SEC-027: gate every authenticated, non-public route on admin
@@ -74,7 +77,18 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AdminRoutePaths.login,
         name: AdminRouteNames.login,
-        builder: (context, state) => const AdminLoginPage(),
+        builder: (context, state) => Consumer(builder: (context, ref, _) {
+          if (ref.watch(authRepositoryProvider).currentUser == null) {
+            return const AdminLoginPage();
+          }
+          return ref.watch(isAdminUserProvider).when(
+            loading: () => const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, __) => const AdminAccessDeniedPage(),
+            data: (_) => const AdminAccessDeniedPage(),
+          );
+        }),
       ),
       GoRoute(
         path: AdminRoutePaths.confirmEmail,

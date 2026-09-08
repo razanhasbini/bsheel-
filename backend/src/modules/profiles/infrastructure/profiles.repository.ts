@@ -90,7 +90,8 @@ export class ProfilesRepository {
         if (input.avatarUrl) {
           const avatar = await transaction.query(
             `SELECT 1 FROM media_objects
-             WHERE user_id = $1 AND object_key = $2 AND kind = 'avatar' AND status = 'ready'`,
+             WHERE user_id = $1 AND object_key = $2 AND kind = 'avatar' AND status = 'ready'
+               AND deleted_at IS NULL AND reclaim_started_at IS NULL FOR UPDATE`,
             [id, input.avatarUrl],
           );
           if (!avatar.rowCount) {

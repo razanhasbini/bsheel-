@@ -7,6 +7,7 @@ function setup(enabled = true) {
   const repository = {
     claimReclaimable: vi.fn(),
     markReclaimed: vi.fn().mockResolvedValue(0),
+    releaseReclaim: vi.fn().mockResolvedValue(undefined),
   };
   const storage = { delete: vi.fn().mockResolvedValue(undefined) };
   const config = {
@@ -14,7 +15,7 @@ function setup(enabled = true) {
       MEDIA_RECLAIM_ENABLED: enabled,
       MEDIA_RECLAIM_GRACE_HOURS: 24,
       MEDIA_RECLAIM_BATCH_SIZE: 200,
-    })[key]),
+    } as Record<string, unknown>)[key]),
   };
   const service = new MediaReclaimService(
     repository as unknown as MediaRepository,
@@ -34,9 +35,9 @@ describe('MediaReclaimService', () => {
   it('deletes every candidate before marking its rows reclaimed', async () => {
     const { service, repository, storage } = setup();
     repository.claimReclaimable.mockResolvedValue([
-      { id: 'abandoned', object_key: 'submissions/u/a.jpg', reason: 'abandoned_intent' },
-      { id: 'rejected', object_key: 'submissions/u/b.jpg', reason: 'rejected_upload' },
-      { id: 'avatar', object_key: 'avatars/u/c.jpg', reason: 'superseded_avatar' },
+      { id: 'abandoned', object_key: 'submissions/u/a.jpg', reason: 'abandoned_intent', reclaim_token: 'lease' },
+      { id: 'rejected', object_key: 'submissions/u/b.jpg', reason: 'rejected_upload', reclaim_token: 'lease' },
+      { id: 'avatar', object_key: 'avatars/u/c.jpg', reason: 'superseded_avatar', reclaim_token: 'lease' },
     ]);
     repository.markReclaimed.mockResolvedValue(3);
 
@@ -48,14 +49,14 @@ describe('MediaReclaimService', () => {
     });
     expect(repository.claimReclaimable).toHaveBeenCalledWith(24, 200);
     expect(storage.delete).toHaveBeenCalledTimes(3);
-    expect(repository.markReclaimed).toHaveBeenCalledWith(['abandoned', 'rejected', 'avatar']);
+    expect(repository.markReclaimed).toHaveBeenCalledWith(await repository.claimReclaimable.mock.results[0].value);
   });
 
   it('leaves storage failures claimable for the next pass', async () => {
     const { service, repository, storage } = setup();
     repository.claimReclaimable.mockResolvedValue([
-      { id: 'ok', object_key: 'avatars/u/ok.jpg', reason: 'superseded_avatar' },
-      { id: 'failed', object_key: 'submissions/u/fail.jpg', reason: 'rejected_upload' },
+      { id: 'ok', object_key: 'avatars/u/ok.jpg', reason: 'superseded_avatar', reclaim_token: 'lease' },
+      { id: 'failed', object_key: 'submissions/u/fail.jpg', reason: 'rejected_upload', reclaim_token: 'lease' },
     ]);
     storage.delete.mockImplementation(async (key: string) => {
       if (key.endsWith('fail.jpg')) throw new Error('storage unavailable');
@@ -68,6 +69,11 @@ describe('MediaReclaimService', () => {
       failed: 1,
       byReason: { superseded_avatar: 1 },
     });
-    expect(repository.markReclaimed).toHaveBeenCalledWith(['ok']);
+    expect(repository.markReclaimed).toHaveBeenCalledWith([
+      { id: 'ok', object_key: 'avatars/u/ok.jpg', reason: 'superseded_avatar', reclaim_token: 'lease' },
+    ]);
+    expect(repository.releaseReclaim).toHaveBeenCalledWith(
+      { id: 'failed', object_key: 'submissions/u/fail.jpg', reason: 'rejected_upload', reclaim_token: 'lease' },
+    );
   });
 });
