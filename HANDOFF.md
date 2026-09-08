@@ -6,6 +6,23 @@ assumes no memory of previous sessions. Read this before touching anything.
 Everything below is either **verified** (I ran it and saw the result) or
 explicitly marked **unverified**. Do not treat an unverified claim as done.
 
+**Status as of the last session.** Backend is green and its runtime paths are
+verified live: lint clean, 51 unit, all 20 migrations replaying from empty,
+the type-drift gate, and **139/139 e2e**. API and worker start clean; every
+reachable route returns 200; media presigning, the outbox, the hourly media
+reclaim and the realtime gateway were each exercised against the running
+stack. Both clients are at zero analyze issues and conform to the two design
+specs. R3.5 (keyset pagination beyond the feed), a human render pass, and R6
+(credentials and deploy decisions) are what remain.
+
+**Two traps that cost earlier sessions real time**, both now understood:
+
+- `nest build` takes **~2m45s** and `NestFactory.create` takes **~52s** on
+  this machine. Neither is hung. Sessions repeatedly killed them early and
+  reported a stall.
+- A failed `git status` prints nothing and exits non-zero, so piping it to
+  `wc -l` reports `0` — a false clean tree. See R7.
+
 ---
 
 ## 1. What this repo is
@@ -269,10 +286,12 @@ dart format --set-exit-if-changed .   # exit 0
 ```bash
 cd backend && set -a && . ./.env && set +a
 npm run lint             # clean (verified)
-npm test                 # 48 unit tests (verified)
-npm run db:migrate       # applies through 0017 (verified)
+npm test                 # 51 unit tests (verified)
+npm run db:migrate       # applies through 0020 (verified from empty)
 npm run db:migrate:check # passes (verified)
-npm run test:e2e         # 137 passed, 2 skipped (verified twice)
+npm run db:types:check   # types match the schema (verified)
+npm run test:e2e         # 139 passed, 0 skipped (verified repeatedly)
+npm run build            # exit 0 in ~2m45s on this machine (verified)
 ```
 
 > The E2E suite is now verified. All ten spec files pass twice consecutively:
@@ -374,56 +393,79 @@ the user's bucket prefix **on every upload**, and swept orphans by LISTing the
 **whole bucket**. Both are O(objects) network round-trips for work the
 database answers from an index.
 
-### R3 — Perf source fixes (from `backend/PERFORMANCE.md`)
+### R3 — Perf source fixes · **4 of 5 complete**
 
 Measured on a seeded database (20k profiles, 40k submissions, 150k reactions,
-80k comments). Ranked by impact:
+80k comments).
 
-1. **The outbox publisher is in the wrong module.** `MessagingModule` is
-   imported by `app.module.ts`, not `worker.module.ts` — so the ~50 events/sec
-   ceiling scales with **API** replicas and adding workers raises nothing.
-   This contradicts the documented design. Move it, and consider
-   `OUTBOX_POLL_MS=250` (→200/s, no code change) plus `queue.addBulk`.
-2. **The pool cannot reach 3 replicas.** 20 connections per process, one pool
-   each in `main.ts` and `main.worker.ts`, against `max_connections=100` →
-   ceiling of 2 API + 2 worker; a third pair fails with `53300`. Worse,
-   `connectionTimeoutMillis` is **unset**, so exhaustion queues *indefinitely*
-   while the 15s statement timeout holds slots — a hang, not an error.
-   Recommended: API max 10, worker max 12, add
-   `connectionTimeoutMillis: 5000`, and raise `max_connections` or front with
-   PgBouncer (safe — the one advisory lock is transaction-scoped).
-3. **The feed is O(all approved submissions) per page**, for every sort mode:
-   587 ms and 433k buffer hits to return 20 rows. Its `ORDER BY` opens with
-   four `CASE WHEN $4 = …` arms, so even `sort=recent` cannot use the index.
-   No index fixes this; `PERFORMANCE.md` has the rewrite (per-mode `ORDER BY`,
-   denormalised `net_score`, rank-then-join for `hot`).
-4. **`addComment` is N+1** — 2 statements per thread participant. Measured
-   200 statements / 64 ms on a 100-participant thread; batched CTE is 6 ms.
-   Same pattern in four other notification fan-outs.
-5. **Only `notifications` uses a keyset cursor.** ~20 other lists use
-   `LIMIT/OFFSET`; `listForAdmin` goes 0.93 ms @0 → **153.9 ms @39,000** with a
-   disk-spilling sort.
+1. **Outbox publisher in the wrong module** — **done.** `app.module.ts` now
+   imports `MessagingQueueModule` (queue only) and `worker.module.ts` imports
+   `MessagingModule` (queue + publisher). They were exactly backwards, so every
+   API replica ran its own publisher loop and contended on the same
+   `SKIP LOCKED` claim. With one poller, `OUTBOX_POLL_MS` dropped 1000 → 250.
+   Verified live: a follow emitted `social.follow.changed` +
+   `notification.created` and the worker drained both.
+2. **Pool ceiling** — **done**, all three parts: API max 10,
+   `DATABASE_WORKER_POOL_MAX` 12, and `DATABASE_CONNECTION_TIMEOUT_MS` 5000.
+   The missing timeout was the worst of it: exhaustion queued indefinitely
+   while the 15s statement timeout held slots, so it presented as a hang with
+   no error.
+3. **Feed `ORDER BY`** — **done.** The four `CASE WHEN $4 = …` arms are gone;
+   per-mode ordering is composed from booleans derived from an `@IsIn`
+   validated `sort`, with all values still parameterised. Migration
+   `0019_feed_ranking.sql` backs it.
+4. **`addComment` N+1** — **done.** `insertNotificationBatch` replaces the
+   per-participant statements.
+5. **Keyset pagination** — **partial, the one item left.** `keyset-cursor.ts`
+   is good work (context-bound so a feed cursor cannot be replayed on another
+   list, length-capped, shape-validated, stable `INVALID_CURSOR`), but only
+   the feed uses it. ~20 lists remain on `LIMIT/OFFSET`; `listForAdmin` still
+   goes 0.93 ms @0 → 153.9 ms @39,000 with a disk-spilling sort.
 
-### R4 — Render the UI and walk the journeys
+### R4 — Design-spec conformance · **complete**; render pass still worthwhile
 
-The one thing no automation here has covered. Boot the stack, open the admin
-dashboard in Chrome and the mobile app in a simulator, and walk every screen.
-Expect widget-layer bugs (layout, null checks in `build()`, providers throwing
-during render). Data-layer risk is already retired.
+Both apps were brought up to `mobile-handoff/SPEC.md` and
+`admin-handoff/SPEC.md`: 144 contrast fixes, 49 controls raised to a 44pt hit
+area, ~100 overflow/overlap fixes, and the missing shared primitives
+(`ArcadeCategoryTag`, `ArcadeStatusPill`, `ArcadeSkeleton`). Evidence is in
+the commit message for `14acaa2`.
 
-### R5 — Kysely + layering (largest, do last)
+Automated rendering coverage now exists: the mobile screenshot gallery renders
+~20 screens with zero `RenderFlex overflowed` and zero unbounded-flex
+assertions, and an admin probe exercised the primitives at 1280/760/360px.
+What is still **not** done is a human walking the app in a simulator and the
+dashboard in Chrome — automation cannot judge whether a screen reads well.
 
-- Adopt **Kysely** for compile-time-checked SQL. It keeps full control of
-  `FOR UPDATE`, `SKIP LOCKED` and explicit `ON CONFLICT` arbiters, which an
-  ORM fights. Motivation: raw SQL strings are unchecked, and that exact class
-  of bug shipped in the legacy system — a query referenced a column that did
-  not exist and failed silently every hour for a day, having never once
-  succeeded.
-- Move notification copy out of `social.repository.ts` into a templates
-  module. Copy strings currently live in the **persistence** layer.
-- Split `admin.repository.ts` (781 lines).
+Two known gaps, both deliberate:
 
-Do this **after** R1, so the refactor happens behind a working test suite.
+- `BsheelColors.inkMuted` (2.9:1) is still used for ~120 non-placeholder text
+  runs. The spec reserves it for placeholders and disabled state. Converting
+  all of them risks flattening deliberate hierarchy, so it needs a design
+  decision rather than a sweep.
+- `bsheel_widgets.dart` and `admin_theme.dart` still carry the older
+  black-and-white direction in their doc comments and tone mapping
+  (`BsheelPillTone.gold`/`.violet` both resolve to an ink fill). The tokens
+  are Arcade Pop; the primitives have not been re-skinned to match.
+- 3 screens in the opt-in screenshot gallery throw
+  `AppBackend.initialize() was not called` — those pages reach
+  `AppBackend.repositories` at build time and the test's fakes do not cover
+  it. Pre-existing, excluded from the default suite.
+
+### R5 — Typed SQL + layering · **mostly complete**
+
+- **Typed SQL — done, and it had already drifted.**
+  `scripts/database-types.mjs` generates `database.types.ts` from the migrated
+  schema and `DatabaseService` consumes it as its Kysely `Database` interface.
+  No npm script invoked the generator, so its `--check` could never fire and
+  the types were missing everything migrations 0017-0020 added. Now wired as
+  `db:types` / `db:types:check`, regenerated, and gated in CI between the
+  checksum ledger and the e2e run.
+- **`admin.repository.ts` split — done**, into identity / users / moderation /
+  operations over a shared base, behind a facade. Note it landed without its
+  providers registered, which broke all ten e2e files at module init; a scan
+  now confirms every `@Injectable` is named in some module.
+- **Notification copy out of the persistence layer — still open.** Copy
+  strings remain in `social.repository.ts`.
 
 ### R6 — Blocked on credentials / decisions (not startable here)
 
@@ -433,6 +475,17 @@ Do this **after** R1, so the refactor happens behind a working test suite.
 | Deployment pipeline | a decision on where the API runs + a secret store |
 | iOS build / TestFlight | the signing identity |
 | **OAuth account linking** | **a product decision — see §6** |
+
+### R7 — This machine's disk, which is actively causing failures
+
+`.git/index` writes time out intermittently: the disk is at 97% (7.6 GiB free)
+and `fileproviderd` runs hot. Writes to `/private/tmp` always succeed while
+write-in-place to `.git` stalls, which is the signature.
+
+This matters beyond inconvenience. A failed `git status` prints **nothing and
+exits non-zero**, so `git status --porcelain | wc -l` reports `0` — and that
+false "clean tree" is how four migrations and the media-reclaim scheduler sat
+untracked across three sessions. **Check the exit code, not the line count.**
 
 ---
 
