@@ -87,7 +87,15 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
                   body: Center(child: CircularProgressIndicator()),
                 ),
                 error: (_, __) => const AdminAccessDeniedPage(),
-                data: (_) => const AdminAccessDeniedPage(),
+                // A confirmed admin briefly lands here between resolving the
+                // role and the redirect firing. This used to discard the
+                // value and render "access denied" to a legitimate super
+                // admin — alarming, and wrong. Wait for the redirect instead.
+                data: (isAdmin) => isAdmin
+                    ? const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      )
+                    : const AdminAccessDeniedPage(),
               );
         }),
       ),
