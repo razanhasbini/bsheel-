@@ -224,10 +224,11 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                         ),
                         const SizedBox(height: 12),
                         ArcadeButton(
+                          // No icon in the render, and the sheet's button is
+                          // 56pt (medium), not 60. The variant is left at the
+                          // default primary, which is violet with white text.
                           label: _isLoading ? l.loading : l.login,
-                          icon: _isLoading ? null : Icons.bolt_rounded,
                           isLoading: _isLoading,
-                          size: ArcadeButtonSize.large,
                           onTap: _isLoading ? null : _login,
                         ),
                       ],
