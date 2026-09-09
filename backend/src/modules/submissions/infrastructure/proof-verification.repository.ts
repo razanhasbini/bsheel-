@@ -76,6 +76,11 @@ export class ProofVerificationRepository {
     analysis: ProofAnalysis,
     signals: LocationSignals,
     durationMs: number,
+    /// Which rung is accountable, whether the decision was carried out, and
+    /// which provider produced it. `acted` is false in shadow mode, which is
+    /// what makes the row usable as eval data: the agent did not influence
+    /// the human decision it is being scored against.
+    provenance: { stage: string; acted: boolean; provider: string },
   ): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await transaction.query(
@@ -84,6 +89,7 @@ export class ProofVerificationRepository {
              rationale = $4, escalation_reason = $5, model = $6,
              location_verified = $7, location_retrieved = $8, geofence_verified = $9,
              input_tokens = $10, output_tokens = $11, duration_ms = $12,
+             stage = $13, acted = $14,
              last_error = NULL, completed_at = now()
          WHERE submission_id = $1`,
         [
@@ -99,6 +105,8 @@ export class ProofVerificationRepository {
           analysis.inputTokens,
           analysis.outputTokens,
           durationMs,
+          provenance.stage,
+          provenance.acted,
         ],
       );
       if (analysis.verdict === 'unclear') {
@@ -149,6 +157,167 @@ export class ProofVerificationRepository {
       [limit, maxAttempts],
     );
     return result.rows.map((row) => row.submission_id);
+  }
+
+
+  /// The private object keys making up a submission's proof, with the window
+  /// the attempt ran in.
+  ///
+  /// `media_url` holds one to ten keys, already validated on the way in. The
+  /// window comes from `user_quests`, not from the submission alone, because
+  /// "was this photograph taken for this attempt" is a question about the
+  /// assignment.
+  async forensicsSubject(submissionId: string): Promise<{
+    mediaUrl: string;
+    userId: string;
+    assignedAt: Date;
+    submittedAt: Date;
+  } | null> {
+    const result = await this.database.query<{
+      media_url: string;
+      user_id: string;
+      assigned_at: Date;
+      submitted_at: Date;
+    }>(
+      `SELECT s.media_url, s.user_id, uq.assigned_at, s.submitted_at
+       FROM submissions s JOIN user_quests uq ON uq.id = s.user_quest_id
+       WHERE s.id = $1`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    return row
+      ? { mediaUrl: row.media_url, userId: row.user_id, assignedAt: row.assigned_at, submittedAt: row.submitted_at }
+      : null;
+  }
+
+  /// Stores measured facts against the uploaded object.
+  ///
+  /// Keyed on `object_key`, which is unique, and a no-op when no row exists —
+  /// the seed uploads bytes without creating `media_objects` rows, and a
+  /// missing row must not fail the pass. The aggregate report is written to
+  /// the verification row regardless, so the policy and the moderator always
+  /// have it.
+  async recordObjectFacts(facts: {
+    objectKey: string;
+    capturedAt?: Date;
+    width: number;
+    height: number;
+    perceptualHash: string;
+    contentMd5: string;
+    report: Record<string, unknown>;
+  }): Promise<void> {
+    await this.database.query(
+      `UPDATE media_objects
+       SET captured_at = $2, width = $3, height = $4,
+           perceptual_hash = $5::bit(64), content_md5 = $6,
+           forensics = $7::jsonb, forensics_at = now()
+       WHERE object_key = $1`,
+      [
+        facts.objectKey,
+        facts.capturedAt ?? null,
+        facts.width,
+        facts.height,
+        facts.perceptualHash,
+        facts.contentMd5,
+        JSON.stringify(facts.report),
+      ],
+    );
+  }
+
+  /// Stores the aggregate forensics report on the verification row.
+  async recordForensics(submissionId: string, report: Record<string, unknown>): Promise<void> {
+    await this.database.query(
+      `UPDATE submission_verifications SET forensics = $2::jsonb WHERE submission_id = $1`,
+      [submissionId, JSON.stringify(report)],
+    );
+  }
+
+  /// The closest prior submission to this image, exact match preferred.
+  ///
+  /// Scoped to submissions *other than* this one and to proof that still
+  /// counts — a soft-deleted or moderator-removed post is not evidence of
+  /// recycling. Ordering puts a byte-identical match first, then the nearest
+  /// perceptual match within threshold.
+  ///
+  /// Hamming distance is `bit_count(a # b)`, computed by Postgres. The scan is
+  /// bounded by the partial indexes from migration 0026, which is adequate at
+  /// current volume; a platform-wide nearest-neighbour search at scale wants
+  /// an LSH or BK-tree index and is deliberately not built yet.
+  async findDuplicate(
+    submissionId: string,
+    ownerId: string,
+    contentMd5: string,
+    perceptualHash: string,
+    threshold: number,
+  ): Promise<{ submissionId: string; distance: number; exact: boolean; ownedByThisUser: boolean } | null> {
+    const result = await this.database.query<{
+      submission_id: string;
+      distance: number;
+      exact: boolean;
+      owned_by_this_user: boolean;
+    }>(
+      `SELECT s.id AS submission_id,
+              bit_count(m.perceptual_hash # $4::bit(64))::int AS distance,
+              (m.content_md5 = $3) AS exact,
+              (s.user_id = $2) AS owned_by_this_user
+       FROM media_objects m
+       JOIN submissions s ON s.id = m.submission_id
+       WHERE m.kind = 'submission' AND m.status = 'ready' AND m.deleted_at IS NULL
+         AND s.id <> $1
+         AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
+         AND (
+           m.content_md5 = $3
+           OR (m.perceptual_hash IS NOT NULL
+               AND bit_count(m.perceptual_hash # $4::bit(64)) <= $5)
+         )
+       ORDER BY (m.content_md5 = $3) DESC,
+                bit_count(m.perceptual_hash # $4::bit(64)) ASC
+       LIMIT 1`,
+      [submissionId, ownerId, contentMd5, perceptualHash, threshold],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          submissionId: row.submission_id,
+          distance: row.distance,
+          exact: row.exact,
+          ownedByThisUser: row.owned_by_this_user,
+        }
+      : null;
+  }
+
+  /// The resolved verification contract for a submission's quest.
+  ///
+  /// Read through the view so the worker cannot disagree with the admin
+  /// surface about what a quest's proof means or what the agent may do.
+  async contractFor(submissionId: string): Promise<{
+    verifiability: 'content' | 'provenance_only' | 'none';
+    evidenceRubric: string;
+    mayAutoApprove: boolean;
+    mayAutoReject: boolean;
+  } | null> {
+    const result = await this.database.query<{
+      verifiability: 'content' | 'provenance_only' | 'none';
+      evidence_rubric: string;
+      may_auto_approve: boolean;
+      may_auto_reject: boolean;
+    }>(
+      `SELECT c.verifiability, c.evidence_rubric, c.may_auto_approve, c.may_auto_reject
+       FROM submissions s
+       JOIN user_quests uq ON uq.id = s.user_quest_id
+       JOIN quest_verification_contract c ON c.quest_id = uq.quest_id
+       WHERE s.id = $1`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          verifiability: row.verifiability,
+          evidenceRubric: row.evidence_rubric,
+          mayAutoApprove: row.may_auto_approve,
+          mayAutoReject: row.may_auto_reject,
+        }
+      : null;
   }
 
   /// The committee's "unclear" section (#47).

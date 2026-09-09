@@ -15,7 +15,7 @@
 // `--reset` deletes the seeded users first (cascading to their content), so
 // the script is idempotent and safe to re-run.
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import process from 'node:process';
 import { hash } from 'argon2';
 import pg from 'pg';
@@ -153,6 +153,10 @@ async function main() {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAABzenr0AAAAEklEQVR42mP8z8DwHwMDAxMDAwMAFAYBAK0k9WQAAAAASUVORK5CYII=',
       'base64',
     );
+    // Every seeded submission shares these bytes, so exact-duplicate
+    // detection will legitimately flag them against each other. That is a
+    // faithful local exercise of the check rather than a defect.
+    const pngMd5 = createHash('md5').update(pngBytes).digest('hex');
     let putObject = async () => null;
     if (process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID) {
       const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
@@ -257,7 +261,7 @@ async function main() {
           ? DUPLICATE_CAPTION
           : `Did it — ${QUESTS[questIndex][0].toLowerCase()}.`;
 
-      await client.query(
+      const submission = await client.query(
         `INSERT INTO submissions
            (user_quest_id, user_id, media_url, media_type, caption, status,
             appealed, appeal_note, visibility, submitted_at, reviewed_at, reviewed_by, review_note)
@@ -267,10 +271,28 @@ async function main() {
                  now() - make_interval(days => $8) + interval '1 hour',
                  CASE WHEN $5 IN ('approved','rejected') THEN now() - make_interval(days => $8) + interval '3 hours' END,
                  CASE WHEN $5 IN ('approved','rejected') THEN $9::uuid END,
-                 CASE WHEN $5 = 'rejected' THEN 'Proof does not clearly show the quest being completed.' END)`,
+                 CASE WHEN $5 = 'rejected' THEN 'Proof does not clearly show the quest being completed.' END)
+         RETURNING id`,
         [uq.rows[0].id, userId, key, caption, subStatus, appealed,
           visibility ?? 'visible', assignedAgo, userIds.moderator],
       );
+
+      // The `media_objects` row the real upload flow creates. Without it the
+      // seeded environment has bytes in storage and no record of them, so
+      // anything that reads media metadata — the AI proof forensics pass
+      // (#47), the media quota, the orphan reclaim — sees an empty table and
+      // silently does nothing locally.
+      await client.query(
+        `INSERT INTO media_objects
+           (user_id, client_request_id, object_key, kind, status, content_type,
+            declared_size_bytes, stored_size_bytes, etag, submission_id,
+            upload_expires_at, created_at, completed_at)
+         VALUES ($1, gen_random_uuid(), $2, 'submission', 'ready', 'image/png',
+                 $3, $3, $4, $5,
+                 now(), now() - make_interval(days => $6), now() - make_interval(days => $6))`,
+        [userId, key, pngBytes.length, pngMd5, submission.rows[0].id, assignedAgo],
+      );
+
       submissions += 1;
     }
     log(`submissions: ${submissions} (media objects uploaded: ${mediaObjects})`);

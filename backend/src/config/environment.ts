@@ -90,15 +90,47 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    // Which vision provider runs the analysis. The pipeline is written
+    // against an interface, so this is the only place the choice appears.
+    AI_VERIFICATION_PROVIDER: z.enum(['openai', 'anthropic']).default('openai'),
     ANTHROPIC_API_KEY: optionalString,
-    // Pinned rather than floating, so a model change is a deploy and shows up
-    // in the verdict rows that recorded which model produced them.
-    AI_VERIFICATION_MODEL: z.string().default('claude-opus-5'),
+    OPENAI_API_KEY: optionalString,
+
+    // Shadow mode: the agent analyses and records, and acts on nothing. The
+    // default, and it stays the default until an eval has scored the agent
+    // against real human decisions. Shipping an approval agent whose accuracy
+    // nobody has measured is not a feature.
+    AI_VERIFICATION_SHADOW_MODE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+
+    // Three rungs, because the price spread between them is ~50x and most
+    // submissions never need the top one. Pinned rather than floating, so a
+    // model change is a deploy and shows up in the verdict rows that record
+    // which model produced them.
+    //
+    // The asymmetry is the point: the cheapest model may wave a clean
+    // submission through, but only the most capable model may conclude that a
+    // user's proof is fake.
+    AI_VERIFICATION_MODEL_TRIAGE: z.string().default('gpt-5.6-luna'),
+    AI_VERIFICATION_MODEL_DEEP: z.string().default('gpt-5.6-sol'),
+    AI_VERIFICATION_MODEL_REJECT: z.string().default('gpt-6-astra'),
+    // Used when AI_VERIFICATION_PROVIDER=anthropic.
+    AI_VERIFICATION_MODEL_TRIAGE_ANTHROPIC: z.string().default('claude-haiku-4-5'),
+    AI_VERIFICATION_MODEL_DEEP_ANTHROPIC: z.string().default('claude-sonnet-5'),
+    AI_VERIFICATION_MODEL_REJECT_ANTHROPIC: z.string().default('claude-opus-5'),
     AI_VERIFICATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
-    // Below this, a 'pass' or 'fail' is downgraded to 'unclear' and sent to a
-    // human. The threshold is the whole safety margin of an advisory verdict,
-    // so it is tunable without a deploy of new code.
-    AI_VERIFICATION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.75),
+    // Confidence floors, separately tunable because the two errors are not
+    // symmetric. A false approval costs leaderboard integrity and is
+    // recoverable through takedown and XP rollback; a false rejection tells an
+    // honest player they cheated, which is a churn event. So the reject bar
+    // sits higher, and both are set from the eval rather than by taste.
+    AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.85),
+    AI_VERIFICATION_REJECT_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.95),
+    // Perceptual-hash distance at or below which two images are the same
+    // picture. Exposed so the eval harness can sweep it.
+    AI_VERIFICATION_NEAR_DUPLICATE_DISTANCE: z.coerce.number().int().min(0).max(32).default(10),
     // Vision input cap per image. The Messages API rejects oversized images,
     // and base64 inflates bytes by ~4/3, so this sits well under the request
     // ceiling rather than at it.
@@ -246,12 +278,27 @@ const environmentSchema = z
     // Fail at boot rather than on the first submission. A deployment that
     // claims to verify proof and silently cannot is worse than one that
     // refuses to start.
-    if (environment.AI_VERIFICATION_ENABLED && !environment.ANTHROPIC_API_KEY) {
-      context.addIssue({
-        code: 'custom',
-        path: ['ANTHROPIC_API_KEY'],
-        message: 'ANTHROPIC_API_KEY is required when AI_VERIFICATION_ENABLED is true',
-      });
+    if (environment.AI_VERIFICATION_ENABLED) {
+      const keyForProvider = environment.AI_VERIFICATION_PROVIDER === 'openai'
+        ? 'OPENAI_API_KEY' as const
+        : 'ANTHROPIC_API_KEY' as const;
+      if (!environment[keyForProvider]) {
+        context.addIssue({
+          code: 'custom',
+          path: [keyForProvider],
+          message: `${keyForProvider} is required when AI_VERIFICATION_ENABLED is true and the provider is ${environment.AI_VERIFICATION_PROVIDER}`,
+        });
+      }
+      // A reject bar at or below the approve bar means the more damaging
+      // decision is the easier one to reach. Refuse to boot rather than
+      // discover it from a user's appeal.
+      if (environment.AI_VERIFICATION_REJECT_MIN_CONFIDENCE < environment.AI_VERIFICATION_APPROVE_MIN_CONFIDENCE) {
+        context.addIssue({
+          code: 'custom',
+          path: ['AI_VERIFICATION_REJECT_MIN_CONFIDENCE'],
+          message: 'AI_VERIFICATION_REJECT_MIN_CONFIDENCE must be >= AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: rejecting a user is the more costly error and must not be the easier one to reach',
+        });
+      }
     }
   });
 

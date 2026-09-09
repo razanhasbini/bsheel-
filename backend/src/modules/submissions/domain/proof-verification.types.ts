@@ -19,6 +19,18 @@ export interface LocationSignals {
   readonly geofenceVerified?: boolean;
 }
 
+/// Which rung of the cascade a call is on.
+///
+/// The rungs differ by model, and the models differ ~50x in price, so most
+/// submissions must never reach the top one. The asymmetry is deliberate:
+/// `triage` may clear a clean submission, but only `reject_review` may
+/// conclude that a user's proof is fake.
+export type ProofTier = 'triage' | 'deep' | 'reject_review';
+
+/// What the analysis is allowed to conclude about a quest, from the
+/// verification contract (migration 0026).
+export type Verifiability = 'content' | 'provenance_only' | 'none';
+
 /// What the agent is asked to judge: the quest as specified, and the proof as
 /// submitted. Deliberately not the submission row — the analyzer has no
 /// business knowing about review state, XP or visibility.
@@ -26,6 +38,14 @@ export interface ProofAnalysisRequest {
   readonly questTitle: string;
   readonly questDescription: string;
   readonly questCategory: string;
+  /// What a passing photograph looks like for this quest, authored by an
+  /// admin. This is what stops the model being asked whether an image proves
+  /// something no image could.
+  readonly evidenceRubric: string;
+  readonly verifiability: Verifiability;
+  /// Deterministic provenance findings, already measured. Given to the model
+  /// as context so its rationale can account for them, never as a verdict.
+  readonly forensicNotes: readonly string[];
   readonly caption: string | null;
   readonly images: readonly ProofImage[];
   /// Media the analyzer cannot inspect — today, video. Named so the verdict
@@ -41,6 +61,7 @@ export interface ProofImage {
 }
 
 export interface ProofAnalysis {
+  readonly tier: ProofTier;
   readonly verdict: ProofVerdict;
   /// Null when the model declines to commit to a number, which is itself a
   /// reason to prefer a human.
@@ -50,6 +71,20 @@ export interface ProofAnalysis {
   readonly model: string;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+}
+
+/// One vision provider, behind one interface.
+///
+/// The pipeline never names a provider. That is what lets the eval score
+/// OpenAI and Anthropic over the same labelled history and pick per category
+/// on measured accuracy rather than on taste — and it is why the provider
+/// choice is a single config value rather than a rewrite.
+export interface ProofAnalyzer {
+  readonly enabled: boolean;
+  /// Which provider this is, recorded on the verdict so the eval can group by
+  /// it.
+  readonly provider: 'openai' | 'anthropic';
+  analyze(request: ProofAnalysisRequest, tier: ProofTier): Promise<ProofAnalysis>;
 }
 
 /// Media types the Messages API accepts as image input. Anything else is

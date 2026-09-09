@@ -7,6 +7,7 @@ import {
 
 function analysis(overrides: Partial<ProofAnalysis> = {}): ProofAnalysis {
   return {
+    tier: 'deep',
     verdict: 'pass',
     confidence: 0.9,
     rationale: 'The photo shows the described activity.',
