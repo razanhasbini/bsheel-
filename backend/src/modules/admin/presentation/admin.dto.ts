@@ -7,6 +7,20 @@ export class AdminListQueryDto {
   @IsOptional() @Transform(({ value }) => typeof value === 'string' ? value.trim() : value) @IsString() @MaxLength(120) q?: string;
 }
 
+/**
+ * The XP reconciliation audit, which reads a whole page at a time.
+ *
+ * Separate from AdminListQueryDto because its ceiling differs: the repository
+ * clamps this query to 500 and the dashboard asks for 500, but the shared DTO
+ * capped it at 200 — so every load of the XP page returned 400 and the page
+ * never rendered. Raising the shared cap would have loosened /admin/users too,
+ * hence its own type.
+ */
+export class XpAuditQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(500) limit = 50;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
+}
+
 export class ReportsQueryDto extends AdminListQueryDto {
   @IsOptional() @IsIn(['pending', 'reviewed', 'dismissed', 'actioned', 'all']) status = 'pending';
 }

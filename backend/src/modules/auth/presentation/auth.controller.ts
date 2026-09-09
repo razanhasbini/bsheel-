@@ -53,8 +53,8 @@ export class AuthController {
   @HttpCode(200)
   @Post('password')
   @ApiOperation({ summary: 'Change the signed-in user password' })
-  updatePassword(@CurrentUser() user: AuthUser, @Body() body: UpdatePasswordDto) {
-    return this.service.updatePassword(user.id, body.newPassword);
+  updatePassword(@CurrentUser() user: AuthUser, @Body() body: UpdatePasswordDto, @Req() request: Request) {
+    return this.service.updatePassword(user.id, body.currentPassword, body.newPassword, request);
   }
 
   @Public()

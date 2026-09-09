@@ -170,6 +170,72 @@ export class MediaRepository {
     return object;
   }
 
+  /**
+   * Narrows a batch of object keys down to the ones this caller may download.
+   *
+   * `POST /media/sign` used to presign any key whose *shape* matched a regex,
+   * with no caller identity reaching the service at all — so any signed-in
+   * user could fetch any submission or avatar object whose key they learned,
+   * including moderator-rejected proof. That was not theoretical: the feed's
+   * collab roster handed those keys out, which made it a working disclosure
+   * chain from `GET /feed` to the bytes.
+   *
+   * A key is allowed when the caller owns the object, when it is somebody's
+   * current avatar (avatars are drawn on the feed, leaderboard and profiles,
+   * so they are public to signed-in users by design), when it belongs to a
+   * submission the caller may already read, or when the caller moderates.
+   *
+   * Answered in one round trip because the sign endpoint is called with up to
+   * 100 keys at a time.
+   */
+  async authorizeKeys(
+    viewerId: string,
+    keys: readonly string[],
+    isModerator: boolean,
+  ): Promise<Set<string>> {
+    if (keys.length === 0) return new Set();
+    const result = await this.database.query<{ object_key: string }>(
+      `SELECT candidate.key AS object_key
+       FROM unnest($1::text[]) AS candidate(key)
+       WHERE EXISTS (
+               SELECT 1 FROM media_objects owned
+               WHERE owned.object_key = candidate.key AND owned.user_id = $2
+             )
+          OR EXISTS (
+               SELECT 1 FROM profiles avatar WHERE avatar.avatar_url = candidate.key
+             )
+          OR EXISTS (
+               SELECT 1
+               FROM submissions s
+               WHERE (
+                       s.media_url = candidate.key
+                       OR EXISTS (
+                            SELECT 1
+                            FROM media_submission_links link
+                            JOIN media_objects linked ON linked.id = link.media_object_id
+                            WHERE link.submission_id = s.id AND linked.object_key = candidate.key
+                          )
+                     )
+                 AND (
+                       s.user_id = $2
+                       OR $3
+                       OR (
+                            s.status = 'approved'
+                            AND s.visibility = 'visible'
+                            AND s.deleted_at IS NULL
+                            AND NOT EXISTS (
+                                  SELECT 1 FROM blocked_users b
+                                  WHERE (b.blocker_id = $2 AND b.blocked_id = s.user_id)
+                                     OR (b.blocker_id = s.user_id AND b.blocked_id = $2)
+                                )
+                          )
+                     )
+             )`,
+      [[...keys], viewerId, isModerator],
+    );
+    return new Set(result.rows.map((row) => row.object_key));
+  }
+
   async markReady(id: string, storedSize: number, etag?: string): Promise<MediaObjectRecord> {
     return this.database.transaction(async (transaction) => {
       const result = await transaction.query<MediaObjectRecord>(

@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Insert the Bsheel /api/v1 and /socket.io handles into a Caddyfile.
+
+Called by caddy-apply.sh. Kept separate so it can be unit-tested against
+sample Caddyfiles without touching a live server.
+
+Design rule: refuse rather than guess. This edits a config that serves a live
+production app, so any shape it does not fully understand is an error, not an
+opportunity to be clever.
+
+Exit codes:
+    0  inserted, or already present (idempotent)
+    1  refused — the message says why, and nothing was written
+"""
+
+import os
+import re
+import sys
+
+
+def find_site_block(src, host="api.bsheel.app"):
+    """Return (open_brace_index, close_brace_index) for the host's site block.
+
+    Walks the file tracking brace depth rather than matching a regex against
+    the whole address list. Caddy separates site addresses with commas AND/OR
+    whitespace (`api.bsheel.app, www.api.bsheel.app {`), and a regex built
+    around whitespace silently missed the comma form — which would have made
+    this refuse to edit a perfectly ordinary Caddyfile.
+    """
+    depth = 0
+    offset = 0
+    for line in src.splitlines(keepends=True):
+        stripped = line.strip()
+        if depth == 0 and "{" in line and not stripped.startswith("#"):
+            raw = re.split(r"[,\s]+", line.split("{", 1)[0].strip())
+            # Site addresses may carry a scheme and/or a port
+            # (`https://api.bsheel.app:443`). Normalise both away before
+            # comparing, or a valid config gets refused for no reason.
+            addresses = [
+                re.sub(r":\d+$", "", a.split("://", 1)[-1]) for a in raw if a
+            ]
+            if host in addresses:
+                open_idx = offset + line.index("{")
+                inner = 0
+                for i in range(open_idx, len(src)):
+                    if src[i] == "{":
+                        inner += 1
+                    elif src[i] == "}":
+                        inner -= 1
+                        if inner == 0:
+                            return open_idx, i
+                return None, None
+        if not stripped.startswith("#"):
+            depth += line.count("{") - line.count("}")
+        offset += len(line)
+    return None, None
+
+
+def bare_terminal_directive(body):
+    """Find a top-level reverse_proxy/respond/file_server in the block body.
+
+    Such a directive matches every path, so handles added beside it would
+    never be reached. Rewriting a live config to fix that is a human's call.
+    """
+    depth = 0
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if depth == 0 and re.match(r"^(reverse_proxy|respond|file_server)\b", stripped):
+            return stripped.split()[0]
+        depth += stripped.count("{") - stripped.count("}")
+    return None
+
+
+def build_block(port, indent="\t"):
+    return (
+        f"\n{indent}# --- Bsheel API (added by deploy/caddy-apply.sh) ---\n"
+        f"{indent}handle /api/v1/* {{\n"
+        f"{indent}\treverse_proxy 127.0.0.1:{port}\n"
+        f"{indent}}}\n"
+        f"{indent}# Socket.IO wire path. The gateway's /realtime namespace is\n"
+        f"{indent}# negotiated inside the connection, so it never appears in the\n"
+        f"{indent}# URL and cannot collide with Supabase's /realtime/v1.\n"
+        f"{indent}# Caddy upgrades WebSockets automatically.\n"
+        f"{indent}handle /socket.io/* {{\n"
+        f"{indent}\treverse_proxy 127.0.0.1:{port}\n"
+        f"{indent}}}\n"
+        f"{indent}# --- end Bsheel API ---\n"
+    )
+
+
+def insert(src, port):
+    """Return the edited config, or raise ValueError with a reason."""
+    if "/api/v1/*" in src and "/socket.io/*" in src:
+        return None  # already present
+
+    open_idx, close_idx = find_site_block(src)
+    if open_idx is None:
+        raise ValueError("no api.bsheel.app site block found in this Caddyfile")
+
+    body = src[open_idx + 1 : close_idx]
+
+    bare = bare_terminal_directive(body)
+    if bare:
+        raise ValueError(
+            f"the api.bsheel.app block has a bare top-level '{bare}'.\n"
+            "       It matches every path, so the handles below would never be\n"
+            "       reached. Wrap the existing directive in `handle { ... }`\n"
+            "       first, then re-run. Refusing to rewrite a live config."
+        )
+
+    lines = [ln for ln in body.splitlines() if ln.strip()]
+    indent = re.match(r"[ \t]*", lines[0]).group(0) if lines else "\t"
+    return src[: open_idx + 1] + build_block(port, indent or "\t") + src[open_idx + 1 :]
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("usage: caddy_insert.py <path-to-Caddyfile>")
+    path = sys.argv[1]
+    port = os.environ.get("API_PORT", "3010")
+
+    with open(path) as handle:
+        src = handle.read()
+
+    try:
+        result = insert(src, port)
+    except ValueError as error:
+        print(f"  REFUSED: {error}")
+        return 1
+
+    if result is None:
+        print("  routes already present — nothing to do (idempotent)")
+        return 0
+
+    with open(path, "w") as handle:
+        handle.write(result)
+    print(f"  inserted /api/v1 and /socket.io handles -> 127.0.0.1:{port}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

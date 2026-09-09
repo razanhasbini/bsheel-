@@ -134,10 +134,23 @@ export class SubmissionsRepository {
                   'avatar_url', member_profile.avatar_url,
                   'bio', member_profile.bio,
                   'submission_id', member_submission.id,
-                  'media_url', member_submission.media_url,
+                  -- Withheld unless the viewer owns it or it is publicly
+                  -- visible. Same leak as the feed's roster: this join had no
+                  -- status/visibility/deleted_at predicate, so pending and
+                  -- rejected proof was served to anyone who could read the
+                  -- parent submission.
+                  'media_url', CASE WHEN member_submission.user_id = $2
+                                      OR (member_submission.status = 'approved'
+                                          AND member_submission.visibility = 'visible'
+                                          AND member_submission.deleted_at IS NULL)
+                                 THEN member_submission.media_url END,
                   'media_type', member_submission.media_type::text,
                   'submission_status', member_submission.status::text,
-                  'caption', member_submission.caption,
+                  'caption', CASE WHEN member_submission.user_id = $2
+                                    OR (member_submission.status = 'approved'
+                                        AND member_submission.visibility = 'visible'
+                                        AND member_submission.deleted_at IS NULL)
+                               THEN member_submission.caption END,
                   'show_in_feed', member_submission.show_in_feed,
                   'vote_count', COALESCE((SELECT count(*) FROM collab_votes vote
                                            WHERE vote.submission_id = member_submission.id), 0),
@@ -231,7 +244,11 @@ export class SubmissionsRepository {
          JOIN profiles p ON p.id = s.user_id
          JOIN user_quests uq ON uq.id = s.user_quest_id
          JOIN quests q ON q.id = uq.quest_id
+         -- Deleted proof is not reviewable (lockForReview refuses it), so it
+         -- must not sit in the queue either — a moderator working the rail
+         -- would otherwise open it, read it, and get a 409 on decide.
          WHERE s.status = 'pending'
+           AND s.visibility <> 'deleted' AND s.deleted_at IS NULL
          ORDER BY s.submitted_at ASC, s.id
          LIMIT $1 OFFSET $2
        ),
@@ -554,6 +571,19 @@ export class SubmissionsRepository {
     if (!submission) throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Submission not found' });
     if (submission.status !== 'pending') {
       throw new ConflictException({ code: 'SUBMISSION_ALREADY_REVIEWED', message: `Submission is no longer pending (current: ${submission.status})` });
+    }
+    // Withdrawn or taken-down proof cannot be reviewed.
+    //
+    // Only `status` was checked here, so a pending submission that the author
+    // had deleted — or that a moderator had already removed — could still be
+    // approved. The XP was then unrecoverable, because `transitionVisibility`
+    // short-circuits when `visibility` is already 'deleted', so the rollback
+    // that should claw it back is a no-op. The result was permanent XP and a
+    // completed-quest credit for a post that no longer exists.
+    //
+    // The appeal path has always guarded this; approve and reject never did.
+    if (submission.visibility === 'deleted' || submission.deleted_at) {
+      throw new ConflictException({ code: 'DELETED_SUBMISSION', message: 'This submission was deleted and can no longer be reviewed' });
     }
     return submission;
   }

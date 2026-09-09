@@ -7,7 +7,7 @@ export class SocialService {
   getVote(userId: string, postId: string) { return this.repository.getVote(userId, postId); }
   vote(userId: string, postId: string, type: 'upvote' | 'downvote') { return this.repository.vote(userId, postId, type); }
   removeVote(userId: string, postId: string) { return this.repository.removeVote(userId, postId); }
-  comments(postId: string, limit: number, offset: number) { return this.repository.listComments(postId, limit, offset); }
+  comments(viewerId: string, postId: string, limit: number, offset: number) { return this.repository.listComments(viewerId, postId, limit, offset); }
   addComment(userId: string, postId: string, body: string, parentId?: string) { return this.repository.addComment(userId, postId, body, parentId); }
   deleteComment(userId: string, role: string, id: string) { return this.repository.deleteComment(userId, role, id); }
   isFollowing(userId: string, targetId: string) { return this.repository.isFollowing(userId, targetId); }

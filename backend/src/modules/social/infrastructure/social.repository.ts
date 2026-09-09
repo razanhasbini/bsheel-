@@ -7,6 +7,38 @@ import { insertNotificationBatch, type NotificationInsert } from '../../notifica
 export class SocialRepository {
   constructor(private readonly database: DatabaseService) {}
 
+  /**
+   * Refuses an interaction when either party has blocked the other.
+   *
+   * Blocking used to be enforced in exactly two places — `follow` and the feed
+   * query — so a blocked account could still vote on, comment on and
+   * @-mention the person who blocked them, and the notification arrived in
+   * that person's inbox with the blocked user's name on it. That is precisely
+   * the harassment vector blocking exists to close, so the check belongs on
+   * every write path, not on the ones somebody remembered.
+   *
+   * Runs inside the caller's transaction so the check and the write cannot be
+   * separated by a concurrent block.
+   */
+  private async assertNotBlocked(
+    viewerId: string,
+    otherId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<void> {
+    if (viewerId === otherId) return;
+    const blocked = await transaction.query(
+      `SELECT 1 FROM blocked_users
+       WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
+      [viewerId, otherId],
+    );
+    if (blocked.rowCount) {
+      throw new ForbiddenException({
+        code: 'INTERACTION_BLOCKED',
+        message: 'This interaction is not allowed',
+      });
+    }
+  }
+
   async getVote(userId: string, submissionId: string) {
     return (await this.database.query(
       'SELECT id, submission_id, user_id, type::text, created_at FROM reactions WHERE submission_id = $1 AND user_id = $2',
@@ -24,6 +56,7 @@ export class SocialRepository {
       const submission = submissionResult.rows[0];
       if (!submission) throw new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' });
       if (submission.user_id === userId) throw new ForbiddenException({ code: 'SELF_REACTION', message: 'You cannot react to your own submission' });
+      await this.assertNotBlocked(userId, submission.user_id, transaction);
       const result = await transaction.query(
         `INSERT INTO reactions (submission_id, user_id, type) VALUES ($1, $2, $3)
          ON CONFLICT (submission_id, user_id) DO UPDATE SET type = EXCLUDED.type
@@ -56,13 +89,28 @@ export class SocialRepository {
     });
   }
 
-  async listComments(submissionId: string, limit: number, offset: number) {
+  /**
+   * Takes the viewer, because a comment list is a per-viewer view.
+   *
+   * Two things were missing here that every sibling query already had: a
+   * block predicate (so a blocked account's text stayed fully readable by the
+   * person who blocked them) and a guard on the parent submission (so
+   * discussion on a moderator-removed post was still served by direct id,
+   * even though `POST`ing to the same path correctly 404s).
+   */
+  async listComments(viewerId: string, submissionId: string, limit: number, offset: number) {
     return (await this.database.query(
       `SELECT c.id, c.submission_id, c.user_id, c.body, c.created_at, c.parent_id,
               p.username::text, p.display_name, p.avatar_url
        FROM comments c JOIN profiles p ON p.id = c.user_id
-       WHERE c.submission_id = $1 ORDER BY c.created_at, c.id LIMIT $2 OFFSET $3`,
-      [submissionId, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)],
+       JOIN submissions s ON s.id = c.submission_id
+       WHERE c.submission_id = $1
+         AND s.status = 'approved' AND s.visibility = 'visible' AND s.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM blocked_users b
+                         WHERE (b.blocker_id = $4 AND b.blocked_id = c.user_id)
+                            OR (b.blocker_id = c.user_id AND b.blocked_id = $4))
+       ORDER BY c.created_at, c.id LIMIT $2 OFFSET $3`,
+      [submissionId, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0), viewerId],
     )).rows;
   }
 
@@ -75,6 +123,7 @@ export class SocialRepository {
         [submissionId],
       );
       if (!submission.rows[0]) throw new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' });
+      await this.assertNotBlocked(userId, submission.rows[0].user_id, transaction);
       if (parentId) {
         const parent = await transaction.query('SELECT 1 FROM comments WHERE id = $1 AND submission_id = $2', [parentId, submissionId]);
         if (!parent.rowCount) throw new ConflictException({ code: 'INVALID_COMMENT_PARENT', message: 'Reply parent belongs to another post or does not exist' });
@@ -309,6 +358,12 @@ export class SocialRepository {
        JOIN profiles p ON p.id = s.user_id
        WHERE sp.user_id = $1 AND s.status = 'approved'
          AND s.visibility = 'visible' AND s.deleted_at IS NULL
+         -- Saved posts survived a block: a post you saved before blocking its
+         -- author stayed in your list. Status/visibility were filtered here
+         -- already; the block was the one predicate missing.
+         AND NOT EXISTS (SELECT 1 FROM blocked_users b
+                         WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
+                            OR (b.blocker_id = s.user_id AND b.blocked_id = $1))
        ORDER BY sp.created_at DESC, sp.id DESC LIMIT $2 OFFSET $3`,
       [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)],
     )).rows;
@@ -320,6 +375,35 @@ export class SocialRepository {
     const total = await transaction.query<{ count: number }>('SELECT count(*)::integer AS count FROM reactions WHERE submission_id = $1', [submissionId]);
     const milestone = copy.milestone(total.rows[0].count);
     if (milestone) await this.notification(ownerId, ...milestone, 'reaction_milestone', submissionId, null, transaction);
+  }
+
+  /**
+   * Drops recipients on either side of a block.
+   *
+   * Applied at the fan-out rather than at each `add(...)` so a future
+   * notification type cannot forget it. `vote` and `addComment` already refuse
+   * a blocked actor outright; this is the second line for the recipients who
+   * are neither party to that check — a thread participant or an @-mentioned
+   * user who blocked the commenter. Without it, a mention delivered the
+   * blocked user's display name and comment excerpt straight to the blocker.
+   */
+  private async withoutBlockedRecipients(
+    actorId: string,
+    notifications: readonly NotificationInsert[],
+    transaction: DatabaseTransaction,
+  ): Promise<NotificationInsert[]> {
+    if (notifications.length === 0) return [];
+    const recipients = [...new Set(notifications.map((notification) => notification.userId))];
+    const blocked = await transaction.query<{ other_id: string }>(
+      `SELECT CASE WHEN blocker_id = $1 THEN blocked_id ELSE blocker_id END AS other_id
+       FROM blocked_users
+       WHERE (blocker_id = $1 AND blocked_id = ANY($2::uuid[]))
+          OR (blocked_id = $1 AND blocker_id = ANY($2::uuid[]))`,
+      [actorId, recipients],
+    );
+    if (!blocked.rowCount) return [...notifications];
+    const excluded = new Set(blocked.rows.map((row) => row.other_id));
+    return notifications.filter((notification) => !excluded.has(notification.userId));
   }
 
   private async commentNotifications(actorId: string, submissionId: string, ownerId: string, questTitle: string, body: string, transaction: DatabaseTransaction): Promise<void> {
@@ -346,7 +430,10 @@ export class SocialRepository {
       if (mentionedId === actorId) continue;
       add(mentionedId, 'mention', copy.mention(actor, questTitle, body));
     }
-    await insertNotificationBatch(transaction, notifications);
+    await insertNotificationBatch(
+      transaction,
+      await this.withoutBlockedRecipients(actorId, notifications, transaction),
+    );
   }
 
   private async actorName(id: string, transaction: DatabaseTransaction): Promise<string> {

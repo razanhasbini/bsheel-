@@ -130,3 +130,10 @@ bsheel-app-env.local.json
 # Python bytecode from scripts/ (appstore.py, migrate helpers)
 __pycache__/
 *.pyc
+
+# Production secrets — never commit
+deploy/.env.prod
+deploy/.env.prod.bak
+# ...but the template must ship: `.env.*` above would otherwise
+# swallow it, and `!.env.example` does not cover `.env.prod.example`.
+!deploy/.env.prod.example

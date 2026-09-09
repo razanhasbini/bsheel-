@@ -1,0 +1,113 @@
+# Caddy routes for Bsheel. ADD these to the existing config — do not replace it.
+#
+# The live Supabase stack answers on api.bsheel.app under /auth/v1, /rest/v1,
+# /storage/v1, /functions/v1 and /realtime/v1. Bsheel uses /api/v1 (which is
+# currently an unused catch-all returning the string "Bsheel API") and
+# /socket.io (Socket.IO's wire path; the gateway's /realtime namespace is
+# negotiated inside the connection, so it never appears in the URL and cannot
+# collide with Supabase's /realtime/v1).
+#
+# Back up first:  cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$(date +%F)
+# Validate:       caddy validate --config /etc/caddy/Caddyfile
+# Apply:          caddy reload  --config /etc/caddy/Caddyfile   (zero downtime)
+
+# ---------------------------------------------------------------------------
+# 1. Inside the EXISTING api.bsheel.app site block, add these two handles.
+#
+# Caddy orders `handle` blocks by path specificity, so these win over a
+# catch-all in the same block regardless of where you paste them. If the
+# existing block uses a bare `reverse_proxy` rather than `handle`, wrap that
+# bare directive in `handle { ... }` first, or these will never be reached.
+# ---------------------------------------------------------------------------
+#
+#   api.bsheel.app {
+#       handle /api/v1/* {
+#           reverse_proxy 127.0.0.1:3010
+#       }
+#
+#       # Socket.IO. Caddy upgrades WebSockets automatically — no extra config.
+#       handle /socket.io/* {
+#           reverse_proxy 127.0.0.1:3010
+#       }
+#
+#       # ... every existing Supabase handle stays exactly as it is ...
+#   }
+#
+# If Caddy runs in a container, 127.0.0.1 is the CONTAINER's loopback, not the
+# host's. Use host.docker.internal:3010 (with an extra_hosts entry) or attach
+# Caddy to the bsheel_internal network and target api:3000 instead.
+
+# ---------------------------------------------------------------------------
+# 2. Media host — ONLY if using self-hosted MinIO (Option A in .env.prod).
+#    Skip this entirely when using Cloudflare R2.
+#
+#    Needs a DNS A record first:  media.bsheel.app -> 169.58.16.247
+#    Caddy provisions the TLS certificate on its own once DNS resolves.
+# ---------------------------------------------------------------------------
+media.bsheel.app {
+	# Media is private and delivered through presigned URLs. The signature
+	# covers the Host header, so it MUST arrive at MinIO unchanged as
+	# media.bsheel.app — rewriting it makes every signature fail to verify.
+	# Caddy v2 passes the incoming Host through by default; set explicitly
+	# so a future edit cannot silently break signing.
+	reverse_proxy 127.0.0.1:9000 {
+		header_up Host {host}
+	}
+
+	# Submissions are capped at 50MB by MEDIA_MAX_SUBMISSION_BYTES.
+	request_body {
+		max_size 60MB
+	}
+
+	encode gzip
+
+	log {
+		output file /var/log/caddy/media.bsheel.app.log
+	}
+}
+
+# ---------------------------------------------------------------------------
+# 3. Bsheel admin dashboard, inside the EXISTING admin.bsheel.app site block.
+#
+# quest-app's live admin panel is at `/` behind basic auth, and its
+# /reset-password and /bsheel-icon.png are in use. Bsheel's panel therefore
+# goes to /v2/ for the transition, so moderators keep the tool they have.
+# At cutover, move it to `/` and delete this block.
+#
+# The bundle must be built with a matching base href, or every asset 404s:
+#
+#   flutter build web --release \
+#     --base-href=/v2/ \
+#     --dart-define=API_URL=https://api.bsheel.app/api/v1
+#
+# CORS needs nothing extra: an Origin is scheme+host+port, so
+# CORS_ORIGINS=https://admin.bsheel.app already covers /v2.
+#
+# The try_files line is required, not optional. admin_web calls
+# usePathUrlStrategy(), so /v2/moderation is a real URL the browser will
+# request on reload — without the fallback it 404s instead of booting the app.
+# ---------------------------------------------------------------------------
+#
+#   admin.bsheel.app {
+#       handle /v2/* {
+#           root * /srv/bsheel-admin
+#           try_files {path} /v2/index.html
+#           file_server
+#           encode gzip
+#
+#           # An admin surface. Defence in depth is cheap here: the API
+#           # already enforces roles, but keep an outer gate too.
+#           # Generate the hash with:  caddy hash-password
+#           # basic_auth {
+#           #     bsheel $2a$14$REPLACE_WITH_HASH
+#           # }
+#       }
+#
+#       # ... existing quest-app handles stay as they are ...
+#   }
+#
+# NOTE on the well-known files: both apps share the bundle id
+# com.questapp.mobileApp and one Team ID, so the existing
+# /.well-known/assetlinks.json and /.well-known/apple-app-site-association
+# already cover Bsheel. They need no change. Verify rather than assume:
+#   curl -s https://admin.bsheel.app/.well-known/assetlinks.json

@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "REPLACE_WITH_TEAM_ID.com.questapp.mobileApp",
+        "appID": "JMDKX9TYX6.com.questapp.mobileApp",
         "paths": [
           "/post/*",
           "/user/*",

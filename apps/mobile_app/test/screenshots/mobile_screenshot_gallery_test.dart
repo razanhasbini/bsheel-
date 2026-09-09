@@ -774,7 +774,7 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> resendSignupConfirmation(String email) async {}
 
   @override
-  Future<AuthUser> updatePassword(String newPassword) {
+  Future<AuthUser> updatePassword(String currentPassword, String newPassword) {
     throw UnimplementedError();
   }
 

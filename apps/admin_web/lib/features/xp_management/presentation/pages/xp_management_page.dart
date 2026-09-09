@@ -186,14 +186,28 @@ class _AuditBody extends ConsumerWidget {
             ],
           ),
         const SizedBox(height: 14),
-        Align(
+        // Bulk reconcile is deliberately unavailable.
+        //
+        // "Drift" means profiles.xp disagrees with the submission ledger — but
+        // a manual grant through the adjuster below writes profiles.xp without
+        // a ledger row, so every hand-adjusted player reads as drifted
+        // forever. A bulk rewrite would silently zero all of them, with no
+        // undo. Reconcile one profile at a time, after checking why it drifted.
+        //
+        // Re-enable once manual adjustments record a ledger entry.
+        const Align(
           alignment: Alignment.centerLeft,
           child: BsheelButton.primary(
             label: 'Reconcile all',
-            onPressed: drifted.isEmpty
-                ? null
-                : () => _confirmAll(context, ref, drifted),
+            onPressed: null,
           ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Bulk reconcile is disabled: manual XP grants leave no ledger entry, '
+          'so they read as drift and would be zeroed. Reconcile individually '
+          'after confirming the cause.',
+          style: BsheelType.bodySm,
         ),
         const SizedBox(height: 26),
         const BsheelLabel('Manual adjustment'),
@@ -211,13 +225,19 @@ class _AuditBody extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => BsheelDialog(
+        // Named per-user because this is the only reconcile path left, and the
+        // operator needs to know a manual grant is an expected cause of drift
+        // rather than a bug to "fix".
         title: 'Reconcile ${user.label}?',
         content: Text(
           'Rewrites this profile to ${_grouped(user.expectedXp)} XP, level '
           '${user.expectedLevel} and ${user.expectedQuests} completed '
-          'quests — the totals its approved submissions imply. The change '
-          'lands in the admin audit log with your name on it, and there is '
-          'no undo.',
+          'quests — the totals recorded on its awarded submissions. The '
+          'change lands in the admin audit log with your name on it, and '
+          'there is no undo.\n\n'
+          'Check the cause first: a manual XP grant writes no ledger entry, '
+          'so a hand-adjusted player shows as drifted and reconciling would '
+          'remove the grant.',
           style: BsheelType.bodySm,
         ),
         actions: [
@@ -237,38 +257,6 @@ class _AuditBody extends ConsumerWidget {
     if (ok == true) await _fixUser(ref, user);
   }
 
-  Future<void> _confirmAll(
-    BuildContext context,
-    WidgetRef ref,
-    List<_UserXpAudit> drifted,
-  ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => BsheelDialog(
-        title: 'Reconcile ${drifted.length} profiles?',
-        content: const Text(
-          'Each drifted profile is rewritten to the total its approved '
-          'submissions imply, one audited transaction at a time. Balances '
-          'go down as well as up, players see the new number immediately, '
-          'and there is no undo.',
-          style: BsheelType.bodySm,
-        ),
-        actions: [
-          BsheelButton.ghost(
-            label: 'Cancel',
-            small: true,
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          BsheelButton.coral(
-            label: 'Reconcile all',
-            small: true,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await _fixAll(ref, drifted);
-  }
 
   // SEC-009: route through admin_set_user_xp so each fix lands in
   // admin_audit_log with the actor + before/after diff. The previous
@@ -285,20 +273,6 @@ class _AuditBody extends ConsumerWidget {
     ref.invalidate(_xpAuditProvider);
   }
 
-  Future<void> _fixAll(WidgetRef ref, List<_UserXpAudit> users) async {
-    // Sequential on purpose: each fix is its own audited transaction, and
-    // a bulk correction should stay legible in the audit log.
-    for (final u in users) {
-      await AppBackend.repositories.admin.setXp(
-        userId: u.userId,
-        xp: u.expectedXp,
-        level: u.expectedLevel,
-        questsCompleted: u.expectedQuests,
-        reason: 'XP audit auto-fix (bulk)',
-      );
-    }
-    ref.invalidate(_xpAuditProvider);
-  }
 }
 
 // ── Inline code chip ─────────────────────────────────────────────────────────

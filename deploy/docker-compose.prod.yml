@@ -1,0 +1,189 @@
+# Bsheel API — production overlay for the Contabo VPS.
+#
+# This box ALREADY RUNS the live self-hosted Supabase stack that serves
+# quest-app in the App Store. Everything here is deliberately additive:
+#
+#   * its own compose project name, network and volumes, so nothing can
+#     collide with an existing stack,
+#   * no published Postgres or Redis ports (the local docker-compose.yml
+#     publishes both — on a public box that would expose them),
+#   * no nginx/proxy service, because Caddy already owns :80 and :443,
+#   * the API bound to 127.0.0.1 only, reached through Caddy,
+#   * memory and CPU caps, so a runaway Bsheel process cannot OOM the
+#     live Supabase stack sharing this kernel.
+#
+# IMPORTANT: every command needs --env-file .env.prod
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+#
+# `env_file:` below supplies variables to the CONTAINERS. It does NOT supply
+# ${...} interpolation for this file — compose only interpolates from the shell
+# and from a file literally named `.env`. Without the flag every ${VAR:?} here
+# fails with "required variable ... is missing a value".
+#
+# Never point DATABASE_URL at the Supabase database. Bsheel's migrations
+# are forward-only and checksummed against their own ledger; they would
+# collide with Supabase's 146-file history. preflight.sh asserts this.
+
+name: bsheel
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    # No ports. Reachable only from this compose network.
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?missing — pass --env-file .env.prod}
+      POSTGRES_USER: ${POSTGRES_USER:?missing — pass --env-file .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing — pass --env-file .env.prod}
+      # Postgres only applies these on first init of an empty volume.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    cpus: ${POSTGRES_CPUS:-1.0}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    # noeviction is required: BullMQ job state must never be evicted under
+    # memory pressure, or a queued notification silently disappears.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis_data:/data
+    networks: [internal]
+    mem_limit: ${REDIS_MEM_LIMIT:-384m}
+    cpus: ${REDIS_CPUS:-0.5}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  # One-shot. The API waits for this to complete SUCCESSFULLY, so a failed
+  # migration stops the release instead of running new code on an old schema.
+  migrate:
+    build:
+      context: ../backend
+    command: ["node", "scripts/migrate.mjs"]
+    env_file: .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    restart: "no"
+
+  api:
+    build:
+      context: ../backend
+    env_file: .env.prod
+    environment:
+      PROCESS_ROLE: api
+    # 127.0.0.1 ONLY. Caddy terminates TLS and proxies to this.
+    ports:
+      - "127.0.0.1:${API_BIND_PORT:-3010}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Liveness, not readiness: readiness gates traffic, and a database blip
+      # must not restart every container at once.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health/live >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    networks: [internal]
+    mem_limit: ${API_MEM_LIMIT:-768m}
+    cpus: ${API_CPUS:-1.0}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  worker:
+    build:
+      context: ../backend
+    command: ["node", "--enable-source-maps", "dist/main.worker.js"]
+    env_file: .env.prod
+    environment:
+      APP_NAME: bsheel-worker
+      PROCESS_ROLE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: ${WORKER_MEM_LIMIT:-512m}
+    cpus: ${WORKER_CPUS:-0.5}
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  # OPTION A storage. Only starts with:  docker compose --profile storage up -d
+  # Bound to 127.0.0.1 — Caddy publishes it at media.bsheel.app over TLS.
+  # Media is private and served through signed URLs, so the public hostname
+  # must match R2_PUBLIC_BASE_URL or every signature fails to verify.
+  minio:
+    image: minio/minio:latest
+    profiles: ["storage"]
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?missing — pass --env-file .env.prod}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?missing — pass --env-file .env.prod}
+    ports:
+      - "127.0.0.1:${MINIO_BIND_PORT:-9000}:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - minio_data:/data
+    networks: [internal]
+    mem_limit: ${MINIO_MEM_LIMIT:-512m}
+    cpus: ${MINIO_CPUS:-0.5}
+    restart: unless-stopped
+
+  # One-shot bucket creation. Idempotent: `mb --ignore-existing`.
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["storage"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${R2_BUCKET} &&
+      echo bucket $${R2_BUCKET} ready"
+    env_file: .env.prod
+    networks: [internal]
+    restart: "no"
+
+networks:
+  internal:
+    name: bsheel_internal
+
+volumes:
+  postgres_data:
+    name: bsheel_postgres_data
+  redis_data:
+    name: bsheel_redis_data
+  minio_data:
+    name: bsheel_minio_data

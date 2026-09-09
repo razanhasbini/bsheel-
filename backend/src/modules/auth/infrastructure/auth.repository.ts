@@ -226,10 +226,19 @@ export class AuthRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Changes the password and ends every existing session.
+   *
+   * Bumps `token_version` and revokes all refresh sessions, exactly as
+   * `completePasswordRecovery` already does. This method used to do neither,
+   * so changing your password left every other signed-in device — including
+   * an intruder's — fully working. The caller is expected to mint a fresh
+   * token pair afterwards so the device doing the change stays signed in.
+   */
   async updatePassword(userId: string, passwordHash: string): Promise<AccountCredentials> {
     return this.database.transaction(async (transaction) => {
       const result = await transaction.query<AccountRow>(
-        `UPDATE users SET password_hash = $2, updated_at = now()
+        `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = now()
          WHERE id = $1 AND status = 'active'
          RETURNING id, email::text, password_hash, email_verified_at,
                    status, token_version, NULL::text AS role`,
@@ -241,6 +250,11 @@ export class AuthRepository {
         `INSERT INTO auth_identities (user_id, provider, provider_subject, provider_email)
          VALUES ($1, 'password', $2::text, $2::citext) ON CONFLICT DO NOTHING`,
         [userId, account.email],
+      );
+      // Every device is signed out. The caller re-issues a pair for this one.
+      await transaction.query(
+        'UPDATE refresh_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
+        [userId],
       );
       const admin = await transaction.query<{ role: 'moderator' | 'super_admin' }>(
         'SELECT role::text FROM admins WHERE user_id = $1',

@@ -151,19 +151,27 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthUser> updatePassword(String newPassword) async {
+  Future<AuthUser> updatePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     final data = apiObject(
       await _client.post(
         'auth/password',
-        body: {'newPassword': newPassword},
+        body: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
       ),
     );
-    _changes.add(
-      AuthState(
-        AuthChangeEvent.userUpdated,
-        _currentUser == null ? null : await _currentSession(),
-      ),
-    );
+
+    // The server bumped `token_version` and revoked every session — including
+    // this one — so the tokens we hold are already dead. It returns a fresh
+    // pair alongside the account, and storing it is what keeps this device
+    // signed in rather than dropping the user on the login screen right after
+    // they successfully changed their password.
+    await _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.userUpdated);
+
     return AuthUser(
       id: (data['id'] ?? _currentUser?.id ?? '').toString(),
       email: data['email']?.toString() ?? _currentUser?.email,
@@ -250,10 +258,6 @@ class ApiAuthRepository implements AuthRepository {
         user: _currentUser ?? _userFromAccessToken(tokens.accessToken),
       );
 
-  Future<AuthSession?> _currentSession() async {
-    final tokens = await _tokenStore.read();
-    return tokens == null || _currentUser == null ? null : _session(tokens);
-  }
 
   AuthUser _userFromAccessToken(String token) {
     final parts = token.split('.');

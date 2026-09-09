@@ -13,6 +13,26 @@ import { OAuthIdentityVerifier } from '../infrastructure/oauth-identity-verifier
 import type { LoginDto, OAuthSignInDto, RegisterDto } from '../presentation/auth.dto.js';
 import { assertPasswordPolicy } from '../domain/password-policy.js';
 
+/**
+ * Signals, from inside the refresh transaction, that the whole session family
+ * must be revoked — carrying the family id and the response the caller should
+ * receive. Revoking has to happen after the transaction unwinds, because the
+ * same conditions that require it also fail the request, and a failed request
+ * rolls the transaction back.
+ *
+ * Not exported: it never leaves `refresh()`, which translates it into its
+ * carried `response` before returning to the controller.
+ */
+class RefreshFamilyCompromised extends Error {
+  constructor(
+    readonly familyId: string,
+    readonly response: UnauthorizedException,
+  ) {
+    super('Refresh token family compromised');
+    this.name = 'RefreshFamilyCompromised';
+  }
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -79,12 +99,36 @@ export class AuthService {
     return this.issueTokenPair(account, request);
   }
 
-  async updatePassword(userId: string, newPassword: string) {
+  /**
+   * Changes the password after re-authenticating, then re-issues a session.
+   *
+   * The repository revokes every session and bumps `token_version`, so the
+   * caller's own access token dies with everyone else's — that is the point,
+   * since the whole reason to change a password is to evict somebody. A fresh
+   * pair is returned so the device performing the change is not signed out as
+   * a side effect of protecting itself.
+   */
+  async updatePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    request: Request,
+  ): Promise<TokenPair & { id: string; email: string }> {
     const identity = await this.repository.passwordIdentity(userId);
     if (!identity) throw new UnauthorizedException();
+
+    const credentials = await this.repository.findActiveAccountById(userId);
+    if (!credentials?.passwordHash || !(await verify(credentials.passwordHash, currentPassword))) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'The current password is incorrect',
+      });
+    }
+
     assertPasswordPolicy(newPassword, identity.username, identity.email);
     const account = await this.repository.updatePassword(userId, await hash(newPassword, { type: 2 }));
-    return { id: account.id, email: account.email };
+    const tokens = await this.issueTokenPair(account, request);
+    return { ...tokens, id: account.id, email: account.email };
   }
 
   async requestPasswordRecovery(email: string): Promise<void> {
@@ -147,27 +191,40 @@ export class AuthService {
       throw new UnauthorizedException({ code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid or expired' });
     }
 
-    return this.repository.transaction(async (transaction) => {
-      const session = await this.repository.findSessionForUpdate(payload.sid, transaction);
-      if (!session || session.revokedAt || session.expiresAt <= new Date()) {
-        throw new UnauthorizedException({ code: 'INVALID_REFRESH_SESSION', message: 'Refresh session is no longer valid' });
+    // The revocation must not run on the transaction handle: every branch that
+    // needs it also needs to fail the request, and DatabaseService.transaction
+    // issues ROLLBACK when its callback throws. Previously the revoke and the
+    // throw sat on adjacent lines, so the rollback discarded the revoke —
+    // token-theft detection reported REFRESH_TOKEN_REUSED and then left every
+    // session in the family valid, including the attacker's successor token.
+    // So: signal the intent from inside, act on it once the rollback is done.
+    try {
+      return await this.repository.transaction(async (transaction) => {
+        const session = await this.repository.findSessionForUpdate(payload.sid, transaction);
+        if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+          throw new UnauthorizedException({ code: 'INVALID_REFRESH_SESSION', message: 'Refresh session is no longer valid' });
+        }
+        if (session.rotatedAt) {
+          throw new RefreshFamilyCompromised(session.familyId, new UnauthorizedException({ code: 'REFRESH_TOKEN_REUSED', message: 'Refresh token reuse was detected; sign in again' }));
+        }
+        if (!(await verify(session.tokenHash, rawToken)) || session.tokenVersion !== payload.tokenVersion) {
+          throw new RefreshFamilyCompromised(session.familyId, new UnauthorizedException({ code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid' }));
+        }
+        const account = await this.repository.findActiveAccountById(session.userId);
+        if (!account || account.tokenVersion !== payload.tokenVersion) {
+          throw new RefreshFamilyCompromised(session.familyId, new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Session has been revoked' }));
+        }
+        await this.repository.markSessionRotated(session.id, transaction);
+        return this.issueTokenPair(account, request, session.familyId, transaction);
+      });
+    } catch (error) {
+      if (error instanceof RefreshFamilyCompromised) {
+        // No transaction argument, so this runs on the pool and commits.
+        await this.repository.revokeFamily(error.familyId);
+        throw error.response;
       }
-      if (session.rotatedAt) {
-        await this.repository.revokeFamily(session.familyId, transaction);
-        throw new UnauthorizedException({ code: 'REFRESH_TOKEN_REUSED', message: 'Refresh token reuse was detected; sign in again' });
-      }
-      if (!(await verify(session.tokenHash, rawToken)) || session.tokenVersion !== payload.tokenVersion) {
-        await this.repository.revokeFamily(session.familyId, transaction);
-        throw new UnauthorizedException({ code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token is invalid' });
-      }
-      const account = await this.repository.findActiveAccountById(session.userId);
-      if (!account || account.tokenVersion !== payload.tokenVersion) {
-        await this.repository.revokeFamily(session.familyId, transaction);
-        throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Session has been revoked' });
-      }
-      await this.repository.markSessionRotated(session.id, transaction);
-      return this.issueTokenPair(account, request, session.familyId, transaction);
-    });
+      throw error;
+    }
   }
 
   async logout(rawToken?: string): Promise<void> {

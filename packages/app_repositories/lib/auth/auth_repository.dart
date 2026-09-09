@@ -32,8 +32,13 @@ abstract class AuthRepository {
   /// Re-send the signup confirmation email for an unconfirmed account.
   Future<void> resendSignupConfirmation(String email);
 
-  /// Sets a new password for the active (or recovery) session.
-  Future<AuthUser> updatePassword(String newPassword);
+  /// Sets a new password for the active session, re-authenticating first.
+  ///
+  /// [currentPassword] is required by the API: without it, anyone holding an
+  /// access token could take the account over permanently. The server revokes
+  /// every session and returns a fresh token pair, which the implementation
+  /// stores so this device stays signed in.
+  Future<AuthUser> updatePassword(String currentPassword, String newPassword);
 
   Future<AuthResult> signInWithApple();
 

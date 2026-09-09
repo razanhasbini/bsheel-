@@ -6,8 +6,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Public } from '../../../common/auth/public.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import { AdminService } from '../application/admin.service.js';
-import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto,
-  UpdateUserProfileDto, SuggestionStatusDto, SuggestionsQueryDto, UserIdParam } from './admin.dto.js';
+import { AdminListQueryDto, ConfigKeyParam, CreateUserDto, ForceResetPasswordDto, InjectQuestDto, RemovePostDto, ReportsQueryDto, ReviewReportDto, SendNotificationDto, SetAccountStatusDto, SetAdminRoleDto, SetConfigDto, SetQotdDto, SetUserXpDto, SuggestionStatusDto, SuggestionsQueryDto, UpdateUserProfileDto, UserIdParam, XpAuditQueryDto } from './admin.dto.js';
 
 @ApiTags('configuration')
 @Controller({ path: 'config', version: '1' })
@@ -25,7 +24,7 @@ export class AdminController {
   @Get('me') me(@CurrentUser() user: AuthUser) { return this.service.me(user.id); }
   @Get('stats') stats() { return this.service.stats(); }
   @Roles('super_admin') @Get('xp-audit')
-  xpAudit(@Query() query: AdminListQueryDto) { return this.service.xpAudit(query.limit, query.offset); }
+  xpAudit(@Query() query: XpAuditQueryDto) { return this.service.xpAudit(query.limit, query.offset); }
   @Get('users') users(@Query() query: AdminListQueryDto) { return this.service.users(query.q, query.limit, query.offset); }
   @Throttle({ default: { limit: 10, ttl: 60_000 } }) @Post('users')
   createUser(@CurrentUser() user: AuthUser, @Body() body: CreateUserDto) {

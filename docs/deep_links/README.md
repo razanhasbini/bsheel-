@@ -27,7 +27,7 @@ Steps:
    the Flutter web build copies `web/` into `build/web`, so the Contabo
    server serving `admin.bsheel.app` picks it up on the next deploy.
 4. Verify: `curl https://admin.bsheel.app/.well-known/assetlinks.json`
-5. Test: `adb shell pm verify-app-links --re-verify com.questapp.mobileApp`
+5. Test: `adb shell pm verify-app-links --re-verify com.questapp.mobile_app`
 
 ## 2. iOS — `apple-app-site-association`
 

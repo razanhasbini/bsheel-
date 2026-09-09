@@ -84,12 +84,32 @@ export class MediaService {
     }
   }
 
-  async sign(rawUrls: readonly string[]) {
-    const entries = await Promise.all(rawUrls.map(async (raw) => {
-      const key = this.extractKey(raw);
-      return key ? [raw, await this.storage.presignDownload(key)] as const : null;
-    }));
-    return { urls: Object.fromEntries(entries.filter((entry) => entry !== null)) };
+  /**
+   * Presigns only the keys this caller is allowed to read.
+   *
+   * Unauthorised keys are omitted from the response rather than raising, which
+   * keeps a batch of 100 useful when one row has since been taken down, and
+   * avoids turning the endpoint into an existence oracle. Callers already
+   * handle a missing entry — that is what happens today for an unparseable
+   * key.
+   */
+  async sign(viewerId: string, isModerator: boolean, rawUrls: readonly string[]) {
+    const requested = rawUrls
+      .map((raw) => ({ raw, key: this.extractKey(raw) }))
+      .filter((entry): entry is { raw: string; key: string } => entry.key !== null);
+
+    const allowed = await this.repository.authorizeKeys(
+      viewerId,
+      [...new Set(requested.map((entry) => entry.key))],
+      isModerator,
+    );
+
+    const entries = await Promise.all(
+      requested
+        .filter((entry) => allowed.has(entry.key))
+        .map(async (entry) => [entry.raw, await this.storage.presignDownload(entry.key)] as const),
+    );
+    return { urls: Object.fromEntries(entries) };
   }
 
   async delete(userId: string, objectId: string): Promise<void> {

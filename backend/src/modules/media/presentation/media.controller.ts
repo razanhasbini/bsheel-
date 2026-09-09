@@ -23,8 +23,14 @@ export class MediaController {
     return this.service.complete(user.id, body.objectId);
   }
 
+  // Takes the caller: signing is an authorisation decision, not a URL
+  // transformation. Without the identity the service cannot check anything,
+  // which is how this endpoint came to sign any key for anyone.
   @Post('sign')
-  sign(@Body() body: SignMediaDto) { return this.service.sign(body.urls); }
+  sign(@CurrentUser() user: AuthUser, @Body() body: SignMediaDto) {
+    const isModerator = user.role === 'moderator' || user.role === 'super_admin';
+    return this.service.sign(user.id, isModerator, body.urls);
+  }
 
   @HttpCode(204)
   @Delete('objects')

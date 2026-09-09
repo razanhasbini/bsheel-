@@ -192,13 +192,25 @@ export class AdminUsersRepository extends AdminRepositoryBase {
                 coalesce(e.expected_quests, 0)::int AS expected_quests,
                 ((coalesce(e.expected_xp, 0) / 100) + 1)::int AS expected_level
          FROM profiles p
+         -- Expected XP comes from the LEDGER — the amount actually awarded and
+         -- recorded on each submission — not from the quest catalogue.
+         --
+         -- This used to be sum(quests.xp_reward) over user_quests where status
+         -- = 'approved', which is wrong in three ways at once: a quest's
+         -- xp_reward can be edited after approval, user_quests.status stays
+         -- 'approved' after a takedown (so a correctly revoked award still
+         -- counted), and a Quest-of-the-Day bonus is never in the catalogue
+         -- figure. On live data that flagged three of five users whose stored
+         -- counter and ledger agreed exactly -- and the dashboard's Reconcile
+         -- button writes this figure into profiles.xp, so it re-awarded XP for
+         -- deleted posts and confiscated legitimately earned QOTD bonuses.
          LEFT JOIN (
-           SELECT uq.user_id,
-                  sum(q.xp_reward)::int AS expected_xp,
+           SELECT s.user_id,
+                  sum(s.xp_awarded_amount)::int AS expected_xp,
                   count(*)::int AS expected_quests
-           FROM user_quests uq JOIN quests q ON q.id = uq.quest_id
-           WHERE uq.status = 'approved'
-           GROUP BY uq.user_id
+           FROM submissions s
+           WHERE s.xp_awarded
+           GROUP BY s.user_id
          ) e ON e.user_id = p.id
          ORDER BY p.xp DESC, p.id
          LIMIT $1 OFFSET $2`,

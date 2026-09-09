@@ -30,6 +30,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   final _displayNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   // Separate from _isLoading so a save can't fire while an avatar upload
@@ -45,6 +46,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     _displayNameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
+    _currentPasswordController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -191,7 +193,20 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     // substrings) BEFORE any RPC, so a weak password can't get accepted
     // here when it would be rejected on signup.
     final newPassword = _passwordController.text;
+    final currentPassword = _currentPasswordController.text;
     if (newPassword.isNotEmpty) {
+      // The API re-authenticates the change, so an empty current password is
+      // a client-side error worth catching before the round trip.
+      if (currentPassword.isEmpty) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Enter your current password to change it.'),
+            ),
+          );
+        return;
+      }
       final pwErr = validatePassword(newPassword, username: username);
       if (pwErr != null) {
         ScaffoldMessenger.of(context)
@@ -207,7 +222,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       // profile half-saved with a "save failed" toast. If the password
       // update fails, the profile changes are not persisted.
       if (newPassword.isNotEmpty) {
-        await ref.read(authRepositoryProvider).updatePassword(newPassword);
+        await ref
+            .read(authRepositoryProvider)
+            .updatePassword(currentPassword, newPassword);
       }
 
       // Then update profile (display name, username, bio, avatar)
@@ -264,6 +281,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           _usernameController.text.trim() != profile.username ||
           (_bioController.text.trim()) != (profile.bio ?? '') ||
           _passwordController.text.isNotEmpty ||
+          _currentPasswordController.text.isNotEmpty ||
           _avatarDeleted ||
           (_avatarUrl != null && _avatarUrl != profile.avatarUrl);
       if (!dirty) return true;
@@ -430,6 +448,13 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     ),
                     const SizedBox(height: 12),
                     _Field(
+                      controller: _currentPasswordController,
+                      label: 'CURRENT PASSWORD',
+                      hint: 'Required to change your password',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _Field(
                       controller: _passwordController,
                       label: l.newPassword,
                       hint: AppLocalizations.of(context)!.passwordKeepCurrent,
@@ -459,7 +484,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
 /// Field, as the panel draws it: page-cream ground inside the white card,
 /// 2px ink outline, `r13`, no shadow. The label above is mono ALL CAPS.
-class _Field extends StatelessWidget {
+/// A labelled input. Obscured fields get a reveal toggle, because this is the
+/// one password surface in the app that shipped without one — and with the
+/// password-reset email unwired, a typo here used to be unrecoverable.
+class _Field extends StatefulWidget {
   const _Field({
     required this.controller,
     required this.label,
@@ -475,7 +503,19 @@ class _Field extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
 
   @override
+  State<_Field> createState() => _FieldState();
+}
+
+class _FieldState extends State<_Field> {
+  bool _revealed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final label = widget.label;
+    final hint = widget.hint;
+    final inputFormatters = widget.inputFormatters;
+    final obscure = widget.obscureText && !_revealed;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -500,7 +540,7 @@ class _Field extends StatelessWidget {
           child: Center(
             child: TextField(
               controller: controller,
-              obscureText: obscureText,
+              obscureText: obscure,
               inputFormatters: inputFormatters,
               cursorColor: QuestColors.osPrimary,
               style: QuestTypography.osBodyLarge,
@@ -513,6 +553,27 @@ class _Field extends StatelessWidget {
                 hintText: hint,
                 hintStyle: QuestTypography.osBodyLarge
                     .copyWith(color: QuestColors.osTextMuted),
+                suffixIcon: !widget.obscureText
+                    ? null
+                    : IconButton(
+                        // 44pt target, per QuestSpacing.minTouchTarget.
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        padding: EdgeInsets.zero,
+                        splashRadius: 22,
+                        tooltip: _revealed ? 'Hide password' : 'Show password',
+                        icon: Icon(
+                          _revealed
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          size: 20,
+                          color: QuestColors.osTextSecondary,
+                        ),
+                        onPressed: () =>
+                            setState(() => _revealed = !_revealed),
+                      ),
               ),
             ),
           ),

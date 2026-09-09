@@ -54,12 +54,27 @@ export class FeedRepository {
            power(GREATEST(EXTRACT(EPOCH FROM ($4::timestamptz - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5) AS hot_score,
          (gm.group_id IS NOT NULL) AS is_collab, gm.group_id AS collab_group_id,
          g.mode::text AS collab_mode, COALESCE(mc.cnt, 0)::bigint AS collab_member_count,
+         -- The roster stays complete so the client can draw a "waiting" slot
+         -- for a member whose proof is not public yet, but the BYTES and the
+         -- caption are withheld unless the viewer is allowed to see them.
+         --
+         -- This subquery used to expose ms.media_url and ms.caption for every
+         -- member with no status, visibility, deleted_at or block predicate at
+         -- all, while the outer "ranked" CTE filtered all four correctly. That
+         -- served pending and moderator-REJECTED proof to any signed-in user,
+         -- and POST /media/sign turned the leaked key into the image.
          CASE WHEN gm.group_id IS NOT NULL THEN (
            SELECT json_agg(json_build_object(
              'user_id', mp.id, 'username', mp.username::text, 'display_name', mp.display_name,
              'avatar_url', mp.avatar_url, 'bio', mp.bio, 'submission_id', ms.id,
-             'media_url', ms.media_url, 'media_type', ms.media_type::text,
-             'submission_status', ms.status::text, 'caption', ms.caption,
+             'media_url', CASE WHEN ms.user_id = $1
+                                 OR (ms.status = 'approved' AND ms.visibility = 'visible' AND ms.deleted_at IS NULL)
+                            THEN ms.media_url END,
+             'media_type', ms.media_type::text,
+             'submission_status', ms.status::text,
+             'caption', CASE WHEN ms.user_id = $1
+                               OR (ms.status = 'approved' AND ms.visibility = 'visible' AND ms.deleted_at IS NULL)
+                          THEN ms.caption END,
              'show_in_feed', ms.show_in_feed, 'vote_count', COALESCE(vc.cnt, 0),
              'viewer_voted', COALESCE(mv.voted, false)
            ) ORDER BY m2.joined_at)
@@ -74,6 +89,12 @@ export class FeedRepository {
              WHERE cv.group_id = gm.group_id AND cv.voter_id = $1
            ) mv ON mv.sid = ms.id
            WHERE m2.group_id = gm.group_id
+             -- Same bidirectional block predicate the outer CTE applies to the
+             -- post's author, so a blocked account does not reappear inside a
+             -- group roster.
+             AND NOT EXISTS (SELECT 1 FROM blocked_users b
+                             WHERE (b.blocker_id = $1 AND b.blocked_id = mp.id)
+                                OR (b.blocker_id = mp.id AND b.blocked_id = $1))
          ) ELSE NULL END AS collab_members,
          uq.expires_at
        FROM ranked JOIN submissions s ON s.id = ranked.id JOIN profiles p ON p.id = s.user_id

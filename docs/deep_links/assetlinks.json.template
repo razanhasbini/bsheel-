@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.questapp.mobileApp",
+      "package_name": "com.questapp.mobile_app",
       "sha256_cert_fingerprints": [
         "REPLACE_WITH_PROD_KEYSTORE_SHA256_FINGERPRINT"
       ]

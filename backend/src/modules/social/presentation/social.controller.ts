@@ -27,7 +27,7 @@ export class SocialController {
   @Put('posts/:id/vote') vote(@CurrentUser() u: AuthUser, @Param() p: IdParam, @Body() b: VoteDto) { return this.service.vote(u.id, p.id, b.type); }
   @HttpCode(204) @Delete('posts/:id/vote') removeVote(@CurrentUser() u: AuthUser, @Param() p: IdParam) { return this.service.removeVote(u.id, p.id); }
 
-  @Get('posts/:id/comments') comments(@Param() p: IdParam, @Query() q: ListQuery) { return this.service.comments(p.id, q.limit, q.offset); }
+  @Get('posts/:id/comments') comments(@CurrentUser() u: AuthUser, @Param() p: IdParam, @Query() q: ListQuery) { return this.service.comments(u.id, p.id, q.limit, q.offset); }
   @Post('posts/:id/comments') addComment(@CurrentUser() u: AuthUser, @Param() p: IdParam, @Body() b: AddCommentDto) { return this.service.addComment(u.id, p.id, b.body, b.parentId); }
   @HttpCode(204) @Delete('comments/:id') deleteComment(@CurrentUser() u: AuthUser, @Param() p: IdParam) { return this.service.deleteComment(u.id, u.role, p.id); }
 
