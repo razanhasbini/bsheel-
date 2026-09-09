@@ -2677,10 +2677,10 @@ class _RecentQuestRow extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            // A rounded bar, not a dot: the frame draws h10 at r5 with the
-            // same 2px outline as everything else. Leaving BoxShape.circle
-            // with a non-square box would have drawn a lopsided oval.
-            width: 8,
+            // h10 at r5 with a square box is a circle, which is what the
+            // render shows. The radius is only half the story: at width 8
+            // the same radius draws a stadium, not a dot.
+            width: 10,
             height: 10,
             decoration: BoxDecoration(
               color: statusColor,

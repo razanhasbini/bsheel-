@@ -1,5 +1,22 @@
 # Rebuilding the mobile app to the frames
 
+## Use the rendered images, not the HTML
+
+`export/` (beside this repo, at `~/Desktop/Bsheel Hackathon/export`) holds
+every screen as a rendered JPEG/PNG — 21 mobile screens at 390x844, 5 state
+panels, 6 component cards, 19 notification cards, 11 admin frames, 3 map
+screens. `export/INDEX.md` lists them all.
+
+**Read the image.** It is a far better specification than the inline CSS in
+the `.dc.html`, and it is unambiguous about the things that actually caused
+drift here — grounds, shadow colours, and shape. Use the HTML only to confirm
+an exact pixel value once you can already see what you are building.
+
+Reading `export/mobile/03-home-no-quest.jpg` immediately settled three
+questions the HTML had left open, including one I had got wrong: the status
+indicator on a recent-quest row is a **circle**, not a stadium. `h10` at `r5`
+is only round when the width is 10 too, and I had left it at 8.
+
 Working notes for finishing the screen-by-screen match to
 `mobile/Bsheel Mobile App.dc.html`. Written mid-job so it can be picked up
 without re-deriving anything.
@@ -21,6 +38,22 @@ correct pass. The real differences are specific and findable:
 | Black panel where the frame draws **cream** | slot machine reels (`#FFF1D6`) |
 | Bespoke art the frame does not have | a hand-painted Pac-Man scene in the reels |
 | `2.5px` borders | the design is **2px everywhere**, without exception |
+
+### The coloured-shadow system is wider than the spec text says
+
+The written spec mentions violet on the active hero and jade on a cleared
+quest. The renders show the rule is broader:
+
+| Surface | Shadow |
+|---|---|
+| Active-quest hero | violet 6px |
+| Empty-home slot machine | coral 6px |
+| Recent-quest row | 3px in the **status** colour (jade done, muted expired) |
+| **Feed post card** | 3px in the **category** colour — jade LEARNING, gold ADVENTURE |
+| Everything else | ink |
+
+The feed one is only visible in `export/mobile/09-feed.jpg`; no prose
+describes it.
 
 **The coloured shadow is the load-bearing signal.** The spec reserves it to
 mark the single most important thing on a screen — violet on the active-quest
@@ -77,21 +110,47 @@ Mono 700 for every label, id, timestamp and count (9–12), and for timers.
   replacing the Pac-Man strip.
 - Home active-quest hero: violet 6px shadow, 2px border.
 
+## Two of these are rewrites, not restyles
+
+**The feed.** The app is a vertical `PageView` where every post is a
+full-screen page (`features/feed/presentation/widgets/reels_card.dart`, a
+TikTok-style player). `export/mobile/09-feed.jpg` shows a scrolling list of
+bordered cards, each with a visible header, media block, title, body and
+action row, several per screen. That is a different architecture, not a
+different skin — budget for it accordingly and expect the `PageController`,
+its page-index state and the video autoplay logic to come out.
+
+**The map does not exist.** `export/map/` has three frames — a map screen
+with real Natural Earth geometry, a geometry legend, and country progress.
+There is no map feature anywhere in `apps/mobile_app`. It is new work, not a
+conformance pass, and it needs a product decision before anyone starts.
+
+Also in `export/` but out of scope for the app: 21 deck slides and 12
+marketing graphics.
+
 ## Not done — the remaining work, by frame
 
-Line ranges are into `mobile/Bsheel Mobile App.dc.html`. The file is
-inline-styled, so every value is literal — read it, do not infer.
+Open the render first; the HTML line range is there only for confirming a
+value once you can see what you are building.
 
-| Section | Lines | Screens | Owner file(s) |
-|---|---|---|---|
-| 01 ENTRY | 30–95 | splash, onboarding 1 & 4 | `features/splash/**`, `features/onboarding/**` |
-| 02 HOME | 96–339 | remaining hero states: pending review, TIME OVER, suspended/banned | `features/quests/**` |
-| 03 QUEST → PROOF → REVIEW | 340–519 | slot machine detail, quest detail, submit proof, submission status | `features/quests/**`, `features/submissions/**` |
-| 04 SOCIAL | 520–681 | feed, comments, post detail | `features/feed/**`, `features/comments/**` |
-| 05 PROGRESSION | 682–870 | profile, leaderboard (sticky self-row), collab head-to-head | `features/profile/**`, `features/leaderboard/**`, `features/collab/**` |
-| 06 AUTH | 871–990 | login, signup, forgot, reset, updated | `features/auth/**` |
-| 07 SECONDARY | 991–1246 | search, quest history, settings, edit profile, other profile, join collab, blocked users | several |
-| 08 NOTIFICATIONS | 1247–1375 | all 19 types + routing | `features/notifications/**` |
+| Render in `export/` | HTML lines | Owner file(s) |
+|---|---|---|
+| `mobile/15-splash.jpg`, `mobile/01-onboarding-1.jpg`, `mobile/02-onboarding-4.jpg` | 30–95 | `features/splash/**`, `features/onboarding/**` |
+| `mobile/03-home-no-quest.jpg` ✅, `mobile/04-home-active-quest.jpg`, `panels/panel-01.jpg` (hero state set) | 96–339 | `features/quests/**` |
+| `mobile/05-slot-machine.jpg`, `mobile/06-quest-detail.jpg`, `mobile/07-submit-proof.jpg`, `mobile/08-submission-rejected.jpg` | 340–519 | `features/quests/**`, `features/submissions/**` |
+| `mobile/09-feed.jpg` ⚠️ rewrite, `mobile/10-comments.jpg`, `mobile/20-post-detail.jpg` | 520–681 | `features/feed/**`, `features/comments/**` |
+| `mobile/12-profile.jpg`, `mobile/13-leaderboard.jpg`, `mobile/14-collab.jpg` | 682–870 | `features/profile/**`, `features/leaderboard/**`, `features/collab/**` |
+| `mobile/16-login.jpg`, `mobile/17-signup.jpg` | 871–990 | `features/auth/**` |
+| `mobile/18-search.jpg`, `mobile/19-quest-history.jpg`, `mobile/21-settings.jpg`, `panels/panel-02..05.jpg` | 991–1246 | several |
+| `mobile/11-notifications.jpg` + all 19 `notifications/notif-*.jpg` | 1247–1375 | `features/notifications/**` |
+| `admin/01-login.jpg` … `admin/11-sidebar.jpg` (11 frames) | — | `apps/admin_web/**` |
+| `map/01-map-screen.jpg`, `map/02-geometry-legend.jpg`, `map/03-country-progress.jpg` | — | **does not exist yet** |
+
+✅ = done and verified against the render. ⚠️ = structural rewrite, see above.
+
+`components/component-01-buttons.jpg` … `component-06-media-skeleton.jpg` are
+the component sheet, already implemented in `shared_ui`. Check against them
+before building anything screen-local.
 
 Partition agents by **owner file** so they cannot collide. Four worked cleanly
 before: quests+submissions / feed+comments+notifications / auth+onboarding+
