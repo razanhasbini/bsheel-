@@ -168,11 +168,11 @@ class _PixelConfettiPainter extends CustomPainter {
     final rng = Random(42);
     const colors = [
       QuestColors.xpGold,
-      QuestColors.successGreen,
+      QuestColors.osSuccess,
       QuestColors.violet,
       QuestColors.osRed,
       QuestColors.accentYellow,
-      QuestColors.successGreen,
+      QuestColors.osSuccess,
       QuestColors.pureWhite,
     ];
     return List.generate(60, (i) {

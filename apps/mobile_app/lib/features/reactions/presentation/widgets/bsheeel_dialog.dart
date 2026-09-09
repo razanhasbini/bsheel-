@@ -243,7 +243,7 @@ class _ConfirmTakeQuestDialog extends StatelessWidget {
                           const BoxConstraints(minHeight: kMinTouchTarget),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: QuestColors.successGreen,
+                        color: QuestColors.osSuccess,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: ink, width: 2),
                         boxShadow: [
@@ -260,7 +260,7 @@ class _ConfirmTakeQuestDialog extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: QuestTypography.labelMedium.copyWith(
-                          color: QuestColors.onAccent(QuestColors.successGreen),
+                          color: QuestColors.onAccent(QuestColors.osSuccess),
                           letterSpacing: 1.2,
                         ),
                       ),

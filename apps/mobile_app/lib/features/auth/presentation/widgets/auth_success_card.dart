@@ -20,8 +20,8 @@ class AuthSuccessCard extends StatelessWidget {
     final ink = QuestColors.text(context);
     return ArcadeCard(
       backgroundColor:
-          QuestColors.successGreen.withAlpha(QuestColors.alphaWhisper),
-      borderColor: QuestColors.successGreen,
+          QuestColors.osSuccess.withAlpha(QuestColors.alphaWhisper),
+      borderColor: QuestColors.osSuccess,
       padding: const EdgeInsets.all(18),
       child: Row(
         children: [
@@ -29,13 +29,13 @@ class AuthSuccessCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: QuestColors.successGreen,
+              color: QuestColors.osSuccess,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 2),
             ),
             child: Icon(
               Icons.check_rounded,
-              color: QuestColors.onAccent(QuestColors.successGreen),
+              color: QuestColors.onAccent(QuestColors.osSuccess),
               size: 24,
             ),
           ),

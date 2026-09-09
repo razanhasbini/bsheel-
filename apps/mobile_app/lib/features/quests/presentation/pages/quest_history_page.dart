@@ -134,7 +134,7 @@ class QuestHistoryPage extends ConsumerWidget {
                                 child: _ArcadeCountTile(
                                   label: 'COMPLETED',
                                   value: approved,
-                                  tint: QuestColors.successGreen,
+                                  tint: QuestColors.osSuccess,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -497,7 +497,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
   (String, Color) _status() {
     switch (status) {
       case UserQuestStatus.approved:
-        return ('COMPLETED', QuestColors.successGreen);
+        return ('COMPLETED', QuestColors.osSuccess);
       case UserQuestStatus.rejected:
         return ('REJECTED', QuestColors.osRed);
       case UserQuestStatus.expired:

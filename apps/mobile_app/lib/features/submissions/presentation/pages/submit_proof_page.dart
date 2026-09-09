@@ -801,7 +801,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                   height: 38,
                                   decoration: BoxDecoration(
                                     color: _showInFeed
-                                        ? QuestColors.successGreen
+                                        ? QuestColors.osSuccess
                                         : QuestColors.cardBg(context),
                                     borderRadius: BorderRadius.circular(11),
                                     border: Border.all(
@@ -817,7 +817,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                     size: 20,
                                     color: _showInFeed
                                         ? QuestColors.onAccent(
-                                            QuestColors.successGreen)
+                                            QuestColors.osSuccess)
                                         : QuestColors.text(context),
                                   ),
                                 ),
@@ -867,7 +867,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                       padding: const EdgeInsets.all(3),
                                       decoration: BoxDecoration(
                                         color: _showInFeed
-                                            ? QuestColors.successGreen
+                                            ? QuestColors.osSuccess
                                             : QuestColors.cardBg(context),
                                         borderRadius:
                                             BorderRadius.circular(999),

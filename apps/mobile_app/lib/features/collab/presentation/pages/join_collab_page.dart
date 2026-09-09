@@ -103,7 +103,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
               TextButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
                   child: const Text('ABANDON & JOIN',
-                      style: TextStyle(color: QuestColors.successGreen))),
+                      style: TextStyle(color: QuestColors.osSuccess))),
             ],
           ),
         ) ??
@@ -184,7 +184,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                   // Versus = competitive red, coop = collaborative green (mirrors
                   // the reels-card collab badge + post detail page).
                   final accentColor =
-                      isVersus ? QuestColors.osRed : QuestColors.successGreen;
+                      isVersus ? QuestColors.osRed : QuestColors.osSuccess;
                   final isBusy = _joining || _abandoning;
 
                   return SingleChildScrollView(
@@ -305,7 +305,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                                   ),
                                   _Chip(
                                     label: '${group.questXpReward} XP',
-                                    color: QuestColors.successGreen,
+                                    color: QuestColors.osSuccess,
                                   ),
                                 ],
                               ),

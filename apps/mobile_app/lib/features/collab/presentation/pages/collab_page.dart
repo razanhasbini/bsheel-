@@ -36,7 +36,7 @@ class _CollabPageState extends ConsumerState<CollabPage> {
   String? _groupMode;
   bool _creating = false;
 
-  Color get _withColor => QuestColors.successGreen;
+  Color get _withColor => QuestColors.osSuccess;
   Color get _versusColor => QuestColors.osRed;
 
   // ── Actions ──────────────────────────────────────────────────────────────
@@ -741,7 +741,7 @@ class _GroupCard extends StatelessWidget {
     final ink = QuestColors.text(context);
     final questTitle = activeQuest.quest?.title ?? 'QUEST';
     final isVersus = group.mode == CollabMode.versus;
-    final accentColor = isVersus ? QuestColors.osRed : QuestColors.successGreen;
+    final accentColor = isVersus ? QuestColors.osRed : QuestColors.osSuccess;
 
     int maxVotes = 0;
     int leadersCount = 0;
@@ -895,7 +895,7 @@ class _MemberTile extends StatelessWidget {
     final label = (member.submissionStatus ?? member.questStatus ?? 'assigned')
         .toUpperCase();
     if (member.submissionStatus == 'approved') {
-      return (label, QuestColors.successGreen);
+      return (label, QuestColors.osSuccess);
     }
     if (member.submissionStatus == 'pending' ||
         member.questStatus == 'submitted') {

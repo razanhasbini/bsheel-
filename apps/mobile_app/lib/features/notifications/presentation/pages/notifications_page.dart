@@ -538,7 +538,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
   (IconData, Color) _iconAndTint(String type) {
     switch (type) {
       case NotificationType.submissionApproved:
-        return (Icons.check_circle_rounded, QuestColors.successGreen);
+        return (Icons.check_circle_rounded, QuestColors.osSuccess);
       case NotificationType.submissionRejected:
         return (Icons.cancel_rounded, QuestColors.osRed);
       case NotificationType.levelUp:

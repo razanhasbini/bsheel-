@@ -352,7 +352,7 @@ class _OnboardingWalkthroughPageState
       ),
       _StepData(
         icon: Icons.rocket_launch_rounded,
-        tint: QuestColors.successGreen,
+        tint: QuestColors.osSuccess,
         title: l.onboarding4Title,
         subtitle: l.onboarding4Subtitle,
       ),

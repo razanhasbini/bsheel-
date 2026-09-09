@@ -342,7 +342,7 @@ class BsWeeklyXpMeter extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: hitGoal
-                        ? [QuestColors.successGreen, QuestColors.successGreen]
+                        ? [QuestColors.osSuccess, QuestColors.osSuccess]
                         : [QuestColors.osPrimary, QuestColors.osRed],
                   ),
                   borderRadius: BorderRadius.circular(9),
@@ -1369,8 +1369,8 @@ class _StatusStamp extends StatelessWidget {
       case _QotdStatus.approved:
         return (
           label: 'DAILY QUEST · APPROVED  +${qotd.totalXpReward} XP',
-          bg: QuestColors.successGreen,
-          fg: QuestColors.onAccent(QuestColors.successGreen),
+          bg: QuestColors.osSuccess,
+          fg: QuestColors.onAccent(QuestColors.osSuccess),
           icon: Icons.check_circle_rounded,
         );
       case _QotdStatus.rejected:

@@ -695,16 +695,15 @@ class _RequirementItem extends StatelessWidget {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: isComplete
-                  ? QuestColors.successGreen
-                  : QuestColors.accentYellow,
+              color:
+                  isComplete ? QuestColors.osSuccess : QuestColors.accentYellow,
               borderRadius: BorderRadius.circular(9),
               border: Border.all(color: ink, width: 1.8),
             ),
             alignment: Alignment.center,
             child: isComplete
                 ? Icon(Icons.check_rounded,
-                    color: QuestColors.onAccent(QuestColors.successGreen),
+                    color: QuestColors.onAccent(QuestColors.osSuccess),
                     size: 17)
                 : Text(
                     '$index',

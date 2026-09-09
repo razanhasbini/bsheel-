@@ -1204,7 +1204,7 @@ class _BottomMeta extends StatelessWidget {
   /// stays coral. Anything else falls back to coral too.
   Color get _modeBadgeGround => _isVersus
       ? QuestColors.osRed
-      : (collabMode == 'with' ? QuestColors.successGreen : QuestColors.osRed);
+      : (collabMode == 'with' ? QuestColors.osSuccess : QuestColors.osRed);
 
   @override
   Widget build(BuildContext context) {
@@ -1286,7 +1286,7 @@ class _BottomMeta extends StatelessWidget {
                         style: TextStyle(
                           color: _isVersus
                               ? QuestColors.osRed
-                              : QuestColors.successGreen,
+                              : QuestColors.osSuccess,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.0,

@@ -108,7 +108,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
           SnackBar(
             content: Text(friendly),
             backgroundColor:
-                approved ? QuestColors.successGreen : QuestColors.osRed,
+                approved ? QuestColors.osSuccess : QuestColors.osRed,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -574,7 +574,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
 
   Color _statusColor(String status) => switch (status) {
         SubmissionStatus.pending => QuestColors.accentYellow,
-        SubmissionStatus.approved => QuestColors.successGreen,
+        SubmissionStatus.approved => QuestColors.osSuccess,
         SubmissionStatus.rejected => QuestColors.osRed,
         _ => QuestColors.osTextMuted,
       };

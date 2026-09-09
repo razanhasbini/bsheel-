@@ -2168,7 +2168,7 @@ class _QuestChoiceCard extends StatelessWidget {
   (Color, String) _difficultyStyle() {
     switch (quest.difficulty.toLowerCase()) {
       case 'easy':
-        return (QuestColors.successGreen, 'EASY');
+        return (QuestColors.osSuccess, 'EASY');
       case 'hard':
         return (QuestColors.osRed, 'HARD');
       case 'medium':
@@ -2637,7 +2637,7 @@ class _RecentQuestRow extends StatelessWidget {
   (String, Color) _statusStyle(BuildContext context) {
     switch (q.status) {
       case UserQuestStatus.approved:
-        return ('ACCEPTED', QuestColors.successGreen);
+        return ('ACCEPTED', QuestColors.osSuccess);
       case UserQuestStatus.rejected:
         return ('REJECTED', QuestColors.osRed);
       case UserQuestStatus.expired:
@@ -2768,7 +2768,7 @@ class _QuestPreviewSheet extends StatelessWidget {
   (Color, String) _difficultyStyle() {
     switch (quest.difficulty.toLowerCase()) {
       case 'easy':
-        return (QuestColors.successGreen, 'EASY');
+        return (QuestColors.osSuccess, 'EASY');
       case 'hard':
         return (QuestColors.osRed, 'HARD');
       case 'medium':

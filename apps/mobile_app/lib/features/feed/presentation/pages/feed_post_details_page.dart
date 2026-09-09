@@ -482,7 +482,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                   collabAccent: post.isCollab
                       ? (post.collabMode == CollabMode.versus
                           ? QuestColors.osRed
-                          : QuestColors.successGreen)
+                          : QuestColors.osSuccess)
                       : null,
                   // Deep-link cold-start: there's nothing to pop, so fall
                   // back to /home so the user is never stranded.
@@ -1266,11 +1266,11 @@ class _CommentInputBar extends StatelessWidget {
 
 (Color, String) _categoryStyle(String category) {
   return switch (category.toLowerCase()) {
-    'fitness' => (QuestColors.successGreen, 'FITNESS'),
+    'fitness' => (QuestColors.osSuccess, 'FITNESS'),
     'creativity' => (QuestColors.accentYellow, 'CREATE'),
-    'social' => (QuestColors.successGreen, 'SOCIAL'),
+    'social' => (QuestColors.osSuccess, 'SOCIAL'),
     'learning' => (QuestColors.violet, 'LEARN'),
-    'adventure' => (QuestColors.successGreen, 'ADVENTURE'),
+    'adventure' => (QuestColors.osSuccess, 'ADVENTURE'),
     _ => (QuestColors.textMuted, category.toUpperCase()),
   };
 }
@@ -1806,7 +1806,7 @@ class _CollabParticipantsHeaderState
   Widget build(BuildContext context) {
     final navyColor = QuestColors.text(context);
     final isVersus = widget.mode == CollabMode.versus;
-    final accent = isVersus ? QuestColors.osRed : QuestColors.successGreen;
+    final accent = isVersus ? QuestColors.osRed : QuestColors.osSuccess;
 
     int maxVotes = 0;
     if (isVersus) {

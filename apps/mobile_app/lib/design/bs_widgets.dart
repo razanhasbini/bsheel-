@@ -58,7 +58,7 @@ Color accentAsTextOnCream(Color accent) {
   if (accent == QuestColors.osRed || accent == QuestColors.osRed) {
     return QuestColors.osRedText;
   }
-  if (accent == QuestColors.osSuccess || accent == QuestColors.successGreen) {
+  if (accent == QuestColors.osSuccess || accent == QuestColors.osSuccess) {
     return QuestColors.osSuccessText;
   }
   if (accent == QuestColors.osAccent || accent == QuestColors.accentYellow) {
