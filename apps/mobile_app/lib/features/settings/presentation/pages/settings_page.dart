@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_ui/shared_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
@@ -466,7 +467,7 @@ class _ToggleItem extends StatelessWidget {
                   fontSize: 12,
                   color: QuestColors.osTextSecondary)),
         ])),
-        BsToggle(value: value, onChanged: onChanged),
+        ArcadeToggle(value: value, onChanged: onChanged),
       ]),
     );
   }

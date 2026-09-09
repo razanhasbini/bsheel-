@@ -468,9 +468,8 @@ class ProfilePage extends ConsumerWidget {
                               ),
                             ]),
                         const SizedBox(height: 6),
-                        BsXpBar(
-                            progress: xpProgress,
-                            fillColor: QuestColors.osPrimary),
+                        ArcadeMeter(
+                            progress: xpProgress, fill: QuestColors.osPrimary),
                         const SizedBox(height: 16),
 
                         // ── Stat pills ────────────────────────────
@@ -652,10 +651,10 @@ class ProfilePage extends ConsumerWidget {
                                           fontSize: 11,
                                           color: QuestColors.osTextMuted)),
                                   const SizedBox(height: 6),
-                                  BsXpBar(
+                                  ArcadeMeter(
                                     progress: progress,
                                     height: 8,
-                                    fillColor: unlocked
+                                    fill: unlocked
                                         ? QuestColors.osSuccess
                                         : QuestColors.osPrimary,
                                   ),
@@ -793,10 +792,10 @@ void _showBadgeDetail(
                     ),
                   ),
                   const SizedBox(height: 20),
-                  BsXpBar(
+                  ArcadeMeter(
                     progress: progress,
                     height: 12,
-                    fillColor: unlocked
+                    fill: unlocked
                         ? QuestColors.osSuccess
                         : QuestColors.osPrimary,
                   ),

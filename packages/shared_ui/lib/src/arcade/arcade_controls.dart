@@ -83,20 +83,26 @@ class ArcadeMeter extends StatelessWidget {
     super.key,
     required this.progress,
     this.fill = QuestColors.osAccent,
+    this.height = 16,
   });
 
   /// 0..1. Clamped, because a server total can exceed a client-side goal.
   final double progress;
   final Color fill;
 
+  /// 16 is the sheet's meter. Overridable for the compact case — a badge
+  /// row wants a slimmer bar — and the radii scale with it so a short bar
+  /// does not end up looking like a rounded rectangle.
+  final double height;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 16,
+      height: height,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(height / 16 * 9),
         border: Border.all(color: QuestColors.osTextPrimary, width: 2),
       ),
       child: Align(
@@ -106,7 +112,7 @@ class ArcadeMeter extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: fill,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(height / 16 * 5),
             ),
           ),
         ),
