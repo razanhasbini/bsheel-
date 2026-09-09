@@ -402,14 +402,36 @@ class _RankRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The ground decides the ink. The self row is an ink panel, so its text
+    // has to invert or it disappears entirely; gold and white both take ink.
+    final ground = isCurrentUser
+        ? QuestColors.osTextPrimary
+        : user.rank == 1
+            ? QuestColors.osAccent
+            : QuestColors.osCard;
+    final fg = QuestColors.onAccent(ground);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: isCurrentUser
-              ? QuestColors.osAccent.withAlpha(40)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(showDivider ? 0 : 20),
+          // The render draws each rank as its own card, not as a row in a
+          // shared list: white ground, full 2px outline, 3px shadow. First
+          // place takes gold, and the signed-in user takes an ink panel with
+          // a violet shadow so it reads as "you" wherever it lands.
+          color: ground,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: isCurrentUser
+                  ? QuestColors.osPrimary
+                  : QuestColors.osTextPrimary,
+              offset: const Offset(3, 3),
+              blurRadius: 0,
+            ),
+          ],
         ),
         child: Column(children: [
           Padding(
@@ -456,12 +478,12 @@ class _RankRow extends StatelessWidget {
                 child: FitText(
                   user.username + (isCurrentUser ? '  · YOU' : ''),
                   minFontSize: 10,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Syne',
-                    fontVariations: [FontVariation('wght', 800)],
+                    fontVariations: const [FontVariation('wght', 800)],
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: QuestColors.osTextPrimary,
+                    color: fg,
                   ),
                 ),
               ),
@@ -472,12 +494,12 @@ class _RankRow extends StatelessWidget {
                 child: FitText('${user.xp}',
                     minFontSize: 10,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontFamily: 'Syne',
-                        fontVariations: [FontVariation('wght', 800)],
+                        fontVariations: const [FontVariation('wght', 800)],
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: QuestColors.osTextPrimary)),
+                        color: fg)),
               ),
             ]),
           ),
