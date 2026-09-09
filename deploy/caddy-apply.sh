@@ -11,9 +11,14 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
-API_PORT="$(grep -E '^API_BIND_PORT=' .env.prod 2>/dev/null | cut -d= -f2)"
-API_PORT="${API_PORT:-3010}"
+# Host path of the file, and the container that actually runs Caddy. On this
+# host Caddy is a container (supabase-caddy) with /etc/caddy bind-mounted, so
+# validate and reload must run *inside* it -- there is no caddy binary on the
+# host, and its 127.0.0.1 is not the host's.
+CADDYFILE="${CADDYFILE:-/root/supabase-docker/volumes/proxy/caddy/Caddyfile}"
+CADDY_CONTAINER="${CADDY_CONTAINER:-supabase-caddy}"
+CADDY_CONFIG_IN_CONTAINER="${CADDY_CONFIG_IN_CONTAINER:-/etc/caddy/Caddyfile}"
+API_UPSTREAM="${API_UPSTREAM:-bsheel-api:3000}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP="${CADDYFILE}.bak.${STAMP}"
 
@@ -21,7 +26,10 @@ step() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
 fail() { printf "\033[31merror: %s\033[0m\n" "$1" >&2; exit 1; }
 
 [ -f "$CADDYFILE" ] || fail "$CADDYFILE not found — set CADDYFILE=/path/to/Caddyfile"
-command -v caddy >/dev/null || fail "caddy binary not on PATH (containerised? apply by hand)"
+docker inspect "$CADDY_CONTAINER" >/dev/null 2>&1 \
+  || fail "container $CADDY_CONTAINER not found — set CADDY_CONTAINER"
+
+caddy_in_container() { docker exec "$CADDY_CONTAINER" caddy "$@"; }
 
 step "Backup"
 cp -p "$CADDYFILE" "$BACKUP" || fail "could not write $BACKUP"
@@ -30,7 +38,7 @@ echo "$BACKUP"
 restore() {
   printf "\n\033[33mrolling back to %s\033[0m\n" "$BACKUP"
   cp -p "$BACKUP" "$CADDYFILE"
-  caddy reload --config "$CADDYFILE" 2>&1 | tail -3 || true
+  caddy_in_container reload --config "$CADDY_CONFIG_IN_CONTAINER" 2>&1 | tail -3 || true
 }
 
 step "Record the live baseline (before touching anything)"
@@ -42,16 +50,16 @@ for p in /auth/v1/health /rest/v1/ /storage/v1/version /functions/v1/; do
 done
 
 step "Edit the api.bsheel.app block"
-API_PORT="$API_PORT" python3 caddy_insert.py "$CADDYFILE" || { restore; fail "edit refused or failed"; }
+API_UPSTREAM="$API_UPSTREAM" python3 caddy_insert.py "$CADDYFILE" || { restore; fail "edit refused or failed"; }
 
 step "Validate"
-if ! caddy validate --config "$CADDYFILE" 2>&1 | tail -5; then
+if ! caddy_in_container validate --config "$CADDY_CONFIG_IN_CONTAINER" 2>&1 | tail -5; then
   restore; fail "caddy validate failed — config restored, quest-app untouched"
 fi
 echo "config is valid"
 
 step "Reload (zero downtime)"
-if ! caddy reload --config "$CADDYFILE" 2>&1 | tail -5; then
+if ! caddy_in_container reload --config "$CADDY_CONFIG_IN_CONTAINER" 2>&1 | tail -5; then
   restore; fail "caddy reload failed — config restored"
 fi
 

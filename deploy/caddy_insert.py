@@ -73,24 +73,24 @@ def bare_terminal_directive(body):
     return None
 
 
-def build_block(port, indent="\t"):
+def build_block(upstream, indent="\t"):
     return (
         f"\n{indent}# --- Bsheel API (added by deploy/caddy-apply.sh) ---\n"
         f"{indent}handle /api/v1/* {{\n"
-        f"{indent}\treverse_proxy 127.0.0.1:{port}\n"
+        f"{indent}\treverse_proxy {upstream}\n"
         f"{indent}}}\n"
         f"{indent}# Socket.IO wire path. The gateway's /realtime namespace is\n"
         f"{indent}# negotiated inside the connection, so it never appears in the\n"
         f"{indent}# URL and cannot collide with Supabase's /realtime/v1.\n"
         f"{indent}# Caddy upgrades WebSockets automatically.\n"
         f"{indent}handle /socket.io/* {{\n"
-        f"{indent}\treverse_proxy 127.0.0.1:{port}\n"
+        f"{indent}\treverse_proxy {upstream}\n"
         f"{indent}}}\n"
         f"{indent}# --- end Bsheel API ---\n"
     )
 
 
-def insert(src, port):
+def insert(src, upstream):
     """Return the edited config, or raise ValueError with a reason."""
     if "/api/v1/*" in src and "/socket.io/*" in src:
         return None  # already present
@@ -112,20 +112,22 @@ def insert(src, port):
 
     lines = [ln for ln in body.splitlines() if ln.strip()]
     indent = re.match(r"[ \t]*", lines[0]).group(0) if lines else "\t"
-    return src[: open_idx + 1] + build_block(port, indent or "\t") + src[open_idx + 1 :]
+    return src[: open_idx + 1] + build_block(upstream, indent or "\t") + src[open_idx + 1 :]
 
 
 def main():
     if len(sys.argv) != 2:
         sys.exit("usage: caddy_insert.py <path-to-Caddyfile>")
     path = sys.argv[1]
-    port = os.environ.get("API_PORT", "3010")
+    # The upstream is a container alias, not loopback: Caddy runs inside a
+    # container here, so 127.0.0.1 there is its own loopback, not the host's.
+    upstream = os.environ.get("API_UPSTREAM", "bsheel-api:3000")
 
     with open(path) as handle:
         src = handle.read()
 
     try:
-        result = insert(src, port)
+        result = insert(src, upstream)
     except ValueError as error:
         print(f"  REFUSED: {error}")
         return 1
@@ -136,7 +138,7 @@ def main():
 
     with open(path, "w") as handle:
         handle.write(result)
-    print(f"  inserted /api/v1 and /socket.io handles -> 127.0.0.1:{port}")
+    print(f"  inserted /api/v1 and /socket.io handles -> {upstream}")
     return 0
 
 

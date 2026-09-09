@@ -165,7 +165,13 @@ services:
       retries: 12
     volumes:
       - minio_data:/data
-    networks: [internal]
+    networks:
+      internal:
+      # Caddy terminates TLS for the media host and proxies here, and it runs
+      # in a container on the Supabase project's network — so MinIO has to be
+      # reachable there too, by alias.
+      proxy:
+        aliases: [bsheel-minio]
     mem_limit: ${MINIO_MEM_LIMIT:-512m}
     cpus: ${MINIO_CPUS:-0.5}
     restart: unless-stopped
