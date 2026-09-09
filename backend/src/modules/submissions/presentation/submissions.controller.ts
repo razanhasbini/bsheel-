@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBooleanString, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBooleanString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
@@ -26,7 +26,12 @@ class AdminSubmissionListQuery {
   @IsOptional() @IsIn(['visible', 'hidden_from_feed', 'deleted', 'not_visible']) visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
   @IsOptional() @IsIn(['asc', 'desc']) order: 'asc' | 'desc' = 'asc';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
+  /// Kept for the clients that already pass it. Prefer `cursor`: the offset
+  /// path degrades badly with depth (PERFORMANCE.md §5.2).
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
+  /// Opaque keyset cursor from a previous page's `next_cursor`. Bound to the
+  /// list that issued it, so one from another list is rejected.
+  @IsOptional() @IsString() @MaxLength(1024) cursor?: string;
 }
 
 @ApiTags('submissions')
@@ -50,13 +55,14 @@ export class SubmissionsController {
       order: query.order,
       limit: query.limit,
       offset: query.offset,
+      cursor: query.cursor,
     });
   }
 
   @Roles('moderator', 'super_admin')
   @Get('admin/review-queue')
   reviewQueue(@Query() query: AdminSubmissionListQuery) {
-    return this.service.reviewQueue(query.limit, query.offset);
+    return this.service.reviewQueue(query.limit, query.offset, query.cursor);
   }
 
   @Roles('moderator', 'super_admin')
@@ -69,6 +75,7 @@ export class SubmissionsController {
       order: query.order,
       limit: query.limit,
       offset: query.offset,
+      cursor: query.cursor,
     });
   }
 
