@@ -30,7 +30,8 @@
     "test:auth-confirmation": "node scripts/smoke-auth-confirmation.mjs",
     "test:realtime": "node scripts/smoke-realtime.mjs",
     "test:telegram": "node scripts/smoke-telegram.mjs",
-    "import:legacy": "node scripts/legacy-import/import-legacy.mjs"
+    "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
+    "proof:eval": "node scripts/proof-eval.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

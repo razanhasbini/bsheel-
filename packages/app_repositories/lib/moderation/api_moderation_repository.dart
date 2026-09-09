@@ -71,6 +71,26 @@ class ApiModerationRepository implements ModerationRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> unclearQueue({
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final rows = apiObjectList(
+      await _client.get(
+        'submissions/admin/unclear',
+        query: {'limit': limit, 'offset': offset},
+      ),
+    );
+    return Future.wait(rows.map(_withSignedMedia));
+  }
+
+  @override
+  Future<int> unclearCount() async {
+    final value = await _client.get('submissions/admin/unclear/count');
+    return (value as num?)?.toInt() ?? 0;
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> listSubmissionsForAdmin({
     String status = 'pending',
     bool? appealed,

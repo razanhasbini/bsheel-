@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import exifr from 'exifr';
 import sharp from 'sharp';
+import type { Environment } from '../../../config/environment.js';
 import { ObjectStorageService } from '../../media/infrastructure/object-storage.service.js';
+import { VideoFrameExtractor } from './video-frame-extractor.js';
 import {
   differenceHash,
   type ExifFacts,
@@ -22,6 +25,11 @@ export interface ObjectFacts {
   /// The decoded bytes, returned so a caller that also needs to send the
   /// image to a vision API does not read and decode the object a second time.
   readonly body: Buffer;
+  /// Every frame worth judging. One element for a still image; for a video,
+  /// the frames sampled across the clip. `body` is always the first of them,
+  /// and it is the one the hash and EXIF facts describe.
+  readonly frames: readonly Buffer[];
+  readonly wasVideo: boolean;
 }
 
 /// Reads an uploaded object and measures it (#47).
@@ -34,7 +42,11 @@ export interface ObjectFacts {
 export class MediaForensicsService {
   private readonly logger = new Logger(MediaForensicsService.name);
 
-  constructor(private readonly storage: ObjectStorageService) {}
+  constructor(
+    private readonly storage: ObjectStorageService,
+    private readonly video: VideoFrameExtractor,
+    private readonly config: ConfigService<Environment, true>,
+  ) {}
 
   /// Measures one object, or returns null when it cannot be read as an image.
   ///
@@ -43,8 +55,18 @@ export class MediaForensicsService {
   /// take down the worker. The caller reports what went unexamined so a
   /// moderator is never told the whole submission was judged.
   async measure(objectKey: string, maxBytes: number): Promise<ObjectFacts | null> {
-    const object = await this.storage.read(objectKey, maxBytes);
+    // Video needs a bigger read budget than a still, because the whole file
+    // must be decoded before any frame exists.
+    const videoCap = this.config.get('AI_VERIFICATION_MAX_VIDEO_BYTES', { infer: true });
+    const object = await this.storage.read(objectKey, Math.max(maxBytes, videoCap));
     if (!object) return null;
+
+    if (object.contentType.startsWith('video/')) {
+      return this.measureVideo(objectKey, object.body);
+    }
+    // A still larger than the image budget is not analysable even though the
+    // video budget let it be read.
+    if (object.body.length > maxBytes) return null;
 
     try {
       const metadata = await sharp(object.body).metadata();
@@ -66,6 +88,8 @@ export class MediaForensicsService {
         contentHash: await this.contentHash(object.body),
         sizeBytes: object.body.length,
         body: object.body,
+        frames: [object.body],
+        wasVideo: false,
       };
     } catch (error) {
       // A file that is not a decodable image is not a fraud signal — it is a
@@ -73,6 +97,48 @@ export class MediaForensicsService {
       this.logger.debug(
         { objectKey, err: error instanceof Error ? error.message : String(error) },
         'Object could not be measured as an image',
+      );
+      return null;
+    }
+  }
+
+  /// Measures a video by its frames.
+  ///
+  /// The first frame carries the hash and the image facts, so a re-uploaded
+  /// clip still matches as a near-duplicate. EXIF is read from the container
+  /// rather than the frame: ffmpeg's JPEG output has none, while the source
+  /// file often carries a real capture time, which is the strongest signal
+  /// available and must not be thrown away by transcoding.
+  private async measureVideo(objectKey: string, body: Buffer): Promise<ObjectFacts | null> {
+    const frames = await this.video.extract(body);
+    if (frames.length === 0) return null;
+
+    try {
+      const metadata = await sharp(frames[0]).metadata();
+      if (!metadata.width || !metadata.height) return null;
+      const bitmap = await sharp(frames[0])
+        .resize(9, 8, { fit: 'fill' })
+        .grayscale()
+        .raw()
+        .toBuffer();
+
+      return {
+        objectKey,
+        exif: await this.readExif(body),
+        image: { width: metadata.width, height: metadata.height, format: 'jpeg' },
+        perceptualHash: differenceHash(new Uint8Array(bitmap)),
+        // Hashed over the source bytes, not a frame, so exact-duplicate
+        // detection catches the same clip re-uploaded.
+        contentHash: await this.contentHash(body),
+        sizeBytes: body.length,
+        body: frames[0],
+        frames,
+        wasVideo: true,
+      };
+    } catch (error) {
+      this.logger.debug(
+        { objectKey, err: error instanceof Error ? error.message : String(error) },
+        'Video frames could not be measured',
       );
       return null;
     }

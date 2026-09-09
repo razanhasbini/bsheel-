@@ -61,10 +61,9 @@ export class ProofProvenanceService {
       }
       const facts = await this.forensics.measure(key, maxBytes);
       if (!facts) {
-        // Video lands here: the vision APIs take images, not video, and
-        // decoding frames needs ffmpeg in the worker image. Naming it is
-        // honest; guessing a verdict would not be.
-        unreadableMedia.push('a file that could not be read as an image (video, oversized, or corrupt)');
+        // Video reaches here only when ffmpeg is unavailable or the clip
+        // would not decode; otherwise it is measured from sampled frames.
+        unreadableMedia.push('a file that could not be decoded (oversized, corrupt, or video without ffmpeg available)');
         continue;
       }
       if (!isSupportedImageType(`image/${facts.image.format}`)) {
@@ -73,12 +72,13 @@ export class ProofProvenanceService {
       }
 
       primary ??= facts;
-      images.push({
-        mediaType: `image/${facts.image.format === 'jpg' ? 'jpeg' : facts.image.format}` as ProofImage['mediaType'],
-        // The bytes came back with the measurement, so this costs no second
-        // read of the object.
-        base64: facts.body.toString('base64'),
-      });
+      // A video contributes several frames; a still contributes one. Both
+      // came back with the measurement, so neither costs a second read.
+      const mediaType = `image/${facts.image.format === 'jpg' ? 'jpeg' : facts.image.format}` as ProofImage['mediaType'];
+      for (const frame of facts.frames) {
+        if (images.length >= maxImages) break;
+        images.push({ mediaType, base64: frame.toString('base64') });
+      }
 
       await this.repository.recordObjectFacts({
         objectKey: key,
@@ -111,6 +111,15 @@ export class ProofProvenanceService {
       primary.perceptualHash,
       threshold,
     );
+
+    if (primary.wasVideo) {
+      // Recorded as context rather than a finding: it is not a doubt, it is
+      // how the frames were obtained, and video is harder to fake than a
+      // still.
+      unreadableMedia.push(
+        `video proof was judged from ${primary.frames.length} sampled frame(s) rather than the clip`,
+      );
+    }
 
     const report = buildForensicsReport({
       exif: primary.exif,

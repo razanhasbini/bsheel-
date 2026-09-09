@@ -11,6 +11,7 @@ import { OpenAiProofAnalyzer } from './infrastructure/openai-proof-analyzer.js';
 import { PROOF_ANALYZER } from './infrastructure/proof-analyzer.token.js';
 import { ProofVerificationRepository } from './infrastructure/proof-verification.repository.js';
 import { SubmissionsRepository } from './infrastructure/submissions.repository.js';
+import { VideoFrameExtractor } from './infrastructure/video-frame-extractor.js';
 import { SubmissionsController } from './presentation/submissions.controller.js';
 
 @Module({
@@ -24,6 +25,7 @@ import { SubmissionsController } from './presentation/submissions.controller.js'
     ProofVerificationRepository,
     ProofProvenanceService,
     MediaForensicsService,
+    VideoFrameExtractor,
     OpenAiProofAnalyzer,
     ClaudeProofAnalyzer,
     {

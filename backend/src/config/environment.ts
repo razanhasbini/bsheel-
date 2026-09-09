@@ -139,6 +139,13 @@ const environmentSchema = z
     // frame; the cap stops a mixed-media submission becoming an unbounded
     // request.
     AI_VERIFICATION_MAX_IMAGES: z.coerce.number().int().min(1).max(8).default(4),
+    // Video is read whole to be decoded, so its cap is the submission cap
+    // rather than the per-image one.
+    AI_VERIFICATION_MAX_VIDEO_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).default(52_428_800),
+    // Frames sampled evenly across the clip. Enough to see the activity,
+    // few enough that a video costs a small multiple of a photo.
+    AI_VERIFICATION_VIDEO_FRAMES: z.coerce.number().int().min(1).max(8).default(3),
+    AI_VERIFICATION_FFMPEG_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(30_000),
     AI_VERIFICATION_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
     AI_VERIFICATION_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AI_VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),

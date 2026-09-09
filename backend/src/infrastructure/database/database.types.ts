@@ -206,6 +206,7 @@ export interface Database {
     "perceptual_hash": string | null;
     "forensics": Json | null;
     "forensics_at": Timestamp | null;
+    "content_md5": string | null;
   };
   "media_submission_links": {
     "media_object_id": string;
