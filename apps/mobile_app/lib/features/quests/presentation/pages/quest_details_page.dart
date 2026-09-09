@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_contracts/app_contracts.dart';
+import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
@@ -114,13 +115,34 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // ── Category tag + title ───────────────────
-                        if (quest.category.trim().isNotEmpty) ...[
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: ArcadeCategoryTag(
-                              label: quest.category,
-                              tint: QuestColors.category(quest.category),
-                            ),
+                        if (quest.category.trim().isNotEmpty ||
+                            quest.sponsorName != null) ...[
+                          Row(
+                            children: [
+                              if (quest.category.trim().isNotEmpty)
+                                ArcadeCategoryTag(
+                                  label: quest.category,
+                                  tint: QuestColors.category(quest.category),
+                                ),
+                              // Sponsored quests (#51) must say who they are
+                              // from. Attribution only — partner accounts are
+                              // #14 — so this is a credit line, not a link.
+                              if (quest.sponsorName != null) ...[
+                                if (quest.category.trim().isNotEmpty)
+                                  const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'WITH ${quest.sponsorName!.toUpperCase()}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: QuestTypography.osLabelSmall
+                                        .copyWith(
+                                      color: QuestColors.osTextSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 11),
                         ],
@@ -140,6 +162,48 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                         // height is unbounded (this is inside a scroll view)
                         // throws — and it threw on every frame, leaving the
                         // whole page blank.
+                        // Event / time-limited quests (#51). The server
+                        // refuses to assign one outside its window, so the
+                        // deadline has to be visible before someone commits
+                        // — otherwise the only feedback is a failed accept.
+                        if (quest.isTimeLimited) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 13,
+                              vertical: 11,
+                            ),
+                            decoration: BoxDecoration(
+                              color: quest.isWindowClosed
+                                  ? QuestColors.osSurface
+                                  : QuestColors.osAccent,
+                              borderRadius: BorderRadius.circular(
+                                QuestSpacing.radiusControl,
+                              ),
+                              border: Border.all(
+                                color: QuestColors.osTextPrimary,
+                                width: QuestSpacing.cardBorderWidth,
+                              ),
+                              boxShadow: QuestSpacing.shadowSm,
+                            ),
+                            child: Text(
+                              quest.isWindowClosed
+                                  ? 'This event has ended.'
+                                  : _eventWindowLabel(quest),
+                              style: QuestTypography.osBodySmall.copyWith(
+                                // Ink on gold, never white — see the
+                                // contrast rule in QuestColors.onAccent.
+                                color: quest.isWindowClosed
+                                    ? QuestColors.osTextSecondary
+                                    : QuestColors.onAccent(
+                                        QuestColors.osAccent,
+                                      ),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -476,4 +540,22 @@ class _DetailsSkeleton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Human deadline for an event quest. Prefers the closing date, since that
+/// is the actionable half; falls back to the opening date for one that has
+/// not started.
+String _eventWindowLabel(QuestModel quest) {
+  final until = quest.availableUntil;
+  if (until != null) {
+    final left = until.difference(DateTime.now());
+    if (left.inDays >= 1) return 'Available for ${left.inDays} more day(s).';
+    if (left.inHours >= 1) return 'Available for ${left.inHours} more hour(s).';
+    return 'Closing within the hour.';
+  }
+  final from = quest.availableFrom;
+  if (from != null && from.isAfter(DateTime.now())) {
+    return 'Opens ${from.toLocal().toString().split(' ').first}.';
+  }
+  return 'Limited-time quest.';
 }
