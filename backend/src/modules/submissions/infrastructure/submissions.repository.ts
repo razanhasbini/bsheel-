@@ -26,6 +26,10 @@ export interface SubmissionRecord {
 
 interface ReviewRow extends SubmissionRecord {
   quest_xp: number;
+  /// Quest-of-the-Day bonus for this attempt, or 0. Earned only when the
+  /// quest was the QOTD on the UTC day the user took it on, so yesterday's
+  /// ticket rolled randomly today does not pay the bonus.
+  qotd_bonus_xp: number;
 }
 
 @Injectable()
@@ -350,21 +354,31 @@ export class SubmissionsRepository {
       const submission = await this.lockForReview(id, transaction);
       const profile = await transaction.query<{ level: number }>('SELECT level FROM profiles WHERE id = $1 FOR UPDATE', [submission.user_id]);
       const oldLevel = profile.rows[0].level;
+      // One figure covers base + Quest-of-the-Day bonus. Rollback on takedown
+      // and restore both read xp_awarded_amount, so folding the bonus in here
+      // keeps those paths correct with no extra branch.
+      const bonusXp = submission.qotd_bonus_xp ?? 0;
+      const awardedXp = submission.quest_xp + bonusXp;
       const updated = await transaction.query<SubmissionRecord>(
         `UPDATE submissions SET status = 'approved', reviewed_by = $2, reviewed_at = now(),
            review_note = COALESCE(NULLIF(trim($3), ''), review_note), xp_awarded = true,
            xp_awarded_amount = $4, version = version + 1
          WHERE id = $1 RETURNING *`,
-        [id, actorId, reviewNote ?? null, submission.quest_xp],
+        [id, actorId, reviewNote ?? null, awardedXp],
       );
       await transaction.query("UPDATE user_quests SET status = 'approved', completed_at = now(), version = version + 1 WHERE id = $1", [submission.user_quest_id]);
       const newProfile = await transaction.query<{ level: number }>(
         `UPDATE profiles SET xp = xp + $2, quests_completed = quests_completed + 1,
            level = GREATEST(1, (xp + $2) / 100 + 1)
          WHERE id = $1 RETURNING level`,
-        [submission.user_id, submission.quest_xp],
+        [submission.user_id, awardedXp],
       );
-      await this.createNotification(submission.user_id, 'Approved. Respect. ✅', `+${submission.quest_xp} XP added to your name. Keep cooking.`, 'submission_approved', id, transaction);
+      // Name the bonus when there is one — the ticket promised it on the home
+      // screen, so the approval has to account for it.
+      const xpLine = bonusXp > 0
+        ? `+${awardedXp} XP added to your name (${submission.quest_xp} + ${bonusXp} Quest of the Day bonus). Keep cooking.`
+        : `+${awardedXp} XP added to your name. Keep cooking.`;
+      await this.createNotification(submission.user_id, 'Approved. Respect. ✅', xpLine, 'submission_approved', id, transaction);
       await this.notifyCollabPartners(submission.user_id, submission.user_quest_id, id, transaction);
       if (newProfile.rows[0].level > oldLevel) {
         await this.createNotification(
@@ -524,8 +538,15 @@ export class SubmissionsRepository {
 
   private async lockForReview(id: string, transaction: DatabaseTransaction): Promise<ReviewRow> {
     const result = await transaction.query<ReviewRow>(
-      `SELECT s.*, q.xp_reward AS quest_xp FROM submissions s
+      `SELECT s.*, q.xp_reward AS quest_xp,
+              COALESCE(d.bonus_xp, 0) AS qotd_bonus_xp
+       FROM submissions s
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
+       -- The bonus is tied to the day the quest was taken on, not the day it
+       -- is reviewed: a moderator's backlog must not change what a user earns.
+       LEFT JOIN quest_of_the_day d
+              ON d.quest_id = uq.quest_id
+             AND d.display_date = (uq.assigned_at AT TIME ZONE 'UTC')::date
        WHERE s.id = $1 FOR UPDATE OF s`,
       [id],
     );
