@@ -2656,24 +2656,36 @@ class _RecentQuestRow extends StatelessWidget {
     final ink = QuestColors.text(context);
     final (statusText, statusColor) = _statusStyle(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
-        color: QuestColors.surfaceBg(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: ink.withAlpha(QuestColors.alphaHairline),
-          width: 1.2,
-        ),
+        // The frame draws these as white cards with a full 2px outline, not
+        // warm surface behind a hairline.
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: [
+          // The shadow carries the status. Reading a row's outcome from the
+          // colour under it is faster than reading the label, which is the
+          // whole reason the design tints it rather than using ink here.
+          BoxShadow(
+            color: statusColor,
+            offset: const Offset(3, 3),
+            blurRadius: 0,
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
+            // A rounded bar, not a dot: the frame draws h10 at r5 with the
+            // same 2px outline as everything else. Leaving BoxShape.circle
+            // with a non-square box would have drawn a lopsided oval.
             width: 8,
-            height: 8,
+            height: 10,
             decoration: BoxDecoration(
               color: statusColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: ink, width: 1),
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: ink, width: 2),
             ),
           ),
           const SizedBox(width: 10),
