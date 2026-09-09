@@ -130,6 +130,47 @@ action row, several per screen. That is a different architecture, not a
 different skin — budget for it accordingly and expect the `PageController`,
 its page-index state and the video autoplay logic to come out.
 
+### Feed rewrite brief
+
+Everything needed to do it in one pass. Render: `export/mobile/09-feed.jpg`.
+
+**Comes out:** `PageView.builder` and `_pageController` in `feed_page.dart`,
+`_currentPage` / `_onPageChanged`, the `isActive` autoplay plumbing, and
+`_ReelsPostHost`. `widgets/reels_card.dart` (~640 lines) becomes dead —
+delete it once nothing imports it. The top *overlay* header becomes an
+ordinary inline header, since the list scrolls under nothing now.
+
+**Goes in:** a `ListView.separated` of post cards, ~14px apart.
+
+Card, read off the render:
+
+- White ground, 2px ink border, `r16`, and a **3px shadow in the post's
+  category colour** — jade LEARNING, gold ADVENTURE, via
+  `QuestColors.category(post.category)`. This rule appears nowhere in the
+  prose; it is only visible in the image.
+- **Header row:** avatar circle 44 with a 2px ink border · username Syne 700
+  16 · `LVL 12 · MAGE · 2H AGO` mono 10 muted · category pill top-right
+  (`ArcadeCategoryTag`, 8px radius, ink text via `onAccent`).
+- **Media block** full card width, cream, `r12`, with the `PROOF MEDIA` mono
+  label centred while loading. Use `ArcadeSkeleton` for the pending state.
+- **Title** Syne 800 ~22 ALL CAPS, `maxLines: 2`, ellipsis.
+- **Body** DM Sans 14, normal case, `osTextSecondary`, `maxLines: 3`.
+- **Action row:** upvote `▲ 142` — violet ground, **white** label, `r11`, 3px
+  shadow, when the viewer has upvoted; white ground with ink label when not.
+  Downvote `▼` and comment `◌ 23` are white, `r11`. `BSHEEEL` sits right,
+  gold ground with **ink** text. Every one of these needs a 44pt hit area —
+  the spec names the vote buttons as previously too small.
+
+**Keep:** the existing feed providers, sort/scope handling, pull-to-refresh,
+optimistic vote logic and block filtering. This is a presentation rewrite
+only; nothing about how the feed is fetched or mutated should change.
+
+**Watch for:** video. The reels player autoplayed the active page. A card list
+has no single active post, so either show a thumbnail with a tap-to-play
+sheet or play only the card nearest the viewport centre — do not autoplay
+every visible card. `video_compress` also has no web implementation, so the
+web build must not reach it.
+
 **The map does not exist.** `export/map/` has three frames — a map screen
 with real Natural Earth geometry, a geometry legend, and country progress.
 There is no map feature anywhere in `apps/mobile_app`. It is new work, not a
