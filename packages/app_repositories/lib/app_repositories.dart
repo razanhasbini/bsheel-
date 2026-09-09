@@ -25,6 +25,8 @@ export 'profile/profile_repository.dart';
 export 'profile/api_profile_repository.dart';
 
 // ── Quests ───────────────────────────────────────────────────────────────
+export 'quest_campaigns/api_quest_campaigns_repository.dart';
+export 'quest_campaigns/quest_campaigns_repository.dart';
 export 'quests/quests_repository.dart';
 export 'quests/api_quests_repository.dart';
 

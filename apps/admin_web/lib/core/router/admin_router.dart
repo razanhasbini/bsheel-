@@ -15,6 +15,7 @@ import '../../features/moderation/presentation/pages/submission_review_page.dart
 import '../../features/moderation/presentation/pages/submission_history_page.dart';
 import '../../features/feed_management/presentation/pages/feed_management_page.dart';
 import '../../features/quest_management/presentation/pages/quest_management_page.dart';
+import '../../features/quest_campaigns/presentation/pages/quest_campaigns_page.dart';
 import '../../features/quest_of_day/presentation/pages/qotd_management_page.dart';
 import '../../features/map_places/presentation/pages/map_places_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -157,6 +158,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.questOfTheDay,
             name: AdminRouteNames.questOfTheDay,
             builder: (context, state) => const QotdManagementPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.questCampaigns,
+            name: AdminRouteNames.questCampaigns,
+            builder: (context, state) => const QuestCampaignsPage(),
           ),
           GoRoute(
             path: AdminRoutePaths.mapPlaces,

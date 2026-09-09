@@ -46,6 +46,7 @@ class AdminSidebar extends ConsumerWidget {
     _Destination('FEED', AdminRouteNames.feedManagement, '/feed'),
     _Destination('QUESTS', AdminRouteNames.questManagement, '/quests'),
     _Destination('QUEST OF THE DAY', AdminRouteNames.questOfTheDay, '/qotd'),
+    _Destination('CAMPAIGNS', AdminRouteNames.questCampaigns, '/campaigns'),
     _Destination('DESTINATIONS', AdminRouteNames.mapPlaces, '/destinations'),
     _Destination('USERS', AdminRouteNames.users, '/users'),
     _Destination('XP', AdminRouteNames.xpManagement, '/xp'),
