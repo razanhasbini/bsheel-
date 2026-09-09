@@ -683,18 +683,22 @@ class _SlotMachineZone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    // Same navy as the bottom nav pill + active quest hero.
-    const navy = QuestColors.osTextPrimary;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
       decoration: BoxDecoration(
-        color: navy,
+        // The design draws this as a white card, not an ink panel: it is the
+        // one thing to do on an empty home, so it should read as the bright
+        // surface rather than recede.
+        color: QuestColors.osCard,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2.5),
-        boxShadow: [
+        border: Border.all(color: ink, width: 2),
+        boxShadow: const [
+          // A *coloured* shadow marks the single most important thing on
+          // screen; everything else takes ink. With no active quest, that is
+          // this card. 6px, coral, per the frame.
           BoxShadow(
-            color: ink,
-            offset: const Offset(3, 4),
+            color: QuestColors.osRed,
+            offset: Offset(6, 6),
             blurRadius: 0,
           ),
         ],
@@ -752,6 +756,12 @@ class _SlotMachineZone extends StatelessWidget {
 /// Retro arcade chase scene — a Pac-Man sprite walks left→right chomping a
 /// row of dots, with a ghost tailing behind. Draws everything with
 /// [CustomPainter] so it stays crisp at any size and has no asset deps.
+/// The slot-machine reels: three warm-surface tiles, per the design frame.
+///
+/// This replaced a hand-painted Pac-Man scene on a black strip. The frame
+/// draws plain 78pt reels — `#FFF1D6` ground, 2px ink border, 12px radius,
+/// a 26px glyph — and the black strip cannot survive inside the white card
+/// the frame specifies anyway: its pale dot palette was chosen for black.
 class _RetroArcadeScene extends StatefulWidget {
   const _RetroArcadeScene();
 
@@ -761,178 +771,54 @@ class _RetroArcadeScene extends StatefulWidget {
 
 class _RetroArcadeSceneState extends State<_RetroArcadeScene>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ac;
+  late final AnimationController _spin = AnimationController(
+    duration: const Duration(milliseconds: 1400),
+    vsync: this,
+  )..repeat();
 
-  @override
-  void initState() {
-    super.initState();
-    _ac = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..repeat();
-  }
+  /// The reels idle rather than sit dead: each cycles its glyph on its own
+  /// phase, so the zone reads as a machine waiting to be pulled.
+  static const List<String> _glyphs = ['◇', '◈', '◆'];
 
   @override
   void dispose() {
-    _ac.dispose();
+    _spin.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: QuestColors.pureBlack,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: QuestColors.pureWhite.withAlpha(QuestColors.alphaHairline),
-            width: 1.5,
-          ),
-        ),
-        child: AnimatedBuilder(
-          animation: _ac,
-          builder: (_, __) {
-            return CustomPaint(
-              painter: _ArcadeScenePainter(progress: _ac.value),
-              size: Size.infinite,
-            );
-          },
-        ),
-      ),
+    final ink = QuestColors.text(context);
+    return AnimatedBuilder(
+      animation: _spin,
+      builder: (context, _) {
+        return Row(
+          children: [
+            for (var reel = 0; reel < 3; reel++) ...[
+              if (reel > 0) const SizedBox(width: 9),
+              Expanded(
+                child: Container(
+                  height: 78,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: QuestColors.osSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: ink, width: 2),
+                  ),
+                  child: Text(
+                    // Offset phase per reel so they never land together.
+                    _glyphs[((_spin.value * _glyphs.length).floor() + reel) %
+                        _glyphs.length],
+                    style: TextStyle(fontSize: 26, color: ink, height: 1),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
-}
-
-class _ArcadeScenePainter extends CustomPainter {
-  _ArcadeScenePainter({required this.progress});
-  final double progress;
-
-  // Screen-specific colours — not theme tokens (Pac-Man scene palette).
-  static const Color _dotYellow = Color(0xFFFFF2A8);
-  static const Color _pacYellow = Color(0xFFFFD400);
-  static const Color _ghostPink = Color(0xFFFFB8DE);
-  static const Color _ghostCyan = Color(0xFF6FD9FF);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Dot row — evenly spaced along the middle of the strip.
-    const dotCount = 9;
-    final dotSpacing = size.width / (dotCount + 1);
-    final cy = size.height / 2;
-    final dotPaint = Paint()..color = _dotYellow;
-
-    // Pac-Man travels from the left edge to just past the right edge on a
-    // ping-pong loop. When he's past a dot, that dot is "eaten".
-    final loopT = progress; // 0..1
-    // Ping-pong: forward for first half, backward second half.
-    final pacT = loopT < 0.5 ? loopT * 2 : (1 - loopT) * 2;
-    final pacX = -14 + (size.width + 28) * pacT;
-    final goingLeft = loopT >= 0.5;
-
-    // Draw the dots, skipping ones Pac-Man has already passed in the
-    // current direction.
-    for (var i = 0; i < dotCount; i++) {
-      final dotX = dotSpacing * (i + 1);
-      final eaten = goingLeft ? dotX > pacX : dotX < pacX;
-      if (eaten) continue;
-      canvas.drawCircle(Offset(dotX, cy), 2.2, dotPaint);
-    }
-
-    // Pac-Man — yellow circle with a chomping wedge mouth.
-    final chomp =
-        0.05 + 0.55 * ((progress * 8) % 1.0 < 0.5 ? 1.0 : 0.0).toDouble();
-    _drawPacMan(canvas, Offset(pacX, cy), 11, chomp, goingLeft);
-
-    // Ghost — follows Pac-Man about 28 px behind (in front when going left).
-    final ghostX = goingLeft ? pacX + 28 : pacX - 28;
-    _drawGhost(canvas, Offset(ghostX, cy), 11, progress);
-  }
-
-  void _drawPacMan(
-    Canvas canvas,
-    Offset center,
-    double r,
-    double chompRad,
-    bool facingLeft,
-  ) {
-    final paint = Paint()..color = _pacYellow;
-    // The mouth opens to the right by default; flip when going left.
-    final facing = facingLeft ? 3.14159 : 0.0; // pi rotation
-    final start = facing + chompRad;
-    final sweep = 6.283185 - 2 * chompRad;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: r),
-      start,
-      sweep,
-      true,
-      paint,
-    );
-  }
-
-  void _drawGhost(
-    Canvas canvas,
-    Offset center,
-    double r,
-    double t,
-  ) {
-    // Ghost cycles through 3 classic colours as a little flair.
-    final bodyColors = [
-      QuestColors.osRed, // Blinky (red/coral)
-      _ghostPink, // Pinky
-      _ghostCyan, // Inky (cyan)
-    ];
-    final body = Paint()
-      ..color = bodyColors[((t * 3).floor()) % bodyColors.length];
-    final path = Path();
-    // Top dome
-    path.moveTo(center.dx - r, center.dy + r * 0.6);
-    path.lineTo(center.dx - r, center.dy);
-    path.arcToPoint(
-      Offset(center.dx + r, center.dy),
-      radius: Radius.circular(r),
-      clockwise: true,
-    );
-    path.lineTo(center.dx + r, center.dy + r * 0.6);
-    // Wavy bottom (3 bumps)
-    final bumpWidth = (2 * r) / 3;
-    for (var i = 0; i < 3; i++) {
-      final xEnd = center.dx + r - (i + 1) * bumpWidth;
-      final xMid = xEnd + bumpWidth / 2;
-      final waveUp = center.dy + r * 0.6 - (i.isEven ? 3.0 : 0.0);
-      path.lineTo(xMid, waveUp);
-      path.lineTo(xEnd, center.dy + r * 0.6);
-    }
-    path.close();
-    canvas.drawPath(path, body);
-
-    // Eyes
-    final whitePaint = Paint()..color = QuestColors.pureWhite;
-    final pupilPaint = Paint()..color = QuestColors.osTextPrimary;
-    final eyeOffsetX = r * 0.38;
-    final eyeY = center.dy - r * 0.15;
-    canvas.drawCircle(
-        Offset(center.dx - eyeOffsetX, eyeY), r * 0.28, whitePaint);
-    canvas.drawCircle(
-        Offset(center.dx + eyeOffsetX, eyeY), r * 0.28, whitePaint);
-    // Pupils jitter slightly with animation so the ghost feels alive.
-    final pupilX = -0.6 + 1.2 * ((t * 2) % 1.0);
-    canvas.drawCircle(
-      Offset(center.dx - eyeOffsetX + pupilX, eyeY),
-      r * 0.12,
-      pupilPaint,
-    );
-    canvas.drawCircle(
-      Offset(center.dx + eyeOffsetX + pupilX, eyeY),
-      r * 0.12,
-      pupilPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ArcadeScenePainter old) => old.progress != progress;
 }
 
 // ── Active quest hero ─────────────────────────────────────────────────────
@@ -1099,9 +985,17 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
       decoration: BoxDecoration(
         color: navy,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2.5),
-        boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: const [
+          // The hero stays an ink panel, but its shadow is violet rather
+          // than ink: a coloured shadow marks the single most important
+          // thing on screen, and while a quest is running that is this.
+          // 6px is the spec's depth for hero panels.
+          BoxShadow(
+            color: QuestColors.osPrimary,
+            offset: Offset(6, 6),
+            blurRadius: 0,
+          ),
         ],
       ),
       child: Column(
