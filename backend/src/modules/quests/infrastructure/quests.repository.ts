@@ -271,8 +271,41 @@ export class QuestsRepository {
           message: 'User already has an active quest',
         });
       }
+      // A chain step past the first is locked until the previous step has
+      // APPROVED proof for this user. The roll never offers one, but this
+      // endpoint takes a questId from the client, so the rule has to be
+      // enforced here too or the chain is bypassable by id.
+      const locked = await transaction.query<{ step_order: number }>(
+        `SELECT cs.step_order
+         FROM quest_chain_steps cs
+         WHERE cs.quest_id = $2
+           AND cs.step_order > 1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM quest_chain_steps prev
+             JOIN user_quests uq ON uq.quest_id = prev.quest_id
+             WHERE prev.chain_id = cs.chain_id
+               AND prev.step_order = cs.step_order - 1
+               AND uq.user_id = $1
+               AND uq.status = 'approved'
+           )
+         LIMIT 1`,
+        [userId, questId],
+      );
+      if (locked.rowCount) {
+        throw new ConflictException({
+          code: 'QUEST_STEP_LOCKED',
+          message: 'Finish and get the previous step approved first',
+        });
+      }
+
+      // An out-of-window event quest is not assignable either, however the
+      // id was obtained.
       const questResult = await transaction.query<QuestRecord>(
-        'SELECT * FROM quests WHERE id = $1 AND is_active = true',
+        `SELECT * FROM quests
+         WHERE id = $1 AND is_active = true
+           AND (available_from IS NULL OR available_from <= now())
+           AND (available_until IS NULL OR available_until > now())`,
         [questId],
       );
       const quest = questResult.rows[0];
@@ -337,6 +370,25 @@ export class QuestsRepository {
     });
   }
 
+  /// SQL predicate for a quest the system may hand a user unprompted (#51).
+  ///
+  /// Excludes, in order: hidden content, anything outside its event window,
+  /// and any chain step past the first. The last one matters most — a
+  /// multi-stage quest's later steps must stay locked until the previous
+  /// step has approved proof, so the roll only ever offers an entry point.
+  ///
+  /// Takes the quest alias so callers can apply it to `q`, `quests`, etc.
+  private static offerable(alias: string): string {
+    return `${alias}.is_active
+      AND NOT ${alias}.is_hidden
+      AND (${alias}.available_from IS NULL OR ${alias}.available_from <= now())
+      AND (${alias}.available_until IS NULL OR ${alias}.available_until > now())
+      AND NOT EXISTS (
+        SELECT 1 FROM quest_chain_steps cs
+        WHERE cs.quest_id = ${alias}.id AND cs.step_order > 1
+      )`;
+  }
+
   async pickerOptions(
     userId: string,
     requestedCount: number,
@@ -350,7 +402,13 @@ export class QuestsRepository {
            WHERE id = (SELECT id FROM admin_quest_injections WHERE target_user_id = $1 AND consumed_at IS NULL ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
            RETURNING quest_id
          ) SELECT q.* FROM popped p JOIN quests q ON q.id = p.quest_id WHERE q.is_active
-             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)`,
+             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)
+             -- An admin may inject hidden or out-of-window content on
+             -- purpose, but never a chain step whose predecessor is unmet.
+             AND NOT EXISTS (
+               SELECT 1 FROM quest_chain_steps cs
+               WHERE cs.quest_id = q.id AND cs.step_order > 1
+             )`,
         [userId],
       );
       const injected = injection.rows[0];
@@ -360,7 +418,7 @@ export class QuestsRepository {
       const result = await transaction.query<QuestRecord>(
         `WITH eligible AS (
            SELECT q.* FROM quests q
-           WHERE q.is_active
+           WHERE ${QuestsRepository.offerable('q')}
              AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)
              AND ($2::uuid IS NULL OR q.id <> $2)
              AND NOT EXISTS (SELECT 1 FROM admin_quest_injections i WHERE i.quest_id = q.id)
@@ -388,6 +446,7 @@ export class QuestsRepository {
               q.xp_reward AS quest_xp_reward, q.duration_hours AS quest_duration_hours
        FROM quest_of_the_day d JOIN quests q ON q.id = d.quest_id
        WHERE d.display_date = (now() AT TIME ZONE 'UTC')::date
+         AND ${QuestsRepository.offerable('q')}
          AND NOT EXISTS (SELECT 1 FROM quest_destinations dest WHERE dest.quest_id=q.id) LIMIT 1`,
     );
     return result.rows[0] ?? null;

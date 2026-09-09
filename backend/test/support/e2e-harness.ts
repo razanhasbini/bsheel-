@@ -198,10 +198,17 @@ export class E2eHarness {
     durationHours?: number;
     title?: string;
     isActive?: boolean;
+    /// #51 quest-type columns. Null windows mean "always available", which
+    /// is what every pre-existing quest has.
+    isHidden?: boolean;
+    availableFrom?: Date | null;
+    availableUntil?: Date | null;
+    sponsorName?: string | null;
   } = {}): Promise<TestQuest> {
     const result = await this.database.query<TestQuest>(
-      `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active)
-       VALUES ($1, $2, 'e2e', 'easy', $3, $4, $5)
+      `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active,
+                           is_hidden, available_from, available_until, sponsor_name)
+       VALUES ($1, $2, 'e2e', 'easy', $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, title, xp_reward, duration_hours`,
       [
         options.title ?? `Quest ${this.uniqueName('q')}`,
@@ -209,11 +216,48 @@ export class E2eHarness {
         options.xpReward ?? 250,
         options.durationHours ?? 4,
         options.isActive ?? true,
+        options.isHidden ?? false,
+        options.availableFrom ?? null,
+        options.availableUntil ?? null,
+        options.sponsorName ?? null,
       ],
     );
     this.questIds.push(result.rows[0].id);
     this.trackedIds.push(result.rows[0].id);
     return result.rows[0];
+  }
+
+  /// Builds a chain over the given quests, in order. Returns the chain id.
+  /// Steps are 1-based, matching quest_chain_steps.step_order.
+  async createQuestChain(questIds: readonly string[], mode: 'solo' | 'group' = 'solo'): Promise<string> {
+    const chain = await this.database.query<{ id: string }>(
+      `INSERT INTO quest_chains (name, mode) VALUES ($1, $2) RETURNING id`,
+      [`Chain ${this.uniqueName('c')}`, mode],
+    );
+    const chainId = chain.rows[0].id;
+    for (const [index, questId] of questIds.entries()) {
+      await this.database.query(
+        `INSERT INTO quest_chain_steps (chain_id, quest_id, step_order) VALUES ($1, $2, $3)`,
+        [chainId, questId, index + 1],
+      );
+    }
+    return chainId;
+  }
+
+  /// Groups quests into a collection and returns its id.
+  async createQuestCollection(questIds: readonly string[]): Promise<string> {
+    const collection = await this.database.query<{ id: string }>(
+      `INSERT INTO quest_collections (name, is_published) VALUES ($1, true) RETURNING id`,
+      [`Collection ${this.uniqueName('col')}`],
+    );
+    const id = collection.rows[0].id;
+    for (const questId of questIds) {
+      await this.database.query(
+        `INSERT INTO quest_collection_items (collection_id, quest_id) VALUES ($1, $2)`,
+        [id, questId],
+      );
+    }
+    return id;
   }
 
   async assignQuest(user: TestUser, questId: string): Promise<{ id: string }> {
