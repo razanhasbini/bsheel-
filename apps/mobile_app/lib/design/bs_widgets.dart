@@ -375,30 +375,34 @@ class BsSegBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: QuestColors.osSurface,
-        border: Border.all(
-            color: QuestColors.osTextPrimary,
-            width: QuestSpacing.cardBorderWidth),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-          children: options.map((o) {
+    // Separate chips, not a segmented group in a shared container. The
+    // renders draw each option as its own outlined pill - the selected one
+    // ink with cream text, the rest white with an ink outline - which is the
+    // same treatment as the settings language chips and the notification
+    // filters. Wrap so a long option set cannot overflow a narrow phone.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((o) {
         final active = o == value;
-        return Expanded(
-            child: GestureDetector(
+        return GestureDetector(
           onTap: () => onChange(o),
           behavior: HitTestBehavior.opaque,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             constraints:
                 BoxConstraints(minHeight: small ? 36 : kMinTouchTarget),
-            padding: EdgeInsets.symmetric(vertical: small ? 6 : 10),
+            padding: EdgeInsets.symmetric(
+              vertical: small ? 6 : 10,
+              horizontal: small ? 12 : 16,
+            ),
             decoration: BoxDecoration(
-              color: active ? QuestColors.osTextPrimary : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+              color: active ? QuestColors.osTextPrimary : QuestColors.osCard,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth,
+              ),
             ),
             alignment: Alignment.center,
             child: Text(o.toUpperCase(),
@@ -413,8 +417,8 @@ class BsSegBar extends StatelessWidget {
                   letterSpacing: 0.4,
                 )),
           ),
-        ));
-      }).toList()),
+        );
+      }).toList(),
     );
   }
 }
