@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
-import type { MapPlaceDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
+import type { MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
 
 // Bound to the requesting user. Device GPS never grants this predicate.
 const evidence = `EXISTS (SELECT 1 FROM map_location_evidence e WHERE e.user_id=$1
@@ -91,8 +91,72 @@ export class MapRepository {
   }
 
   async adminPlaces() {
-    return (await this.database.query(`SELECT p.*,c.name AS country_name,c.geometry_id
+    return (await this.database.query(`SELECT p.*,c.name AS country_name,c.geometry_id,
+        (SELECT count(*) FROM quest_destinations d WHERE d.place_id=p.id)::int AS quest_count
       FROM map_places p JOIN map_countries c ON c.code=p.country_code ORDER BY p.created_at DESC LIMIT 500`)).rows;
+  }
+
+  /// Admin view of one place, including the quests already linked to it.
+  ///
+  /// The public `detail` is gated on published-and-not-hidden, which excludes
+  /// exactly the drafts and hidden places staff need to inspect. Without this
+  /// they were linking blind: no way to see what was already pinned before
+  /// pinning something else.
+  async adminPlaceDetail(id: string) {
+    const place = (await this.database.query(`SELECT p.*,c.name AS country_name,c.geometry_id
+      FROM map_places p JOIN map_countries c ON c.code=p.country_code WHERE p.id=$1`,[id])).rows[0];
+    if (!place) throw new NotFoundException({code:'PLACE_NOT_FOUND',message:'Place not found'});
+    const quests = (await this.database.query(`SELECT q.id,q.title,q.category,q.difficulty,q.xp_reward,
+        d.requires_verification,
+        EXISTS(SELECT 1 FROM user_quests uq WHERE uq.quest_id=q.id) AS has_attempts
+      FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
+      WHERE d.place_id=$1 ORDER BY q.title`,[id])).rows;
+    return { ...place, quests };
+  }
+
+  /// Detaches a quest from its place.
+  ///
+  /// Without this a mis-link was permanent, and because destination
+  /// assignment is blocked while a place is unpublished or unverified, a bad
+  /// link could silently leave a quest unassignable with no way back. The
+  /// same guard as `link` applies: a quest with attempts is not moved or
+  /// detached, because discovery already counted against that place.
+  async unlink(actor: string, placeId: string, questId: string) {
+    return this.database.transaction(async tx => {
+      const attempts = await tx.query('SELECT 1 FROM user_quests WHERE quest_id=$1 LIMIT 1',[questId]);
+      if (attempts.rowCount) {
+        throw new ConflictException({code:'QUEST_ALREADY_STARTED',message:'Cannot unlink a quest that already has attempts'});
+      }
+      const before = (await tx.query('SELECT * FROM quest_destinations WHERE quest_id=$1 AND place_id=$2',[questId,placeId])).rows[0];
+      if (!before) throw new NotFoundException({code:'LINK_NOT_FOUND',message:'That quest is not linked to this place'});
+      await tx.query('DELETE FROM quest_destinations WHERE quest_id=$1 AND place_id=$2',[questId,placeId]);
+      await tx.query(`INSERT INTO admin_audit_log(actor_id,action,target_type,target_id,before_state)
+        VALUES($1,'map.quest.unlink','quest',$2,$3::jsonb)`,[actor,questId,JSON.stringify(before)]);
+      return { unlinked:true };
+    });
+  }
+
+  /// Updates a place. Publishing state, coordinates and radius were fixed at
+  /// creation, so a wrong coordinate could only be worked around by creating
+  /// a second place — and an unpublished place cannot be corrected into a
+  /// published one at all.
+  async updatePlace(actor: string, id: string, input: MapPlaceUpdateDto) {
+    return this.database.transaction(async tx => {
+      const before = (await tx.query('SELECT * FROM map_places WHERE id=$1 FOR UPDATE',[id])).rows[0];
+      if (!before) throw new NotFoundException({code:'PLACE_NOT_FOUND',message:'Place not found'});
+      const row = (await tx.query(`UPDATE map_places SET
+          name=COALESCE($2,name), description=COALESCE($3,description), city=COALESCE($4,city),
+          category=COALESCE($5,category), latitude=COALESCE($6,latitude), longitude=COALESCE($7,longitude),
+          radius_m=COALESCE($8,radius_m), is_published=COALESCE($9,is_published)
+        WHERE id=$1 RETURNING *`,
+      [id,input.name?.trim() ?? null,input.description?.trim() ?? null,input.city?.trim() ?? null,
+       input.category ?? null,input.latitude ?? null,input.longitude ?? null,
+       input.radiusM ?? null,input.isPublished ?? null])).rows[0];
+      await tx.query(`INSERT INTO admin_audit_log(actor_id,action,target_type,target_id,before_state,after_state)
+        VALUES($1,'map.place.update','map_place',$2,$3::jsonb,$4::jsonb)`,
+      [actor,id,JSON.stringify(before),JSON.stringify(row)]);
+      return row;
+    });
   }
 
   async create(actor: string, input: MapPlaceDto) {

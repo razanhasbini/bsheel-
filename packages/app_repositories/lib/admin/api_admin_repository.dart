@@ -376,4 +376,78 @@ class ApiAdminRepository implements AdminRepository {
           },
         ),
       );
+
+  // ── Map destinations ────────────────────────────────────────────
+  // `super_admin` only on the server. A moderator's call answers 403,
+  // so the console gates the page rather than letting every action fail.
+
+  /// Every map place, newest first, capped at 500 by the server.
+  ///
+  /// Each row is the `map_places` record joined with its country, so it
+  /// also carries `country_name` and `geometry_id`. Unlike the public
+  /// `map/places` list this one includes unpublished and `hidden` places
+  /// and does **not** carry a `quest_count`.
+  Future<List<Map<String, dynamic>>> adminMapPlaces() async =>
+      apiObjectList(await _client.get('map/admin/places'));
+
+  /// Creates a place and upserts the country it belongs to in the same
+  /// transaction, so a first destination in a new country needs no
+  /// separate call. Returns the inserted row.
+  ///
+  /// The server re-validates every bound: `countryCode` two uppercase
+  /// letters, `geometryId` three digits, `name` 1..160, `description`
+  /// ≤2000, `city` ≤100, latitude -85..85, longitude -180..180 and
+  /// `radiusM` 25..10000.
+  Future<Map<String, dynamic>> createMapPlace({
+    required String countryCode,
+    required String countryName,
+    required String geometryId,
+    required String name,
+    required String category,
+    required double latitude,
+    required double longitude,
+    String description = '',
+    String city = '',
+    int radiusM = 250,
+    bool isPublished = false,
+  }) async =>
+      apiObject(
+        await _client.post(
+          'map/admin/places',
+          body: {
+            'countryCode': countryCode,
+            'countryName': countryName,
+            'geometryId': geometryId,
+            'name': name,
+            'description': description,
+            'city': city,
+            'category': category,
+            'latitude': latitude,
+            'longitude': longitude,
+            'radiusM': radiusM,
+            'isPublished': isPublished,
+          },
+        ),
+      );
+
+  /// Points one quest at [placeId].
+  ///
+  /// A quest has at most one destination, so linking a quest that is
+  /// already linked elsewhere moves it. The server refuses a quest that
+  /// already has attempts with `QUEST_ALREADY_STARTED` — reassigning a
+  /// live quest would retroactively move discovery. There is no unlink
+  /// endpoint.
+  Future<void> linkQuestToPlace(
+    String placeId, {
+    required String questId,
+    bool requiresVerification = true,
+  }) async {
+    await _client.post(
+      'map/admin/places/$placeId/quests',
+      body: {
+        'questId': questId,
+        'requiresVerification': requiresVerification,
+      },
+    );
+  }
 }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { MapPlaceDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
+import type { MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
 import { MapRepository } from '../infrastructure/map.repository.js';
 
 @Injectable()
@@ -17,4 +17,7 @@ export class MapService {
   adminPlaces(){return this.repository.adminPlaces();}
   create(actorId:string,input:MapPlaceDto){return this.repository.create(actorId,input);}
   link(actorId:string,id:string,input:MapQuestLinkDto){return this.repository.link(actorId,id,input);}
+  adminPlaceDetail(id:string){return this.repository.adminPlaceDetail(id);}
+  unlink(actorId:string,id:string,questId:string){return this.repository.unlink(actorId,id,questId);}
+  updatePlace(actorId:string,id:string,input:MapPlaceUpdateDto){return this.repository.updatePlace(actorId,id,input);}
 }

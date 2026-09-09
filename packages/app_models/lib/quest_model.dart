@@ -15,6 +15,30 @@ class QuestModel {
   final DateTime createdAt;
   final DateTime? updatedAt;
 
+  // ── #51 quest types ────────────────────────────────────────────────
+
+  /// Hidden content: never offered by the roll, reached only via an unlock,
+  /// an admin injection, or a chain step. The server withholds it, so a
+  /// client seeing this true means it was unlocked deliberately.
+  final bool isHidden;
+
+  /// Event / time-limited window. Null means unbounded, which is every
+  /// pre-existing quest.
+  final DateTime? availableFrom;
+  final DateTime? availableUntil;
+
+  /// Sponsor credit line. Attribution only — partner accounts are #14.
+  final String? sponsorName;
+
+  /// True when this quest is only available for a bounded period, so the UI
+  /// knows to show a deadline rather than an open-ended quest.
+  bool get isTimeLimited => availableFrom != null || availableUntil != null;
+
+  /// Whether the event window has closed. The server refuses to assign such
+  /// a quest, so the UI must not offer it as actionable.
+  bool get isWindowClosed =>
+      availableUntil != null && DateTime.now().isAfter(availableUntil!);
+
   const QuestModel({
     required this.id,
     required this.title,
@@ -27,6 +51,10 @@ class QuestModel {
     this.createdBy,
     required this.createdAt,
     this.updatedAt,
+    this.isHidden = false,
+    this.availableFrom,
+    this.availableUntil,
+    this.sponsorName,
   });
 
   factory QuestModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +72,14 @@ class QuestModel {
       createdBy: json[QuestColumns.createdBy] as String?,
       createdAt: coerceTimestamp(json[QuestColumns.createdAt]),
       updatedAt: coerceNullableTimestamp(json[QuestColumns.updatedAt]),
+      isHidden: coerceBool(json[QuestColumns.isHidden], ifMissing: false),
+      availableFrom:
+          coerceNullableTimestamp(json[QuestColumns.availableFrom]),
+      availableUntil:
+          coerceNullableTimestamp(json[QuestColumns.availableUntil]),
+      sponsorName: (json[QuestColumns.sponsorName] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (json[QuestColumns.sponsorName] as String).trim(),
     );
   }
 
@@ -55,6 +91,10 @@ class QuestModel {
     int? xpReward,
     int? durationHours,
     bool? isActive,
+    bool? isHidden,
+    DateTime? availableFrom,
+    DateTime? availableUntil,
+    String? sponsorName,
   }) {
     return QuestModel(
       id: id,
@@ -73,6 +113,12 @@ class QuestModel {
       createdBy: createdBy,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      // Carried through explicitly: a copyWith that dropped these would
+      // silently turn a sponsored event quest into an ordinary one.
+      isHidden: isHidden ?? this.isHidden,
+      availableFrom: availableFrom ?? this.availableFrom,
+      availableUntil: availableUntil ?? this.availableUntil,
+      sponsorName: sponsorName ?? this.sponsorName,
     );
   }
 

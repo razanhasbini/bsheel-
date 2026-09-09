@@ -539,7 +539,9 @@ class BsheelPill extends StatelessWidget {
       'active' ||
       'live' ||
       'invited' ||
-      'visible' =>
+      'visible' ||
+      // Map destinations: a published place is live content.
+      'published' =>
         BsheelPillTone.green,
       'rejected' || 'banned' || 'flagged' || 'deleted' => BsheelPillTone.coral,
       'pending' ||
@@ -549,7 +551,9 @@ class BsheelPill extends StatelessWidget {
       'appeal' =>
         BsheelPillTone.gold,
       're-rejected' || 'final' => BsheelPillTone.ink,
-      'expired' || 'retired' => BsheelPillTone.ghost,
+      // 'draft' joins these: an unpublished destination reads as
+      // not-yet-live, the same shape as retired content.
+      'expired' || 'retired' || 'draft' => BsheelPillTone.ghost,
       _ => BsheelPillTone.paper,
     };
     if (tone == BsheelPillTone.ghost) {

@@ -8,7 +8,7 @@ import '../../core/router/admin_route_names.dart';
 import '../../core/theme/bsheel_design.dart';
 import 'bsheel_widgets.dart';
 
-/// Arcade Pop sidebar — a 230px ink panel holding all sixteen
+/// Arcade Pop sidebar — a 230px ink panel holding all seventeen
 /// destinations, ordered by how often a moderator touches them.
 ///
 /// The active row is a violet fill with a 2px cream border and a white
@@ -46,6 +46,7 @@ class AdminSidebar extends ConsumerWidget {
     _Destination('FEED', AdminRouteNames.feedManagement, '/feed'),
     _Destination('QUESTS', AdminRouteNames.questManagement, '/quests'),
     _Destination('QUEST OF THE DAY', AdminRouteNames.questOfTheDay, '/qotd'),
+    _Destination('DESTINATIONS', AdminRouteNames.mapPlaces, '/destinations'),
     _Destination('USERS', AdminRouteNames.users, '/users'),
     _Destination('XP', AdminRouteNames.xpManagement, '/xp'),
     _Destination(

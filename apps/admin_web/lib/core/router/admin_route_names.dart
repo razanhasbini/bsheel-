@@ -8,6 +8,7 @@ abstract final class AdminRouteNames {
   static const String feedManagement = 'feedManagement';
   static const String questManagement = 'questManagement';
   static const String questOfTheDay = 'questOfTheDay';
+  static const String mapPlaces = 'mapPlaces';
   static const String users = 'users';
   static const String announcements = 'announcements';
   static const String xpManagement = 'xpManagement';
@@ -32,6 +33,7 @@ abstract final class AdminRoutePaths {
   static const String feedManagement = '/feed';
   static const String questManagement = '/quests';
   static const String questOfTheDay = '/qotd';
+  static const String mapPlaces = '/destinations';
   static const String users = '/users';
   static const String announcements = '/announcements';
   static const String xpManagement = '/xp';

@@ -81,4 +81,74 @@ describe('map destinations and discovery', {timeout:120000}, () => {
     await h.database.query("UPDATE map_location_evidence SET verified_at=now()-interval '10 minutes',expires_at=now()-interval '1 minute' WHERE provider_reference=$1",[reference]);
     await h.get(`/map/places/${hiddenId}`,user).expect(404);
   });
+
+  // Admin manageability (#48). The console could create a place and link a
+  // quest, then nothing: no way to see existing links, undo a mis-link, or
+  // publish a draft. Because destination assignment is blocked while a place
+  // is unpublished, a bad link could leave a quest quietly unassignable with
+  // no route back.
+  describe('admin place management', () => {
+    /// Creates a place and registers it for afterAll cleanup.
+    const makePlace = async (overrides: Record<string, unknown> = {}) => {
+      const created = await h.post('/map/admin/places', admin)
+        .send({ ...input(), ...overrides }).expect(201);
+      places.push(created.body.data.id);
+      return created.body.data.id as string;
+    };
+
+    it('reports a quest count on the admin list', async () => {
+      const placeId = await makePlace();
+      const list = await h.get('/map/admin/places', admin).expect(200);
+      const row = (list.body.data as Record<string, unknown>[]).find((p) => p.id === placeId);
+      // Zero, not absent: the console has to tell "no quests" apart from
+      // "the endpoint does not say", which is what it showed before.
+      expect(row?.quest_count).toBe(0);
+    });
+
+    it('shows a draft place and its links to staff, which public detail hides', async () => {
+      const quest = await h.createQuest({ title: 'linked to a draft' });
+      const placeId = await makePlace({ isPublished: false });
+      await h.post(`/map/admin/places/${placeId}/quests`, admin)
+        .send({ questId: quest.id, requiresVerification: false }).expect(201);
+
+      const detail = await h.get(`/map/admin/places/${placeId}`, admin).expect(200);
+      expect(detail.body.data.is_published).toBe(false);
+      expect((detail.body.data.quests as { id: string }[]).map((q) => q.id)).toContain(quest.id);
+    });
+
+    it('unlinks a mis-linked quest, and refuses once it has attempts', async () => {
+      const quest = await h.createQuest({ title: 'mis-linked' });
+      const placeId = await makePlace();
+      await h.post(`/map/admin/places/${placeId}/quests`, admin)
+        .send({ questId: quest.id, requiresVerification: false }).expect(201);
+
+      await h.delete(`/map/admin/places/${placeId}/quests/${quest.id}`, admin).expect(200);
+      const after = await h.get(`/map/admin/places/${placeId}`, admin).expect(200);
+      expect(after.body.data.quests).toHaveLength(0);
+
+      // Unlinking a quest people already attempted would retroactively move
+      // their discovery, so it is refused for the same reason linking is.
+      const started = await h.createQuest({ title: 'already attempted' });
+      await h.post(`/map/admin/places/${placeId}/quests`, admin)
+        .send({ questId: started.id, requiresVerification: false }).expect(201);
+      const player = await h.createUser({ prefix: 'mapplay' });
+      await h.assignQuest(player, started.id);
+      const refused = await h
+        .delete(`/map/admin/places/${placeId}/quests/${started.id}`, admin).expect(409);
+      expect(refused.body.error.code).toBe('QUEST_ALREADY_STARTED');
+    });
+
+    it('publishes a draft place, which was fixed at creation before', async () => {
+      const placeId = await makePlace({ isPublished: false, category: 'culture' });
+      const updated = await h.patch(`/map/admin/places/${placeId}`, admin)
+        .send({ isPublished: true, radiusM: 500 }).expect(200);
+      expect(updated.body.data.is_published).toBe(true);
+      expect(updated.body.data.radius_m).toBe(500);
+    });
+
+    it('refuses management to a non-super-admin', async () => {
+      await h.get('/map/admin/places', user).expect(403);
+      await h.patch(`/map/admin/places/${placeId}`, user).send({ isPublished: false }).expect(403);
+    });
+  });
 });

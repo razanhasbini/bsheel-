@@ -123,3 +123,26 @@ abstract final class MediaType {
   static const String mixed =
       'mixed'; // multiple files with both images and videos
 }
+
+/// `map_places.category` CHECK constraint values (migration 0022).
+///
+/// [hidden] is not a visibility flag — it is a category whose places stay
+/// server-side until the requesting user has current CAMARA geofence
+/// evidence, which is why the admin console marks those rows separately
+/// from an unpublished draft.
+abstract final class MapPlaceCategory {
+  static const String landmark = 'landmark';
+  static const String culture = 'culture';
+  static const String pilgrimage = 'pilgrimage';
+  static const String heritage = 'heritage';
+  static const String hidden = 'hidden';
+
+  /// Every legal value, in the order the admin filter row draws them.
+  static const List<String> all = [
+    landmark,
+    culture,
+    pilgrimage,
+    heritage,
+    hidden,
+  ];
+}

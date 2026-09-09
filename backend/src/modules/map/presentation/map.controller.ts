@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { MapService } from '../application/map.service.js';
-import { MapIdDto, MapPlaceDto, MapQueryDto, MapQuestLinkDto } from './map.dto.js';
+import { MapIdDto, MapLinkParamsDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from './map.dto.js';
 
 @ApiTags('map')
 @Controller({ path:'map', version:'1' })
@@ -19,4 +19,8 @@ export class MapController {
   @Roles('super_admin') @Get('admin/places') adminPlaces() { return this.repository.adminPlaces(); }
   @Roles('super_admin') @Post('admin/places') create(@CurrentUser() u: AuthUser,@Body() b: MapPlaceDto) { return this.repository.create(u.id,b); }
   @Roles('super_admin') @Post('admin/places/:id/quests') link(@CurrentUser() u: AuthUser,@Param() p: MapIdDto,@Body() b: MapQuestLinkDto) { return this.repository.link(u.id,p.id,b); }
+  // Declared before the :id route below so the literal segment wins.
+  @Roles('super_admin') @Get('admin/places/:id') adminPlaceDetail(@Param() p: MapIdDto) { return this.repository.adminPlaceDetail(p.id); }
+  @Roles('super_admin') @Patch('admin/places/:id') updatePlace(@CurrentUser() u: AuthUser,@Param() p: MapIdDto,@Body() b: MapPlaceUpdateDto) { return this.repository.updatePlace(u.id,p.id,b); }
+  @Roles('super_admin') @Delete('admin/places/:id/quests/:questId') unlink(@CurrentUser() u: AuthUser,@Param() p: MapLinkParamsDto) { return this.repository.unlink(u.id,p.id,p.questId); }
 }

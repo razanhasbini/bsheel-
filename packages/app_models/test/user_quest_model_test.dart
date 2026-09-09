@@ -161,7 +161,7 @@ void main() {
   });
 
   group('UserQuestModel.toJson', () {
-    test('emits the 7 flat columns and omits quests when absent', () {
+    test('emits the flat columns and omits quests when absent', () {
       final json = UserQuestModel.fromJson(userQuestRow()).toJson();
 
       expect(json.keys.toSet(), {
@@ -172,6 +172,10 @@ void main() {
         UserQuestColumns.assignedAt,
         UserQuestColumns.completedAt,
         UserQuestColumns.expiresAt,
+        // Added with the durable appeal route: the row has to say whether an
+        // appeal is still available, so quest history can offer the button
+        // without a second request.
+        UserQuestColumns.appealAvailable,
       });
       expect(json[UserQuestColumns.assignedAt], '2026-05-03T12:00:00.000Z');
       expect(json[UserQuestColumns.completedAt], isNull);

@@ -27,3 +27,23 @@ export class MapQuestLinkDto {
   @IsUUID() questId!: string;
   @IsBoolean() requiresVerification = true;
 }
+
+/// Partial update of a place. Every field optional so a caller can flip
+/// `isPublished` alone; bounds mirror MapPlaceDto exactly, because a value
+/// that was illegal at creation is still illegal on update.
+export class MapPlaceUpdateDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(160) name?: string;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsOptional() @IsString() @MaxLength(100) city?: string;
+  @IsOptional() @IsIn(['landmark', 'culture', 'pilgrimage', 'heritage', 'hidden']) category?: string;
+  @IsOptional() @IsNumber() @Min(-85) @Max(85) latitude?: number;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) longitude?: number;
+  @IsOptional() @IsInt() @Min(25) @Max(10000) radiusM?: number;
+  @IsOptional() @IsBoolean() isPublished?: boolean;
+}
+
+/// Path params for unlinking, which needs both ids.
+export class MapLinkParamsDto {
+  @IsUUID() id!: string;
+  @IsUUID() questId!: string;
+}

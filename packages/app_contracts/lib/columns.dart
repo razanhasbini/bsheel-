@@ -22,6 +22,12 @@ abstract final class ProfileColumns {
 }
 
 abstract final class QuestColumns {
+  // #51 quest-type columns.
+  static const String isHidden = 'is_hidden';
+  static const String availableFrom = 'available_from';
+  static const String availableUntil = 'available_until';
+  static const String sponsorName = 'sponsor_name';
+
   static const String id = 'id';
   static const String title = 'title';
   static const String description = 'description';
