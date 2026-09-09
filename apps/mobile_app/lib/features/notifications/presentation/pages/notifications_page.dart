@@ -156,7 +156,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   decoration: BoxDecoration(
                     color: QuestColors.osRed,
                     borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: ink, width: 1.5),
+                    border: Border.all(color: ink, width: 2),
                   ),
                 ),
                 const Spacer(),
@@ -453,7 +453,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: QuestColors.osRed,
                             shape: BoxShape.circle,
-                            border: Border.all(color: ink, width: 1.5),
+                            border: Border.all(color: ink, width: 2),
                           ),
                         ),
                     ],

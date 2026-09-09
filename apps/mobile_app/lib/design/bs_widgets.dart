@@ -243,7 +243,7 @@ class BsChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg ?? QuestColors.osPrimary.withAlpha(30),
         borderRadius: BorderRadius.circular(999),
-        border: border != null ? Border.all(color: border!, width: 1.5) : null,
+        border: border != null ? Border.all(color: border!, width: 2) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -460,7 +460,7 @@ class BsToggle extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.osAccent,
                   border:
-                      Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+                      Border.all(color: QuestColors.osTextPrimary, width: 2),
                   borderRadius: BorderRadius.circular(11),
                 ),
               ),

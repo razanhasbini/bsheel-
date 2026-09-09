@@ -616,7 +616,7 @@ class _PendingReviewCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: QuestColors.osRed,
                         borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: ink, width: 1.5),
+                        border: Border.all(color: ink, width: 2),
                       ),
                       child: Text(
                         '$count',
@@ -1131,7 +1131,7 @@ class _HeroAction extends StatelessWidget {
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: borderColor, width: 1.5),
+          border: Border.all(color: borderColor, width: 2),
         ),
         child: Text(
           label,
@@ -1960,7 +1960,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                           decoration: BoxDecoration(
                             color: QuestColors.osRed,
                             borderRadius: BorderRadius.circular(11),
-                            border: Border.all(color: onCoral, width: 1.5),
+                            border: Border.all(color: onCoral, width: 2),
                           ),
                           child: _rerolling
                               ? SizedBox(
@@ -2230,7 +2230,7 @@ class _QuestChoiceCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: QuestColors.pureWhite.withAlpha(40),
                       borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: onTint, width: 1.5),
+                      border: Border.all(color: onTint, width: 2),
                     ),
                     alignment: Alignment.center,
                     child: Icon(Icons.flag_rounded, color: onTint, size: 20),
@@ -2596,7 +2596,7 @@ class _RecentQuestsCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.osPrimary,
                   borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: ink,
@@ -2852,7 +2852,7 @@ class _QuestPreviewSheet extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: QuestColors.pureWhite.withAlpha(40),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: onTint, width: 1.5),
+                                  border: Border.all(color: onTint, width: 2),
                                 ),
                                 alignment: Alignment.center,
                                 child: Icon(Icons.flag_rounded,

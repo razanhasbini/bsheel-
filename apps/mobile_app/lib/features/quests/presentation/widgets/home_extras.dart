@@ -331,7 +331,7 @@ class BsWeeklyXpMeter extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: ink.withAlpha(15),
                   borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
               ),
               AnimatedContainer(
@@ -346,7 +346,7 @@ class BsWeeklyXpMeter extends StatelessWidget {
                         : [QuestColors.osPrimary, QuestColors.osRed],
                   ),
                   borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
               ),
             ]);
@@ -569,7 +569,7 @@ class _ActiveChip extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: QuestColors.osPrimary.withAlpha(40),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: peer.avatarUrl != null && peer.avatarUrl!.isNotEmpty
@@ -1414,7 +1414,7 @@ class _StatusStamp extends StatelessWidget {
         color: s.bg,
         borderRadius: BorderRadius.circular(11),
         border: Border.all(
-            color: QuestColors.osTextPrimary.withAlpha(160), width: 1.5),
+            color: QuestColors.osTextPrimary.withAlpha(160), width: 2),
       ),
       child: Row(
         children: [

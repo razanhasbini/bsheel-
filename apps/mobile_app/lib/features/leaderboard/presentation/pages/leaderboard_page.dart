@@ -450,8 +450,8 @@ class _RankRow extends StatelessWidget {
                         ? QuestColors.osTextPrimary
                         : QuestColors.osSurface,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: QuestColors.osTextPrimary, width: 1.5),
+                    border:
+                        Border.all(color: QuestColors.osTextPrimary, width: 2),
                   ),
                   alignment: Alignment.center,
                   child: Text(

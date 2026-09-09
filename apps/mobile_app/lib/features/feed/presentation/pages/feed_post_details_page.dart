@@ -1118,7 +1118,7 @@ class _CommentInputBar extends StatelessWidget {
                 color:
                     QuestColors.osPrimary.withAlpha(QuestColors.alphaWhisper),
                 borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: QuestColors.osPrimary, width: 1.5),
+                border: Border.all(color: QuestColors.osPrimary, width: 2),
               ),
               child: Row(
                 children: [
@@ -2397,7 +2397,7 @@ class _ActionPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: ink, width: 1.5),
+          border: Border.all(color: ink, width: 2),
           boxShadow: [
             BoxShadow(color: ink, offset: const Offset(0, 1.5), blurRadius: 0),
           ],
@@ -2503,7 +2503,7 @@ class _PostInfoCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.cardBg(context),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

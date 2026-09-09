@@ -257,7 +257,7 @@ class SettingsPage extends ConsumerWidget {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(11),
                       borderSide: BorderSide(
-                          color: QuestColors.osRed.withAlpha(120), width: 1.5),
+                          color: QuestColors.osRed.withAlpha(120), width: 2),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(11),

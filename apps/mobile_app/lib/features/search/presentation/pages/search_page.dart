@@ -944,7 +944,7 @@ class _RecentChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: QuestColors.cardBg(context),
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: ink, width: 1.5),
+          border: Border.all(color: ink, width: 2),
           boxShadow: [
             BoxShadow(color: ink, offset: const Offset(1, 1.5)),
           ],

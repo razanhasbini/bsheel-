@@ -2091,7 +2091,7 @@ class _AvatarFullscreen extends StatelessWidget {
                       color: QuestColors.pureBlack.withAlpha(128),
                       shape: BoxShape.circle,
                       border:
-                          Border.all(color: QuestColors.pureWhite, width: 1.5),
+                          Border.all(color: QuestColors.pureWhite, width: 2),
                     ),
                     child: const Icon(
                       Icons.close_rounded,

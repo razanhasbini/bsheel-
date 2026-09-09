@@ -351,7 +351,7 @@ class _BsheeelTakeOnDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: QuestColors.bg(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ink.withAlpha(70), width: 1.5),
+                border: Border.all(color: ink.withAlpha(70), width: 2),
               ),
               child: Text(
                 questTitle.toUpperCase(),

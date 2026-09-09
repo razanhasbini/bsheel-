@@ -178,7 +178,7 @@ class _FilterRow extends StatelessWidget {
                 color: isActive ? QuestColors.osPrimary : ink.withAlpha(20),
                 borderRadius: BorderRadius.circular(11),
                 border: Border.all(
-                    color: isActive ? ink : ink.withAlpha(80), width: 1.5),
+                    color: isActive ? ink : ink.withAlpha(80), width: 2),
               ),
               child: Icon(option.icon,
                   color: isActive ? QuestColors.osTextOnPrimary : ink,

@@ -302,7 +302,7 @@ class _Header extends StatelessWidget {
             decoration: BoxDecoration(
               color: QuestColors.osRed,
               borderRadius: BorderRadius.circular(2),
-              border: Border.all(color: ink, width: 1.5),
+              border: Border.all(color: ink, width: 2),
             ),
           ),
         ],
@@ -828,7 +828,7 @@ class _GroupCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.cardBg(context),
                   borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,

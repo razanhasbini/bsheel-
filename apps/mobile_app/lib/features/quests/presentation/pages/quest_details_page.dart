@@ -378,7 +378,7 @@ class _HeroCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.osCard,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
                 child: Text(
                   status.toUpperCase(),
@@ -399,7 +399,7 @@ class _HeroCard extends StatelessWidget {
                     color: QuestColors.pureBlack.withAlpha(64),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: QuestColors.osTextOnPrimary, width: 1.5),
+                        color: QuestColors.osTextOnPrimary, width: 2),
                   ),
                   child: Text(
                     category.toUpperCase(),
@@ -646,7 +646,7 @@ class _CriteriaItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: QuestColors.osRed,
               shape: BoxShape.circle,
-              border: Border.all(color: ink, width: 1.5),
+              border: Border.all(color: ink, width: 2),
             ),
             child: Icon(Icons.check_rounded,
                 color: QuestColors.onAccent(QuestColors.osRed), size: 15),

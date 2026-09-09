@@ -1088,7 +1088,7 @@ class _LimitChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: fill,
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: ink, width: 1.5),
+        border: Border.all(color: ink, width: 2),
         boxShadow: [
           BoxShadow(color: ink, offset: const Offset(1, 2), blurRadius: 0),
         ],
@@ -1331,7 +1331,7 @@ class _VideoTileState extends State<_VideoTile> {
               decoration: BoxDecoration(
                 color: QuestColors.pureBlack.withAlpha(140),
                 shape: BoxShape.circle,
-                border: Border.all(color: QuestColors.textPrimary, width: 1.5),
+                border: Border.all(color: QuestColors.textPrimary, width: 2),
               ),
               child: const Icon(
                 Icons.play_arrow_rounded,
@@ -1496,8 +1496,8 @@ class _PreviewIconButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: QuestColors.pureBlack.withAlpha(140),
               shape: BoxShape.circle,
-              border: Border.all(
-                  color: tint ?? QuestColors.textPrimary, width: 1.5),
+              border:
+                  Border.all(color: tint ?? QuestColors.textPrimary, width: 2),
             ),
             child: Icon(icon, color: tint ?? QuestColors.textPrimary, size: 22),
           ),

@@ -1225,7 +1225,7 @@ class _BottomMeta extends StatelessWidget {
             decoration: BoxDecoration(
               color: _modeBadgeGround,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: QuestColors.pureWhite, width: 1.5),
+              border: Border.all(color: QuestColors.pureWhite, width: 2),
             ),
             child: Text(
               modeBadge!.toUpperCase(),
@@ -1335,7 +1335,7 @@ class _BottomMeta extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.accentYellow,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: QuestColors.pureBlack, width: 1.5),
+                  border: Border.all(color: QuestColors.pureBlack, width: 2),
                 ),
                 child: Text(
                   '+$xpReward XP',

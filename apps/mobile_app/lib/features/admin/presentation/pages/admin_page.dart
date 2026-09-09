@@ -668,17 +668,17 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide: BorderSide(
-                    color: QuestColors.xpGold.withAlpha(80), width: 1.5),
+                    color: QuestColors.xpGold.withAlpha(80), width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide: BorderSide(
-                    color: QuestColors.xpGold.withAlpha(60), width: 1.5),
+                    color: QuestColors.xpGold.withAlpha(60), width: 2),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide:
-                    const BorderSide(color: QuestColors.xpGold, width: 1.5),
+                    const BorderSide(color: QuestColors.xpGold, width: 2),
               ),
             ),
           ),
@@ -710,17 +710,17 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide: BorderSide(
-                    color: QuestColors.xpGold.withAlpha(80), width: 1.5),
+                    color: QuestColors.xpGold.withAlpha(80), width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide: BorderSide(
-                    color: QuestColors.xpGold.withAlpha(60), width: 1.5),
+                    color: QuestColors.xpGold.withAlpha(60), width: 2),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
                 borderSide:
-                    const BorderSide(color: QuestColors.xpGold, width: 1.5),
+                    const BorderSide(color: QuestColors.xpGold, width: 2),
               ),
             ),
           ),
@@ -1120,7 +1120,7 @@ class _SubmissionCard extends StatelessWidget {
                         borderRadius:
                             BorderRadius.circular(QuestSpacing.radiusSm),
                         border: Border.all(
-                            color: QuestColors.highlight(context), width: 1.5),
+                            color: QuestColors.highlight(context), width: 2),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1145,8 +1145,7 @@ class _SubmissionCard extends StatelessWidget {
                         color: QuestColors.osRed.withAlpha(20),
                         borderRadius:
                             BorderRadius.circular(QuestSpacing.radiusSm),
-                        border:
-                            Border.all(color: QuestColors.osRed, width: 1.5),
+                        border: Border.all(color: QuestColors.osRed, width: 2),
                       ),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),

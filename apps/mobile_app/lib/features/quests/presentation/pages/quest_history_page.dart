@@ -82,7 +82,7 @@ class QuestHistoryPage extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: QuestColors.osRed,
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: ink, width: 1.5),
+                      border: Border.all(color: ink, width: 2),
                     ),
                   ),
                 ],
@@ -359,7 +359,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: statusColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: ink, width: 1.5),
+                    border: Border.all(color: ink, width: 2),
                   ),
                   child: Text(
                     statusLabel,
@@ -382,8 +382,8 @@ class _ArcadeHistoryCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: QuestColors.osPrimary.withAlpha(40),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: QuestColors.osPrimary, width: 1.5),
+                        border:
+                            Border.all(color: QuestColors.osPrimary, width: 2),
                       ),
                       child: Text(
                         category.toUpperCase(),
@@ -407,7 +407,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: QuestColors.accentYellow,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: ink, width: 1.5),
+                      border: Border.all(color: ink, width: 2),
                     ),
                     child: Text(
                       '+$xpReward XP',

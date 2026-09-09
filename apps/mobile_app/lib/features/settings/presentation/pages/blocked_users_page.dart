@@ -272,7 +272,7 @@ class _BlockedRowState extends ConsumerState<_BlockedRow> {
                 color:
                     _busy ? QuestColors.cardBg(context) : QuestColors.osPrimary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.ink, width: 1.5),
+                border: Border.all(color: widget.ink, width: 2),
               ),
               child: _busy
                   ? const SizedBox(

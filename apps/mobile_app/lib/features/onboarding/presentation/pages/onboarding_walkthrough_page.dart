@@ -376,7 +376,7 @@ class _OnboardingWalkthroughPageState
                     decoration: BoxDecoration(
                       color: QuestColors.cardBg(context),
                       borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: ink, width: 1.5),
+                      border: Border.all(color: ink, width: 2),
                     ),
                     child: Text(
                       l.skip.toUpperCase(),
@@ -420,7 +420,7 @@ class _OnboardingWalkthroughPageState
                           ? QuestColors.osRed
                           : QuestColors.cardBg(context),
                       borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: ink, width: 1.5),
+                      border: Border.all(color: ink, width: 2),
                     ),
                   );
                 }),

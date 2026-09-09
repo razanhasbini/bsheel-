@@ -201,7 +201,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                             color: accentColor.withAlpha(28),
                             borderRadius:
                                 BorderRadius.circular(QuestSpacing.radiusFull),
-                            border: Border.all(color: accentColor, width: 1.5),
+                            border: Border.all(color: accentColor, width: 2),
                           ),
                           child: Text(
                             isVersus ? 'VERSUS QUEST' : 'COLLAB QUEST',

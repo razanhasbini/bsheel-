@@ -138,7 +138,7 @@ class _PostActionsSheet extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: QuestColors.bg(c),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ink, width: 1.5),
+                  border: Border.all(color: ink, width: 2),
                 ),
                 child: TextField(
                   controller: controller,
@@ -305,7 +305,7 @@ class _ActionRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: tint.withAlpha(40),
                 borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: tint.withAlpha(160), width: 1.5),
+                border: Border.all(color: tint.withAlpha(160), width: 2),
               ),
               child: Icon(icon, color: tint, size: 18),
             ),
