@@ -164,12 +164,14 @@ class SettingsPage extends ConsumerWidget {
 
               _Group(
                   title: l.dangerZone,
-                  titleColor: QuestColors.osRed,
+                  // Coral as small text on cream is 2.9:1 and fails. The
+                  // render uses the darkened twin, which passes at 4.5:1.
+                  titleColor: QuestColors.osRedText,
                   children: [
                     _NavItem(
                         icon: Icons.delete_forever_outlined,
                         label: l.deleteAccount,
-                        color: QuestColors.osRed,
+                        color: QuestColors.osRedText,
                         onTap: () => _showDeleteDialog(context, ref)),
                   ]),
 
@@ -369,7 +371,6 @@ class _Group extends StatelessWidget {
         ),
         ChunkyCard(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          shadow: false,
           child: Column(children: children),
         ),
       ]),
