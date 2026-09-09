@@ -13,9 +13,13 @@ abstract class ModerationRepository {
   /// carrying the reviewer context the queue renders (per-user approved and
   /// rejected counts, and whether the media or caption repeats something
   /// that user already had rejected).
+  /// Pass [cursor] from a previous page's last row `next_cursor` to page
+  /// forward. [offset] is kept for callers that have not migrated; it is
+  /// ignored when a cursor is supplied.
   Future<List<Map<String, dynamic>>> reviewQueue({
     int limit = 100,
     int offset = 0,
+    String? cursor,
   });
 
   /// Raw admin rows for the moderation queues. `status` accepts
