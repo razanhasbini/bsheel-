@@ -110,6 +110,16 @@ Mono 700 for every label, id, timestamp and count (9–12), and for timers.
   replacing the Pac-Man strip.
 - Home active-quest hero: violet 6px shadow, 2px border.
 
+## Elements in the renders that do not exist in the app
+
+Not styling gaps — missing functionality. Each needs plumbing before it can
+be drawn, and a toggle that cannot persist is worse than an absent one.
+
+| Render | Missing |
+|---|---|
+| `mobile/21-settings.jpg` | The push-notifications toggle, with its warning "Off means you won't be told if a submission is rejected". No such toggle exists; it needs a notification preference to write to. The spec singles this out, because turning that trigger off is what makes the appeal flow unreachable. |
+| `map/*.jpg` | The whole map feature. |
+
 ## Two of these are rewrites, not restyles
 
 **The feed.** The app is a vertical `PageView` where every post is a
