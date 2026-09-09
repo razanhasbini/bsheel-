@@ -80,8 +80,11 @@ else
 
   # Placeholders the schema will reject at boot — catch them here instead of
   # after a 3-minute image build.
-  if grep -qE "REPLACE_ME|__[A-Z_]+__" .env.prod; then
-    bad "unfilled placeholders remain in .env.prod:"; grep -nE "REPLACE_ME|__[A-Z_]+__" .env.prod | sed 's/^/       /'
+  # Skip comments: the template documents the placeholder tokens by name, so
+  # matching every line flagged the file's own instructions as unfilled.
+  if grep -vE '^[[:space:]]*#' .env.prod | grep -qE "REPLACE_ME|__[A-Z_]+__"; then
+    bad "unfilled placeholders remain in .env.prod:"
+    grep -nE "REPLACE_ME|__[A-Z_]+__" .env.prod | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/       /'
   else ok "no unfilled placeholders in .env.prod"; fi
 
   grep -qE '^NODE_ENV=production$' .env.prod && ok "NODE_ENV=production" || bad "NODE_ENV must be production"
@@ -89,10 +92,10 @@ else
 fi
 
 hdr "Name collisions with existing docker objects"
-for n in bsheel_postgres_data bsheel_redis_data bsheel_minio_data; do
+for n in bsheel_api_postgres_data bsheel_api_redis_data bsheel_api_minio_data; do
   docker volume inspect "$n" >/dev/null 2>&1 && warn "volume $n already exists (data will be REUSED, not recreated)" || ok "volume $n is new"
 done
-docker network inspect bsheel_internal >/dev/null 2>&1 && warn "network bsheel_internal already exists" || ok "network bsheel_internal is new"
+docker network inspect bsheel_api_internal >/dev/null 2>&1 && warn "network bsheel_api_internal already exists" || ok "network bsheel_api_internal is new"
 
 printf "\n\033[1m== Result ==\033[0m\n  %d passed, %d warnings, %d failed\n" "$PASS" "$WARN" "$FAIL"
 [ "$FAIL" -eq 0 ] || { printf "\n\033[31mDo not deploy. Fix the failures above.\033[0m\n"; exit 1; }

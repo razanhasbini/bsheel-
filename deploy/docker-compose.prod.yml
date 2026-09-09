@@ -25,7 +25,11 @@
 # are forward-only and checksummed against their own ledger; they would
 # collide with Supabase's 146-file history. preflight.sh asserts this.
 
-name: bsheel
+# NOT "bsheel": the host already runs a compose project by that name
+# (/root/bsheel, the phone-auth prototype with its own bsheel-db). Sharing a
+# project name would let either stack's `compose down` or `--remove-orphans`
+# reap the other's containers.
+name: bsheel-api
 
 services:
   postgres:
@@ -94,7 +98,10 @@ services:
     env_file: .env.prod
     environment:
       PROCESS_ROLE: api
-    # 127.0.0.1 ONLY. Caddy terminates TLS and proxies to this.
+    # 127.0.0.1 ONLY, for local curl and the deploy's readiness probe.
+    # Caddy does NOT reach the API this way: it runs in a container
+    # (supabase-caddy), so 127.0.0.1 there is its own loopback. It reaches us
+    # over the shared `proxy` network below, by the `bsheel-api` alias.
     ports:
       - "127.0.0.1:${API_BIND_PORT:-3010}:3000"
     depends_on:
@@ -110,7 +117,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 90s
-    networks: [internal]
+    networks:
+      internal:
+      proxy:
+        aliases: [bsheel-api]
     mem_limit: ${API_MEM_LIMIT:-768m}
     cpus: ${API_CPUS:-1.0}
     restart: unless-stopped
@@ -178,12 +188,18 @@ services:
 
 networks:
   internal:
-    name: bsheel_internal
+    name: bsheel_api_internal
+  # The existing Supabase compose project owns this network and the Caddy
+  # container that fronts :443. Declared external so this stack joins it
+  # without trying to create or manage it.
+  proxy:
+    external: true
+    name: supabase_default
 
 volumes:
   postgres_data:
-    name: bsheel_postgres_data
+    name: bsheel_api_postgres_data
   redis_data:
-    name: bsheel_redis_data
+    name: bsheel_api_redis_data
   minio_data:
-    name: bsheel_minio_data
+    name: bsheel_api_minio_data
