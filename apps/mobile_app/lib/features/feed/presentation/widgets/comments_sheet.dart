@@ -481,28 +481,43 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                               minWidth: kMinTouchTarget,
                               minHeight: kMinTouchTarget),
                           alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                          // The render draws a violet square with an up
+                          // arrow, outlined and shadowed like every other
+                          // control, rather than a text-only "Post" link.
+                          decoration: BoxDecoration(
+                            color: QuestColors.osPrimary,
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                              color: QuestColors.osTextPrimary,
+                              width: 2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: QuestColors.osTextPrimary,
+                                offset: Offset(3, 3),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
                           child: widget.submitting
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                        QuestColors.osPrimary),
+                                      QuestColors.onAccent(
+                                          QuestColors.osPrimary),
+                                    ),
                                   ),
                                 )
-                              : Text(
-                                  'Post',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: QuestTypography.labelLarge.copyWith(
-                                    color: QuestColors.osPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                    letterSpacing: 0.1,
-                                  ),
+                              : Icon(
+                                  Icons.arrow_upward_rounded,
+                                  size: 20,
+                                  // White on violet, from the helper rather
+                                  // than by hand.
+                                  color: QuestColors.onAccent(
+                                      QuestColors.osPrimary),
                                 ),
                         ),
                       ),
