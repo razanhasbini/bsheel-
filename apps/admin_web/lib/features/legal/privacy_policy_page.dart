@@ -118,16 +118,19 @@ class _Body extends StatelessWidget {
         const _Section(
           title: '4. DATA STORAGE',
           content:
-              'Your data is stored securely using Supabase (PostgreSQL database hosted on AWS). '
-              'Media files are stored on Cloudflare R2. '
-              'Push notifications are delivered via Firebase Cloud Messaging.',
+              'Account, quest and social data are stored in a PostgreSQL database on '
+              'infrastructure we operate. Photos and videos are stored in S3-compatible '
+              'object storage and stay private, served only through short-lived signed '
+              'URLs. Passwords are hashed with Argon2. Push notifications are delivered '
+              'via Firebase Cloud Messaging.',
         ),
         const _Section(
           title: '5. DATA SHARING',
           content:
-              'We do not sell your personal data. We do not share your data with third parties '
-              'except as required to operate the service (Supabase, Cloudflare, Firebase) '
-              'or as required by law.',
+              'We do not sell your personal data. We do not share your data with third '
+              'parties except as required to operate the service (our hosting and object '
+              'storage providers, and Firebase for push notifications) or as required by '
+              'law.',
         ),
         const _Section(
           title: "6. CHILDREN'S PRIVACY",
