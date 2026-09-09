@@ -5,6 +5,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
+import { ProofVerificationService } from '../application/proof-verification.service.js';
 import { SubmissionsService } from '../application/submissions.service.js';
 import { AppealSubmissionDto, CreateSubmissionDto, RejectSubmissionDto, ReviewSubmissionDto, SetVisibilityDto } from './submission.dto.js';
 
@@ -32,7 +33,10 @@ class AdminSubmissionListQuery {
 @ApiTags('submissions')
 @Controller({ path: 'submissions', version: '1' })
 export class SubmissionsController {
-  constructor(private readonly service: SubmissionsService) {}
+  constructor(
+    private readonly service: SubmissionsService,
+    private readonly verification: ProofVerificationService,
+  ) {}
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() body: CreateSubmissionDto) { return this.service.create(user.id, body); }
@@ -57,6 +61,20 @@ export class SubmissionsController {
   @Get('admin/review-queue')
   reviewQueue(@Query() query: AdminSubmissionListQuery) {
     return this.service.reviewQueue(query.limit, query.offset);
+  }
+
+  /// The "unclear" section (#47): proof the agent could not judge, waiting on
+  /// a human. Declared before `admin/:id` so the literal segment wins.
+  @Roles('moderator', 'super_admin')
+  @Get('admin/unclear')
+  unclearQueue(@Query() query: AdminSubmissionListQuery) {
+    return this.verification.unclearQueue(query.limit, query.offset);
+  }
+
+  @Roles('moderator', 'super_admin')
+  @Get('admin/unclear/count')
+  unclearCount() {
+    return this.verification.unclearCount();
   }
 
   @Roles('moderator', 'super_admin')

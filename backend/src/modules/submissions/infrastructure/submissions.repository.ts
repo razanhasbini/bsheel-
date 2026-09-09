@@ -91,6 +91,15 @@ export class SubmissionsRepository {
          FROM user_quests uq WHERE m.user_quest_id = $1 AND uq.id = m.user_quest_id`,
         [input.userQuestId, result.rows[0].submitted_at],
       );
+      // AI proof verification (#47): the queue row is created here, in the
+      // same transaction as the submission, rather than by the worker that
+      // consumes submission.created. That makes the catch-up sweep a real
+      // safety net — it can find work even if the event was never delivered —
+      // instead of one that only sees submissions the outbox already reached.
+      await transaction.query(
+        'INSERT INTO submission_verifications (submission_id) VALUES ($1) ON CONFLICT DO NOTHING',
+        [result.rows[0].id],
+      );
       await this.notifyAdmins(result.rows[0], false, transaction);
       await this.emit('submission', result.rows[0].id, 'submission.created', {
         submissionId: result.rows[0].id,
@@ -251,6 +260,12 @@ export class SubmissionsRepository {
        SELECT queue.*,
               coalesce(stats.approved_count, 0)::int AS user_approved_count,
               coalesce(stats.rejected_count, 0)::int AS user_rejected_count,
+              -- AI proof verification (#47). Null for anything the agent has
+              -- not finished; advisory, so a moderator can ignore it.
+              verification.verdict::text AS ai_verdict,
+              verification.confidence AS ai_confidence,
+              verification.rationale AS ai_rationale,
+              verification.escalation_reason AS ai_escalation_reason,
               EXISTS (
                 SELECT 1 FROM rejected r
                 WHERE r.user_id = queue.user_id
@@ -262,6 +277,9 @@ export class SubmissionsRepository {
               ) AS is_duplicate
        FROM queue
        LEFT JOIN stats ON stats.user_id = queue.user_id
+       LEFT JOIN submission_verifications verification
+              ON verification.submission_id = queue.id
+             AND verification.state = 'complete'
        ORDER BY queue.submitted_at ASC, queue.id`,
       [Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)],
     );
@@ -388,6 +406,15 @@ export class SubmissionsRepository {
           'level_up', null, transaction,
         );
       }
+      // AI proof verification (#47): a human has now decided, so the
+      // escalation leaves the "unclear" queue in the same transaction that
+      // recorded the decision. A reviewed submission must never still be
+      // listed as waiting on a human.
+      await transaction.query(
+        `UPDATE submission_verifications SET resolved_by = $2, resolved_at = now()
+         WHERE submission_id = $1 AND resolved_at IS NULL`,
+        [id, actorId],
+      );
       await this.audit(actorId, 'submission.approve', id, {
         previous_status: 'pending', note_chars: reviewNote?.trim().length ?? 0, ...source,
       }, transaction);
@@ -421,6 +448,15 @@ export class SubmissionsRepository {
           ? 'Mods pulled the post and rolled back the XP. No drama. The quest is yours again whenever you want it.'
           : reviewNote.trim() || "The judges weren't convinced this round. Take another swing. Same quest, fresh shot.",
         'submission_rejected', id, transaction,
+      );
+      // AI proof verification (#47): a human has now decided, so the
+      // escalation leaves the "unclear" queue in the same transaction that
+      // recorded the decision. A reviewed submission must never still be
+      // listed as waiting on a human.
+      await transaction.query(
+        `UPDATE submission_verifications SET resolved_by = $2, resolved_at = now()
+         WHERE submission_id = $1 AND resolved_at IS NULL`,
+        [id, actorId],
       );
       await this.audit(actorId, 'submission.reject', id, {
         previous_status: 'pending', note_chars: reviewNote.trim().length, ...source,

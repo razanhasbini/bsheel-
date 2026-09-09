@@ -83,6 +83,33 @@ const environmentSchema = z
     TELEGRAM_ALLOWED_CHAT_IDS: z.string().default(''),
     TELEGRAM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     TELEGRAM_API_BASE_URL: z.string().url().default('https://api.telegram.org'),
+    // AI proof verification (#47). Off by default: an unconfigured deployment
+    // must behave exactly as it did before the feature existed, rather than
+    // failing every submission it cannot analyse.
+    AI_VERIFICATION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    ANTHROPIC_API_KEY: optionalString,
+    // Pinned rather than floating, so a model change is a deploy and shows up
+    // in the verdict rows that recorded which model produced them.
+    AI_VERIFICATION_MODEL: z.string().default('claude-opus-5'),
+    AI_VERIFICATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
+    // Below this, a 'pass' or 'fail' is downgraded to 'unclear' and sent to a
+    // human. The threshold is the whole safety margin of an advisory verdict,
+    // so it is tunable without a deploy of new code.
+    AI_VERIFICATION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.75),
+    // Vision input cap per image. The Messages API rejects oversized images,
+    // and base64 inflates bytes by ~4/3, so this sits well under the request
+    // ceiling rather than at it.
+    AI_VERIFICATION_MAX_IMAGE_BYTES: z.coerce.number().int().min(65_536).max(5_242_880).default(3_145_728),
+    // How many images from one submission are sent. Proof is usually one
+    // frame; the cap stops a mixed-media submission becoming an unbounded
+    // request.
+    AI_VERIFICATION_MAX_IMAGES: z.coerce.number().int().min(1).max(8).default(4),
+    AI_VERIFICATION_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
+    AI_VERIFICATION_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+    AI_VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
     R2_ENDPOINT: optionalUrl,
     R2_REGION: z.string().default('auto'),
     // MinIO (and any self-hosted S3) addresses buckets as a path segment
@@ -214,6 +241,17 @@ const environmentSchema = z
           context.addIssue({ code: 'custom', path: [key], message: `${key} is required when Telegram is enabled` });
         }
       }
+    }
+
+    // Fail at boot rather than on the first submission. A deployment that
+    // claims to verify proof and silently cannot is worse than one that
+    // refuses to start.
+    if (environment.AI_VERIFICATION_ENABLED && !environment.ANTHROPIC_API_KEY) {
+      context.addIssue({
+        code: 'custom',
+        path: ['ANTHROPIC_API_KEY'],
+        message: 'ANTHROPIC_API_KEY is required when AI_VERIFICATION_ENABLED is true',
+      });
     }
   });
 

@@ -391,6 +391,27 @@ export interface Database {
     "quest_id": string;
     "created_at": Generated<Timestamp>;
   };
+  "submission_verifications": {
+    "submission_id": string;
+    "state": Generated<string>;
+    "verdict": "pass" | "fail" | "unclear" | null;
+    "confidence": string | null;
+    "rationale": Generated<string>;
+    "escalation_reason": Generated<string>;
+    "model": Generated<string>;
+    "location_verified": boolean | null;
+    "location_retrieved": boolean | null;
+    "geofence_verified": boolean | null;
+    "input_tokens": number | null;
+    "output_tokens": number | null;
+    "duration_ms": number | null;
+    "attempts": Generated<number>;
+    "last_error": string | null;
+    "resolved_by": string | null;
+    "resolved_at": Timestamp | null;
+    "queued_at": Generated<Timestamp>;
+    "completed_at": Timestamp | null;
+  };
   "submissions": {
     "id": Generated<string>;
     "user_quest_id": string;
