@@ -204,11 +204,17 @@ export class E2eHarness {
     availableFrom?: Date | null;
     availableUntil?: Date | null;
     sponsorName?: string | null;
+    /// Defaults to 'e2e', which deliberately matches no row in
+    /// `quest_verification_defaults` — so a fixture quest resolves to the
+    /// fail-closed contract (#47) and no existing test can accidentally give
+    /// the verification agent authority. Pass a real category to exercise a
+    /// seeded default.
+    category?: string;
   } = {}): Promise<TestQuest> {
     const result = await this.database.query<TestQuest>(
       `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active,
                            is_hidden, available_from, available_until, sponsor_name)
-       VALUES ($1, $2, 'e2e', 'easy', $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $10, 'easy', $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, title, xp_reward, duration_hours`,
       [
         options.title ?? `Quest ${this.uniqueName('q')}`,
@@ -220,6 +226,7 @@ export class E2eHarness {
         options.availableFrom ?? null,
         options.availableUntil ?? null,
         options.sponsorName ?? null,
+        options.category ?? 'e2e',
       ],
     );
     this.questIds.push(result.rows[0].id);
