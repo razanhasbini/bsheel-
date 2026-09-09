@@ -580,10 +580,10 @@ class _PendingReviewCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: QuestColors.accentYellow,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
           ],
         ),
         child: Row(
@@ -1158,15 +1158,15 @@ class _TimeOverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final onCoral = QuestColors.onAccent(QuestColors.softRed);
+    final onCoral = QuestColors.onAccent(QuestColors.osRed);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: QuestColors.softRed,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2.5),
+        color: QuestColors.osRed,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: Column(
