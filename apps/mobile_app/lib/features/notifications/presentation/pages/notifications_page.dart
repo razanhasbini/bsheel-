@@ -184,11 +184,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: active
-                            ? QuestColors.accentYellow
-                            : QuestColors.cardBg(context),
+                        // The render draws the selected filter as an ink
+                        // chip with cream text, not a gold one. Gold means
+                        // "waiting on you" in this design; spending it on a
+                        // tab selection weakens it where it matters.
+                        color: active ? ink : QuestColors.cardBg(context),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: ink, width: 1.8),
+                        border: Border.all(color: ink, width: 2),
                         boxShadow: active
                             ? [
                                 BoxShadow(
@@ -206,7 +208,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.8,
-                            color: ink,
+                            color: active ? QuestColors.osBg : ink,
                           ),
                         ),
                       ),
