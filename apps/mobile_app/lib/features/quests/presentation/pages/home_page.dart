@@ -13,8 +13,10 @@ import '../../../../core/providers/account_status_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/router/route_names.dart';
+import '../../../../core/providers/streak_provider.dart';
 import '../../../../core/utils/streak_utils.dart';
 import '../../../notifications/presentation/providers/notifications_provider.dart';
+import '../../../collab/presentation/pages/collab_page.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../data/quest_providers.dart';
 import '../widgets/arcade_page_chrome.dart';
@@ -64,20 +66,20 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _acceptQuestOfTheDay(QuestOfTheDayModel qotd) async {
-    // Reject early if the player already has a live quest — assigning a
-    // second one would either silently fail (the unique partial index) or
-    // overwrite their current attempt depending on timing. Also catches
-    // the case where they have a submitted-but-not-yet-reviewed quest;
-    // the RPC's unique partial index would reject it server-side anyway,
-    // but blocking client-side gives a friendlier message.
+    // Reject early only on a live quest — assigning a second 'assigned'
+    // quest would fail on user_quests_one_assigned_idx or overwrite the
+    // current attempt depending on timing. A submitted-but-unreviewed quest
+    // no longer blocks this: migration 0021 narrowed that index to
+    // 'assigned', so the server accepts the roll.
     final existing = ref.read(activeQuestProvider).valueOrNull;
-    if (existing != null &&
-        (existing.status == UserQuestStatus.assigned ||
-            existing.status == UserQuestStatus.submitted)) {
-      final msg = existing.status == UserQuestStatus.submitted
-          ? "You have a quest waiting for review. Wait for it to be reviewed before starting another."
-          : "You already have an active quest. Finish or cancel it first.";
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    if (existing != null && existing.status == UserQuestStatus.assigned) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You already have an active quest. Finish or cancel it first.',
+          ),
+        ),
+      );
       return;
     }
 
@@ -168,15 +170,11 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (run > longestStreak) longestStreak = run;
     }
 
-    final activityTimestamps = submissions.isNotEmpty
-        ? submissions.map((s) => s.submittedAt)
-        : questHistory
-            .where((q) =>
-                q.status == UserQuestStatus.submitted ||
-                q.status == UserQuestStatus.approved ||
-                q.status == UserQuestStatus.rejected)
-            .map((q) => q.completedAt ?? q.assignedAt);
-    final streak = calculateCurrentStreakFromTimestamps(activityTimestamps);
+    // Server-derived (#46). The client calculation this replaces counted
+    // whatever history page was loaded, treated rejected attempts as activity,
+    // and bucketed by local date while the reminder sweep runs in UTC.
+    final serverStreak = ref.watch(streakProvider).valueOrNull;
+    final streak = serverStreak?.current ?? 0;
 
     final bool locked =
         accountStatus == 'suspended' || accountStatus == 'banned';
@@ -238,6 +236,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                     ),
 
+                    const SliverToBoxAdapter(
+                        child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: QuestSpacing.screenPadding),
+                      child: ExpansionTile(
+                          title: Text('GROUP QUESTS'),
+                          subtitle: Text(
+                              'Create a group, invite friends or join by code'),
+                          children: [CollabPage(embedded: true)]),
+                    )),
                     // ── Hero headline ──
                     const SliverToBoxAdapter(
                       child: Padding(
@@ -341,17 +349,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                             final hasLiveQuest = activeQuest != null &&
                                 activeQuest.status == UserQuestStatus.assigned;
 
-                            // One hero, not two. The pending card says
-                            // "You can't start a new quest until these are
-                            // reviewed" — printing GENERATE A QUEST directly
-                            // under it contradicted its own copy, and the
-                            // server would reject the roll anyway.
-                            if (pendingList.isNotEmpty && !hasLiveQuest) {
-                              return _PendingReviewCard(
-                                pending: pendingList,
-                                onOpen: () => _showPendingList(pendingList),
-                              );
-                            }
+                            // The pending card and the generator now coexist.
+                            // Review latency is not something a player can
+                            // clear themselves, so hiding the generator behind
+                            // it left them with nothing to do for hours. The
+                            // card stays on screen so they can still check on
+                            // what is in review — see migration 0021, which
+                            // narrowed the unique index to 'assigned' only.
 
                             return Column(
                               children: [
@@ -446,7 +450,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                             16),
                         child: ArcadeStreakCard(
                           currentStreak: streak,
-                          longestStreak: longestStreak,
+                          longestStreak: serverStreak?.longest ?? longestStreak,
                           activeDays: activeDays,
                         ),
                       ),
@@ -580,7 +584,8 @@ class _PendingReviewCard extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             Text(
-              "You can't start a new quest until these are reviewed.",
+              'Tap to check on these. You can start a new quest '
+              'while they wait.',
               style: QuestTypography.osBodySmall.copyWith(
                 color: fg,
                 fontSize: 13,
@@ -835,7 +840,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
         );
       },
     );
-    if (confirmed != true || _canceling) return;
+    if (!mounted || confirmed != true || _canceling) return;
 
     setState(() => _canceling = true);
     try {
@@ -886,9 +891,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
     final elapsed = _elapsedFraction();
 
     return GestureDetector(
-      // The frame draws two buttons. Abandoning a quest is still
-      // reachable, on a long press, rather than gone: without it a player
-      // who mis-picks is stuck until the timer runs out.
+      // Long press remains a shortcut; the labelled action below is primary.
       onLongPress: _canceling ? null : _confirmCancelQuest,
       child: Container(
         padding: const EdgeInsets.all(18),
@@ -1055,6 +1058,16 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
                   onTap: widget.onOpen,
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: onPanelSoft,
+                minimumSize: const Size(44, 44),
+              ),
+              onPressed: _canceling ? null : _confirmCancelQuest,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: Text(_canceling ? 'CANCELING…' : 'CANCEL QUEST'),
             ),
           ],
         ),

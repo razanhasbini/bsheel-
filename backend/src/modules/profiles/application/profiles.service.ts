@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ProfilesRepository, type OwnProfileRecord, type PublicProfileRecord, type UserXpStatsRecord } from '../infrastructure/profiles.repository.js';
+import { ProfilesRepository, type OwnProfileRecord, type PublicProfileRecord, type StreakRecord, type UserXpStatsRecord } from '../infrastructure/profiles.repository.js';
 import type { UpdateProfileDto } from '../presentation/profile.dto.js';
 
 @Injectable()
@@ -25,6 +25,11 @@ export class ProfilesService {
   }
 
   list(limit: number): Promise<readonly PublicProfileRecord[]> { return this.repository.listByXp(limit); }
+
+  /// Streak for any profile. Public: a streak is visible on profiles the
+  /// same way XP and level are, and #46 asks for it on both the viewer's own
+  /// home screen and user profiles.
+  streak(id: string): Promise<StreakRecord> { return this.repository.streak(id); }
 
   async xpStats(id: string): Promise<UserXpStatsRecord> {
     const stats = await this.repository.xpStats(id);

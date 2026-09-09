@@ -16,6 +16,9 @@ import { RealtimeEventPublisher } from './infrastructure/realtime/realtime-event
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
 import { MediaReclaimProcessor } from './modules/media/application/media-reclaim.processor.js';
 import { MediaReclaimScheduler } from './modules/media/application/media-reclaim.scheduler.js';
+import { StreakReminderProcessor } from './modules/profiles/application/streak-reminder.processor.js';
+import { StreakReminderScheduler } from './modules/profiles/application/streak-reminder.scheduler.js';
+import { ProfilesModule } from './modules/profiles/profiles.module.js';
 
 @Module({
   imports: [
@@ -24,6 +27,7 @@ import { MediaReclaimScheduler } from './modules/media/application/media-reclaim
     DatabaseModule,
     MessagingModule,
     MediaModule,
+    ProfilesModule,
     RedisModule,
     TelegramModule,
   ],
@@ -37,6 +41,8 @@ import { MediaReclaimScheduler } from './modules/media/application/media-reclaim
     RealtimeEventPublisher,
     MediaReclaimProcessor,
     MediaReclaimScheduler,
+    StreakReminderProcessor,
+    StreakReminderScheduler,
   ],
 })
 export class WorkerModule {}

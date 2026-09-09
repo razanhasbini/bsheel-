@@ -41,6 +41,11 @@ export class ProfilesController {
   @Get('me/xp-stats')
   xpStats(@CurrentUser() user: AuthUser) { return this.service.xpStats(user.id); }
 
+  /// Declared above @Get(':id') on purpose: Nest matches in declaration
+  /// order, so a later literal route would be swallowed by the :id param.
+  @Get('me/streak')
+  myStreak(@CurrentUser() user: AuthUser) { return this.service.streak(user.id); }
+
   @Get('me')
   me(@CurrentUser() user: AuthUser) { return this.service.ownProfile(user.id); }
 
@@ -67,6 +72,9 @@ export class ProfilesController {
   getByUsername(@Param() param: ProfileUsernameParam) {
     return this.service.publicProfileByUsername(param.username);
   }
+
+  @Get(':id/streak')
+  streak(@Param() param: ProfileIdParam) { return this.service.streak(param.id); }
 
   @Get(':id')
   get(@Param() param: ProfileIdParam) { return this.service.publicProfile(param.id); }

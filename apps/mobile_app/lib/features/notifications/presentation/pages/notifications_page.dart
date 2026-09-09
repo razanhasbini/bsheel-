@@ -76,7 +76,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         case 2:
           return n.type == NotificationType.questAssigned ||
               n.type == NotificationType.questExpired ||
-              n.type == NotificationType.questTimerWarning;
+              n.type == NotificationType.questTimerWarning ||
+              n.type == NotificationType.streakAtRisk;
         case 3:
           return n.type == NotificationType.submissionApproved ||
               n.type == NotificationType.submissionRejected ||
@@ -302,6 +303,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.questExpired:
       case NotificationType.questTimerWarning:
       case NotificationType.pendingReviewReminder:
+      case NotificationType.streakAtRisk:
         context.goNamed(RouteNames.home);
       case NotificationType.submissionApproved:
       case NotificationType.submissionRejected:

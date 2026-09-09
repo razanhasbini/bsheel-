@@ -38,6 +38,7 @@ class FeedPostCard extends ConsumerWidget {
     this.onDownvote,
     this.onComment,
     this.onSave,
+    this.onActions,
   });
 
   final FeedPostModel post;
@@ -57,6 +58,7 @@ class FeedPostCard extends ConsumerWidget {
   final VoidCallback? onDownvote;
   final VoidCallback? onComment;
   final VoidCallback? onSave;
+  final VoidCallback? onActions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -91,6 +93,7 @@ class FeedPostCard extends ConsumerWidget {
               timeAgoLabel: timeAgoLabel,
               modeBadge: modeBadge,
               onUserTap: onUserTap,
+              onActions: onActions,
             ),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -170,6 +173,7 @@ class _CardHeader extends StatelessWidget {
     required this.timeAgoLabel,
     required this.modeBadge,
     required this.onUserTap,
+    required this.onActions,
   });
 
   final FeedPostModel post;
@@ -177,6 +181,7 @@ class _CardHeader extends StatelessWidget {
   final String timeAgoLabel;
   final String? modeBadge;
   final VoidCallback? onUserTap;
+  final VoidCallback? onActions;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +248,12 @@ class _CardHeader extends StatelessWidget {
             const SizedBox(width: 8),
             ArcadeCategoryTag(label: post.questCategory, tint: tint),
           ],
+          IconButton(
+            tooltip: 'Post actions: share, report or block',
+            onPressed: onActions,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            icon: const Icon(Icons.more_horiz),
+          ),
         ],
       ),
     );

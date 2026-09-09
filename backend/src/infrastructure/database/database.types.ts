@@ -150,6 +150,35 @@ export interface Database {
     "expires_at": Timestamp;
     "created_at": Generated<Timestamp>;
   };
+  "map_countries": {
+    "code": string;
+    "name": string;
+    "geometry_id": string;
+  };
+  "map_location_evidence": {
+    "id": Generated<string>;
+    "user_id": string;
+    "place_id": string;
+    "provider_reference": string;
+    "location_verified": boolean;
+    "location_retrieved": boolean;
+    "geofence_verified": boolean;
+    "verified_at": Timestamp;
+    "expires_at": Timestamp;
+  };
+  "map_places": {
+    "id": Generated<string>;
+    "country_code": string;
+    "name": string;
+    "description": Generated<string>;
+    "city": Generated<string>;
+    "category": string;
+    "latitude": number;
+    "longitude": number;
+    "radius_m": Generated<number>;
+    "is_published": Generated<boolean>;
+    "created_at": Generated<Timestamp>;
+  };
   "media_objects": {
     "id": Generated<string>;
     "user_id": string;
@@ -231,6 +260,11 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
   };
+  "quest_destinations": {
+    "quest_id": string;
+    "place_id": string;
+    "requires_verification": Generated<boolean>;
+  };
   "quest_of_the_day": {
     "id": Generated<string>;
     "quest_id": string;
@@ -304,6 +338,11 @@ export interface Database {
     "status": Generated<string>;
     "reviewed_by": string | null;
     "reviewed_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+  };
+  "saved_map_places": {
+    "user_id": string;
+    "place_id": string;
     "created_at": Generated<Timestamp>;
   };
   "saved_posts": {

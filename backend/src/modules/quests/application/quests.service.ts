@@ -7,7 +7,8 @@ import type { CreateQuestDto, UpdateQuestDto } from '../presentation/quest.dto.j
 export class QuestsService {
   constructor(private readonly repository: QuestsRepository) {}
 
-  async getQuest(id: string): Promise<QuestRecord> {
+  async getQuest(id: string, userId: string): Promise<QuestRecord> {
+    await this.repository.assertDestinationAccess(userId,id);
     const quest = await this.repository.findQuest(id);
     if (!quest) throw new NotFoundException({ code: 'QUEST_NOT_FOUND', message: 'Quest not found' });
     return quest;

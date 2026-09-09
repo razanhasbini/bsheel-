@@ -17,6 +17,22 @@ import type {
 export class QuestsRepository {
   constructor(private readonly database: DatabaseService) {}
 
+  async assertDestinationAccess(userId: string, questId: string, assignment = false) {
+    const result = await this.database.query(`SELECT p.is_published,p.category,d.requires_verification,
+      EXISTS(SELECT 1 FROM map_location_evidence e WHERE e.user_id=$1 AND e.place_id=p.id
+        AND e.location_verified AND e.location_retrieved AND e.geofence_verified
+        AND e.verified_at<=now() AND e.expires_at>now()) AS verified
+      FROM quest_destinations d JOIN map_places p ON p.id=d.place_id WHERE d.quest_id=$2`, [userId,questId]);
+    const destination = result.rows[0];
+    if (!destination) return;
+    if (!destination.is_published || (destination.category === 'hidden' && !destination.verified)) {
+      throw new NotFoundException({code:'QUEST_NOT_FOUND',message:'Quest not found'});
+    }
+    if (assignment && destination.requires_verification && !destination.verified) {
+      throw new ConflictException({code:'LOCATION_VERIFICATION_REQUIRED',message:'Network location verification is required; this quest remains locked.'});
+    }
+  }
+
   async findQuest(id: string): Promise<QuestRecord | null> {
     const result = await this.database.query<QuestRecord>(
       'SELECT * FROM quests WHERE id = $1',
@@ -227,18 +243,26 @@ export class QuestsRepository {
     questId: string,
     displaceActive = false,
   ): Promise<UserQuestRecord> {
+    await this.assertDestinationAccess(userId, questId, true);
     return this.database.transaction(async (transaction) => {
       await this.lockUser(userId, transaction);
       await this.expireOverdueForUser(userId, transaction);
       if (displaceActive) {
         await transaction.query(
+          // Only the active quest is displaced. Expiring a 'submitted' row
+          // would throw away proof a moderator has not judged yet, and the
+          // user cannot get it back.
           `UPDATE user_quests SET status = 'expired', version = version + 1
-           WHERE user_id = $1 AND status IN ('assigned', 'submitted')`,
+           WHERE user_id = $1 AND status = 'assigned'`,
           [userId],
         );
       }
+      // One *active* quest per user. Submissions awaiting review no longer
+      // block a new roll — moderation latency is not something the user can
+      // clear, so blocking on it left them with nothing to do. Backed by
+      // user_quests_one_assigned_idx (migration 0021).
       const active = await transaction.query(
-        `SELECT 1 FROM user_quests WHERE user_id = $1 AND status IN ('assigned', 'submitted') LIMIT 1`,
+        `SELECT 1 FROM user_quests WHERE user_id = $1 AND status = 'assigned' LIMIT 1`,
         [userId],
       );
       if (active.rowCount) {
@@ -325,7 +349,8 @@ export class QuestsRepository {
            UPDATE admin_quest_injections SET consumed_at = now()
            WHERE id = (SELECT id FROM admin_quest_injections WHERE target_user_id = $1 AND consumed_at IS NULL ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
            RETURNING quest_id
-         ) SELECT q.* FROM popped p JOIN quests q ON q.id = p.quest_id WHERE q.is_active`,
+         ) SELECT q.* FROM popped p JOIN quests q ON q.id = p.quest_id WHERE q.is_active
+             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)`,
         [userId],
       );
       const injected = injection.rows[0];
@@ -336,6 +361,7 @@ export class QuestsRepository {
         `WITH eligible AS (
            SELECT q.* FROM quests q
            WHERE q.is_active
+             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)
              AND ($2::uuid IS NULL OR q.id <> $2)
              AND NOT EXISTS (SELECT 1 FROM admin_quest_injections i WHERE i.quest_id = q.id)
              AND NOT EXISTS (
@@ -361,7 +387,8 @@ export class QuestsRepository {
               q.category AS quest_category, q.difficulty AS quest_difficulty,
               q.xp_reward AS quest_xp_reward, q.duration_hours AS quest_duration_hours
        FROM quest_of_the_day d JOIN quests q ON q.id = d.quest_id
-       WHERE d.display_date = (now() AT TIME ZONE 'UTC')::date LIMIT 1`,
+       WHERE d.display_date = (now() AT TIME ZONE 'UTC')::date
+         AND NOT EXISTS (SELECT 1 FROM quest_destinations dest WHERE dest.quest_id=q.id) LIMIT 1`,
     );
     return result.rows[0] ?? null;
   }

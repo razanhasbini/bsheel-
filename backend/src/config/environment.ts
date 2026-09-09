@@ -128,6 +128,26 @@ const environmentSchema = z
     // it. A user can hold a presigned URL and upload minutes later, and a
     // submission is created after its object completes, so the grace period
     // must comfortably exceed both. Too short reclaims live media.
+    // Streak reminders (#46). A streak whose last approved day was
+    // yesterday dies at the end of today, so the reminder is only useful
+    // while that is true. Runs hourly by default rather than once a day
+    // because "today" differs per reader and a single fixed hour would reach
+    // half the users after their streak had already lapsed.
+    STREAK_REMINDER_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    STREAK_REMINDER_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(60_000)
+      .default(3_600_000),
+    STREAK_REMINDER_BATCH_SIZE: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(5000)
+      .default(500),
     MEDIA_RECLAIM_ENABLED: z
       .enum(['true', 'false'])
       .default('true')

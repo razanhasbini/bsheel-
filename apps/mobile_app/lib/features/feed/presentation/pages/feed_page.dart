@@ -363,9 +363,7 @@ class _FeedPostHost extends ConsumerWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
-      // Report / block / share live behind a long press here. The render's
-      // card has no overflow button, and the post-detail screen keeps the
-      // same actions on its visible "…" menu one tap away.
+      // Long press remains a shortcut for the visible overflow button.
       onLongPress: () {
         HapticFeedback.mediumImpact();
         showPostActionsSheet(
@@ -373,9 +371,15 @@ class _FeedPostHost extends ConsumerWidget {
           ref: ref,
           postId: post.id,
           postUsername: post.username,
+          postUserId: post.userId,
         );
       },
       child: FeedPostCard(
+        onActions: () => showPostActionsSheet(context,
+            ref: ref,
+            postId: post.id,
+            postUsername: post.username,
+            postUserId: post.userId),
         post: post,
         upvotes: counts[ReactionType.upvote] ?? 0,
         downvotes: counts[ReactionType.downvote] ?? 0,

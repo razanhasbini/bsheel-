@@ -51,7 +51,12 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
       expect(response.body.error.code).toBe('ACTIVE_QUEST_EXISTS');
     });
 
-    it('still counts a submitted quest as active', async () => {
+    // Deliberately inverted in migration 0021. This previously asserted that
+    // a submitted quest still blocked a new assignment. It no longer does:
+    // review latency is not something a user can clear, so being locked out
+    // until a moderator arrived was a dead end. One *assigned* quest is still
+    // enforced, by user_quests_one_assigned_idx.
+    it('lets a new quest be assigned while an earlier one awaits review', async () => {
       const mediaUrl = await harness.createMediaObject(user);
       const submission = await harness
         .post('/submissions', user)
@@ -64,8 +69,21 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
         .expect(201);
       harness.track(submission.body.data.id);
 
-      const response = await harness.post('/quests/assign', user).send({ questId: questB.id }).expect(409);
-      expect(response.body.error.code).toBe('ACTIVE_QUEST_EXISTS');
+      // The submitted quest stays submitted — it is not displaced or expired,
+      // because that would discard proof no moderator has judged yet.
+      const assigned = await harness
+        .post('/quests/assign', user)
+        .send({ questId: questB.id })
+        .expect(201);
+      expect(assigned.body.data.status).toBe('assigned');
+
+      // ...and the new quest is now the only active one, so a *third*
+      // assignment is still refused.
+      const third = await harness
+        .post('/quests/assign', user)
+        .send({ questId: questA.id })
+        .expect(409);
+      expect(third.body.error.code).toBe('ACTIVE_QUEST_EXISTS');
     });
   });
 

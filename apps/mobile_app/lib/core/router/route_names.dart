@@ -12,6 +12,7 @@ abstract final class RouteNames {
 
   // Main tabs
   static const String home = 'home';
+  static const String map = 'map';
   static const String feed = 'feed';
   static const String collab = 'collab';
   static const String leaderboard = 'leaderboard';
@@ -55,6 +56,7 @@ abstract final class RoutePaths {
   static const String resetPassword = '/reset-password';
   static const String onboardingWalkthrough = '/onboarding-walkthrough';
   static const String home = '/';
+  static const String map = '/map';
   static const String feed = '/feed';
   static const String collab = '/collab';
   static const String leaderboard = '/leaderboard';

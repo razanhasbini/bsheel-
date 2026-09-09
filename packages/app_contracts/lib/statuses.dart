@@ -74,6 +74,10 @@ abstract final class NotificationType {
   /// Admin reminder: pending submissions older than 24 hours.
   static const String pendingReviewReminder = 'pending_review_reminder';
 
+  /// The user's streak expires at the end of today (#46). Emitted by the
+  /// hourly streak sweep, at most once per user per UTC day.
+  static const String streakAtRisk = 'streak_at_risk';
+
   /// Another user commented on the same submission (reply-in-thread).
   static const String commentReply = 'comment_reply';
 

@@ -29,6 +29,13 @@ export interface UserXpStatsRecord {
   readonly rank: number;
 }
 
+export interface StreakRecord {
+  current: number;
+  longest: number;
+  lastDay: string | null;
+  atRisk: boolean;
+}
+
 const publicColumns = `id, username::text, display_name, avatar_url, bio, xp, level,
   quests_completed, profile_completed, created_at, updated_at`;
 
@@ -61,6 +68,59 @@ export class ProfilesRepository {
       [id],
     );
     return result.rows[0] ?? null;
+  }
+
+  /// Streak (#46): the run of consecutive UTC days on which this user has at
+  /// least one approved submission.
+  ///
+  /// Counted by `submitted_at` — the day the work was done — never by
+  /// `reviewed_at`. Keying on review time would let a moderation backlog
+  /// break a streak the user has no way to protect, and the admin dashboard
+  /// measures queue age in hours.
+  ///
+  /// Derived rather than stored. XP is stored and drifts badly enough to need
+  /// a reconciliation screen; a second counter kept in two places would earn
+  /// a second one. Backed by `submissions_user_approved_day_idx`.
+  ///
+  /// `current` counts the run only while it is still alive: its last day must
+  /// be today or yesterday, since a streak whose last day was yesterday dies
+  /// at the end of today. `longest` is the best run ever, which may be an
+  /// older one than the current.
+  async streak(userId: string): Promise<StreakRecord> {
+    const result = await this.database.query<{
+      current_streak: number;
+      longest_streak: number;
+      last_day: string | null;
+    }>(
+      `WITH days AS (
+         SELECT DISTINCT (s.submitted_at AT TIME ZONE 'UTC')::date AS d
+         FROM submissions s
+         WHERE s.user_id = $1 AND s.status = 'approved' AND s.visibility <> 'deleted'
+       ),
+       grouped AS (
+         SELECT d, d - (row_number() OVER (ORDER BY d))::int AS grp FROM days
+       ),
+       runs AS (
+         SELECT grp, count(*)::int AS len, max(d) AS last_day FROM grouped GROUP BY grp
+       )
+       SELECT
+         COALESCE(MAX(CASE WHEN last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+                           THEN len END), 0)::int AS current_streak,
+         COALESCE(MAX(len), 0)::int AS longest_streak,
+         to_char(MAX(last_day), 'YYYY-MM-DD') AS last_day
+       FROM runs`,
+      [userId],
+    );
+    const row = result.rows[0];
+    return {
+      current: row?.current_streak ?? 0,
+      longest: row?.longest_streak ?? 0,
+      lastDay: row?.last_day ?? null,
+      // Alive but expiring tonight, which is what the reminder is about.
+      atRisk: (row?.current_streak ?? 0) > 0
+        && row?.last_day !== null
+        && row?.last_day !== new Date().toISOString().slice(0, 10),
+    };
   }
 
   async xpStats(id: string): Promise<UserXpStatsRecord | null> {

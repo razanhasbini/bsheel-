@@ -338,6 +338,26 @@ export class E2eHarness {
     return result.rows;
   }
 
+  /// Moves a submission's `submitted_at` back by whole days so streak runs
+  /// can be built without waiting for real ones. Streaks are counted by the
+  /// day the work was submitted, so this is the only field that matters.
+  async backdateSubmission(id: string, days: number): Promise<void> {
+    await this.database.query(
+      `UPDATE submissions SET submitted_at = submitted_at - ($2 || ' days')::interval WHERE id = $1`,
+      [id, days],
+    );
+  }
+
+  /// Reads the reminder-idempotency date straight from the profile, so a test
+  /// can assert the daily job fires at most once per user per day.
+  async streakReminderSentOn(userId: string): Promise<string | null> {
+    const result = await this.database.query<{ sent: string | null }>(
+      `SELECT to_char(streak_reminder_sent_on, 'YYYY-MM-DD') AS sent FROM profiles WHERE id = $1`,
+      [userId],
+    );
+    return result.rows[0]?.sent ?? null;
+  }
+
   async notificationsFor(userId: string, referenceId?: string) {
     const result = await this.database.query<{ id: string; type: string; user_id: string; actor_id: string | null; title: string }>(
       `SELECT id, type, user_id, actor_id, title FROM notifications

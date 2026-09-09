@@ -61,7 +61,7 @@ export class QuestsController {
   expire(@CurrentUser() user: AuthUser, @Body() body: UserQuestIdDto) { return this.service.expire(user.id, body.userQuestId); }
 
   @Get(':id')
-  get(@Param() param: QuestIdParam) { return this.service.getQuest(param.id); }
+  get(@CurrentUser() user: AuthUser, @Param() param: QuestIdParam) { return this.service.getQuest(param.id, user.id); }
 
   @Roles('moderator', 'super_admin')
   @Post('admin/assign')

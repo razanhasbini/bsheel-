@@ -17,6 +17,16 @@ class ApiProfileRepository implements ProfileRepository {
   final ApiMediaUploader _uploader;
 
   @override
+  Future<StreakModel> getStreak({String? userId}) async {
+    // Same endpoint shape as the map's discovery totals: one server figure,
+    // read for self or for another profile, so the two can never disagree.
+    return StreakModel.fromJson(
+      apiObject(await _client
+          .get(userId == null ? 'profiles/me/streak' : 'profiles/$userId/streak')),
+    );
+  }
+
+  @override
   Future<ProfileModel?> getProfile(String userId) async {
     try {
       return _signed(

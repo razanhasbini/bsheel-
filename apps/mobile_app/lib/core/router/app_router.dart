@@ -26,6 +26,7 @@ import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/edit_profile_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/collab/presentation/pages/collab_page.dart';
+import '../../features/map/presentation/map_page.dart';
 import '../../features/collab/presentation/pages/join_collab_page.dart';
 import '../../features/settings/presentation/pages/blocked_users_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
@@ -221,6 +222,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: RouteNames.collab,
             builder: (context, state) => const CollabPage(),
           ),
+          GoRoute(
+              path: RoutePaths.map,
+              name: RouteNames.map,
+              builder: (context, state) => const MapPage()),
           GoRoute(
             path: RoutePaths.leaderboard,
             name: RouteNames.leaderboard,

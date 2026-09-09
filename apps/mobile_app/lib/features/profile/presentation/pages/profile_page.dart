@@ -15,6 +15,7 @@ import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/sign_out_service.dart';
 import '../../../../core/providers/current_profile_provider.dart';
+import '../../../../core/providers/streak_provider.dart';
 import '../../../../core/utils/streak_utils.dart';
 import '../../../follows/data/follows_providers.dart';
 import '../../../follows/presentation/widgets/follow_button.dart';
@@ -22,6 +23,8 @@ import '../../../quests/data/quest_providers.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../domain/badge_definitions.dart';
 import '../../domain/player_class.dart';
+import '../../../map/data/map_providers.dart';
+import '../../../map/presentation/map_page.dart' show DiscoveryProgress;
 import '../../../../l10n/app_localizations.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
@@ -169,7 +172,10 @@ class ProfilePage extends ConsumerWidget {
                         q.status == UserQuestStatus.rejected)
                     .map((q) => q.completedAt ?? q.assignedAt))
             .toList(growable: false);
-        final streak = calculateCurrentStreakFromTimestamps(activityTimestamps);
+        // Server-derived (#46). The old client calculation read whatever
+        // history page was loaded, counted rejected attempts, and bucketed by
+        // local date while the reminder job uses UTC.
+        final streak = ref.watch(streakProvider).valueOrNull?.current ?? 0;
 
         final socialQuestCount = questHistory
             .where((q) =>
@@ -262,6 +268,15 @@ class ProfilePage extends ConsumerWidget {
                       }
                     },
                   ),
+                    ref.watch(mapProfileCountriesProvider(profile.id)).when(
+                          data: (countries) =>
+                              DiscoveryProgress(countries: countries),
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, __) => TextButton(
+                              onPressed: () =>
+                                  ref.invalidate(mapProfileCountriesProvider(profile.id)),
+                              child: const Text('RETRY DISCOVERY PROGRESS')),
+                        ),
                   if (isViewingOther) ...[
                     const SizedBox(height: 14),
                     FollowButton(targetUserId: userId!),

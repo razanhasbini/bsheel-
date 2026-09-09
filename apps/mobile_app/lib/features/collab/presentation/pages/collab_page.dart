@@ -30,7 +30,8 @@ import '../../data/collab_providers.dart';
 /// On an ink panel every outline is **cream**, not ink: an ink border on an
 /// ink ground is invisible. That is measured off the render, not a choice.
 class CollabPage extends ConsumerStatefulWidget {
-  const CollabPage({super.key});
+  const CollabPage({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   ConsumerState<CollabPage> createState() => _CollabPageState();
@@ -128,87 +129,90 @@ class _CollabPageState extends ConsumerState<CollabPage> {
         : ref.watch(collabGroupStatusProvider(activeQuest.id));
     final group = groupAsync?.valueOrNull;
 
-    return Scaffold(
-      backgroundColor: QuestColors.osBg,
-      body: SafeArea(
-        bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-          children: [
-            Row(
-              children: [
-                _IconButton(
-                  icon: Icons.arrow_back_rounded,
-                  onTap: () => context.canPop()
-                      ? context.pop()
-                      : context.goNamed(RouteNames.home),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FitText(
-                    'COLLAB',
-                    minFontSize: 18,
-                    style: QuestTypography.osDisplayMedium.copyWith(
-                      fontSize: 28,
-                      letterSpacing: -0.6,
-                      height: 1,
-                    ),
+    final content = ListView(
+      shrinkWrap: widget.embedded,
+      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      padding: widget.embedded
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(20, 14, 20, 28),
+      children: [
+        if (!widget.embedded)
+          Row(
+            children: [
+              _IconButton(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => context.canPop()
+                    ? context.pop()
+                    : context.goNamed(RouteNames.home),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FitText(
+                  'COLLAB',
+                  minFontSize: 18,
+                  style: QuestTypography.osDisplayMedium.copyWith(
+                    fontSize: 28,
+                    letterSpacing: -0.6,
+                    height: 1,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (activeQuest == null)
-              const _NoQuestPanel()
-            else if (groupAsync!.isLoading)
-              const ArcadeSkeleton(height: 220, radius: 18)
-            else if (groupAsync.hasError)
-              const _DashedPanel(
-                label: 'ERROR',
-                title: "Couldn't load group",
-                body: 'Pull down or try again in a moment.',
-              )
-            else if (group != null && group.isCollab)
-              _CollabHero(
-                title: activeQuest.quest?.title ?? 'QUEST',
-                group: group,
-                expiresAt: group.expiresAt ?? activeQuest.expiresAt,
-                onCastVote: () => context.goNamed(RouteNames.feed),
-                onShare: group.code == null
-                    ? null
-                    : () => _shareCode(group.code!, group.mode),
-              )
-            else
-              _CreateGroupPanel(
-                questTitle: activeQuest.quest?.title ?? 'YOUR QUEST',
-                selectedMode: _selectedMode,
-                creating: _creating,
-                onModeChange: (mode) => setState(() => _selectedMode = mode),
-                onCreate: () => _createGroup(activeQuest.id),
-              ),
-            if (group != null && group.isCollab) ...[
-              const SizedBox(height: 18),
-              const _SectionLabel('YOUR GROUPS'),
-              const SizedBox(height: 10),
-              _GroupCard(
-                title: activeQuest?.quest?.title ?? 'QUEST',
-                memberCount: group.members.length,
-                code: group.code,
-                open: group.status == CollabGroupStatus.open,
-                onTap: group.code == null ? null : () => _copyLink(group.code!),
               ),
             ],
-            const SizedBox(height: 18),
-            const _SectionLabel('JOIN BY CODE'),
-            const SizedBox(height: 10),
-            _JoinByCodeRow(
-              controller: _codeController,
-              onJoin: _joinByCode,
-            ),
-          ],
+          ),
+        const SizedBox(height: 16),
+        if (activeQuest == null)
+          const _NoQuestPanel()
+        else if (groupAsync!.isLoading)
+          const ArcadeSkeleton(height: 220, radius: 18)
+        else if (groupAsync.hasError)
+          const _DashedPanel(
+            label: 'ERROR',
+            title: "Couldn't load group",
+            body: 'Pull down or try again in a moment.',
+          )
+        else if (group != null && group.isCollab)
+          _CollabHero(
+            title: activeQuest.quest?.title ?? 'QUEST',
+            group: group,
+            expiresAt: group.expiresAt ?? activeQuest.expiresAt,
+            onCastVote: () => context.goNamed(RouteNames.feed),
+            onShare: group.code == null
+                ? null
+                : () => _shareCode(group.code!, group.mode),
+          )
+        else
+          _CreateGroupPanel(
+            questTitle: activeQuest.quest?.title ?? 'YOUR QUEST',
+            selectedMode: _selectedMode,
+            creating: _creating,
+            onModeChange: (mode) => setState(() => _selectedMode = mode),
+            onCreate: () => _createGroup(activeQuest.id),
+          ),
+        if (group != null && group.isCollab) ...[
+          const SizedBox(height: 18),
+          const _SectionLabel('YOUR GROUPS'),
+          const SizedBox(height: 10),
+          _GroupCard(
+            title: activeQuest?.quest?.title ?? 'QUEST',
+            memberCount: group.members.length,
+            code: group.code,
+            open: group.status == CollabGroupStatus.open,
+            onTap: group.code == null ? null : () => _copyLink(group.code!),
+          ),
+        ],
+        const SizedBox(height: 18),
+        const _SectionLabel('JOIN BY CODE'),
+        const SizedBox(height: 10),
+        _JoinByCodeRow(
+          controller: _codeController,
+          onJoin: _joinByCode,
         ),
-      ),
+      ],
     );
+    if (widget.embedded) return content;
+    return Scaffold(
+        backgroundColor: QuestColors.osBg,
+        body: SafeArea(bottom: false, child: content));
   }
 }
 

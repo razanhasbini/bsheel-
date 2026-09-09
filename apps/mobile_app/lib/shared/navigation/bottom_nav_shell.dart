@@ -281,7 +281,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith(RoutePaths.feed)) return 1;
-    if (location.startsWith(RoutePaths.search)) return 2;
+    if (location.startsWith(RoutePaths.map)) return 2;
     if (location.startsWith(RoutePaths.leaderboard)) return 3;
     if (location.startsWith(RoutePaths.profile)) return 4;
     if (location.startsWith(RoutePaths.collab)) return -1;
@@ -303,10 +303,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
         ref.invalidate(feedProvider);
         context.goNamed(RouteNames.feed);
       case 2:
-        // `/search` sits outside the ShellRoute, so this pushes rather than
-        // switches tabs. Moving it inside the shell (and collab out of it)
-        // is an app_router.dart change — see the handoff note.
-        context.pushNamed(RouteNames.search);
+        context.goNamed(RouteNames.map);
       case 3:
         context.goNamed(RouteNames.leaderboard);
       case 4:
@@ -340,7 +337,7 @@ class _ArcadeBottomNav extends StatelessWidget {
   static const _items = <_NavItem>[
     _NavItem(glyph: _NavGlyphShape.square, label: 'HOME'),
     _NavItem(glyph: _NavGlyphShape.lines, label: 'FEED'),
-    _NavItem(glyph: _NavGlyphShape.target, label: 'SEARCH'),
+    _NavItem(glyph: _NavGlyphShape.target, label: 'MAP'),
     _NavItem(glyph: _NavGlyphShape.triangle, label: 'RANKS'),
     _NavItem(glyph: _NavGlyphShape.circle, label: 'PROFILE'),
   ];

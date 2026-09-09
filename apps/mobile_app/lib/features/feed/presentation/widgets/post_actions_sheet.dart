@@ -8,6 +8,9 @@ import '../../../../design/bs_widgets.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/backend/app_backend.dart';
+import '../../../../core/providers/auth_session_provider.dart';
+import '../../../settings/data/blocked_users_provider.dart';
+import '../providers/feed_provider.dart';
 
 /// Bottom sheet for the "..." menu on a Reels card. Surfaces SHARE and
 /// REPORT, plus a CANCEL row. Tapping outside dismisses without action.
@@ -16,6 +19,7 @@ Future<void> showPostActionsSheet(
   required WidgetRef ref,
   required String postId,
   required String postUsername,
+  String? postUserId,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -28,6 +32,8 @@ Future<void> showPostActionsSheet(
       ref: ref,
       postId: postId,
       postUsername: postUsername,
+      postUserId: postUserId,
+      pageContext: context,
     ),
   );
 }
@@ -37,14 +43,51 @@ class _PostActionsSheet extends StatelessWidget {
     required this.ref,
     required this.postId,
     required this.postUsername,
+    required this.pageContext,
+    this.postUserId,
   });
 
   final WidgetRef ref;
   final String postId;
   final String postUsername;
+  final String? postUserId;
+  final BuildContext pageContext;
+
+  Future<void> _block(BuildContext context) async {
+    Navigator.of(context).pop();
+    final confirmed = await showDialog<bool>(
+        context: pageContext,
+        builder: (dialog) => AlertDialog(
+                title: Text('BLOCK @$postUsername?'),
+                content: const Text(
+                    'Their posts will be removed from your feed. You can unblock them in Settings.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: const Text('KEEP')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: const Text('BLOCK'))
+                ]));
+    if (confirmed != true || !pageContext.mounted) return;
+    try {
+      await AppBackend.repositories.account.blockUser(postUserId!);
+      if (!pageContext.mounted) return;
+      ref.invalidate(feedProvider);
+      ref.invalidate(blockedUsersProvider);
+      ScaffoldMessenger.of(pageContext)
+          .showSnackBar(const SnackBar(content: Text('User blocked.')));
+    } catch (_) {
+      if (pageContext.mounted) {
+        ScaffoldMessenger.of(pageContext).showSnackBar(const SnackBar(
+            content: Text('Could not block user. Please try again.')));
+      }
+    }
+  }
 
   Future<void> _share(BuildContext context) async {
     Navigator.of(context).maybePop();
+    context = pageContext;
     HapticFeedback.selectionClick();
     ref.read(analyticsProvider).postShared(postId);
     await SharePlus.instance.share(
@@ -57,6 +100,7 @@ class _PostActionsSheet extends StatelessWidget {
 
   Future<void> _report(BuildContext context) async {
     Navigator.of(context).maybePop();
+    context = pageContext;
     HapticFeedback.selectionClick();
     final reason = await _askReportReason(context);
     if (reason == null || reason.isEmpty) return;
@@ -270,6 +314,14 @@ class _PostActionsSheet extends StatelessWidget {
             tint: QuestColors.osRed,
             onTap: () => _report(context),
           ),
+          if (postUserId != null &&
+              postUserId!.isNotEmpty &&
+              ref.read(authSessionProvider)?.id != postUserId)
+            _ActionRow(
+                icon: Icons.block,
+                label: 'BLOCK @$postUsername',
+                tint: QuestColors.osRed,
+                onTap: () => _block(context)),
         ],
       ),
     );

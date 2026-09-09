@@ -71,6 +71,7 @@ class AuthField extends StatefulWidget {
 class _AuthFieldState extends State<AuthField> {
   FocusNode? _ownNode;
   bool _focused = false;
+  bool _passwordVisible = false;
 
   FocusNode get _node => widget.focusNode ?? (_ownNode ??= FocusNode());
 
@@ -158,10 +159,12 @@ class _AuthFieldState extends State<AuthField> {
                       controller: widget.controller,
                       focusNode: _node,
                       enabled: widget.enabled,
-                      obscureText: widget.obscureText,
+                      obscureText: widget.obscureText && !_passwordVisible,
                       keyboardType: widget.keyboardType,
                       textInputAction: widget.textInputAction,
-                      autocorrect: widget.autocorrect,
+                      autocorrect:
+                          widget.obscureText ? false : widget.autocorrect,
+                      enableSuggestions: !widget.obscureText,
                       autofillHints: widget.autofillHints,
                       textCapitalization: widget.textCapitalization,
                       onChanged: widget.onChanged,
@@ -189,6 +192,20 @@ class _AuthFieldState extends State<AuthField> {
                     ),
                   ),
                 ),
+                if (widget.obscureText)
+                  IconButton(
+                    tooltip:
+                        _passwordVisible ? 'Hide password' : 'Show password',
+                    constraints:
+                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    onPressed: widget.enabled
+                        ? () =>
+                            setState(() => _passwordVisible = !_passwordVisible)
+                        : null,
+                    icon: Icon(_passwordVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined),
+                  ),
                 if (widget.trailing != null) ...[
                   const SizedBox(width: 10),
                   widget.trailing!,

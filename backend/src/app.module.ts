@@ -12,6 +12,7 @@ import { DatabaseModule } from './infrastructure/database/database.module.js';
 import { RedisModule } from './infrastructure/redis/redis.module.js';
 import { MessagingQueueModule } from './infrastructure/messaging/messaging-queue.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { MapModule } from './modules/map/map.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { QuestsModule } from './modules/quests/quests.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
@@ -96,6 +97,7 @@ import { TelegramModule } from './integrations/telegram/telegram.module.js';
     RealtimeModule,
     TelegramModule,
     HealthModule,
+    MapModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

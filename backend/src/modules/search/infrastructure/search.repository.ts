@@ -36,6 +36,7 @@ export class SearchRepository {
                 is_active, created_by, created_at, updated_at
          FROM quests
          WHERE is_active
+           AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=quests.id)
            AND (lower(title) LIKE lower($1) ESCAPE '\\'
                 OR lower(description) LIKE lower($1) ESCAPE '\\'
                 OR lower(category) LIKE lower($1) ESCAPE '\\')

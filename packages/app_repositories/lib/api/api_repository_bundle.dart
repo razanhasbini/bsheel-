@@ -18,6 +18,7 @@ import '../saved_quests/api_saved_quests_repository.dart';
 import '../search/api_search_repository.dart';
 import '../submissions/api_submissions_repository.dart';
 import 'api_client.dart';
+import '../map/map_repository.dart';
 
 /// One composition object for the Flutter mobile and admin applications.
 ///
@@ -47,6 +48,7 @@ class ApiRepositoryBundle {
     googleWebClientId: _googleWebClientId,
   );
   late final ApiAccountRepository account = ApiAccountRepository(client);
+  late final MapRepository map = ApiMapRepository(client);
   late final ApiAdminRepository admin = ApiAdminRepository(client);
   late final ApiCollabRepository collab = ApiCollabRepository(client);
   late final ApiCommentsRepository comments = ApiCommentsRepository(client);
