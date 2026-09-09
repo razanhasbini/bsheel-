@@ -68,6 +68,7 @@ class AppealsPage extends ConsumerWidget {
                 'A re-rejection is final and cannot be undone. Read the '
                 'appeal text before deciding — the user cannot write a '
                 'second one.',
+                large: true,
               ),
               const SizedBox(height: 14),
               for (var i = 0; i < appeals.length; i++) ...[
@@ -131,95 +132,130 @@ class _AppealCardState extends ConsumerState<_AppealCard> {
     final appealNote = _text(data[SubmissionColumns.appealNote], '');
     final submittedAt = data[SubmissionColumns.submittedAt]?.toString();
 
+    // The longest-waiting appeal is the only card with a shadow, and it
+    // is coral: on this page every row is already an exception, so an ink
+    // shadow under all of them would say nothing.
+    final evidence = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                username,
+                style: BsheelType.titleMd,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                '${_shortId(data[SubmissionColumns.id])} · '
+                'WAITING ${bsheelWaiting(submittedAt).toUpperCase()}',
+                style: BsheelType.labelSm,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(questTitle, style: BsheelType.bodySmMedium),
+        const SizedBox(height: 6),
+        Text(
+          appealNote.isEmpty
+              ? 'They appealed without writing anything. The media '
+                  'and the caption are all there is to go on.'
+              : '“$appealNote”',
+          style: BsheelType.bodySm.copyWith(
+            color: BsheelColors.inkSoft,
+          ),
+        ),
+      ],
+    );
+
+    final decision = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BsheelButton.positive(
+          label: 'Overturn · approve',
+          expand: true,
+          small: true,
+          loading: _overturning,
+          onPressed: _busy ? null : _confirmOverturn,
+        ),
+        const SizedBox(height: 8),
+        BsheelButton.coral(
+          label: 'Uphold · final',
+          expand: true,
+          small: true,
+          loading: _upholding,
+          onPressed: _busy ? null : _confirmUphold,
+        ),
+        const SizedBox(height: 8),
+        BsheelLink(
+          'Open full review',
+          align: TextAlign.center,
+          onTap: _busy
+              ? null
+              : () => context.goNamed(
+                    AdminRouteNames.submissionReview,
+                    pathParameters: {'id': _id},
+                  ),
+        ),
+      ],
+    );
+
+    final thumb = BsheelThumb(
+      url: _firstMediaUrl,
+      size: 88,
+      radius: BsheelRadii.md,
+    );
+
+    // The longest-waiting appeal is the only card with a shadow, and it
+    // is coral: on this page every row is already an exception, so an ink
+    // shadow under all of them would say nothing.
     return BsheelCard(
       radius: BsheelRadii.lg,
-      shadowColor:
-          widget.needsAttention ? BsheelColors.danger : BsheelColors.ink,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          BsheelThumb(
-            url: _firstMediaUrl,
-            size: 88,
-            radius: BsheelRadii.md,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        username,
-                        style: BsheelType.titleMd,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Flexible(
-                      child: Text(
-                        '${_shortId(data[SubmissionColumns.id])} · '
-                        'WAITING ${bsheelWaiting(submittedAt).toUpperCase()}',
-                        style: BsheelType.labelSm,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(questTitle, style: BsheelType.bodySmMedium),
-                const SizedBox(height: 6),
-                Text(
-                  appealNote.isEmpty
-                      ? 'They appealed without writing anything. The media '
-                          'and the caption are all there is to go on.'
-                      : '“$appealNote”',
-                  style: BsheelType.bodySm.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 200,
-            child: Column(
+      depth: widget.needsAttention ? 5 : 0,
+      shadowColor: BsheelColors.danger,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Below this the thumbnail, the appeal text and a 200px button
+          // column cannot all hold their minimums side by side, so the
+          // decision drops under the evidence rather than squeezing it to
+          // an ellipsis.
+          if (constraints.maxWidth < 560) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                BsheelButton.positive(
-                  label: 'Overturn · approve',
-                  expand: true,
-                  loading: _overturning,
-                  onPressed: _busy ? null : _confirmOverturn,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    thumb,
+                    const SizedBox(width: 14),
+                    Expanded(child: evidence),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                BsheelButton.coral(
-                  label: 'Uphold · final',
-                  expand: true,
-                  loading: _upholding,
-                  onPressed: _busy ? null : _confirmUphold,
-                ),
-                const SizedBox(height: 8),
-                BsheelLink(
-                  'Open full review',
-                  align: TextAlign.center,
-                  onTap: _busy
-                      ? null
-                      : () => context.goNamed(
-                            AdminRouteNames.submissionReview,
-                            pathParameters: {'id': _id},
-                          ),
-                ),
+                const SizedBox(height: 14),
+                decision,
               ],
-            ),
-          ),
-        ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              thumb,
+              const SizedBox(width: 14),
+              Expanded(child: evidence),
+              const SizedBox(width: 14),
+              SizedBox(width: 200, child: decision),
+            ],
+          );
+        },
       ),
     );
   }

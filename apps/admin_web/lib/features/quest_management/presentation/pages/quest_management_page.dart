@@ -73,10 +73,6 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
   static const String _filterAll = 'all';
   static const String _filterRetired = 'retired';
 
-  /// Six columns cannot fit a narrow window; below this the table
-  /// scrolls sideways rather than painting outside the page.
-  static const double _tableMinWidth = 660;
-
   final TextEditingController _searchCtrl = TextEditingController();
   String _search = '';
   String _filter = _filterAll;
@@ -210,7 +206,9 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
       );
     }
 
-    final table = BsheelTable(
+    // BsheelTable scrolls itself sideways once its six columns stop
+    // fitting, so there is no wrapper here.
+    return BsheelTable(
       depth: 5,
       columns: const [
         BsheelColumn('Title'),
@@ -221,15 +219,6 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
         BsheelColumn('Status', width: 96),
       ],
       rows: [for (final quest in filtered) _tableRow(context, quest)],
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) => constraints.maxWidth >= _tableMinWidth
-          ? table
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(width: _tableMinWidth, child: table),
-            ),
     );
   }
 
@@ -260,8 +249,8 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
         BsheelCell.pill(
           retired
               ? const BsheelPill.muted('retired', small: true)
-              : const BsheelPill('live', tone: BsheelPillTone.green,
-                  small: true),
+              : const BsheelPill('live',
+                  tone: BsheelPillTone.green, small: true),
         ),
       ],
       muted: retired,
@@ -799,8 +788,7 @@ class _QuestManagementPageState extends ConsumerState<QuestManagementPage> {
                         error = null;
                         importing = true;
                       });
-                      final result =
-                          await _importQuestsFromXlsx(picked!.bytes);
+                      final result = await _importQuestsFromXlsx(picked!.bytes);
                       if (!ctx.mounted) return;
                       if (result.error != null) {
                         setDialogState(() {

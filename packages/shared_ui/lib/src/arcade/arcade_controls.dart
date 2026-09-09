@@ -39,7 +39,7 @@ class ArcadeToggle extends StatelessWidget {
             width: 52,
             height: 30,
             decoration: BoxDecoration(
-              color: value ? QuestColors.osSuccess : const Color(0xFFC7C0E0),
+              color: value ? QuestColors.osSuccess : QuestColors.textSecondary,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: QuestColors.osTextPrimary, width: 2),
             ),
@@ -151,7 +151,7 @@ class ArcadeSegments extends StatelessWidget {
                 color: i < filled
                     ? fill
                     : (i == filled
-                        ? const Color(0xFFC7C0E0)
+                        ? QuestColors.textSecondary
                         : QuestColors.osSurface),
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(color: QuestColors.osTextPrimary, width: 2),

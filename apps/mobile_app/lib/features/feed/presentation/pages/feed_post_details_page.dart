@@ -13,7 +13,6 @@ import 'package:app_models/app_models.dart'
     show CollabFeedMember, CommentModel, FeedPostModel;
 import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/config/deep_link_config.dart';
@@ -22,14 +21,18 @@ import '../../../../core/services/analytics_service.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../providers/feed_provider.dart';
+import '../providers/feed_comment_count_provider.dart';
 import '../providers/feed_post_details_provider.dart';
 import '../providers/post_realtime_provider.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../../leaderboard/presentation/providers/leaderboard_provider.dart';
 import '../widgets/collab_vote_button.dart';
+import '../widgets/post_action_row.dart';
+import '../widgets/post_avatar.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
 import '../../../comments/application/mention_controller.dart';
+import '../../../comments/presentation/widgets/comment_composer.dart';
 import '../../../comments/presentation/widgets/comments_section.dart';
 import '../../../comments/presentation/widgets/mention_picker.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -48,7 +51,6 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
   final _commentController = MentionTextEditingController();
   final _commentFocus = FocusNode();
   bool _submitting = false;
-  bool _keyboardVisible = false;
   CommentModel? _replyingTo;
   // Shared @-mention plumbing (debounce, suggestion queries, insert
   // logic) lives in MentionInputController; this page only renders the
@@ -59,9 +61,6 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
   void initState() {
     super.initState();
     AppLogger.info('[PostDetails] initState postId=${widget.postId}');
-    _commentFocus.addListener(() {
-      if (mounted) setState(() => _keyboardVisible = _commentFocus.hasFocus);
-    });
     _mention = MentionInputController(
       textController: _commentController,
       focusNode: _commentFocus,
@@ -440,6 +439,10 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
             final upvotes = counts[ReactionType.upvote] ?? 0;
             final downvotes = counts[ReactionType.downvote] ?? 0;
 
+            // Top-level comments + their replies, from the provider the
+            // thread below already watches.
+            final commentCount = ref.watch(feedCommentCountProvider(post.id));
+
             final myVoteType = currentUser == null
                 ? null
                 : getEffectiveVoteType(ref, post.id, currentUser.id);
@@ -460,30 +463,11 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
               );
             }
 
-            final (catColor, catLabel) = _categoryStyle(post.questCategory);
-
             return Column(
               children: [
                 // ── Top bar ──────────────────────────────────────────────
                 _TopBar(
-                  username: post.username,
-                  displayName: post.displayName,
-                  bio: post.bio,
-                  avatarUrl: post.avatarUrl,
-                  catColor: catColor,
-                  userId: post.userId,
-                  currentUserId: currentUser?.id,
                   isOwner: currentUser?.id == post.userId,
-                  collabLabel: post.isCollab
-                      ? (post.collabMode == CollabMode.versus
-                          ? 'VERSUS QUEST · ${post.collabMemberCount} PLAYERS'
-                          : 'COOP QUEST · ${post.collabMemberCount} PLAYERS')
-                      : null,
-                  collabAccent: post.isCollab
-                      ? (post.collabMode == CollabMode.versus
-                          ? QuestColors.osRed
-                          : QuestColors.osSuccess)
-                      : null,
                   // Deep-link cold-start: there's nothing to pop, so fall
                   // back to /home so the user is never stranded.
                   onBack: () => context.canPop()
@@ -535,6 +519,14 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                         // the back button and the three-dots menu) so it shares
                         // the same row as the navigation chrome.
 
+                        // ── Author row (avatar · handle · meta · tag) ───
+                        SliverToBoxAdapter(
+                          child: _AuthorRow(
+                            post: post,
+                            timeAgoLabel: _timeAgo(post.submittedAt),
+                          ),
+                        ),
+
                         // Collab participants header (avatar = vote button + name + bio + follow)
                         if (post.isCollab && post.collabMembers.isNotEmpty)
                           SliverToBoxAdapter(
@@ -549,19 +541,29 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                         // ── Media card with category + collab overlay ───
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
                             child: _PostMediaCard(post: post),
                           ),
                         ),
 
-                        // ── Reaction bar (chunky pills) ─────────────────
+                        // ── Title + body, flat on the cream page ────────
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-                            child: _PostActionBar(
+                            padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
+                            child: _PostBody(post: post),
+                          ),
+                        ),
+
+                        // ── Action row ──────────────────────────────────
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
+                            child: PostActionRow(
                               upvotes: upvotes,
                               downvotes: downvotes,
-                              myVoteType: myVoteType,
+                              commentCount: commentCount,
+                              isUpvoted: myVoteType == ReactionType.upvote,
+                              isDownvoted: myVoteType == ReactionType.downvote,
                               isSaved: isSaved,
                               // Collab/versus posts use per-member voting in
                               // the participants header above; hide global up/down.
@@ -572,6 +574,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                               onDownvote: currentUser == null
                                   ? null
                                   : () => vote(ReactionType.downvote),
+                              onComment: () => _commentFocus.requestFocus(),
                               onSave: currentUser == null
                                   ? null
                                   : () => toggleSavePost(
@@ -579,67 +582,17 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                                         submissionId: post.id,
                                         userId: currentUser.id,
                                       ),
-                              onShare: () {
-                                ref.read(analyticsProvider).postShared(post.id);
-                                SharePlus.instance.share(
-                                  ShareParams(
-                                    text:
-                                        'Check out this quest by @${post.username} on BSHEEL!\n\n${DeepLinkConfig.postLink(post.id)}',
-                                  ),
-                                );
-                              },
                             ),
                           ),
                         ),
 
-                        // ── Quest info card (title, desc, captions, xp, time) ──
+                        // ── Hairline before the thread ──────────────────
                         SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-                            child: _PostInfoCard(
-                              post: post,
-                              timeAgo: _timeAgo(post.submittedAt),
-                            ),
-                          ),
-                        ),
-
-                        // ── Comments section header ─────────────────────
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 22, 14, 10),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 20,
-                                  height: 2,
-                                  color: QuestColors.text(context),
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    AppLocalizations.of(context)!
-                                        .comments
-                                        .toUpperCase(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style:
-                                        QuestTypography.headlineSmall.copyWith(
-                                      color: QuestColors.text(context),
-                                      fontSize: 14,
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Container(
-                                    height: 2,
-                                    color: QuestColors.text(context)
-                                        .withAlpha(QuestColors.alphaWhisper),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: Container(
+                            height: 2,
+                            margin: const EdgeInsets.fromLTRB(14, 20, 14, 16),
+                            color: QuestColors.osTextPrimary
+                                .withAlpha(QuestColors.alphaWhisper),
                           ),
                         ),
 
@@ -663,25 +616,23 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                   ),
                 ),
 
-                // ── Fixed bottom comment input ────────────────────────────
-                _CommentInputBar(
-                  controller: _commentController,
-                  focusNode: _commentFocus,
-                  submitting: _submitting,
-                  keyboardVisible: _keyboardVisible,
-                  onSend: _addComment,
-                  onDismiss: () {
-                    _commentFocus.unfocus();
-                    setState(() => _replyingTo = null);
-                  },
-                  currentUser: currentUser,
-                  replyingTo: _replyingTo,
-                  onCancelReply: () => setState(() => _replyingTo = null),
-                  mentionSuggestions: _mention.suggestions,
-                  mentionLoading: _mention.loading,
-                  mentionQuery: _mention.query,
-                  onMentionTap: _mention.insertMention,
-                ),
+                // ── Fixed bottom comment composer ─────────────────────────
+                // Signed-out viewers get no composer at all rather than a
+                // field that fails on send.
+                if (currentUser != null)
+                  CommentComposer(
+                    controller: _commentController,
+                    focusNode: _commentFocus,
+                    submitting: _submitting,
+                    onSend: _addComment,
+                    replyingTo: _replyingTo,
+                    onCancelReply: () => setState(() => _replyingTo = null),
+                    hint: AppLocalizations.of(context)!.addComment,
+                    mentionSuggestions: _mention.suggestions,
+                    mentionLoading: _mention.loading,
+                    mentionQuery: _mention.query,
+                    onMentionTap: _mention.insertMention,
+                  ),
               ],
             );
           },
@@ -703,37 +654,21 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
-    required this.username,
-    required this.displayName,
-    this.bio,
-    required this.avatarUrl,
-    required this.catColor,
-    required this.userId,
-    required this.currentUserId,
+    required this.isOwner,
     required this.onBack,
     required this.onShare,
-    required this.isOwner,
     this.showInFeed = true,
-    this.visibility = 'visible',
+    this.visibility = SubmissionVisibility.visible,
     this.onAddToFeed,
     this.onDeleteFromFeed,
     this.onDeleteFromProfile,
     this.onReport,
     this.onBlock,
-    this.collabLabel,
-    this.collabAccent,
   });
 
-  final String username;
-  final String displayName;
-  final String? bio;
-  final String? avatarUrl;
-  final Color catColor;
-  final String userId;
-  final String? currentUserId;
+  final bool isOwner;
   final VoidCallback onBack;
   final VoidCallback onShare;
-  final bool isOwner;
   final bool showInFeed;
   final String visibility;
   final VoidCallback? onAddToFeed;
@@ -741,520 +676,121 @@ class _TopBar extends StatelessWidget {
   final VoidCallback? onDeleteFromProfile;
   final VoidCallback? onReport;
   final VoidCallback? onBlock;
-  final String? collabLabel;
-  final Color? collabAccent;
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    // The collab pill's ground is either an accent fill (coral / jade,
-    // which take ink) or the ink panel colour used when there is no
-    // collab accent (which takes white).
-    final collabPillAccent = collabAccent;
-    final onCollabPill = collabPillAccent == null
-        ? QuestColors.pureWhite
-        : QuestColors.onAccent(collabPillAccent);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: QuestColors.bg(context),
-        border: Border(
-          bottom: BorderSide(color: ink, width: 2),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: onBack,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: QuestColors.cardBg(context),
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: ink, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ink,
-                      offset: const Offset(2, 2),
-                      blurRadius: 0,
+    const ink = QuestColors.osTextPrimary;
+    // `20-post-detail.jpg`: no bottom rule under the bar. The page is one
+    // continuous cream surface, and the back button's own shadow is what
+    // separates the chrome from the post.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+      child: Row(
+        children: [
+          ArcadeBackButton(onTap: onBack),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'POST',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osLabelMedium.copyWith(
+                color: QuestColors.osTextSecondary,
+                fontSize: 12,
+                letterSpacing: 1.8,
+              ),
+            ),
+          ),
+          Container(
+            width: QuestSpacing.minTouchTarget,
+            height: QuestSpacing.minTouchTarget,
+            decoration: BoxDecoration(
+              color: QuestColors.osCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ink, width: 2),
+              boxShadow: const [
+                BoxShadow(color: ink, offset: Offset(3, 3), blurRadius: 0),
+              ],
+            ),
+            child: PopupMenuButton<String>(
+              icon: const Icon(Icons.more_horiz_rounded, size: 20, color: ink),
+              tooltip: 'MORE ACTIONS',
+              padding: EdgeInsets.zero,
+              color: QuestColors.osCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: ink, width: 2),
+              ),
+              onSelected: (value) {
+                if (value == 'share') onShare();
+                if (value == 'add_feed') onAddToFeed?.call();
+                if (value == 'delete_feed') onDeleteFromFeed?.call();
+                if (value == 'delete_profile') onDeleteFromProfile?.call();
+                if (value == 'report') onReport?.call();
+                if (value == 'block') onBlock?.call();
+              },
+              itemBuilder: (ctx) {
+                final l = AppLocalizations.of(ctx)!;
+                final isInFeed =
+                    showInFeed && visibility == SubmissionVisibility.visible;
+                return [
+                  const PopupMenuItem(
+                    value: 'share',
+                    child: _MenuRow(
+                      icon: Icons.ios_share_rounded,
+                      label: 'SHARE POST',
+                      tint: ink,
+                    ),
+                  ),
+                  if (isOwner && !isInFeed)
+                    PopupMenuItem(
+                      value: 'add_feed',
+                      child: _MenuRow(
+                        icon: Icons.visibility_outlined,
+                        label: l.addToFeed,
+                        tint: QuestColors.osSuccessText,
+                      ),
+                    ),
+                  if (isOwner && isInFeed)
+                    PopupMenuItem(
+                      value: 'delete_feed',
+                      child: _MenuRow(
+                        icon: Icons.visibility_off_outlined,
+                        label: l.hideFromFeed,
+                        tint: QuestColors.osAccentText,
+                      ),
+                    ),
+                  if (isOwner)
+                    PopupMenuItem(
+                      value: 'delete_profile',
+                      child: _MenuRow(
+                        icon: Icons.delete_forever_outlined,
+                        label: l.permanentlyDelete,
+                        tint: QuestColors.osRedText,
+                      ),
+                    ),
+                  if (!isOwner) ...[
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'report',
+                      child: _MenuRow(
+                        icon: Icons.flag_outlined,
+                        label: 'REPORT POST',
+                        tint: QuestColors.osAccentText,
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'block',
+                      child: _MenuRow(
+                        icon: Icons.block,
+                        label: 'BLOCK USER',
+                        tint: QuestColors.osRedText,
+                      ),
                     ),
                   ],
-                ),
-                alignment: Alignment.center,
-                child: Icon(Icons.arrow_back_rounded, size: 18, color: ink),
-              ),
+                ];
+              },
             ),
-            const SizedBox(width: 10),
-            if (collabLabel != null) ...[
-              // Compact arcade-pop mode pill — fills the slot between the
-              // back button and the three-dots menu. Replaces the previous
-              // green-text label and the full-width banner that lived
-              // under the top bar.
-              Expanded(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: collabAccent ?? QuestColors.text(context),
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: ink, width: 2),
-                    boxShadow: [
-                      BoxShadow(color: ink, offset: const Offset(2, 2)),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        (collabAccent == QuestColors.osRed)
-                            ? Icons.bolt_rounded
-                            : Icons.handshake_rounded,
-                        size: 16,
-                        color: onCollabPill,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          collabLabel!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: onCollabPill,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ] else ...[
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => context.pushNamed(
-                  RouteNames.userProfile,
-                  pathParameters: {'userId': userId},
-                ),
-                child: PixelAvatar(
-                  imageUrl: avatarUrl,
-                  username: username,
-                  size: 42,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => context.pushNamed(
-                    RouteNames.userProfile,
-                    pathParameters: {'userId': userId},
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FitText(
-                        displayName.isNotEmpty ? displayName : username,
-                        minFontSize: 11,
-                        style: QuestTypography.headlineSmall.copyWith(
-                          fontSize: 16,
-                          color: QuestColors.text(context),
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      if (bio != null && bio!.isNotEmpty)
-                        Text(
-                          bio!,
-                          style: QuestTypography.bodySmall.copyWith(
-                            color: QuestColors.text(context).withAlpha(160),
-                            fontSize: 11,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            Container(
-              width: 36,
-              height: 36,
-              margin: const EdgeInsets.only(left: 6),
-              decoration: BoxDecoration(
-                color: QuestColors.cardBg(context),
-                borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: ink, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: ink,
-                    offset: const Offset(2, 2),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert_rounded, size: 18, color: ink),
-                padding: EdgeInsets.zero,
-                iconSize: 18,
-                splashRadius: 18,
-                color: QuestColors.cardBg(context),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: ink, width: 2),
-                ),
-                onSelected: (value) {
-                  if (value == 'add_feed') onAddToFeed?.call();
-                  if (value == 'delete_feed') onDeleteFromFeed?.call();
-                  if (value == 'delete_profile') onDeleteFromProfile?.call();
-                  if (value == 'report') onReport?.call();
-                  if (value == 'block') onBlock?.call();
-                },
-                itemBuilder: (ctx) {
-                  final l = AppLocalizations.of(ctx)!;
-                  final isInFeed = showInFeed && visibility == 'visible';
-                  return [
-                    if (isOwner && !isInFeed) ...[
-                      PopupMenuItem(
-                        value: 'add_feed',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.visibility_outlined,
-                                size: 16, color: QuestColors.osSuccessText),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l.addToFeed,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.osSuccessText,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (isOwner && isInFeed) ...[
-                      PopupMenuItem(
-                        value: 'delete_feed',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.visibility_off_outlined,
-                                size: 16, color: QuestColors.accentYellow),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l.hideFromFeed,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.osAccentText,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (isOwner) ...[
-                      PopupMenuItem(
-                        value: 'delete_profile',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.delete_forever_outlined,
-                                size: 16, color: QuestColors.osRed),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l.permanentlyDelete,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: QuestTypography.labelLarge.copyWith(
-                                  color: QuestColors.osRedText,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (!isOwner) ...[
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'report',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.flag_outlined,
-                                size: 16, color: QuestColors.accentYellow),
-                            const SizedBox(width: 8),
-                            Text(
-                              'REPORT',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: QuestTypography.labelLarge.copyWith(
-                                color: QuestColors.osAccentText,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'block',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.block,
-                                size: 16, color: QuestColors.osRed),
-                            const SizedBox(width: 8),
-                            Text(
-                              'BLOCK USER',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: QuestTypography.labelLarge.copyWith(
-                                color: QuestColors.osRedText,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ];
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Fixed bottom comment input ────────────────────────────────────────────────
-
-class _CommentInputBar extends StatelessWidget {
-  const _CommentInputBar({
-    required this.controller,
-    required this.focusNode,
-    required this.submitting,
-    required this.keyboardVisible,
-    required this.onSend,
-    required this.onDismiss,
-    required this.currentUser,
-    this.replyingTo,
-    this.onCancelReply,
-    this.mentionSuggestions = const [],
-    this.mentionLoading = false,
-    this.mentionQuery = '',
-    this.onMentionTap,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool submitting;
-  final bool keyboardVisible;
-  final VoidCallback onSend;
-  final VoidCallback onDismiss;
-  final dynamic currentUser;
-  final CommentModel? replyingTo;
-  final VoidCallback? onCancelReply;
-  final List<MentionCandidate> mentionSuggestions;
-  final bool mentionLoading;
-  final String mentionQuery;
-  final ValueChanged<MentionCandidate>? onMentionTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.of(context).viewPadding.bottom;
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-
-    if (currentUser == null) return SizedBox(height: bottomPad);
-
-    final ink = QuestColors.text(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(
-        bottom: keyboardHeight > 0 ? 10 : bottomPad + 10,
-        top: 10,
-        left: 12,
-        right: 12,
-      ),
-      decoration: BoxDecoration(
-        color: QuestColors.bg(context),
-        border: Border(top: BorderSide(color: ink, width: 2)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (mentionLoading || mentionSuggestions.isNotEmpty)
-            MentionSuggestionsPanel(
-              suggestions: mentionSuggestions,
-              loading: mentionLoading,
-              query: mentionQuery,
-              onTap: onMentionTap,
-            ),
-          if (replyingTo != null)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color:
-                    QuestColors.osPrimary.withAlpha(QuestColors.alphaWhisper),
-                borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: QuestColors.osPrimary, width: 2),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.reply_rounded,
-                      size: 14, color: QuestColors.osPrimary),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Replying to ${replyingTo!.displayName.isNotEmpty ? replyingTo!.displayName : replyingTo!.username}',
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: QuestColors.osPrimary,
-                        fontSize: 11,
-                        letterSpacing: 0.4,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: onCancelReply,
-                    behavior: HitTestBehavior.opaque,
-                    child: const Icon(Icons.close_rounded,
-                        size: 16, color: QuestColors.osPrimary),
-                  ),
-                ],
-              ),
-            ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: QuestColors.cardBg(context),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: ink, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ink,
-                        offset: const Offset(3, 3),
-                        blurRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    style: QuestTypography.bodyMedium.copyWith(color: ink),
-                    cursorColor: QuestColors.osPrimary,
-                    maxLength: 500,
-                    maxLines: 4,
-                    minLines: 1,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
-                    decoration: InputDecoration(
-                      hintText:
-                          replyingTo != null ? 'Reply…' : 'Add a comment…',
-                      hintStyle: QuestTypography.bodyMedium.copyWith(
-                        color: ink.withAlpha(QuestColors.alphaInkWeak),
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      filled: false,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      counterText: '',
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (keyboardVisible) ...[
-                GestureDetector(
-                  onTap: onDismiss,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: QuestColors.cardBg(context),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: ink, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ink,
-                          offset: const Offset(3, 3),
-                          blurRadius: 0,
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child:
-                        Icon(Icons.keyboard_hide_rounded, size: 18, color: ink),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              GestureDetector(
-                onTap: submitting ? null : onSend,
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: submitting
-                        ? QuestColors.cardBg(context)
-                        : QuestColors.accentYellow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ink, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ink,
-                        offset: const Offset(3, 3),
-                        blurRadius: 0,
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: submitting
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            valueColor: AlwaysStoppedAnimation<Color>(ink),
-                          ),
-                        )
-                      : const Icon(Icons.send_rounded,
-                          size: 18, color: QuestColors.accentYellowInk),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -1262,17 +798,199 @@ class _CommentInputBar extends StatelessWidget {
   }
 }
 
-// ── Category helpers ──────────────────────────────────────────────────────────
+/// One row inside the overflow menu. The accent is the *text* colour here,
+/// on a white ground, so it comes from the darkened text twins
+/// (`osRedText`, `osAccentText`, `osSuccessText`) rather than the fills.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    required this.tint,
+  });
 
-(Color, String) _categoryStyle(String category) {
-  return switch (category.toLowerCase()) {
-    'fitness' => (QuestColors.osSuccess, 'FITNESS'),
-    'creativity' => (QuestColors.accentYellow, 'CREATE'),
-    'social' => (QuestColors.osSuccess, 'SOCIAL'),
-    'learning' => (QuestColors.violet, 'LEARN'),
-    'adventure' => (QuestColors.osSuccess, 'ADVENTURE'),
-    _ => (QuestColors.textMuted, category.toUpperCase()),
-  };
+  final IconData icon;
+  final String label;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: tint),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: tint,
+              fontSize: 12,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Author row ────────────────────────────────────────────────────────────────
+
+/// Round avatar · handle · mono meta · category tag, exactly as the feed
+/// card draws it, one size up because this screen has the room.
+class _AuthorRow extends StatelessWidget {
+  const _AuthorRow({required this.post, required this.timeAgoLabel});
+
+  final FeedPostModel post;
+  final String timeAgoLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = QuestColors.category(post.questCategory);
+    final handle = post.username.isNotEmpty ? post.username : post.displayName;
+    // The render reads `LVL 12 · MAGE · 2H AGO`; the post payload carries
+    // neither a level nor a class, so the XP the proof earned and its age
+    // take the slot instead of a fabricated level.
+    final meta = <String>[
+      if (post.xpReward > 0) '+${post.xpReward} XP',
+      timeAgoLabel.toUpperCase(),
+    ].join(' · ');
+
+    void openProfile() {
+      if (post.userId.isEmpty) return;
+      context.pushNamed(
+        RouteNames.userProfile,
+        pathParameters: {'userId': post.userId},
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: openProfile,
+            child: PostAvatar(
+              username: handle,
+              imageUrl: post.avatarUrl,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: openProfile,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    handle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osHeadlineLarge.copyWith(
+                      fontSize: 20,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osLabelMedium.copyWith(
+                      color: QuestColors.osTextSecondary,
+                      fontSize: 11,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (post.questCategory.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            ArcadeCategoryTag(label: post.questCategory, tint: tint),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Title + body ──────────────────────────────────────────────────────────────
+
+/// Quest title in display caps, then the proof caption, then the quest
+/// briefing — flat on the cream page, no card. The render puts no border
+/// around any of it; the media block above is the only framed element.
+class _PostBody extends StatelessWidget {
+  const _PostBody({required this.post});
+
+  final FeedPostModel post;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final captionRows = <Widget>[];
+
+    if (post.isCollab && post.collabMembers.isNotEmpty) {
+      // Several people, so each caption keeps its author prefix.
+      for (final m in post.collabMembers) {
+        if (!m.showInFeed) continue;
+        final caption = m.caption?.trim();
+        if (caption == null || caption.isEmpty) continue;
+        captionRows.add(
+          _CaptionLine(
+            author: m.displayName.isNotEmpty ? m.displayName : m.username,
+            said: l.said,
+            caption: caption,
+          ),
+        );
+      }
+    }
+
+    final soloCaption = post.isCollab
+        ? null
+        : post.caption?.trim().isNotEmpty == true
+            ? post.caption!.trim()
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          post.questTitle.toUpperCase(),
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osDisplaySmall.copyWith(
+            fontSize: 24,
+            height: 1.08,
+            letterSpacing: -0.2,
+          ),
+        ),
+        if (soloCaption != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            soloCaption,
+            style: QuestTypography.osBodyMedium.copyWith(
+              color: QuestColors.osTextSecondary,
+              height: 1.45,
+            ),
+          ),
+        ],
+        if (captionRows.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ...captionRows,
+        ],
+        if (post.questDescription.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _ExpandableText(text: post.questDescription, maxLines: 3),
+        ],
+      ],
+    );
+  }
 }
 
 class _ExpandableText extends StatefulWidget {
@@ -1730,8 +1448,13 @@ class _VideoSlideState extends State<_VideoSlide> {
               urls: widget.allUrls,
               initialIndex: widget.indexInAll,
             ),
-            child: BsMinTouch(
-              child: Container(
+            // 44pt hit box around a 32pt glyph, from QuestSpacing rather
+            // than the retired bs_widgets helper.
+            child: SizedBox(
+              width: QuestSpacing.minTouchTarget,
+              height: QuestSpacing.minTouchTarget,
+              child: Center(
+                  child: Container(
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
@@ -1743,7 +1466,7 @@ class _VideoSlideState extends State<_VideoSlide> {
                 alignment: Alignment.center,
                 child: const Icon(Icons.fullscreen_rounded,
                     color: QuestColors.textPrimary, size: 18),
-              ),
+              )),
             ),
           ),
         ),
@@ -1903,8 +1626,8 @@ class _ParticipantRowState extends State<_ParticipantRow> {
             accentColor: accent,
             isLeader: widget.isLeader,
             avatarSize: 24,
-            tapBoxWidth: kMinTouchTarget,
-            tapBoxHeight: kMinTouchTarget,
+            tapBoxWidth: QuestSpacing.minTouchTarget,
+            tapBoxHeight: QuestSpacing.minTouchTarget,
             showCountChip: false,
             onLongPress: () => context.pushNamed(
               RouteNames.userProfile,
@@ -1946,7 +1669,8 @@ class _ParticipantRowState extends State<_ParticipantRow> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 140),
               constraints: const BoxConstraints(
-                  minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
+                  minWidth: QuestSpacing.minTouchTarget,
+                  minHeight: QuestSpacing.minTouchTarget),
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -2245,8 +1969,10 @@ class _CollabSlideItem extends StatelessWidget {
 
 // ── Arcade Pop post widgets ──────────────────────────────────────────────────
 
-/// Chunky ink-bordered card around the post media. Shows the category chip
-/// and (for collab posts) the mode chip as overlays anchored to the top.
+/// The framed proof-media block: cream ground, `r12`, 2px ink border, 3px
+/// hard shadow — the only bordered element on the detail page, per
+/// `20-post-detail.jpg`. Cream rather than white so an image with a pale
+/// edge still reads as media, and so the empty state matches the render.
 class _PostMediaCard extends StatelessWidget {
   const _PostMediaCard({required this.post});
 
@@ -2254,278 +1980,22 @@ class _PostMediaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
+    const ink = QuestColors.osTextPrimary;
     final isCollab = post.isCollab && post.collabMembers.isNotEmpty;
     return Container(
       decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
+        color: QuestColors.osSurface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: ink, width: 2),
-        boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
+        boxShadow: const [
+          BoxShadow(color: ink, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         child: isCollab
             ? _CollabMediaGallery(post: post)
             : _MediaBlock(post: post, urls: post.mediaUrls),
-      ),
-    );
-  }
-}
-
-/// Chunky action-row: up / down vote on the left, BSHEEEL save + share on
-/// the right. All four are pill buttons with ink border + hard shadow;
-/// the active state flips fill colour.
-class _PostActionBar extends StatelessWidget {
-  const _PostActionBar({
-    required this.upvotes,
-    required this.downvotes,
-    required this.myVoteType,
-    required this.isSaved,
-    this.showVotes = true,
-    this.onUpvote,
-    this.onDownvote,
-    this.onSave,
-    this.onShare,
-  });
-
-  final int upvotes;
-  final int downvotes;
-  final String? myVoteType;
-  final bool isSaved;
-
-  /// When false, the up/down arrow pills are hidden (used on collab/versus
-  /// posts where voting happens per-member in the participants header).
-  final bool showVotes;
-  final VoidCallback? onUpvote;
-  final VoidCallback? onDownvote;
-  final VoidCallback? onSave;
-  final VoidCallback? onShare;
-
-  @override
-  Widget build(BuildContext context) {
-    final upActive = myVoteType == ReactionType.upvote;
-    final downActive = myVoteType == ReactionType.downvote;
-
-    return Row(
-      // With votes shown: up/down on the left, Save+Share pushed right
-      // by Spacer. With votes hidden (collab/versus): Save+Share aligned
-      // to the right edge of the row.
-      mainAxisAlignment:
-          showVotes ? MainAxisAlignment.start : MainAxisAlignment.end,
-      children: [
-        if (showVotes) ...[
-          _ActionPill(
-            icon: Icons.arrow_upward_rounded,
-            label: '$upvotes',
-            active: upActive,
-            activeFill: QuestColors.osRed,
-            activeFg: QuestColors.onAccent(QuestColors.osRed),
-            onTap: onUpvote,
-          ),
-          const SizedBox(width: 8),
-          _ActionPill(
-            icon: Icons.arrow_downward_rounded,
-            label: '$downvotes',
-            active: downActive,
-            activeFill: QuestColors.text(context),
-            activeFg: QuestColors.osTextOnPrimary,
-            onTap: onDownvote,
-          ),
-          const Spacer(),
-        ],
-        _ActionPill(
-          icon: isSaved ? Icons.bookmark : Icons.bookmark_border_rounded,
-          label: null,
-          active: isSaved,
-          activeFill: QuestColors.accentYellow,
-          activeFg: QuestColors.accentYellowInk,
-          onTap: onSave,
-        ),
-        const SizedBox(width: 6),
-        _ActionPill(
-          icon: Icons.ios_share_rounded,
-          label: null,
-          active: false,
-          activeFill: QuestColors.osPrimary,
-          activeFg: QuestColors.osTextOnPrimary,
-          onTap: onShare,
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionPill extends StatelessWidget {
-  const _ActionPill({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.activeFill,
-    required this.activeFg,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String? label;
-  final bool active;
-  final Color activeFill;
-  final Color activeFg;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    final bg = active ? activeFill : QuestColors.cardBg(context);
-    final fg = active ? activeFg : ink;
-    final hasLabel = label != null && label!.isNotEmpty;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        // Tighter pill visually, but never below the 44pt touch floor.
-        constraints: const BoxConstraints(
-            minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
-        alignment: Alignment.center,
-        padding: EdgeInsets.symmetric(
-          horizontal: hasLabel ? 9 : 8,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: ink, width: 2),
-          boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(0, 1.5), blurRadius: 0),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: fg),
-            if (hasLabel) ...[
-              const SizedBox(width: 4),
-              Text(
-                label!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: QuestTypography.labelMedium.copyWith(
-                  color: fg,
-                  fontSize: 11,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Quest title + description + caption(s) + XP and time, all inside a single
-/// chunky ink-bordered card.
-class _PostInfoCard extends StatelessWidget {
-  const _PostInfoCard({required this.post, required this.timeAgo});
-  final FeedPostModel post;
-  final String timeAgo;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    final l = AppLocalizations.of(context)!;
-    final captionRows = <Widget>[];
-
-    if (post.isCollab && post.collabMembers.isNotEmpty) {
-      for (final m in post.collabMembers) {
-        if (!m.showInFeed) continue;
-        final caption = m.caption?.trim();
-        if (caption == null || caption.isEmpty) continue;
-        captionRows.add(
-          _CaptionLine(
-            author: m.displayName.isNotEmpty ? m.displayName : m.username,
-            said: l.said,
-            caption: caption,
-          ),
-        );
-      }
-    } else if (post.caption != null && post.caption!.isNotEmpty) {
-      captionRows.add(
-        _CaptionLine(
-          author:
-              post.displayName.isNotEmpty ? post.displayName : post.username,
-          said: l.said,
-          caption: post.caption!,
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ink, width: 2),
-        boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            post.questTitle,
-            style: QuestTypography.headlineLarge.copyWith(
-              color: ink,
-              fontSize: 18,
-              height: 1.2,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (post.questDescription.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _ExpandableText(text: post.questDescription, maxLines: 2),
-          ],
-          if (captionRows.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            ...captionRows,
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: QuestColors.cardBg(context),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: ink, width: 2),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.schedule_rounded,
-                        size: 12,
-                        color: ink.withAlpha(QuestColors.alphaInkMuted)),
-                    const SizedBox(width: 4),
-                    Text(
-                      timeAgo,
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: ink.withAlpha(QuestColors.alphaInkMuted),
-                        fontSize: 10,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -2929,8 +2399,11 @@ class _FullscreenVideoSlideState extends State<_FullscreenVideoSlide> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _toggleMute,
-            child: BsMinTouch(
-              child: Container(
+            child: SizedBox(
+              width: QuestSpacing.minTouchTarget,
+              height: QuestSpacing.minTouchTarget,
+              child: Center(
+                  child: Container(
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
@@ -2945,7 +2418,7 @@ class _FullscreenVideoSlideState extends State<_FullscreenVideoSlide> {
                   color: QuestColors.textPrimary,
                   size: 18,
                 ),
-              ),
+              )),
             ),
           ),
         ),

@@ -20,9 +20,9 @@ import '../../../core/backend/app_backend.dart';
 /// [suggestions] / [loading] / [query] after [onSuggestionsChanged]
 /// fires (typically a bare `setState`) and feeds picker taps back
 /// through [insertMention]. Extracted from the two near-identical
-/// private copies that previously lived in `comments_sheet.dart` and
-/// `feed_post_details_page.dart` — double-maintaining them already
-/// caused one production bug.
+/// private copies that previously lived in the feed's comments sheet (now
+/// `comments_page.dart`) and in `feed_post_details_page.dart` —
+/// double-maintaining them already caused one production bug.
 class MentionInputController {
   MentionInputController({
     required this.textController,

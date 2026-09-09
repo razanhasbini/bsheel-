@@ -128,12 +128,21 @@ class AdminPage extends StatelessWidget {
             child: subheader,
           ),
         Expanded(
-          child: scrollable
-              ? SingleChildScrollView(
-                  padding: padding,
-                  child: child,
-                )
-              : Padding(padding: padding, child: child),
+          child: Builder(
+            builder: (context) {
+              // With a chip row above it the body starts 14px down, not
+              // 20 — the chips already carry the gap, and the design puts
+              // the table 14px under them.
+              final resolved = subheader == null
+                  ? padding
+                  : padding.resolve(Directionality.of(context)).copyWith(
+                        top: 14,
+                      );
+              return scrollable
+                  ? SingleChildScrollView(padding: resolved, child: child)
+                  : Padding(padding: resolved, child: child);
+            },
+          ),
         ),
       ],
     );

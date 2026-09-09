@@ -78,7 +78,9 @@ class AdminSidebar extends ConsumerWidget {
   /// HISTORY rather than MODERATION. Reviewing one submission is part of
   /// the queue flow, so it keeps MODERATION lit.
   static String _activePath(String location) {
-    if (location.startsWith('/moderation/history')) return '/moderation/history';
+    if (location.startsWith('/moderation/history')) {
+      return '/moderation/history';
+    }
     if (location.startsWith('/moderation')) return '/moderation';
     var best = '/';
     for (final d in _destinations) {
@@ -248,9 +250,7 @@ class _NavRowState extends State<_NavRow> {
             decoration: BoxDecoration(
               color: active
                   ? BsheelColors.primary
-                  : (_hover
-                      ? BsheelColors.inkPanelBorder
-                      : Colors.transparent),
+                  : (_hover ? BsheelColors.inkPanelBorder : Colors.transparent),
               borderRadius: BorderRadius.circular(BsheelRadii.sm),
               border: Border.all(
                 color: active
@@ -291,9 +291,7 @@ class _NavRowState extends State<_NavRow> {
                     ),
                     decoration: BoxDecoration(
                       // Gold on the violet fill, coral everywhere else.
-                      color: active
-                          ? BsheelColors.accent
-                          : BsheelColors.danger,
+                      color: active ? BsheelColors.accent : BsheelColors.danger,
                       borderRadius: BorderRadius.circular(BsheelRadii.full),
                       border: const Border.fromBorderSide(
                         BsheelBorders.inkSide,

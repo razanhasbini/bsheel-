@@ -18,8 +18,8 @@ import '../../features/leaderboard/presentation/providers/leaderboard_provider.d
 import '../../features/notifications/presentation/providers/notifications_provider.dart';
 import '../../features/follows/data/follows_providers.dart';
 import '../../features/quests/data/quest_providers.dart';
+import '../../features/settings/data/push_preference.dart';
 import '../../features/submissions/data/submission_providers.dart';
-import '../../design/bs_widgets.dart';
 import '../widgets/loading_view.dart';
 import '../widgets/level_up_overlay.dart';
 
@@ -140,6 +140,12 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       }
     }());
 
+    // Re-apply the push-notifications preference. `bootstrap.dart` registers
+    // the FCM token on every cold start regardless of the setting, so
+    // without this a user who switched push OFF would silently start
+    // receiving it again after the next launch.
+    unawaited(ref.read(pushPreferenceProvider.notifier).reconcile());
+
     // Pre-warm tab content so switching tabs feels instant. These reads
     // start in parallel the moment the user lands inside the shell, while
     // the home tab itself is rendering. By the time the user taps FEED /
@@ -241,24 +247,15 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
 
     return Scaffold(
       backgroundColor: QuestColors.bg(context),
-      extendBody: true, // floating nav sits over the content
-      body: Stack(
+      // The frame docks the nav to the bottom edge as an opaque cream bar,
+      // so content stops above it rather than scrolling under it.
+      body: Column(
         children: [
-          Column(
-            children: [
-              if (!isOnline) const OfflineBanner(),
-              Expanded(child: widget.child),
-            ],
-          ),
-          // Floating nav
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _FloatingPillNav(
-              currentIndex: currentIndex,
-              onTap: (index) => _onTap(context, index),
-            ),
+          if (!isOnline) const OfflineBanner(),
+          Expanded(child: widget.child),
+          _ArcadeBottomNav(
+            currentIndex: currentIndex,
+            onTap: (index) => _onTap(context, index),
           ),
         ],
       ),
@@ -279,12 +276,15 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     Overlay.of(context).insert(_levelUpEntry!);
   }
 
+  /// -1 means "no tab owns this route". Collab lives inside the shell but is
+  /// not one of the five tabs the frame draws, so nothing lights up there.
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith(RoutePaths.feed)) return 1;
-    if (location.startsWith(RoutePaths.collab)) return 2;
+    if (location.startsWith(RoutePaths.search)) return 2;
     if (location.startsWith(RoutePaths.leaderboard)) return 3;
     if (location.startsWith(RoutePaths.profile)) return 4;
+    if (location.startsWith(RoutePaths.collab)) return -1;
     return 0;
   }
 
@@ -303,7 +303,10 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
         ref.invalidate(feedProvider);
         context.goNamed(RouteNames.feed);
       case 2:
-        context.goNamed(RouteNames.collab);
+        // `/search` sits outside the ShellRoute, so this pushes rather than
+        // switches tabs. Moving it inside the shell (and collab out of it)
+        // is an app_router.dart change — see the handoff note.
+        context.pushNamed(RouteNames.search);
       case 3:
         context.goNamed(RouteNames.leaderboard);
       case 4:
@@ -312,124 +315,81 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   }
 }
 
-// ── Floating pill nav ──────────────────────────────────────────────────────
+// ── Bottom nav ─────────────────────────────────────────────────────────────
+//
+// Read off `export/mobile/12-profile.jpg` and
+// `export/components/component-05-bottom-nav.jpg`: a flush cream bar with a
+// 2px ink top rule, five tabs, geometric glyphs, and NO fill or pill behind
+// the active tab — "active tab is ink, inactive is soft ink". The previous
+// implementation was a floating ink pill with a gold active chip, which is
+// the one thing the component sheet writes out as wrong.
+//
+// The sheet also says COLLAB is reached from the feed rather than the nav
+// ("five tabs is already the ceiling"), so SEARCH takes the third slot.
 
-class _FloatingPillNav extends StatelessWidget {
-  const _FloatingPillNav({
+class _ArcadeBottomNav extends StatelessWidget {
+  const _ArcadeBottomNav({
     required this.currentIndex,
     required this.onTap,
   });
 
+  /// -1 when the current route is not one of the five tabs (collab).
   final int currentIndex;
   final ValueChanged<int> onTap;
 
   static const _items = <_NavItem>[
-    _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'HOME'),
-    _NavItem(
-        icon: Icons.dynamic_feed_outlined,
-        activeIcon: Icons.dynamic_feed,
-        label: 'FEED'),
-    _NavItem(
-        icon: Icons.group_add_outlined,
-        activeIcon: Icons.group_add,
-        label: 'COLLAB'),
-    _NavItem(
-        icon: Icons.emoji_events_outlined,
-        activeIcon: Icons.emoji_events,
-        label: 'RANK'),
-    _NavItem(
-        icon: Icons.person_outline, activeIcon: Icons.person, label: 'YOU'),
+    _NavItem(glyph: _NavGlyphShape.square, label: 'HOME'),
+    _NavItem(glyph: _NavGlyphShape.lines, label: 'FEED'),
+    _NavItem(glyph: _NavGlyphShape.target, label: 'SEARCH'),
+    _NavItem(glyph: _NavGlyphShape.triangle, label: 'RANKS'),
+    _NavItem(glyph: _NavGlyphShape.circle, label: 'PROFILE'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ink = QuestColors.text(context);
 
-    // Pill always uses dark ink bg — this is the Arcade Pop signature.
-    final pillBg =
-        isDark ? QuestColors.darkCard : QuestColors.osTextPrimary; // ink
-    final inactive = QuestColors.textPrimary.withAlpha(160);
-
-    // Hug the bottom edge: instead of letting SafeArea push the pill above
-    // the full system inset (34pt on iPhones with a home indicator) and
-    // adding extra cream on top, take only a fraction of the inset so the
-    // home indicator sits just below — or visually atop — the pill. Big
-    // visual win: ~30pt of dead cream space removed across every screen.
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        bottom: bottomPad > 0 ? (bottomPad * 0.30).clamp(8.0, 14.0) : 10,
-        top: 4,
+    return Container(
+      decoration: BoxDecoration(
+        color: QuestColors.osSurface,
+        border: Border(top: BorderSide(color: ink, width: 2)),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: pillBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: pillBg, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: QuestColors.pureBlack.withAlpha(40),
-              offset: const Offset(0, 6),
-              blurRadius: 0,
-            ),
-            BoxShadow(
-              color: QuestColors.osPrimary.withAlpha(20),
-              offset: const Offset(0, 12),
-              blurRadius: 24,
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(_items.length, (index) {
-            final active = index == currentIndex;
-            final item = _items[index];
-            return Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onTap(index);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  // 44pt floor per spec section 1; the glyph + 8px label
-                  // only measure ~40 on their own.
-                  constraints: const BoxConstraints(minHeight: kMinTouchTarget),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        active ? QuestColors.accentYellow : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+      padding: EdgeInsets.only(bottom: bottomPad > 0 ? bottomPad * 0.35 : 0),
+      child: Row(
+        children: List.generate(_items.length, (index) {
+          final active = index == currentIndex;
+          final item = _items[index];
+          final fg = active ? ink : QuestColors.osTextMuted;
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onTap(index);
+              },
+              child: ConstrainedBox(
+                // 44pt floor on the hit box, not the paint: the glyph plus a
+                // 10px label only measures ~32 on its own.
+                constraints: const BoxConstraints(
+                    minHeight: QuestSpacing.minTouchTarget),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        active ? item.activeIcon : item.icon,
-                        size: 20,
-                        color: active ? QuestColors.accentYellowInk : inactive,
-                      ),
-                      const SizedBox(height: 2),
+                      _NavGlyph(shape: item.glyph, color: fg),
+                      const SizedBox(height: 6),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           item.label,
                           maxLines: 1,
-                          overflow: TextOverflow.visible,
-                          style: QuestTypography.headlineSmall.copyWith(
-                            fontSize: 8,
-                            letterSpacing: 0.4,
-                            color:
-                                active ? QuestColors.accentYellowInk : inactive,
+                          style: QuestTypography.osLabelSmall.copyWith(
+                            color: fg,
+                            fontSize: 10,
+                            letterSpacing: 0.8,
                             height: 1,
                           ),
                         ),
@@ -438,21 +398,110 @@ class _FloatingPillNav extends StatelessWidget {
                   ),
                 ),
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
     );
   }
 }
 
+enum _NavGlyphShape { square, lines, target, triangle, circle }
+
 class _NavItem {
-  const _NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-  });
-  final IconData icon;
-  final IconData activeIcon;
+  const _NavItem({required this.glyph, required this.label});
+  final _NavGlyphShape glyph;
   final String label;
+}
+
+/// The five nav glyphs are drawn, not iconised: the frame uses plain
+/// geometry (filled square, ruled square, target, triangle, disc) and no
+/// Material icon is that shape.
+class _NavGlyph extends StatelessWidget {
+  const _NavGlyph({required this.shape, required this.color});
+
+  final _NavGlyphShape shape;
+  final Color color;
+
+  static const double _size = 13;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (shape) {
+      case _NavGlyphShape.square:
+        return Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      case _NavGlyphShape.circle:
+        return Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        );
+      case _NavGlyphShape.lines:
+      case _NavGlyphShape.target:
+      case _NavGlyphShape.triangle:
+        return SizedBox(
+          width: _size,
+          height: _size,
+          child: CustomPaint(
+            painter: _NavGlyphPainter(shape: shape, color: color),
+          ),
+        );
+    }
+  }
+}
+
+class _NavGlyphPainter extends CustomPainter {
+  const _NavGlyphPainter({required this.shape, required this.color});
+
+  final _NavGlyphShape shape;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    switch (shape) {
+      case _NavGlyphShape.lines:
+        // Ruled square: four bars, 1.6 tall, evenly spaced.
+        const bar = 1.6;
+        final gap = (size.height - bar * 4) / 3;
+        for (var i = 0; i < 4; i++) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, i * (bar + gap), size.width, bar),
+            paint,
+          );
+        }
+      case _NavGlyphShape.target:
+        final centre = size.center(Offset.zero);
+        canvas.drawCircle(
+          centre,
+          size.width / 2 - 0.75,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+        canvas.drawCircle(centre, size.width / 6, paint);
+      case _NavGlyphShape.triangle:
+        final path = Path()
+          ..moveTo(size.width / 2, 0)
+          ..lineTo(size.width, size.height)
+          ..lineTo(0, size.height)
+          ..close();
+        canvas.drawPath(path, paint);
+      case _NavGlyphShape.square:
+      case _NavGlyphShape.circle:
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_NavGlyphPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.shape != shape;
 }

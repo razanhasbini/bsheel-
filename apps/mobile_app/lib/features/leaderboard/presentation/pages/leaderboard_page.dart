@@ -6,104 +6,33 @@ import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/providers/auth_session_provider.dart';
+import '../../../../core/providers/current_profile_provider.dart';
+import '../../../profile/domain/player_class.dart';
 import '../providers/leaderboard_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:app_core/app_core.dart';
-import '../../../../design/bs_widgets.dart';
 
-// Screen-specific colour — not a theme token.
-const Color _avatarOrange = Color(0xFFFF9F1C);
+/// Leaderboard — built to `export/mobile/13-leaderboard.jpg`.
+///
+/// The frame draws no podium. Every rank is its own card: white ground, 2px
+/// ink outline, 3px ink shadow, 10px apart. Rank 1 takes gold. The signed-in
+/// user is an ink panel with a violet shadow, and it is **stuck to the bottom
+/// of the screen** rather than sitting at its numeric position — the render
+/// shows ranks 1–5 in the list and rank 47 docked above the nav.
 
-// Color palette for avatar squares (cycling)
-const _avatarColors = [
-  QuestColors.osRed, // hot red
-  QuestColors.violet, // violet
-  QuestColors.osSuccess, // green
-  QuestColors.accentYellow, // gold
-  QuestColors.osCool, // cyan
-  _avatarOrange, // orange
+// Avatar tints, in the frame's cycle order: cream, sky, jade, coral,
+// lavender. Every value is a QuestColors token — the previous local
+// `_avatarOrange` hex was the only hard-coded colour on this screen.
+const _avatarTints = <Color>[
+  QuestColors.osBg,
+  QuestColors.osCool,
+  QuestColors.osSuccess,
+  QuestColors.osRed,
+  QuestColors.textSecondary,
+  QuestColors.osAccent,
 ];
 
-Color _avatarColor(String userId) =>
-    _avatarColors[userId.hashCode.abs() % _avatarColors.length];
-
-/// Avatar that shows the user's profile image if available, otherwise falls
-/// back to a chunky coloured square with the first letter of their name.
-class _Avatar extends StatelessWidget {
-  const _Avatar({
-    required this.user,
-    required this.size,
-    required this.fontSize,
-    required this.radius,
-  });
-
-  final LeaderboardUserModel user;
-  final double size;
-  final double fontSize;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final tint = _avatarColor(user.userId);
-    final border = Border.all(
-        color: QuestColors.osTextPrimary, width: QuestSpacing.cardBorderWidth);
-    final radiusObj = BorderRadius.circular(radius);
-
-    final placeholder = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: tint,
-        border: border,
-        borderRadius: radiusObj,
-        boxShadow: const [
-          BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        user.username.isNotEmpty ? user.username[0].toUpperCase() : '?',
-        style: TextStyle(
-          fontFamily: 'Syne',
-          fontVariations: const [FontVariation('wght', 800)],
-          fontSize: fontSize,
-          fontWeight: FontWeight.w800,
-          color: QuestColors.onAccent(tint),
-        ),
-      ),
-    );
-
-    final url = user.avatarUrl;
-    if (url == null || url.isEmpty) return placeholder;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        border: border,
-        borderRadius: radiusObj,
-        boxShadow: const [
-          BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 2))
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius - 1),
-        child: CachedNetworkImage(
-          imageUrl: url,
-          fit: BoxFit.cover,
-          width: size,
-          height: size,
-          // Cap in-memory decode at 2x size for retina; prevents megabyte
-          // avatars in scrollable leaderboard. Only width — height derives
-          // from source aspect so non-square avatar uploads aren't stretched.
-          memCacheWidth: (size * 2).round(),
-          placeholder: (_, __) => Container(color: tint),
-          errorWidget: (_, __, ___) => placeholder,
-        ),
-      ),
-    );
-  }
-}
+Color _avatarTint(int rank) => _avatarTints[(rank - 1) % _avatarTints.length];
 
 class LeaderboardPage extends ConsumerStatefulWidget {
   const LeaderboardPage({super.key});
@@ -126,392 +55,529 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
     final provider = _scope == 'following'
         ? followingLeaderboardProvider
         : leaderboardProvider;
+    final asyncValue = ref.watch(provider);
+    final users = asyncValue.valueOrNull ?? const <LeaderboardUserModel>[];
+
+    // The self row: the real entry when the signed-in user is inside the
+    // fetched page, otherwise synthesised from the cached profile so the
+    // docked row still shows correct XP with an unknown rank rather than
+    // vanishing for anyone outside the top 50.
+    LeaderboardUserModel? selfEntry;
+    if (currentUser != null) {
+      for (final u in users) {
+        if (u.userId == currentUser.id) {
+          selfEntry = u;
+          break;
+        }
+      }
+    }
+    final selfProfile = ref.watch(currentProfileProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: QuestColors.osBg,
       body: SafeArea(
-        child: Consumer(builder: (context, ref, _) {
-          final asyncValue = ref.watch(provider);
-          return RefreshIndicator(
-            color: QuestColors.osPrimary,
-            onRefresh: () async {
-              ref.invalidate(provider);
-              // Wait for the new fetch to settle so the spinner doesn't
-              // disappear before fresh data arrives.
-              await ref.read(provider.future);
-            },
-            child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  const SliverToBoxAdapter(
-                      child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
-                    child: Text('Leaderboard',
-                        style: TextStyle(
-                            fontFamily: 'Syne',
-                            fontVariations: [FontVariation('wght', 800)],
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: QuestColors.osTextPrimary,
-                            letterSpacing: -0.3)),
-                  )),
-                  SliverToBoxAdapter(
-                      child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: BsSegBar(
-                      options: const ['global', 'following'],
-                      value: _scope,
-                      onChange: (v) => setState(() => _scope = v),
-                    ),
-                  )),
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                  asyncValue.when(
-                    loading: () => const SliverToBoxAdapter(
-                      child: Center(
-                          child: CircularProgressIndicator(
-                              color: QuestColors.osPrimary, strokeWidth: 2)),
-                    ),
-                    error: (e, _) => SliverToBoxAdapter(
-                      child: Center(
-                          child:
-                              Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.error_outline,
-                            color: QuestColors.osRed, size: 48),
-                        const SizedBox(height: 16),
-                        const Text('Failed to load',
-                            style: TextStyle(
-                                fontFamily: 'DMSans',
-                                fontVariations: [FontVariation('wght', 500)],
-                                color: QuestColors.osTextSecondary)),
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          onTap: () => ref.invalidate(provider),
-                          child: const Text('TAP TO RETRY',
-                              style: TextStyle(
-                                  fontFamily: 'Syne',
-                                  fontVariations: [FontVariation('wght', 800)],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: QuestColors.osPrimary)),
-                        ),
-                      ])),
-                    ),
-                    data: (users) {
-                      if (users.isEmpty) {
-                        return SliverToBoxAdapter(
-                            child: Center(
-                                child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                              const SizedBox(height: 60),
-                              const Icon(Icons.leaderboard_outlined,
-                                  color: QuestColors.osTextMuted, size: 64),
-                              const SizedBox(height: 16),
-                              Text(loc.noRankingsYet,
-                                  style: const TextStyle(
-                                      fontFamily: 'Syne',
-                                      fontVariations: [
-                                        FontVariation('wght', 800)
-                                      ],
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: QuestColors.osTextPrimary)),
-                            ])));
-                      }
-
-                      final top3 = users.take(3).toList();
-                      final rest = users.skip(3).toList();
-
-                      return SliverMainAxisGroup(slivers: [
-                        if (top3.length >= 3)
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                              child: _Podium(
-                                  entries: top3,
-                                  currentUserId: currentUser?.id),
-                            ),
-                          ),
-
-                        // Rest of the list in one ChunkyCard
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                          sliver: SliverToBoxAdapter(
-                            child: ChunkyCard(
-                              padding: EdgeInsets.zero,
-                              child: Column(
-                                  children: List.generate(rest.length, (i) {
-                                final u = rest[i];
-                                final isMe = u.userId == currentUser?.id;
-                                return _RankRow(
-                                  user: u,
-                                  isCurrentUser: isMe,
-                                  onTap: () => context.pushNamed(
-                                      RouteNames.userProfile,
-                                      pathParameters: {'userId': u.userId}),
-                                  showDivider: i < rest.length - 1,
-                                );
-                              })),
-                            ),
-                          ),
-                        ),
-                      ]);
-                    },
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 14, 20, 12),
+              child: _PageTitle(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: _ScopeChips(
+                scope: _scope,
+                onChange: (value) => setState(() => _scope = value),
+              ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: QuestColors.osPrimary,
+                backgroundColor: QuestColors.osCard,
+                onRefresh: () async {
+                  ref.invalidate(provider);
+                  // Wait for the new fetch to settle so the spinner doesn't
+                  // disappear before fresh data arrives.
+                  await ref.read(provider.future);
+                },
+                child: asyncValue.when(
+                  // Inside a ListView: `ArcadeSkeletonList` is a plain
+                  // Column and overflows a short viewport on its own.
+                  loading: () => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    children: const [
+                      ArcadeSkeletonList(itemCount: 6, itemHeight: 60),
+                    ],
                   ),
-                ]),
-          );
-        }),
+                  error: (e, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+                    children: [
+                      _DashedPanel(
+                        label: 'ERROR',
+                        title: loc.failedToLoad,
+                        body: 'Pull down to try again.',
+                      ),
+                    ],
+                  ),
+                  data: (rows) {
+                    if (rows.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+                        children: [
+                          _DashedPanel(
+                            label: 'EMPTY STATE',
+                            title: loc.noRankingsYet,
+                            body: 'Complete a quest to enter the board.',
+                          ),
+                        ],
+                      );
+                    }
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, i) {
+                        final u = rows[i];
+                        return _RankCard(
+                          rank: '${u.rank}',
+                          name: u.username,
+                          level: u.level,
+                          xp: u.xp,
+                          avatarUrl: u.avatarUrl,
+                          tint: _avatarTint(u.rank),
+                          ground: u.rank == 1
+                              ? QuestColors.osAccent
+                              : QuestColors.osCard,
+                          onTap: () => context.pushNamed(
+                            RouteNames.userProfile,
+                            pathParameters: {'userId': u.userId},
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+            // Sticky self row. Docked, never scrolled away — the render puts
+            // it against the bottom edge whatever the user's rank is.
+            if (selfEntry != null || selfProfile != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: _RankCard(
+                  rank: selfEntry != null ? '${selfEntry.rank}' : '—',
+                  name: 'YOU',
+                  level: selfEntry?.level ?? selfProfile!.level,
+                  xp: selfEntry?.xp ?? selfProfile!.xp,
+                  avatarUrl: selfEntry?.avatarUrl ?? selfProfile?.avatarUrl,
+                  tint: QuestColors.osRed,
+                  ground: QuestColors.osTextPrimary,
+                  shadowColor: QuestColors.osPrimary,
+                  onTap: () => context.goNamed(RouteNames.profile),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Podium ────────────────────────────────────────────────────────────────────
+// ── Header ────────────────────────────────────────────────────────────────
 
-class _Podium extends StatelessWidget {
-  const _Podium({required this.entries, this.currentUserId});
-  final List<LeaderboardUserModel> entries;
-  final String? currentUserId;
+class _PageTitle extends StatelessWidget {
+  const _PageTitle();
 
   @override
   Widget build(BuildContext context) {
-    // Display order: 2nd (left), 1st (center), 3rd (right). Tolerate
-    // fewer than 3 entries — leaving the slot empty rather than
-    // RangeError-ing if a caller forgets the >=3 gate (every callsite
-    // SHOULD gate, but defending here is cheap).
-    final slots = <LeaderboardUserModel?>[
-      entries.length > 1 ? entries[1] : null,
-      entries.isNotEmpty ? entries[0] : null,
-      entries.length > 2 ? entries[2] : null,
-    ];
-    final podiumColors = [
-      QuestColors.osCool, // 2nd: cyan
-      QuestColors.accentYellow, // 1st: gold
-      QuestColors.osRed, // 3rd: hot red
-    ];
-    final sizes = [88.0, 108.0, 78.0]; // card heights
-
-    return Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(3, (i) {
-          final e = slots[i];
-          if (e == null) {
-            return Expanded(child: SizedBox(height: sizes[i]));
-          }
-          final isMe = e.userId == currentUserId;
-          return Expanded(
-              child: Padding(
-            padding: EdgeInsets.only(left: i > 0 ? 8 : 0),
-            child: GestureDetector(
-              onTap: () => context.pushNamed(RouteNames.userProfile,
-                  pathParameters: {'userId': e.userId}),
-              child: _PodiumCard(
-                entry: e,
-                color: podiumColors[i],
-                cardHeight: sizes[i],
-                isMe: isMe,
-              ),
-            ),
-          ));
-        }));
+    return FitText(
+      'LEADERBOARD',
+      minFontSize: 20,
+      style: QuestTypography.osDisplayMedium.copyWith(
+        fontSize: 30,
+        letterSpacing: -0.8,
+        height: 1,
+      ),
+    );
   }
 }
 
-class _PodiumCard extends StatelessWidget {
-  const _PodiumCard(
-      {required this.entry,
-      required this.color,
-      required this.cardHeight,
-      required this.isMe});
-  final LeaderboardUserModel entry;
-  final Color color;
-  final double cardHeight;
-  final bool isMe;
+/// GLOBAL / FOLLOWING as two separate outlined chips, not a segmented track:
+/// selected is an ink fill with cream type, the other is white with a 2px ink
+/// outline. Same treatment as the settings language chips.
+class _ScopeChips extends StatelessWidget {
+  const _ScopeChips({required this.scope, required this.onChange});
+
+  final String scope;
+  final ValueChanged<String> onChange;
 
   @override
   Widget build(BuildContext context) {
-    final isFirst = entry.rank == 1;
-    final avatarSize = isFirst ? 52.0 : 42.0;
-    final rankFontSize = isFirst ? 44.0 : 34.0;
-
-    return Column(children: [
-      // Avatar (profile image if available, otherwise coloured initial)
-      _Avatar(
-        user: entry,
-        size: avatarSize,
-        fontSize: isFirst ? 22.0 : 17.0,
-        radius: isFirst ? 16 : 13,
-      ),
-      const SizedBox(height: 6),
-      FitText(entry.username,
-          minFontSize: 8,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-              fontFamily: 'Syne',
-              fontVariations: [FontVariation('wght', 800)],
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: QuestColors.osTextPrimary)),
-      Text('${entry.xp} XP',
-          style: const TextStyle(
-              fontFamily: 'DMSans',
-              fontVariations: [FontVariation('wght', 500)],
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: QuestColors.osTextSecondary)),
-      const SizedBox(height: 4),
-      // Podium block
-      Container(
-        height: cardHeight,
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(
-              color: QuestColors.osTextPrimary,
-              width: QuestSpacing.cardBorderWidth),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-          boxShadow: const [
-            BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 4))
-          ],
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _OptionChip(
+          label: 'GLOBAL',
+          selected: scope == 'global',
+          onTap: () => onChange('global'),
         ),
-        alignment: Alignment.center,
-        child: Text('#${entry.rank}',
-            style: TextStyle(
-                fontFamily: 'Syne',
-                fontVariations: const [FontVariation('wght', 800)],
-                fontSize: rankFontSize,
-                fontWeight: FontWeight.w800,
-                color: QuestColors.onAccent(color),
-                height: 1)),
-      ),
-    ]);
+        _OptionChip(
+          label: 'FOLLOWING',
+          selected: scope == 'following',
+          onTap: () => onChange('following'),
+        ),
+      ],
+    );
   }
 }
 
-// ── Rank Row ──────────────────────────────────────────────────────────────────
+class _OptionChip extends StatelessWidget {
+  const _OptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
-class _RankRow extends StatelessWidget {
-  const _RankRow(
-      {required this.user,
-      required this.isCurrentUser,
-      required this.onTap,
-      this.showDivider = true});
-  final LeaderboardUserModel user;
-  final bool isCurrentUser;
+  final String label;
+  final bool selected;
   final VoidCallback onTap;
-  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final ground = selected ? QuestColors.osTextPrimary : QuestColors.osCard;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      // 28pt of paint inside a 44pt hit box. The vertical padding is what
+      // makes the target, rather than a ConstrainedBox — inside a Wrap a
+      // Center would stretch the chip to the full run width.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        // No `alignment:` on this Container. Inside a Wrap the constraints
+        // are bounded, and an Align with no widthFactor stretches the chip
+        // to the full run width — which is what made these read as stacked
+        // full-width bars instead of a row of chips.
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: ground,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: selected ? QuestColors.osBg : QuestColors.osTextPrimary,
+              fontSize: 12,
+              letterSpacing: 1,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Rank card ─────────────────────────────────────────────────────────────
+
+class _RankCard extends StatelessWidget {
+  const _RankCard({
+    required this.rank,
+    required this.name,
+    required this.level,
+    required this.xp,
+    required this.avatarUrl,
+    required this.tint,
+    required this.ground,
+    required this.onTap,
+    this.shadowColor,
+  });
+
+  final String rank;
+  final String name;
+  final int level;
+  final int xp;
+  final String? avatarUrl;
+  final Color tint;
+  final Color ground;
+  final Color? shadowColor;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     // The ground decides the ink. The self row is an ink panel, so its text
     // has to invert or it disappears entirely; gold and white both take ink.
-    final ground = isCurrentUser
-        ? QuestColors.osTextPrimary
-        : user.rank == 1
-            ? QuestColors.osAccent
-            : QuestColors.osCard;
-    final fg = QuestColors.onAccent(ground);
+    //
+    // `onAccent` does not know about `osTextPrimary` — it only whitelists
+    // osPrimary and the three dark* tokens — so ink-on-ink is guarded here.
+    // See the handoff note: the frames use osTextPrimary as a panel ground
+    // (this row, the collab hero, the selected chips) and the helper should
+    // learn it.
+    final isInk = ground == QuestColors.osTextPrimary;
+    final onGround =
+        isInk ? QuestColors.pureWhite : QuestColors.onAccent(ground);
+    final subColor =
+        isInk ? QuestColors.textSecondary : QuestColors.osTextSecondary;
+    // Rank number: ink on gold, gold on the ink self panel, soft ink on white
+    // — exactly what the frame prints.
+    final rankColor = isInk
+        ? QuestColors.osAccent
+        : ground == QuestColors.osAccent
+            ? QuestColors.osAccentInk
+            : QuestColors.osTextSecondary;
+    final xpColor = isInk ? QuestColors.osAccent : onGround;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          // The render draws each rank as its own card, not as a row in a
-          // shared list: white ground, full 2px outline, 3px shadow. First
-          // place takes gold, and the signed-in user takes an ink panel with
-          // a violet shadow so it reads as "you" wherever it lands.
           color: ground,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: [
             BoxShadow(
-              color: isCurrentUser
-                  ? QuestColors.osPrimary
-                  : QuestColors.osTextPrimary,
+              color: shadowColor ?? QuestColors.osTextPrimary,
               offset: const Offset(3, 3),
               blurRadius: 0,
             ),
           ],
         ),
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(children: [
-              // Rank number — pill grows horizontally past 2 digits so triple-
-              // digit ranks don't overflow. Min-width matches the old 28dp look
-              // for 1–2 digit ranks.
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                child: Container(
-                  height: 28,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: isCurrentUser
-                        ? QuestColors.osTextPrimary
-                        : QuestColors.osSurface,
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: QuestColors.osTextPrimary, width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${user.rank}',
+        child: Row(
+          children: [
+            SizedBox(
+              width: 30,
+              child: FitText(
+                rank,
+                minFontSize: 12,
+                style: QuestTypography.osDisplaySmall.copyWith(
+                  fontSize: 24,
+                  color: rankColor,
+                  height: 1,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _RoundAvatar(
+              url: avatarUrl,
+              name: name,
+              tint: tint,
+              // An ink outline on an ink panel is invisible; the frame
+              // switches the avatar ring to cream on the self row.
+              borderColor: isInk ? QuestColors.osBg : QuestColors.osTextPrimary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
                     maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'Syne',
-                      fontVariations: const [FontVariation('wght', 800)],
-                      fontSize: user.rank > 99 ? 11 : 12,
-                      fontWeight: FontWeight.w800,
-                      color: isCurrentUser
-                          ? QuestColors.osAccent
-                          : QuestColors.osTextPrimary,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osHeadlineLarge.copyWith(
+                      fontSize: 18,
+                      color: onGround,
+                      height: 1.1,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Avatar (profile image or coloured initial)
-              _Avatar(user: user, size: 40, fontSize: 16, radius: 12),
-              const SizedBox(width: 10),
-              // Name
-              Expanded(
-                child: FitText(
-                  user.username + (isCurrentUser ? '  · YOU' : ''),
-                  minFontSize: 10,
-                  style: TextStyle(
-                    fontFamily: 'Syne',
-                    fontVariations: const [FontVariation('wght', 800)],
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: fg,
+                  const SizedBox(height: 2),
+                  Text(
+                    'LVL $level · ${playerClassForLevel(level)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osLabelSmall.copyWith(
+                      color: subColor,
+                      height: 1.2,
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 84),
+              child: FitText(
+                _thousands(xp),
+                minFontSize: 10,
+                textAlign: TextAlign.right,
+                style: QuestTypography.osLabelLarge.copyWith(
+                  fontSize: 16,
+                  color: xpColor,
                 ),
               ),
-              // XP score — bounded so a 7-digit XP can't collide with
-              // the username column on small phones.
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 90),
-                child: FitText('${user.xp}',
-                    minFontSize: 10,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                        fontFamily: 'Syne',
-                        fontVariations: const [FontVariation('wght', 800)],
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: fg)),
-              ),
-            ]),
-          ),
-          if (showDivider)
-            const Divider(
-                height: 1,
-                thickness: 1,
-                color: QuestColors.osBorder,
-                indent: 14,
-                endIndent: 14),
-        ]),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// `18420` → `18,420`, which is how every score is set in the frames.
+String _thousands(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer(value < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+/// Circle avatar, 40pt, 2px ring — the frame's leaderboard avatar. Falls
+/// back to a tinted disc with the initial when there's no image.
+class _RoundAvatar extends StatelessWidget {
+  const _RoundAvatar({
+    required this.url,
+    required this.name,
+    required this.tint,
+    required this.borderColor,
+  });
+
+  final String? url;
+  final String name;
+  final Color tint;
+  final Color borderColor;
+
+  static const double _size = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tint,
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 2),
+      ),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: QuestTypography.osHeadlineMedium.copyWith(
+          color: QuestColors.onAccent(tint),
+          height: 1,
+        ),
+      ),
+    );
+
+    if (url == null || url!.isEmpty) return placeholder;
+
+    return Container(
+      width: _size,
+      height: _size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 2),
+      ),
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: url!,
+          fit: BoxFit.cover,
+          width: _size,
+          height: _size,
+          // Cap in-memory decode at 2x for retina; prevents megabyte avatars
+          // in a scrollable list.
+          memCacheWidth: (_size * 2).round(),
+          placeholder: (_, __) => ColoredBox(color: tint),
+          errorWidget: (_, __, ___) => placeholder,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty / error panel ───────────────────────────────────────────────────
+//
+// The frames draw an absent state as a dashed 2px outline on the page cream
+// with a mono kicker, a display title and one sentence — see the EMPTY STATE
+// block in `export/mobile/18-search.jpg`. Nothing filled, nothing coral.
+
+class _DashedPanel extends StatelessWidget {
+  const _DashedPanel({
+    required this.label,
+    required this.title,
+    required this.body,
+  });
+
+  final String label;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _DashedBorderPainter(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+        child: Column(
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osLabelSmall
+                  .copyWith(color: QuestColors.osTextMuted),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osDisplaySmall.copyWith(
+                color: QuestColors.osTextSecondary,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osBodyMedium
+                  .copyWith(color: QuestColors.osTextSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = QuestColors.osTextMuted
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      const Radius.circular(16),
+    );
+    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + 5;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) => false;
 }

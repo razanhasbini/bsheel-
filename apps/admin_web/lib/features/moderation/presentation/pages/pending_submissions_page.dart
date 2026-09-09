@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/admin_layout_constants.dart';
 import '../../../../core/theme/bsheel_design.dart';
-import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 import '../providers/moderation_controller.dart';
 import '../providers/pending_submissions_provider.dart';
@@ -178,8 +177,7 @@ class _PendingSubmissionsPageState
 
     final key = event.logicalKey;
 
-    if (key == LogicalKeyboardKey.keyJ ||
-        key == LogicalKeyboardKey.arrowDown) {
+    if (key == LogicalKeyboardKey.keyJ || key == LogicalKeyboardKey.arrowDown) {
       _move(1, list);
       return KeyEventResult.handled;
     }
@@ -308,19 +306,17 @@ class _PendingSubmissionsPageState
 
     final all = queueAsync.valueOrNull ?? const <PendingSubmission>[];
     final list = _visible(all);
-    final stale = all
-        .where((s) => bsheelIsStale(s.submittedAt.toIso8601String()))
-        .length;
+    final stale =
+        all.where((s) => bsheelIsStale(s.submittedAt.toIso8601String())).length;
 
     // Measured here rather than in a LayoutBuilder: the surface's detail
     // provider has to be watched during build, and a layout callback runs
     // after it. The shell keeps the sidebar beside the page above the
     // tablet breakpoint, so that width is not the page's.
     final windowWidth = MediaQuery.sizeOf(context).width;
-    final pageWidth =
-        windowWidth >= AdminLayoutConstants.tabletBreakpoint
-            ? windowWidth - BsheelLayout.sidebarWidth
-            : windowWidth;
+    final pageWidth = windowWidth >= AdminLayoutConstants.tabletBreakpoint
+        ? windowWidth - BsheelLayout.sidebarWidth
+        : windowWidth;
     final twoPane = pageWidth >= _twoPaneMin;
 
     final selected = _resolve(list, twoPane);
@@ -328,91 +324,77 @@ class _PendingSubmissionsPageState
         ? null
         : ref.watch(submissionDetailProvider(selected.id));
 
-    return AdminPage(
-      title: 'Moderation',
-      meta: stale > 0
-          ? '${all.length} waiting · $stale stale'
-          : '${all.length} waiting',
-      metaColor: stale > 0 ? BsheelColors.dangerText : null,
-      scrollable: false,
-      padding: EdgeInsets.zero,
-      actions: [
-        if (list.length > 1)
-          BsheelButton.positive(
-            label: 'Approve all',
-            icon: Icons.done_all_rounded,
-            small: true,
-            onPressed: busy ? null : () => _approveAll(list),
-          ),
-        BsheelIconButton(
-          icon: Icons.refresh_rounded,
-          tooltip: 'Refresh the queue',
-          onTap: () => ref.invalidate(pendingSubmissionsProvider),
-        ),
-      ],
-      child: Focus(
-        autofocus: true,
-        onKeyEvent: (_, event) => _onKey(event, list),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (moderation.hasError)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                child: BsheelCallout.danger(
-                  moderation.error.toString(),
-                  trailing: BsheelButton.ghost(
-                    label: 'Reload',
-                    small: true,
-                    onPressed: () =>
-                        ref.invalidate(pendingSubmissionsProvider),
-                  ),
+    // No page header. This is the one route the design draws without one:
+    // the rail carries its own header on the left and the review surface
+    // carries the submission's on the right, both starting at the top of
+    // the page, and a third full-width bar above them would push the
+    // decision buttons toward the fold. The rail header therefore holds
+    // the queue actions — and the drawer button, below the breakpoint.
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) => _onKey(event, list),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (moderation.hasError)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: BsheelCallout.danger(
+                moderation.error.toString(),
+                trailing: BsheelButton.ghost(
+                  label: 'Reload',
+                  small: true,
+                  onPressed: () => ref.invalidate(pendingSubmissionsProvider),
                 ),
               ),
-            Expanded(
-              child: !twoPane
-                  // Narrow: the rail is the page until a submission is
-                  // picked, then the surface is, with a way back.
-                  ? (selected == null || detailAsync == null
-                      ? _rail(
-                          queueAsync: queueAsync,
-                          all: all,
-                          list: list,
-                          selected: null,
-                          fullWidth: true,
-                        )
-                      : _surface(
-                          selected: selected,
-                          detailAsync: detailAsync,
-                          list: list,
-                          busy: busy,
-                          onBack: () => setState(() => _selectedId = null),
-                        ))
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _rail(
-                          queueAsync: queueAsync,
-                          all: all,
-                          list: list,
-                          selected: selected,
-                          fullWidth: false,
-                        ),
-                        Expanded(
-                          child: selected == null || detailAsync == null
-                              ? _nothingSelected(queueAsync, list)
-                              : _surface(
-                                  selected: selected,
-                                  detailAsync: detailAsync,
-                                  list: list,
-                                  busy: busy,
-                                ),
-                        ),
-                      ],
-                    ),
             ),
-          ],
-        ),
+          Expanded(
+            child: !twoPane
+                // Narrow: the rail is the page until a submission is
+                // picked, then the surface is, with a way back.
+                ? (selected == null || detailAsync == null
+                    ? _rail(
+                        queueAsync: queueAsync,
+                        all: all,
+                        list: list,
+                        selected: null,
+                        fullWidth: true,
+                        busy: busy,
+                        stale: stale,
+                      )
+                    : _surface(
+                        selected: selected,
+                        detailAsync: detailAsync,
+                        list: list,
+                        busy: busy,
+                        onBack: () => setState(() => _selectedId = null),
+                      ))
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _rail(
+                        queueAsync: queueAsync,
+                        all: all,
+                        list: list,
+                        selected: selected,
+                        fullWidth: false,
+                        busy: busy,
+                        stale: stale,
+                      ),
+                      Expanded(
+                        child: selected == null || detailAsync == null
+                            ? _nothingSelected(queueAsync, list)
+                            : _surface(
+                                selected: selected,
+                                detailAsync: detailAsync,
+                                list: list,
+                                busy: busy,
+                              ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -425,32 +407,79 @@ class _PendingSubmissionsPageState
     required List<PendingSubmission> list,
     required PendingSubmission? selected,
     required bool fullWidth,
+    required bool busy,
+    required int stale,
   }) {
     return Container(
       width: fullWidth ? null : _railWidth,
       decoration: BoxDecoration(
         color: BsheelColors.surface,
-        border: fullWidth
-            ? null
-            : const Border(right: BsheelBorders.inkSide),
+        border: fullWidth ? null : const Border(right: BsheelBorders.inkSide),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header — the count, then the three views of the queue.
+          // Header — the count, then the three views of the queue. This
+          // page has no page-level bar, so the queue's own actions live
+          // here, on the right of the count.
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
             decoration: const BoxDecoration(
               border: Border(bottom: BsheelBorders.inkSide),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'PENDING REVIEW · ${list.length}',
-                  style: BsheelType.labelMd,
+                Row(
+                  children: [
+                    // The sidebar is a drawer below the breakpoint, and
+                    // with no page header this is the only way back to it.
+                    if (Scaffold.maybeOf(context)?.hasDrawer ?? false)
+                      Builder(
+                        builder: (context) => Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: BsheelIconButton(
+                            icon: Icons.menu_rounded,
+                            tooltip: 'Menu',
+                            size: 36,
+                            onTap: () => Scaffold.of(context).openDrawer(),
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        stale > 0
+                            ? 'PENDING REVIEW · ${list.length} · $stale STALE'
+                            : 'PENDING REVIEW · ${list.length}',
+                        style: BsheelType.labelMd.copyWith(
+                          color: stale > 0
+                              ? BsheelColors.dangerText
+                              : BsheelColors.inkSoft,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (list.length > 1) ...[
+                      const SizedBox(width: 8),
+                      BsheelIconButton(
+                        icon: Icons.done_all_rounded,
+                        ground: BsheelColors.success,
+                        size: 36,
+                        tooltip: 'Approve every fully-viewed submission',
+                        onTap: busy ? null : () => _approveAll(list),
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    BsheelIconButton(
+                      icon: Icons.refresh_rounded,
+                      size: 36,
+                      tooltip: 'Refresh the queue',
+                      onTap: () => ref.invalidate(pendingSubmissionsProvider),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
                 BsheelFilterChips(
                   selected: _filter,
                   onChanged: (v) => setState(() => _filter = v),
@@ -576,8 +605,7 @@ class _PendingSubmissionsPageState
           title: 'The review didn’t load',
           message: 'This submission’s detail didn’t come back, so nothing '
               'here is stale — and no decision has been recorded. $error',
-          onRetry: () =>
-              ref.invalidate(submissionDetailProvider(selected.id)),
+          onRetry: () => ref.invalidate(submissionDetailProvider(selected.id)),
         ),
       ),
       data: (data) {

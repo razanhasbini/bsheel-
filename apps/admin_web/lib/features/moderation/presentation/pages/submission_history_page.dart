@@ -77,7 +77,9 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
             _page = 0;
           }),
         ),
-        BsheelButton.ghost(
+        // White, not cream: this button sits on the cream header bar,
+        // where a cream fill would read as an outline with no body.
+        BsheelButton.secondary(
           label: 'Export CSV',
           // Nothing to export until the ledger is on screen, and a button
           // that cannot act says so by losing its shadow.
@@ -196,14 +198,17 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                       style: BsheelType.monoSm,
                     ),
                   ),
-                  BsheelButton.ghost(
+                  // White on the cream page ground, same reason as the
+                  // export button above.
+                  BsheelButton.secondary(
                     label: 'Prev',
                     small: true,
-                    onPressed:
-                        page == 0 ? null : () => setState(() => _page = page - 1),
+                    onPressed: page == 0
+                        ? null
+                        : () => setState(() => _page = page - 1),
                   ),
                   const SizedBox(width: 7),
-                  BsheelButton.ghost(
+                  BsheelButton.secondary(
                     label: 'Next',
                     small: true,
                     onPressed: page >= pageCount - 1

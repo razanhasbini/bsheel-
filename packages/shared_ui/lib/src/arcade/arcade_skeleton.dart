@@ -99,16 +99,16 @@ class ArcadeSkeletonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // A ListView, not a Column: as a Column this overflowed any viewport
+    // shorter than itemCount * itemHeight, and a loading placeholder that
+    // throws a layout error is worse than no placeholder at all.
+    return ListView.separated(
       padding: padding,
-      child: Column(
-        children: [
-          for (var i = 0; i < itemCount; i++) ...[
-            if (i > 0) SizedBox(height: spacing),
-            ArcadeSkeleton(height: itemHeight, radius: 12),
-          ],
-        ],
-      ),
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      itemCount: itemCount,
+      separatorBuilder: (_, __) => SizedBox(height: spacing),
+      itemBuilder: (_, __) => ArcadeSkeleton(height: itemHeight, radius: 12),
     );
   }
 }

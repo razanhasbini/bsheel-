@@ -148,7 +148,10 @@ class _ArcadeButtonState extends State<ArcadeButton> {
             : [
                 BoxShadow(
                   color: ink,
-                  offset: Offset(0, shadowOffset),
+                  // Right AND down. This was Offset(0, shadowOffset), which
+                  // drew no shadow on the right edge — so every button in
+                  // both apps was missing half of it.
+                  offset: Offset(shadowOffset, shadowOffset),
                   blurRadius: 0,
                 ),
               ],
@@ -356,7 +359,7 @@ class _ArcadeTextFieldState extends State<ArcadeTextField> {
     final ink = QuestColors.text(context);
     final bg = QuestColors.cardBg(context);
     final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
-    final borderColor = hasError ? QuestColors.softRed : ink;
+    final borderColor = hasError ? QuestColors.osRed : ink;
 
     Widget? suffix;
     if (widget.obscureText) {
@@ -451,7 +454,7 @@ class _ArcadeTextFieldState extends State<ArcadeTextField> {
           Text(
             widget.errorText!,
             style: QuestTypography.bodySmall.copyWith(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               fontSize: 11,
             ),
           ),
@@ -508,7 +511,7 @@ class ArcadeCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: ink,
-            offset: Offset(2, shadowOffset),
+            offset: Offset(shadowOffset, shadowOffset),
             blurRadius: 0,
           ),
         ],
@@ -628,7 +631,7 @@ class ArcadeErrorState extends StatelessWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 2),
               boxShadow: [

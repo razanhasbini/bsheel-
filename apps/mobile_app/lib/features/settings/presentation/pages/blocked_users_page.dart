@@ -1,176 +1,154 @@
 import 'package:app_core/app_core.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/shared_ui.dart';
 
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/safe_back.dart';
 import '../../../../core/backend/app_backend.dart';
+import '../../data/blocked_users_provider.dart';
 
-/// UX-003: in-app surface to review and undo blocks.
-/// The block dialog in feed_post_details promised a Settings page that
-/// didn't exist. This page lists everyone the user has blocked plus an
-/// UNBLOCK action per row.
-final _blockedUsersProvider = FutureProvider.autoDispose<
-    List<
-        ({
-          String userId,
-          String username,
-          String displayName,
-          String? avatarUrl
-        })>>(
-  (ref) async {
-    final users = await AppBackend.repositories.account.blockedUsers();
-    return users
-        .map((user) => (
-              userId: user.id,
-              username: user.username,
-              displayName: user.displayName,
-              avatarUrl: user.avatarUrl,
-            ))
-        .toList(growable: false);
-  },
-);
-
+/// Blocked users — built to the BLOCKED USERS block in
+/// `export/panels/panel-04.jpg`: one white card holding a display title, a
+/// row per blocked account with a cream UNBLOCK button, and the two-way
+/// explanation as body copy at the foot of the card.
 class BlockedUsersPage extends ConsumerWidget {
   const BlockedUsersPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ink = QuestColors.text(context);
-    final blockedAsync = ref.watch(_blockedUsersProvider);
+    final blockedAsync = ref.watch(blockedUsersProvider);
 
     return Scaffold(
-      backgroundColor: QuestColors.bg(context),
+      backgroundColor: QuestColors.osBg,
       body: SafeArea(
+        bottom: false,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                QuestSpacing.screenPadding,
-                QuestSpacing.md,
-                QuestSpacing.screenPadding,
-                0,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
               child: Row(
                 children: [
-                  GestureDetector(
+                  _IconButton(
+                    icon: Icons.arrow_back_rounded,
                     onTap: () => safeBack(context),
-                    behavior: HitTestBehavior.opaque,
-                    child: BsMinTouch(
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: QuestColors.cardBg(context),
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: ink, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: ink,
-                              offset: const Offset(2, 2),
-                              blurRadius: 0,
-                            ),
-                          ],
-                        ),
-                        child: Icon(Icons.arrow_back_rounded,
-                            size: 18, color: ink),
-                      ),
-                    ),
                   ),
-                  const SizedBox(width: QuestSpacing.md),
-                  Flexible(
-                    child: Text(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FitText(
                       'BLOCKED USERS',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: QuestTypography.headlineLarge.copyWith(
-                        color: ink,
-                        fontSize: 20,
-                        letterSpacing: 1.4,
+                      minFontSize: 16,
+                      style: QuestTypography.osDisplaySmall.copyWith(
+                        fontSize: 24,
+                        letterSpacing: -0.4,
+                        height: 1,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: QuestSpacing.md),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: QuestSpacing.screenPadding),
-              child: Text(
-                'People you\'ve blocked won\'t see your posts and you won\'t see theirs. Tap UNBLOCK to undo.',
-                style: QuestTypography.bodySmall
-                    .copyWith(color: QuestColors.textDim(context)),
-              ),
-            ),
-            const SizedBox(height: QuestSpacing.md),
             Expanded(
-              child: blockedAsync.when(
-                loading: () => const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+              child: RefreshIndicator(
+                color: QuestColors.osPrimary,
+                backgroundColor: QuestColors.osCard,
+                onRefresh: () async {
+                  ref.invalidate(blockedUsersProvider);
+                  await ref.read(blockedUsersProvider.future);
+                },
+                child: blockedAsync.when(
+                  loading: () => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    children: const [
+                      ArcadeSkeletonList(itemCount: 3, itemHeight: 64),
+                    ],
                   ),
-                ),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(QuestSpacing.lg),
-                    child: Text(
-                      mapDbError(e, action: 'load blocked users'),
-                      textAlign: TextAlign.center,
-                      style: QuestTypography.bodyMedium
-                          .copyWith(color: QuestColors.osRed),
-                    ),
+                  error: (e, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    children: [
+                      Text(
+                        mapDbError(e, action: 'load blocked users'),
+                        textAlign: TextAlign.center,
+                        style: QuestTypography.osBodyMedium
+                            .copyWith(color: QuestColors.osRedText),
+                      ),
+                    ],
                   ),
-                ),
-                data: (users) {
-                  if (users.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(QuestSpacing.lg),
+                  data: (users) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: QuestColors.osCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: QuestColors.osTextPrimary,
+                            width: 2,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: QuestColors.osTextPrimary,
+                              offset: Offset(3, 3),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                        clipBehavior: Clip.antiAlias,
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Icon(Icons.shield_moon_outlined,
-                                size: 48, color: QuestColors.textMuted),
-                            const SizedBox(height: QuestSpacing.md),
-                            Text('NO BLOCKED USERS',
-                                style: QuestTypography.headlineSmall
-                                    .copyWith(color: ink)),
-                            const SizedBox(height: QuestSpacing.sm),
-                            Text(
-                              'You haven\'t blocked anyone. Block from a post\'s … menu if you need to.',
-                              textAlign: TextAlign.center,
-                              style: QuestTypography.bodyMedium.copyWith(
-                                color: QuestColors.textDim(context),
+                            if (users.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  18,
+                                  16,
+                                  10,
+                                ),
+                                child: Text(
+                                  'NO BLOCKED USERS',
+                                  style: QuestTypography.osHeadlineLarge
+                                      .copyWith(fontSize: 18),
+                                ),
+                              )
+                            else
+                              for (var i = 0; i < users.length; i++) ...[
+                                if (i > 0)
+                                  const Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: QuestColors.osBorder,
+                                  ),
+                                _BlockedRow(user: users[i]),
+                              ],
+                            const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: QuestColors.osBorder,
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                              child: Text(
+                                'Blocks cut both directions — their posts and '
+                                'comments are hidden from you, and yours from '
+                                'them.',
+                                style: QuestTypography.osBodyMedium.copyWith(
+                                  color: QuestColors.osTextSecondary,
+                                  height: 1.45,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  }
-                  return RefreshIndicator(
-                    color: QuestColors.osPrimary,
-                    onRefresh: () async =>
-                        ref.invalidate(_blockedUsersProvider),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.screenPadding,
-                        vertical: QuestSpacing.sm,
-                      ),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: users.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: QuestSpacing.sm),
-                      itemBuilder: (_, i) =>
-                          _BlockedRow(user: users[i], ink: ink),
-                    ),
-                  );
-                },
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -181,14 +159,8 @@ class BlockedUsersPage extends ConsumerWidget {
 }
 
 class _BlockedRow extends ConsumerStatefulWidget {
-  const _BlockedRow({required this.user, required this.ink});
-  final ({
-    String userId,
-    String username,
-    String displayName,
-    String? avatarUrl
-  }) user;
-  final Color ink;
+  const _BlockedRow({required this.user});
+  final BlockedUser user;
 
   @override
   ConsumerState<_BlockedRow> createState() => _BlockedRowState();
@@ -203,7 +175,7 @@ class _BlockedRowState extends ConsumerState<_BlockedRow> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await AppBackend.repositories.account.unblockUser(widget.user.userId);
-      ref.invalidate(_blockedUsersProvider);
+      ref.invalidate(blockedUsersProvider);
     } catch (e) {
       if (!mounted) return;
       messenger
@@ -218,80 +190,158 @@ class _BlockedRowState extends ConsumerState<_BlockedRow> {
   @override
   Widget build(BuildContext context) {
     final u = widget.user;
-    final name = u.displayName.isNotEmpty ? u.displayName : u.username;
-    return Container(
-      padding: const EdgeInsets.all(QuestSpacing.sm),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
-        border: Border.all(color: widget.ink, width: 1.6),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
       child: Row(
         children: [
-          PixelAvatar(
-            imageUrl: u.avatarUrl,
-            username: u.username,
-            size: 36,
-          ),
-          const SizedBox(width: QuestSpacing.md),
+          _RoundAvatar(url: u.avatarUrl, name: u.username),
+          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: QuestTypography.labelMedium
-                      .copyWith(color: widget.ink, fontSize: 13),
-                ),
-                Text(
-                  '@${u.username}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: QuestTypography.bodySmall.copyWith(
-                    color: QuestColors.textDim(context),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+            child: Text(
+              u.username,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osHeadlineLarge.copyWith(
+                fontSize: 18,
+                color: QuestColors.osTextSecondary,
+                height: 1.15,
+              ),
             ),
           ),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _busy ? null : _unblock,
-            child: Container(
-              constraints: const BoxConstraints(
-                  minWidth: kMinTouchTarget, minHeight: kMinTouchTarget),
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color:
-                    _busy ? QuestColors.cardBg(context) : QuestColors.osPrimary,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.ink, width: 2),
-              ),
-              child: _busy
-                  ? const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                      'UNBLOCK',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
-                        color: QuestColors.osTextOnPrimary,
-                      ),
-                    ),
-            ),
-          ),
+          const SizedBox(width: 8),
+          _UnblockButton(busy: _busy, onTap: _unblock),
         ],
+      ),
+    );
+  }
+}
+
+class _UnblockButton extends StatelessWidget {
+  const _UnblockButton({required this.busy, required this.onTap});
+
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: busy ? null : onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minHeight: QuestSpacing.minTouchTarget,
+        ),
+        child: Center(
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: QuestColors.osSurface,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+            ),
+            child: busy
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: QuestColors.osTextPrimary,
+                    ),
+                  )
+                : Text(
+                    'UNBLOCK',
+                    style: QuestTypography.osHeadlineSmall.copyWith(
+                      fontSize: 13,
+                      letterSpacing: 0.6,
+                      height: 1,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoundAvatar extends StatelessWidget {
+  const _RoundAvatar({required this.url, required this.name});
+
+  final String? url;
+  final String name;
+
+  static const double _size = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: QuestColors.osSurface,
+        shape: BoxShape.circle,
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+      ),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: QuestTypography.osHeadlineMedium.copyWith(height: 1),
+      ),
+    );
+    if (url == null || url!.isEmpty) return placeholder;
+    return Container(
+      width: _size,
+      height: _size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+      ),
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: url!,
+          fit: BoxFit.cover,
+          width: _size,
+          height: _size,
+          memCacheWidth: (_size * 2).round(),
+          placeholder: (_, __) =>
+              const ColoredBox(color: QuestColors.osSurface),
+          errorWidget: (_, __, ___) => placeholder,
+        ),
+      ),
+    );
+  }
+}
+
+/// 44pt square icon button — white ground, `r11`, 2px ink, 3px ink shadow.
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: QuestSpacing.minTouchTarget,
+        height: QuestSpacing.minTouchTarget,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: QuestColors.osCard,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: QuestColors.osTextPrimary,
+              offset: Offset(3, 3),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
       ),
     );
   }

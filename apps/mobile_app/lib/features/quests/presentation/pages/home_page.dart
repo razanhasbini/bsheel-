@@ -1,27 +1,23 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_contracts/app_contracts.dart' show UserQuestStatus;
+import 'package:shared_ui/shared_ui.dart';
 
-import '../../../../design/bs_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/providers/account_status_provider.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
-import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/utils/streak_utils.dart';
 import '../../../notifications/presentation/providers/notifications_provider.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../data/quest_providers.dart';
+import '../widgets/arcade_page_chrome.dart';
 import '../widgets/home_arcade_widgets.dart';
 import '../widgets/home_extras.dart';
 
@@ -40,8 +36,7 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage>
-    with TickerProviderStateMixin {
+class _HomePageState extends ConsumerState<HomePage> {
   // Realtime for user_quests + submissions lives in `BottomNavShell` —
   // having a duplicate subscription here meant every DB event triggered
   // two parallel refetch waves. The shell sub invalidates the same
@@ -50,22 +45,9 @@ class _HomePageState extends ConsumerState<HomePage>
   // strictly better.
   StreamSubscription<List<Map<String, dynamic>>>? _questStream;
 
-  // Animations
-  late final AnimationController _slotBounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _slotBounce = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-  }
-
   @override
   void dispose() {
     _questStream?.cancel();
-    _slotBounce.dispose();
     super.dispose();
   }
 
@@ -75,12 +57,7 @@ class _HomePageState extends ConsumerState<HomePage>
     if (_rolling) return;
     _rolling = true;
     try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: QuestColors.pureBlack.withAlpha(180),
-        builder: (_) => const _RollPickerSheet(),
-      );
+      await showRollPicker(context);
     } finally {
       _rolling = false;
     }
@@ -208,9 +185,6 @@ class _HomePageState extends ConsumerState<HomePage>
       backgroundColor: QuestColors.bg(context),
       body: Stack(
         children: [
-          // Pixel grid background (faint, fades down)
-          const Positioned.fill(child: ArcadePixelGrid()),
-
           // Main scrollable
           Positioned.fill(
             child: SafeArea(
@@ -265,14 +239,11 @@ class _HomePageState extends ConsumerState<HomePage>
                     ),
 
                     // ── Hero headline ──
-                    SliverToBoxAdapter(
+                    const SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                            QuestSpacing.screenPadding,
-                            0,
-                            QuestSpacing.screenPadding,
-                            4),
-                        child: _Headline(name: displayName),
+                        padding: EdgeInsets.fromLTRB(QuestSpacing.screenPadding,
+                            0, QuestSpacing.screenPadding, 4),
+                        child: _Headline(),
                       ),
                     ),
 
@@ -345,8 +316,8 @@ class _HomePageState extends ConsumerState<HomePage>
                             QuestSpacing.screenPadding,
                             16),
                         child: activeQuestAsync.when(
-                          loading: () => _HeroSkeleton(),
-                          error: (_, __) => _HeroSkeleton(),
+                          loading: () => const _HeroSkeleton(),
+                          error: (_, __) => const _HeroSkeleton(),
                           data: (activeQuest) {
                             if (locked) {
                               return _LockedCard(
@@ -369,6 +340,18 @@ class _HomePageState extends ConsumerState<HomePage>
 
                             final hasLiveQuest = activeQuest != null &&
                                 activeQuest.status == UserQuestStatus.assigned;
+
+                            // One hero, not two. The pending card says
+                            // "You can't start a new quest until these are
+                            // reviewed" — printing GENERATE A QUEST directly
+                            // under it contradicted its own copy, and the
+                            // server would reject the roll anyway.
+                            if (pendingList.isNotEmpty && !hasLiveQuest) {
+                              return _PendingReviewCard(
+                                pending: pendingList,
+                                onOpen: () => _showPendingList(pendingList),
+                              );
+                            }
 
                             return Column(
                               children: [
@@ -396,10 +379,7 @@ class _HomePageState extends ConsumerState<HomePage>
                                     ),
                                   )
                                 else
-                                  _SlotMachineZone(
-                                    slotBounce: _slotBounce,
-                                    onGenerate: _rollWheel,
-                                  ),
+                                  _SlotMachineZone(onGenerate: _rollWheel),
                               ],
                             );
                           },
@@ -497,52 +477,37 @@ String _fmtXp(int xp) {
 // ── Headline ──────────────────────────────────────────────────────────────
 
 class _Headline extends StatelessWidget {
-  const _Headline({required this.name});
-  final String name;
+  const _Headline();
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
+    final l = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Syne 800 at 44 with the frame's tight tracking. The coral rule
+        // that used to sit under this is not in the frame; the mono
+        // tagline three pixels below is the whole subhead.
         Text(
-          AppLocalizations.of(context)!.homeHeadline,
-          style: QuestTypography.displayLarge.copyWith(
-            color: ink,
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            height: 1.05,
-            letterSpacing: -0.3,
+          l.homeHeadline,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osDisplayLarge.copyWith(
+            fontSize: 44,
+            height: 0.95,
+            letterSpacing: -1.76,
           ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Container(
-              width: 44,
-              height: 6,
-              decoration: BoxDecoration(
-                color: QuestColors.osRed,
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: ink, width: 1.4),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                AppLocalizations.of(context)!.homeHeadlineTagline,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: QuestTypography.labelSmall.copyWith(
-                  color: ink.withAlpha(170),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(height: 3),
+        Text(
+          l.homeHeadlineTagline,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osLabelSmall.copyWith(
+            color: QuestColors.osTextSecondary,
+            fontSize: 10,
+            letterSpacing: 1,
+          ),
         ),
       ],
     );
@@ -564,105 +529,64 @@ class _PendingReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    // Ink on gold, never white: white on gold measures 1.6:1.
+    final fg = QuestColors.onAccent(QuestColors.osAccent);
     final count = pending.length;
     final multiple = count > 1;
-    final subtitle = multiple
-        ? '$count submissions awaiting review'
+    final headline = multiple
+        ? '$count SUBMISSIONS WAITING FOR A MODERATOR'
         : (pending.isNotEmpty
-            ? (pending.first.quest?.title ?? 'Your submission')
-            : 'Your submission');
+            ? (pending.first.quest?.title ?? 'Your submission').toUpperCase()
+            : 'YOUR SUBMISSION');
 
     return GestureDetector(
       onTap: onOpen,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: QuestColors.accentYellow,
+          color: QuestColors.osAccent,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: ink, width: 2),
-          boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
-          ],
+          boxShadow: QuestSpacing.shadowMd,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: QuestColors.osCard,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ink, width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.hourglass_top_rounded,
-                    color: QuestColors.accentYellowInk,
-                    size: 22,
-                  ),
-                ),
-                if (multiple)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: QuestColors.osRed,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: ink, width: 2),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: QuestTypography.labelSmall.copyWith(
-                          color: QuestColors.onAccent(QuestColors.osRed),
-                          fontSize: 10,
-                          height: 1,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    multiple
-                        ? AppLocalizations.of(context)!.inReviewTapToSeeAll
-                        : 'IN REVIEW',
-                    style: QuestTypography.labelSmall.copyWith(
-                      color: QuestColors.accentYellowInk,
-                      fontSize: 10,
-                      letterSpacing: 1.4,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.headlineSmall.copyWith(
-                      color: QuestColors.accentYellowInk,
-                      fontSize: 14,
-                      height: 1.2,
-                    ),
-                  ),
-                ],
+            Text(
+              multiple
+                  ? AppLocalizations.of(context)!.inReviewTapToSeeAll
+                  : 'IN REVIEW',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osLabelMedium.copyWith(
+                color: fg,
+                fontSize: 10,
+                letterSpacing: 1.1,
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: QuestColors.accentYellowInk, size: 22),
+            const SizedBox(height: 9),
+            Text(
+              headline,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osHeadlineLarge.copyWith(
+                color: fg,
+                fontSize: 19,
+                height: 1.15,
+                letterSpacing: -0.48,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              "You can't start a new quest until these are reviewed.",
+              style: QuestTypography.osBodySmall.copyWith(
+                color: fg,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
           ],
         ),
       ),
@@ -672,105 +596,90 @@ class _PendingReviewCard extends StatelessWidget {
 
 // ── Slot machine zone ─────────────────────────────────────────────────────
 
-class _SlotMachineZone extends StatelessWidget {
-  const _SlotMachineZone({
-    required this.slotBounce,
-    required this.onGenerate,
-  });
-  final AnimationController slotBounce;
+class _SlotMachineZone extends ConsumerWidget {
+  const _SlotMachineZone({required this.onGenerate});
   final VoidCallback onGenerate;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ink = QuestColors.text(context);
+    final budgetAsync = ref.watch(rerollBudgetProvider);
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
       decoration: BoxDecoration(
-        // The design draws this as a white card, not an ink panel: it is the
-        // one thing to do on an empty home, so it should read as the bright
-        // surface rather than recede.
+        // The design draws this as a white card, not an ink panel: it is
+        // the one thing to do on an empty home, so it should read as the
+        // bright surface rather than recede.
         color: QuestColors.osCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: ink, width: 2),
-        boxShadow: const [
-          // A *coloured* shadow marks the single most important thing on
-          // screen; everything else takes ink. With no active quest, that is
-          // this card. 6px, coral, per the frame.
-          BoxShadow(
-            color: QuestColors.osRed,
-            offset: Offset(6, 6),
-            blurRadius: 0,
-          ),
-        ],
+        // A *coloured* shadow marks the single most important thing on
+        // screen; everything else takes ink. With no active quest, that is
+        // this card. 6px, coral, per the frame.
+        boxShadow: QuestSpacing.hardShadow(6, color: QuestColors.osRed),
       ),
       child: Column(
         children: [
-          // Retro arcade chase scene — Pac-Man eating dots with a ghost
-          // chasing from behind. Runs continuously until you tap generate.
-          const _RetroArcadeScene(),
+          const _Reels(),
           const SizedBox(height: 16),
-          GestureDetector(
+          // Jade, 56pt, r14, no icon — the frame's GENERATE A QUEST. It
+          // was gold and 48pt with a die glyph, which made the one action
+          // on an empty home read as a secondary control.
+          ArcadeButton(
+            label: AppLocalizations.of(context)!.generateAQuest,
+            variant: ArcadeButtonVariant.positive,
             onTap: onGenerate,
-            child: Container(
-              width: double.infinity,
-              height: 48,
-              decoration: BoxDecoration(
-                color: QuestColors.accentYellow,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ink, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: ink,
-                    offset: const Offset(3, 3),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.casino_rounded, color: ink, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    AppLocalizations.of(context)!.generateAQuest,
-                    style: QuestTypography.buttonText.copyWith(
-                      color: ink,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
+          ),
+          const SizedBox(height: 16),
+          // The frame's `5 REROLLS LEFT · RESETS IN 6H`. A wrong count is
+          // worse than none, so a failed read prints nothing rather than
+          // guessing or sitting on a spinner forever.
+          if (budgetAsync.hasValue || budgetAsync.isLoading)
+            Text(
+              _rerollLine(budgetAsync.valueOrNull),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osLabelSmall.copyWith(
+                color: QuestColors.osTextSecondary,
+                fontSize: 10,
+                letterSpacing: 0.9,
               ),
             ),
-          ),
         ],
       ),
     );
   }
+
+  /// `5 REROLLS LEFT · RESETS IN 6H`. The reset half only appears once the
+  /// budget is spent, because that is the only time it is a real number.
+  static String _rerollLine(RerollBudget? budget) {
+    if (budget == null) return 'CHECKING YOUR REROLLS';
+    final left = '${budget.remaining} REROLLS LEFT';
+    final refill = budget.refillIn;
+    if (refill == null) return left;
+    final hours = refill.inHours;
+    return hours >= 1
+        ? '$left · RESETS IN ${hours}H'
+        : '$left · RESETS IN ${refill.inMinutes}M';
+  }
 }
 
-/// Three chunky reels that continuously spin. Each reel vertically scrolls
-/// a strip of glyphs at a slightly different speed / direction so they feel
-/// independent, like a real slot machine before you pull the lever.
-/// Retro arcade chase scene — a Pac-Man sprite walks left→right chomping a
-/// row of dots, with a ghost tailing behind. Draws everything with
-/// [CustomPainter] so it stays crisp at any size and has no asset deps.
 /// The slot-machine reels: three warm-surface tiles, per the design frame.
 ///
 /// This replaced a hand-painted Pac-Man scene on a black strip. The frame
 /// draws plain 78pt reels — `#FFF1D6` ground, 2px ink border, 12px radius,
-/// a 26px glyph — and the black strip cannot survive inside the white card
-/// the frame specifies anyway: its pale dot palette was chosen for black.
-class _RetroArcadeScene extends StatefulWidget {
-  const _RetroArcadeScene();
+/// a 26px glyph — and the black strip could not survive inside the white
+/// card the frame specifies anyway: its pale dot palette was chosen for
+/// black.
+class _Reels extends StatefulWidget {
+  const _Reels();
 
   @override
-  State<_RetroArcadeScene> createState() => _RetroArcadeSceneState();
+  State<_Reels> createState() => _ReelsState();
 }
 
-class _RetroArcadeSceneState extends State<_RetroArcadeScene>
-    with SingleTickerProviderStateMixin {
+class _ReelsState extends State<_Reels> with SingleTickerProviderStateMixin {
   late final AnimationController _spin = AnimationController(
     duration: const Duration(milliseconds: 1400),
     vsync: this,
@@ -778,7 +687,7 @@ class _RetroArcadeSceneState extends State<_RetroArcadeScene>
 
   /// The reels idle rather than sit dead: each cycles its glyph on its own
   /// phase, so the zone reads as a machine waiting to be pulled.
-  static const List<String> _glyphs = ['◇', '◈', '◆'];
+  static const List<String> _glyphs = ['\u25C7', '\u25C8', '\u25C6'];
 
   @override
   void dispose() {
@@ -875,19 +784,6 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
     super.dispose();
   }
 
-  String _two(int n) => n.toString().padLeft(2, '0');
-  String get _countdown =>
-      '${_two(_left.inHours)}:${_two(_left.inMinutes.remainder(60))}:${_two(_left.inSeconds.remainder(60))}';
-
-  Future<void> _rollAgain() async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: QuestColors.pureBlack.withAlpha(180),
-      builder: (_) => const _RollPickerSheet(),
-    );
-  }
-
   Future<void> _confirmCancelQuest() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -972,151 +868,263 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
     if (isExpired) {
       return _TimeOverCard(
         title: quest?.title ?? 'Quest',
-        onGenerate: _rollAgain,
+        onGenerate: () => showRollPicker(context),
       );
     }
 
-    // Navy ink — same colour as the bottom nav pill.
-    const navy = QuestColors.osTextPrimary;
     final ink = QuestColors.text(context);
+    // The panel is ink; white on it is correct and must stay.
+    const panel = QuestColors.osTextPrimary;
+    const onPanel = QuestColors.pureWhite;
+    const onPanelSoft = QuestColors.textSecondary; // #C7C0E0
+    const rule = QuestColors.border; // #2A2450
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: navy,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2),
-        boxShadow: const [
+    // Gold while the timer is live. Coral is the under-five-minutes state,
+    // and it is the only thing that changes this number's colour.
+    final urgent = _left <= const Duration(minutes: 5);
+    final category = quest?.category ?? '';
+    final elapsed = _elapsedFraction();
+
+    return GestureDetector(
+      // The frame draws two buttons. Abandoning a quest is still
+      // reachable, on a long press, rather than gone: without it a player
+      // who mis-picks is stuck until the timer runs out.
+      onLongPress: _canceling ? null : _confirmCancelQuest,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: panel,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: ink, width: 2),
           // The hero stays an ink panel, but its shadow is violet rather
           // than ink: a coloured shadow marks the single most important
           // thing on screen, and while a quest is running that is this.
           // 6px is the spec's depth for hero panels.
-          BoxShadow(
-            color: QuestColors.osPrimary,
-            offset: Offset(6, 6),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ACTIVE indicator row — centered
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _blink,
-                builder: (_, __) => Opacity(
-                  opacity: 0.35 + 0.65 * _blink.value,
-                  child: Container(
-                    width: 9,
-                    height: 9,
+          boxShadow: QuestSpacing.hardShadow(6, color: QuestColors.osPrimary),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context)!.activeQuest.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.labelMedium.copyWith(
+                      color: onPanelSoft,
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                if (category.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  // On the ink panel the tag's outline is cream, not ink —
+                  // an ink border on an ink ground is invisible.
+                  _PanelTag(
+                    label: category,
+                    tint: QuestColors.category(category),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              (quest?.title ?? 'Quest').toUpperCase(),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.displayMedium.copyWith(
+                color: onPanel,
+                fontSize: 26,
+                height: 1.08,
+                letterSpacing: -0.78,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: rule, width: 2)),
+              ),
+              padding: const EdgeInsets.only(top: 13),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppLocalizations.of(context)!.timeLeft.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: QuestTypography.labelMedium.copyWith(
+                            color: onPanelSoft,
+                            fontSize: 10,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // Mono and zero-padded, so the width is identical on
+                        // every tick and nothing beside it reflows.
+                        Text(
+                          ArcadeTimer.format(_left),
+                          maxLines: 1,
+                          style: QuestTypography.labelMedium.copyWith(
+                            color: urgent
+                                ? QuestColors.osRed
+                                : QuestColors.osAccent,
+                            fontSize: 32,
+                            letterSpacing: 0,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        AppLocalizations.of(context)!.reward.toUpperCase(),
+                        maxLines: 1,
+                        style: QuestTypography.labelMedium.copyWith(
+                          color: onPanelSoft,
+                          fontSize: 10,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${quest?.xpReward ?? 0} XP',
+                        maxLines: 1,
+                        style: QuestTypography.displaySmall.copyWith(
+                          color: QuestColors.osSuccess,
+                          fontSize: 24,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            // 12pt track with a cream outline and a gold fill, draining as
+            // the timer runs down.
+            Container(
+              height: 12,
+              padding: const EdgeInsets.all(1),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: QuestColors.osBg, width: 2),
+              ),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: FractionallySizedBox(
+                  widthFactor: elapsed,
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: QuestColors.osRed,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: QuestColors.textPrimary, width: 1.2),
+                      color: QuestColors.osAccent,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'ACTIVE',
-                style: QuestTypography.labelSmall.copyWith(
-                  color: QuestColors.textPrimary,
-                  fontSize: 10,
-                  letterSpacing: 1.4,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _PanelButton(
+                    label: 'SUBMIT PROOF',
+                    fill: QuestColors.osRed,
+                    fg: QuestColors.onAccent(QuestColors.osRed),
+                    fontSize: 15,
+                    onTap: widget.onSubmit,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Full-width bare countdown — centered
-          Text(
-            _countdown,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-              height: 1,
-              color: _left.inMinutes < 30
-                  ? QuestColors.osRed
-                  : QuestColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            quest?.title ?? 'Quest',
-            textAlign: TextAlign.center,
-            style: QuestTypography.headlineLarge.copyWith(
-              color: QuestColors.textPrimary,
-              fontSize: 20,
-              height: 1.2,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if ((quest?.description ?? '').isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              quest!.description,
-              textAlign: TextAlign.center,
-              style: QuestTypography.bodyMedium.copyWith(
-                color: QuestColors.textPrimary.withAlpha(200),
-                fontSize: 13,
-                height: 1.35,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 9),
+                _PanelButton(
+                  label: 'DETAILS',
+                  fill: null,
+                  fg: onPanel,
+                  fontSize: 14,
+                  onTap: widget.onOpen,
+                ),
+              ],
             ),
           ],
-          const SizedBox(height: 16),
-          // Stacked actions — each on its own row, no icons, tighter text.
-          _HeroAction(
-            label: 'SHOW DETAILS',
-            fill: QuestColors.pureWhite.withAlpha(28),
-            fg: QuestColors.textPrimary,
-            borderColor: QuestColors.textPrimary,
-            onTap: widget.onOpen,
-          ),
-          const SizedBox(height: 10),
-          _HeroAction(
-            label: 'SUBMIT PROOF',
-            fill: QuestColors.accentYellow,
-            fg: QuestColors.accentYellowInk,
-            borderColor: QuestColors.textPrimary,
-            onTap: widget.onSubmit,
-          ),
-          const SizedBox(height: 10),
-          _HeroAction(
-            label: _canceling ? 'CANCELING...' : 'CANCEL QUEST',
-            fill: QuestColors.pureWhite.withAlpha(12),
-            fg: QuestColors.textPrimary.withAlpha(220),
-            borderColor: QuestColors.textPrimary.withAlpha(150),
-            onTap: _canceling ? () {} : _confirmCancelQuest,
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  /// How much of the window has been used, 0..1. Drives the gold meter.
+  /// Falls back to full when the server sent no assignment window.
+  double _elapsedFraction() {
+    final expires = widget.activeQuest.expiresAt;
+    if (expires == null) return 1;
+    final total = expires.difference(widget.activeQuest.assignedAt);
+    if (total.inSeconds <= 0) return 1;
+    final used = total - _left;
+    return (used.inSeconds / total.inSeconds).clamp(0.0, 1.0);
+  }
+}
+
+/// A category tag drawn *on* the ink hero: the fill is the category, the
+/// outline is cream. Ink on ink would vanish, which is why this is not
+/// `ArcadeCategoryTag`.
+class _PanelTag extends StatelessWidget {
+  const _PanelTag({required this.label, required this.tint});
+  final String label;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: tint,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: QuestColors.osBg, width: 2),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: QuestTypography.labelMedium.copyWith(
+          // The tint is the ground, so the helper decides the ink.
+          color: QuestColors.onAccent(tint),
+          fontSize: 10,
+          letterSpacing: 1.1,
+        ),
       ),
     );
   }
 }
 
-class _HeroAction extends StatelessWidget {
-  const _HeroAction({
+/// The hero's own button: 52pt, `r13`, a 2px **cream** outline, no shadow.
+///
+/// Not `ArcadeButton`, which is 56pt with an ink outline and an ink
+/// shadow — both invisible against the ink panel this sits on.
+class _PanelButton extends StatelessWidget {
+  const _PanelButton({
     required this.label,
     required this.fill,
     required this.fg,
-    required this.borderColor,
+    required this.fontSize,
     required this.onTap,
   });
+
   final String label;
-  final Color fill;
+
+  /// Null means transparent — the frame's DETAILS button.
+  final Color? fill;
   final Color fg;
-  final Color borderColor;
+  final double fontSize;
   final VoidCallback onTap;
 
   @override
@@ -1125,22 +1133,23 @@ class _HeroAction extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: double.infinity,
-        height: kMinTouchTarget,
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: borderColor, width: 2),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: QuestColors.osBg, width: 2),
         ),
         child: Text(
           label,
-          textAlign: TextAlign.center,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: QuestTypography.buttonText.copyWith(
             color: fg,
-            fontSize: 11.5,
-            letterSpacing: 1.3,
+            fontSize: fontSize,
+            letterSpacing: 0.75,
+            height: 1,
           ),
         ),
       ),
@@ -1148,7 +1157,7 @@ class _HeroAction extends StatelessWidget {
   }
 }
 
-/// Shown when the quest expired without a submission. Coral-red card with
+/// Shown when the quest expired without a submission./// Shown when the quest expired without a submission. Coral-red card with
 /// big TIME OVER label and a single "GENERATE NEW QUEST" button.
 class _TimeOverCard extends StatelessWidget {
   const _TimeOverCard({required this.title, required this.onGenerate});
@@ -1158,89 +1167,76 @@ class _TimeOverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final onCoral = QuestColors.onAccent(QuestColors.osRed);
+    // Ink on coral. White on coral measures 3.03:1 and fails AA.
+    final fg = QuestColors.onAccent(QuestColors.osRed);
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: QuestColors.osRed,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: ink, width: 2),
-        boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
-        ],
+        boxShadow: QuestSpacing.shadowMd,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.timer_off_rounded, color: onCoral, size: 18),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'TIME OVER',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: QuestTypography.labelSmall.copyWith(
-                    color: onCoral,
-                    fontSize: 11,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Text(
-            title,
-            style: QuestTypography.headlineLarge.copyWith(
-              color: onCoral,
-              fontSize: 20,
-              height: 1.2,
-            ),
-            maxLines: 2,
+            'TIME OVER',
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "You didn't submit before the timer ended. Roll a new quest to keep going.",
-            style: QuestTypography.bodyMedium.copyWith(
-              color: QuestColors.onAccentSoft(QuestColors.osRed),
-              fontSize: 12.5,
-              height: 1.35,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: fg,
+              fontSize: 10,
+              letterSpacing: 1.1,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          Text(
+            title.toUpperCase(),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osHeadlineLarge.copyWith(
+              color: fg,
+              fontSize: 19,
+              height: 1.15,
+              letterSpacing: -0.48,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "The timer ran out. No XP awarded \u2014 roll again when you're "
+            'ready.',
+            style: QuestTypography.osBodySmall.copyWith(
+              color: fg,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 44pt, r11, cream on coral — the frame's inset button, not a
+          // full-width primary.
           GestureDetector(
             onTap: onGenerate,
             behavior: HitTestBehavior.opaque,
             child: Container(
-              width: double.infinity,
-              height: 52,
+              height: QuestSpacing.minTouchTarget,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: QuestColors.accentYellow,
-                borderRadius: BorderRadius.circular(14),
+                color: QuestColors.osBg,
+                borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: ink, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: ink, offset: const Offset(3, 3), blurRadius: 0),
-                ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.casino_rounded,
-                      color: QuestColors.accentYellowInk, size: 18),
-                  const SizedBox(width: 10),
-                  Text(
-                    'GENERATE NEW QUEST',
-                    style: QuestTypography.buttonText.copyWith(
-                      color: QuestColors.accentYellowInk,
-                      fontSize: 13.5,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                ],
+              child: Text(
+                AppLocalizations.of(context)!.generateAQuest.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osButtonText.copyWith(
+                  color: ink,
+                  fontSize: 13,
+                  letterSpacing: 0.65,
+                ),
               ),
             ),
           ),
@@ -1252,217 +1248,47 @@ class _TimeOverCard extends StatelessWidget {
 
 // ── Hero skeleton ─────────────────────────────────────────────────────────
 
-/// Pulsing skeleton placeholder shown while the active-quest state is
-/// resolving. Replaces the previous `CircularProgressIndicator` so the
-/// hero zone feels lazy-loaded instead of "blocked on network."
-class _HeroSkeleton extends StatefulWidget {
+/// Hero-zone placeholder while the active-quest state resolves.
+class _HeroSkeleton extends StatelessWidget {
+  const _HeroSkeleton();
+
   @override
-  State<_HeroSkeleton> createState() => _HeroSkeletonState();
+  Widget build(BuildContext context) => const ArcadeSkeleton(
+        height: 232,
+        radius: 18,
+      );
 }
 
-class _HeroSkeletonState extends State<_HeroSkeleton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ac = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _ac.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return AnimatedBuilder(
-      animation: _ac,
-      builder: (_, __) {
-        final pulse = 0.35 + 0.35 * _ac.value; // 0.35..0.70
-        Color bar(double scale) => ink.withAlpha(
-            ((QuestColors.alphaHairline + 18) * scale).round().clamp(20, 255));
-        return Container(
-          height: 180,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: QuestColors.cardBg(context),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: ink.withAlpha(60), width: 2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: bar(pulse),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 14,
-                        width: 160,
-                        decoration: BoxDecoration(
-                          color: bar(pulse),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 10,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: bar(pulse * 0.8),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ]),
-              Container(
-                height: 38,
-                decoration: BoxDecoration(
-                  color: bar(pulse),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Reusable bar-shaped skeleton (pulsing) for inline placeholders.
-class _SkeletonBar extends StatefulWidget {
-  const _SkeletonBar({this.height = 12, this.width, this.radius = 4});
-  final double height;
-  final double? width;
-  final double radius;
-
-  @override
-  State<_SkeletonBar> createState() => _SkeletonBarState();
-}
-
-class _SkeletonBarState extends State<_SkeletonBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ac = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _ac.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return AnimatedBuilder(
-      animation: _ac,
-      builder: (_, __) {
-        final a = (40 + 60 * _ac.value).round();
-        return Container(
-          height: widget.height,
-          width: widget.width,
-          decoration: BoxDecoration(
-            color: ink.withAlpha(a),
-            borderRadius: BorderRadius.circular(widget.radius),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Tile-shaped skeleton matching `ArcadeStatTile` proportions, shown
-/// while the profile XP/quest counts are loading.
+/// Tile-shaped placeholder matching `ArcadeStatTile` proportions, shown
+/// while the profile XP / quest counts are loading.
 class _StatTileSkeleton extends StatelessWidget {
   const _StatTileSkeleton();
 
   @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return Container(
-      height: 92,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ink.withAlpha(60), width: 2),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _SkeletonBar(width: 70, height: 10),
-          _SkeletonBar(width: 60, height: 22, radius: 6),
-          _SkeletonBar(width: 50, height: 8),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const ArcadeSkeleton(
+        height: 92,
+        radius: 14,
+      );
 }
 
-/// Card-shaped skeleton mimicking the recent quests list while
-/// `questHistoryProvider` is loading.
+/// Placeholder for the recent-quests rows. The heights match the real
+/// rows so nothing shifts when the data lands.
 class _RecentQuestsSkeleton extends StatelessWidget {
   const _RecentQuestsSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink.withAlpha(60), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SkeletonBar(width: 140, height: 12),
-          const SizedBox(height: 14),
-          for (int i = 0; i < 3; i++) ...[
-            Row(children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: ink.withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SkeletonBar(height: 11, width: 200),
-                    SizedBox(height: 6),
-                    _SkeletonBar(height: 9, width: 120),
-                  ],
-                ),
-              ),
-            ]),
-            if (i < 2) const SizedBox(height: 12),
-          ],
-        ],
-      ),
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ArcadeSkeleton(width: 120, height: 11, radius: 4, bordered: false),
+        SizedBox(height: 8),
+        ArcadeSkeleton(height: 44, radius: 12),
+        SizedBox(height: 8),
+        ArcadeSkeleton(height: 44, radius: 12),
+        SizedBox(height: 8),
+        ArcadeSkeleton(height: 44, radius: 12),
+      ],
     );
   }
 }
@@ -1476,52 +1302,36 @@ class _LockedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: QuestColors.osRed, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: ink,
-            offset: const Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: QuestColors.osRed,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: ink, width: 2),
+    // Dashed cream, no shadow: there is nothing here to act on, and a
+    // solid card with a shadow would keep implying there is.
+    return ArcadeDashedBox(
+      radius: 14,
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osLabelMedium.copyWith(
+                color: QuestColors.osTextSecondary,
+                fontSize: 10,
+                letterSpacing: 1.1,
+              ),
             ),
-            child: Icon(Icons.lock_rounded,
-                color: QuestColors.onAccent(QuestColors.osRed), size: 26),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: QuestTypography.headlineMedium.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: QuestTypography.osBodyMedium.copyWith(
+                color: QuestColors.osTextSecondary,
+                fontSize: 14,
+                height: 1.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style:
-                QuestTypography.bodyMedium.copyWith(color: ink.withAlpha(170)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1535,6 +1345,27 @@ class _LockedCard extends StatelessWidget {
 //   2. Pick: three random active quests are shown as chunky cards. Tapping
 //      one assigns it as the user's new active quest.
 
+/// Opens the PICK ONE sheet.
+///
+/// A bottom sheet over a 72% ink scrim, per `05-slot-machine.jpg`. It was
+/// a centred dialog with a letter-spin "GENERATING" animation the frame
+/// does not have; the frame shows the three options straight away, so the
+/// spin is now a skeleton while the fetch is in flight.
+Future<void> showRollPicker(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: QuestColors.osBg,
+    barrierColor: QuestColors.osTextPrimary.withAlpha(184), // 72%
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      side: BorderSide(color: QuestColors.osTextPrimary, width: 2),
+    ),
+    builder: (_) => const _RollPickerSheet(),
+  );
+}
+
 class _RollPickerSheet extends ConsumerStatefulWidget {
   const _RollPickerSheet();
 
@@ -1543,117 +1374,38 @@ class _RollPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
-  // Screen-specific colour — not a theme token.
-  static const Color _dialogBg = QuestColors.darkCard;
-
-  static const _spinDuration = Duration(milliseconds: 2200);
-  // 5 rerolls per rolling 24h window. Stored client-side as a list of
-  // ISO timestamps; the oldest one falling out of the window is what
-  // unlocks the next reroll.
-  static const _rerollWindow = Duration(hours: 24);
-  static const _maxRerollsPerWindow = 5;
-
   List<QuestModel>? _options;
-  bool _spinDone = false;
+
+  /// Which of the three is armed. The frame draws the first option on its
+  /// own category ground with an ink shadow and the other two white with a
+  /// category shadow — that difference *is* the selection, so it moves as
+  /// the player taps.
+  int _selected = 0;
+
   bool _assigning = false;
   bool _rerolling = false;
   String? _error;
-  // Timestamps of recent rerolls within the last [_rerollWindow]. Older
-  // entries are pruned on every read so this list never grows unbounded.
-  List<DateTime> _rerollHistory = const [];
-  int? _serverRerollsRemaining;
   int _deckKey = 0; // animation key — bumps on each reroll
 
   @override
   void initState() {
     super.initState();
-    _loadRerollState();
     _fetchQuests();
-  }
-
-  String? get _rerollStorageKey {
-    final userId = ref.read(authSessionProvider)?.id;
-    if (userId == null) return null;
-    return 'quest_reroll_history_$userId';
-  }
-
-  /// Legacy single-timestamp key from before the 5-per-day budget. We
-  /// migrate it on first launch so an in-flight cooldown isn't lost.
-  String? get _legacyRerollKey {
-    final userId = ref.read(authSessionProvider)?.id;
-    if (userId == null) return null;
-    return 'quest_last_reroll_at_$userId';
-  }
-
-  Future<void> _loadRerollState() async {
-    final key = _rerollStorageKey;
-    if (key == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(key);
-    final history = <DateTime>[];
-
-    if (raw != null) {
-      try {
-        final list = jsonDecode(raw) as List<dynamic>;
-        for (final entry in list) {
-          final ts = DateTime.tryParse(entry as String);
-          if (ts != null) history.add(ts);
-        }
-      } catch (_) {
-        // Corrupt payload — ignore and reset.
-      }
-    } else {
-      // First load on this version: migrate the old single-timestamp key
-      // so users mid-cooldown don't suddenly get 5 fresh rerolls.
-      final legacyKey = _legacyRerollKey;
-      if (legacyKey != null) {
-        final legacyRaw = prefs.getString(legacyKey);
-        final legacy = legacyRaw == null ? null : DateTime.tryParse(legacyRaw);
-        if (legacy != null) history.add(legacy);
-        await prefs.remove(legacyKey);
-      }
-    }
-
-    final pruned = _pruneHistory(history);
-    int? serverRemaining;
-    try {
-      serverRemaining =
-          await AppBackend.repositories.quests.getRerollsRemaining();
-    } on Object {
-      // Preserve the local rolling-window UX while offline. The server still
-      // enforces the authoritative limit when a reroll is recorded.
-    }
-    if (!mounted) return;
-    setState(() {
-      _rerollHistory = pruned;
-      _serverRerollsRemaining = serverRemaining;
-    });
-  }
-
-  List<DateTime> _pruneHistory(List<DateTime> history) {
-    final cutoff = DateTime.now().subtract(_rerollWindow);
-    return history.where((t) => t.isAfter(cutoff)).toList()..sort();
-  }
-
-  int get _rerollsRemaining {
-    final pruned = _pruneHistory(_rerollHistory);
-    final used = pruned.length;
-    final remaining = _maxRerollsPerWindow - used;
-    final local = remaining < 0 ? 0 : remaining;
-    final server = _serverRerollsRemaining;
-    return server == null || local < server ? local : server;
   }
 
   Future<void> _fetchQuests() async {
     try {
-      // Server returns up to 3 options. If the user has a pending
-      // admin injection, it is pinned at index 0 and consumed in the
-      // same call — so it pops up only on this first generate, never
-      // resurfaces, and never appears for any other user.
+      // Server returns up to 3 options. If the user has a pending admin
+      // injection, it is pinned at index 0 and consumed in the same call —
+      // so it pops up only on this first generate, never resurfaces, and
+      // never appears for any other user.
       final picks =
           await ref.read(questsRepositoryProvider).getQuestPickerOptions();
       if (!mounted) return;
-      setState(() => _options = picks);
+      setState(() {
+        _options = picks;
+        _selected = 0;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'No quests available right now');
@@ -1662,8 +1414,9 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
 
   Future<void> _reroll() async {
     if (_rerolling || _assigning) return;
-    if (!_canRerollNow()) {
-      await _showRerollLimitDialog();
+    final budget = ref.read(rerollBudgetProvider).valueOrNull;
+    if (budget != null && !budget.canReroll) {
+      await _showRerollLimitDialog(budget);
       return;
     }
 
@@ -1671,16 +1424,16 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
       _rerolling = true;
       _error = null;
     });
-    // Brief pause so the user sees the shuffle animation play out.
-    await Future.delayed(const Duration(milliseconds: 350));
     try {
       final picks =
           await ref.read(questsRepositoryProvider).getQuestPickerOptions();
-      if (!mounted) return;
-      await _recordReroll();
+      final user = ref.read(authSessionProvider);
+      if (user != null) await recordReroll(user.id);
+      ref.invalidate(rerollBudgetProvider);
       if (!mounted) return;
       setState(() {
         _options = picks;
+        _selected = 0;
         _deckKey++;
         _rerolling = false;
       });
@@ -1693,343 +1446,303 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
     }
   }
 
-  bool _canRerollNow() => _rerollsRemaining > 0;
-
-  /// Time until the oldest reroll in the current window expires, freeing
-  /// up a slot. Returns null if rerolls are available right now.
-  Duration? _rerollRefillIn() {
-    if (_canRerollNow()) return null;
-    final pruned = _pruneHistory(_rerollHistory);
-    if (pruned.isEmpty) return null;
-    final oldest = pruned.first;
-    final unlock = oldest.add(_rerollWindow);
-    final remaining = unlock.difference(DateTime.now());
-    return remaining.isNegative ? Duration.zero : remaining;
-  }
-
-  Future<void> _recordReroll() async {
-    final serverRemaining = await AppBackend.repositories.quests.recordReroll();
-    final now = DateTime.now();
-    final next = _pruneHistory([..._rerollHistory, now]);
-    final key = _rerollStorageKey;
-    if (key != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final encoded = jsonEncode(next.map((t) => t.toIso8601String()).toList());
-      await prefs.setString(key, encoded);
-    }
-    if (!mounted) return;
-    setState(() {
-      _rerollHistory = next;
-      _serverRerollsRemaining = serverRemaining;
-    });
-  }
-
-  Future<void> _showRerollLimitDialog() async {
-    final refillIn = _rerollRefillIn();
-    final hours = refillIn == null ? 24 : refillIn.inHours;
-    final minutes = refillIn == null ? 0 : refillIn.inMinutes.remainder(60);
+  Future<void> _showRerollLimitDialog(RerollBudget budget) async {
+    final refillIn = budget.refillIn;
     final waitText = refillIn == null
         ? 'Try again later.'
-        : 'Next reroll unlocks in ${hours}h ${minutes}m.';
+        : 'Next reroll unlocks in ${refillIn.inHours}h '
+            '${refillIn.inMinutes.remainder(60)}m.';
 
     await showDialog<void>(
       context: context,
-      barrierColor: QuestColors.pureBlack.withAlpha(170),
-      builder: (dialogContext) {
-        final ink = QuestColors.text(dialogContext);
-        return AlertDialog(
-          backgroundColor: QuestColors.cardBg(dialogContext),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: BorderSide(color: ink, width: 2),
-          ),
-          title: Text(
-            'REROLL LIMIT',
-            style: QuestTypography.headlineSmall.copyWith(
-              color: QuestColors.osRedText,
-              letterSpacing: 1,
-            ),
-          ),
-          content: Text(
-            'You\'ve used all $_maxRerollsPerWindow rerolls for this 24h window.\n\n$waitText',
-            style: QuestTypography.bodyMedium.copyWith(
-              color: QuestColors.text(dialogContext),
-              height: 1.35,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                'OK',
-                style: QuestTypography.labelMedium.copyWith(
-                  color: QuestColors.osPrimary,
-                  letterSpacing: 1,
-                ),
+      barrierColor: QuestColors.osTextPrimary.withAlpha(184),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: QuestColors.osCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: QuestColors.osTextPrimary, width: 2),
+        ),
+        title: Text(
+          'REROLL LIMIT',
+          style: QuestTypography.osHeadlineLarge.copyWith(letterSpacing: 0.4),
+        ),
+        content: Text(
+          "You've used all ${RerollBudget.maxPerWindow} rerolls for this 24h "
+          'window.\n\n$waitText',
+          style: QuestTypography.osBodyMedium.copyWith(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'OK',
+              style: QuestTypography.osLabelMedium.copyWith(
+                color: QuestColors.osPrimary,
               ),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
-  Future<void> _assign(QuestModel q) async {
-    if (_assigning) return;
+  Future<void> _accept() async {
+    final options = _options;
+    if (_assigning || options == null || options.isEmpty) return;
+    final quest = options[_selected.clamp(0, options.length - 1)];
     setState(() => _assigning = true);
     try {
       final user = ref.read(authSessionProvider);
       if (user == null) throw StateError('Not logged in');
       await ref
           .read(questsRepositoryProvider)
-          .assignSpecificQuest(user.id, q.id);
+          .assignSpecificQuest(user.id, quest.id);
       ref.invalidate(activeQuestProvider);
       ref.invalidate(questHistoryProvider);
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('NEW QUEST: ${q.title.toUpperCase()}'),
+          content: Text('NEW QUEST: ${quest.title.toUpperCase()}'),
           duration: const Duration(seconds: 2),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
-      String userMsg = 'Could not assign quest';
-      if (msg.contains('already has an active quest')) {
-        userMsg = 'You already have an active quest';
-      }
       setState(() {
         _assigning = false;
-        _error = userMsg;
+        _error = msg.contains('already has an active quest')
+            ? 'You already have an active quest'
+            : 'Could not assign quest';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    final onCoral = QuestColors.onAccent(QuestColors.osRed);
-    final showPicker = _spinDone && _options != null;
-    final pickerReady = showPicker && _options!.isNotEmpty;
+    final options = _options;
+    final budget = ref.watch(rerollBudgetProvider).valueOrNull;
+    final busy = _assigning || _rerolling;
+    final ready = options != null && options.isNotEmpty;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-          decoration: BoxDecoration(
-            color: _dialogBg,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: ink, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: ink,
-                offset: const Offset(3, 5),
-                blurRadius: 0,
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: QuestColors.osTextPrimary,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!_spinDone || _error == null)
-                _GeneratingText(
-                  duration: _spinDuration,
-                  onDone: () {
-                    if (!mounted) return;
-                    setState(() => _spinDone = true);
-                  },
-                ),
-              const SizedBox(height: 16),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
                   child: Text(
-                    _error!.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    style: QuestTypography.labelMedium.copyWith(
-                      color: QuestColors.osRed,
-                      letterSpacing: 1.2,
+                    'PICK ONE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osDisplayMedium.copyWith(
+                      fontSize: 30,
+                      height: 1,
+                      letterSpacing: -1.05,
                     ),
                   ),
-                )
-              else if (!showPicker)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 26),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(QuestColors.accentYellow),
-                  ),
-                )
-              else if (!pickerReady)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Text(
-                    'NO QUESTS AVAILABLE',
-                    style: QuestTypography.labelMedium.copyWith(
-                      color: QuestColors.textPrimary.withAlpha(180),
-                      letterSpacing: 1.2,
+                ),
+                if (budget != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: QuestColors.osAccent,
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: QuestColors.osTextPrimary,
+                        width: 2,
+                      ),
+                    ),
+                    child: Text(
+                      '${budget.remaining} REROLLS',
+                      maxLines: 1,
+                      style: QuestTypography.osLabelMedium.copyWith(
+                        color: QuestColors.onAccent(QuestColors.osAccent),
+                        fontSize: 10,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
-                )
-              else ...[
-                Text(
-                  'PICK ONE',
-                  style: QuestTypography.labelSmall.copyWith(
-                    color: QuestColors.textPrimary.withAlpha(180),
-                    letterSpacing: 2,
-                    fontSize: 11,
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choosing locks the other two. The timer starts the moment you '
+              'accept.',
+              style: QuestTypography.osBodySmall.copyWith(
+                color: QuestColors.osTextSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: QuestTypography.osBodyMedium.copyWith(
+                    // Coral as small type on cream fails; the text twin
+                    // is what passes.
+                    color: QuestColors.osRedText,
                   ),
                 ),
-                const SizedBox(height: 12),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, anim) => SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.15, 0),
-                      end: Offset.zero,
-                    ).animate(anim),
-                    child: FadeTransition(opacity: anim, child: child),
+              )
+            else if (options == null)
+              const Column(
+                children: [
+                  ArcadeSkeleton(height: 104, radius: 15),
+                  SizedBox(height: 12),
+                  ArcadeSkeleton(height: 92, radius: 15),
+                  SizedBox(height: 12),
+                  ArcadeSkeleton(height: 92, radius: 15),
+                ],
+              )
+            else if (options.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text(
+                  'No quests available right now.',
+                  textAlign: TextAlign.center,
+                  style: QuestTypography.osBodyMedium.copyWith(
+                    color: QuestColors.osTextSecondary,
                   ),
-                  child: Column(
-                    key: ValueKey(_deckKey),
-                    children: [
-                      for (var i = 0; i < _options!.length; i++) ...[
-                        _QuestChoiceCard(
-                          quest: _options![i],
-                          disabled: _assigning || _rerolling,
-                          index: i,
-                          onPick: () => _assign(_options![i]),
+                ),
+              )
+            else
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, anim) => SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.12, 0),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: FadeTransition(opacity: anim, child: child),
+                ),
+                child: Column(
+                  key: ValueKey(_deckKey),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < options.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 12),
+                      _QuestChoiceCard(
+                        quest: options[i],
+                        selected: i == _selected,
+                        disabled: busy,
+                        onSelect: () => setState(() => _selected = i),
+                        onPreview: () => _showQuestPreview(
+                          context,
+                          quest: options[i],
+                          onPick: () {
+                            setState(() => _selected = i);
+                            _accept();
+                          },
                         ),
-                        if (i < _options!.length - 1)
-                          const SizedBox(height: 10),
-                      ],
+                      ),
                     ],
+                  ],
+                ),
+              ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _SheetButton(
+                  label: 'REROLL',
+                  fill: QuestColors.osSurface,
+                  fontSize: 14,
+                  onTap: busy ? null : _reroll,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: _SheetButton(
+                    label: 'ACCEPT',
+                    fill: QuestColors.osSuccess,
+                    fontSize: 16,
+                    expand: true,
+                    onTap: (busy || !ready) ? null : _accept,
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap:
-                          _assigning ? null : () => Navigator.of(context).pop(),
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        height: kMinTouchTarget,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: QuestColors.pureWhite.withAlpha(12),
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(
-                            color: QuestColors.textPrimary.withAlpha(120),
-                            width: 1.3,
-                          ),
-                        ),
-                        child: Text(
-                          'CANCEL',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: QuestTypography.labelMedium.copyWith(
-                            color: QuestColors.textPrimary.withAlpha(220),
-                            letterSpacing: 1.4,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (pickerReady) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: (_assigning || _rerolling) ? null : _reroll,
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          height: kMinTouchTarget,
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: QuestColors.osRed,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(color: onCoral, width: 2),
-                          ),
-                          child: _rerolling
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(onCoral),
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.refresh_rounded,
-                                        color: onCoral, size: 14),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        'RE-ROLL',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: QuestTypography.labelMedium
-                                            .copyWith(
-                                          color: onCoral,
-                                          letterSpacing: 1.4,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    // Remaining-count chip — sits inside
-                                    // the button so users see at a glance
-                                    // how many of their 5 daily rerolls
-                                    // are left.
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            QuestColors.pureWhite.withAlpha(60),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: onCoral,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '$_rerollsRemaining/$_maxRerollsPerWindow',
-                                        maxLines: 1,
-                                        style:
-                                            QuestTypography.labelSmall.copyWith(
-                                          color: onCoral,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.6,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The sheet's own 54pt button: `r13`, 2px ink, 4px ink shadow. Sized to
+/// the frame rather than to `ArcadeButton`'s 56pt, because these two sit
+/// in a row whose height the frame fixes.
+class _SheetButton extends StatelessWidget {
+  const _SheetButton({
+    required this.label,
+    required this.fill,
+    required this.fontSize,
+    required this.onTap,
+    this.expand = false,
+  });
+
+  final String label;
+  final Color fill;
+  final double fontSize;
+  final VoidCallback? onTap;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: Container(
+          height: 54,
+          width: expand ? double.infinity : null,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: ink, width: 2),
+            boxShadow: enabled ? QuestSpacing.shadowMd : const [],
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osButtonText.copyWith(
+              // The fill decides the foreground. Jade and cream both take
+              // ink; neither takes white.
+              color: QuestColors.onAccent(fill),
+              fontSize: fontSize,
+              letterSpacing: fontSize * 0.05,
+            ),
           ),
         ),
       ),
@@ -2037,289 +1750,147 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
   }
 }
 
-/// Casino-style letter-spin reveal. Each column cycles through random glyphs
-/// at ~12 fps and settles on the target letter in staggered left-to-right
-/// order over [duration]. When the last letter lands, [onDone] is invoked.
-class _GeneratingText extends StatefulWidget {
-  const _GeneratingText({
-    required this.duration,
-    required this.onDone,
-  });
-
-  final Duration duration;
-  final VoidCallback onDone;
-  final String text = 'GENERATING';
-
-  @override
-  State<_GeneratingText> createState() => _GeneratingTextState();
-}
-
-class _GeneratingTextState extends State<_GeneratingText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ac;
-  Timer? _tick;
-  final _rand = Random();
-  int _tickCount = 0;
-  bool _done = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ac = AnimationController(vsync: this, duration: widget.duration)
-      ..forward().whenComplete(() {
-        if (!mounted || _done) return;
-        _done = true;
-        widget.onDone();
-      });
-    _tick = Timer.periodic(const Duration(milliseconds: 70), (_) {
-      if (!mounted) return;
-      setState(() => _tickCount++);
-    });
-  }
-
-  @override
-  void dispose() {
-    _tick?.cancel();
-    _ac.dispose();
-    super.dispose();
-  }
-
-  String _charAt(int i) {
-    final settledAt = 0.25 + (i / widget.text.length) * 0.72;
-    if (_ac.value >= settledAt) return widget.text[i];
-    // Cycle through uppercase letters pseudo-randomly per tick.
-    final code = 65 + ((_rand.nextInt(26) + _tickCount + i) % 26);
-    return String.fromCharCode(code);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ac,
-      builder: (_, __) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(widget.text.length, (i) {
-            final settledAt = 0.25 + (i / widget.text.length) * 0.72;
-            final settled = _ac.value >= settledAt;
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              width: 22,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: settled
-                    ? QuestColors.accentYellow
-                    : QuestColors.pureWhite.withAlpha(12),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: settled
-                      ? QuestColors.pureWhite
-                      : QuestColors.pureWhite
-                          .withAlpha(QuestColors.alphaHairline),
-                  width: 1.2,
-                ),
-              ),
-              child: Text(
-                _charAt(i),
-                style: QuestTypography.headlineMedium.copyWith(
-                  color: settled
-                      ? QuestColors.accentYellowInk
-                      : QuestColors.textPrimary,
-                  fontSize: 16,
-                  height: 1,
-                  letterSpacing: 0,
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-}
-
+/// One of the three options.
+///
+/// Selected: its own category colour as the ground with an ink shadow.
+/// Unselected: white with a 3px… no — 5px shadow in the category colour.
+/// The frame uses that inversion as the selection state, so the armed
+/// card is legible without a tick or a ring.
 class _QuestChoiceCard extends StatelessWidget {
   const _QuestChoiceCard({
     required this.quest,
-    required this.onPick,
-    required this.index,
+    required this.selected,
     required this.disabled,
+    required this.onSelect,
+    required this.onPreview,
   });
 
   final QuestModel quest;
-  final VoidCallback onPick;
-  final int index;
+  final bool selected;
   final bool disabled;
-
-  Color _tint() {
-    switch (index % 3) {
-      case 0:
-        return QuestColors.osRed;
-      case 1:
-        return QuestColors.accentYellow;
-      default:
-        return QuestColors.osPrimary;
-    }
-  }
-
-  /// Difficulty chip color for the quest row.
-  (Color, String) _difficultyStyle() {
-    switch (quest.difficulty.toLowerCase()) {
-      case 'easy':
-        return (QuestColors.osSuccess, 'EASY');
-      case 'hard':
-        return (QuestColors.osRed, 'HARD');
-      case 'medium':
-      default:
-        return (QuestColors.accentYellow, 'MEDIUM');
-    }
-  }
+  final VoidCallback onSelect;
+  final VoidCallback onPreview;
 
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final tint = _tint();
-    final onTint = QuestColors.onAccent(tint);
-    final (diffColor, diffLabel) = _difficultyStyle();
-    // Tap and long-press both open the preview sheet — no auto-pick. The
-    // sheet's PICK THIS QUEST button is the actual commit step, with
-    // CLOSE giving an obvious back-out. Players were being assigned
-    // quests on a stray tap; the explicit confirm prevents that.
-    void openPreview() {
-      HapticFeedback.selectionClick();
-      _showQuestPreview(
-        context,
-        quest: quest,
-        tint: tint,
-        onPick: onPick,
-      );
-    }
+    final tint = QuestColors.category(quest.category);
+    final ground = selected ? tint : QuestColors.osCard;
+    final fg = QuestColors.onAccent(ground);
+    final metaColor = selected ? fg : QuestColors.osTextSecondary;
 
-    return GestureDetector(
-      onTap: disabled ? null : openPreview,
-      onLongPress: disabled ? null : openPreview,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 150),
-        opacity: disabled ? 0.55 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: tint,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: ink, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: ink,
-                offset: const Offset(3, 3),
-                blurRadius: 0,
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        onTap: disabled ? null : onSelect,
+        onLongPress: disabled ? null : onPreview,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: disabled ? 0.55 : 1,
+          child: Container(
+            constraints: const BoxConstraints(
+              minHeight: QuestSpacing.minTouchTarget,
+            ),
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: ground,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: ink, width: 2),
+              boxShadow: QuestSpacing.hardShadow(
+                5,
+                color: selected ? ink : tint,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title row with icon + chevron
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: QuestColors.pureWhite.withAlpha(40),
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: onTint, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(Icons.flag_rounded, color: onTint, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      quest.title,
-                      style: QuestTypography.headlineSmall.copyWith(
-                        color: onTint,
-                        fontSize: 14,
-                        letterSpacing: 0.4,
-                        height: 1.2,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // On the selected card the tag sits on its own colour,
+                    // so its ground flips to cream to stay legible.
+                    Flexible(
+                      child: _ChoiceTag(
+                        label: quest.category,
+                        fill: selected ? QuestColors.osBg : tint,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.chevron_right_rounded, color: onTint, size: 22),
-                ],
-              ),
-              if (quest.description.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _meta(quest),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: QuestTypography.osLabelMedium.copyWith(
+                          color: metaColor,
+                          fontSize: 10,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
                 Text(
-                  quest.description,
-                  style: QuestTypography.bodySmall.copyWith(
-                    color: QuestColors.onAccentSoft(tint),
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
+                  quest.title.toUpperCase(),
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osHeadlineLarge.copyWith(
+                    color: fg,
+                    fontSize: 19,
+                    height: 1.15,
+                    letterSpacing: -0.48,
+                  ),
                 ),
               ],
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  // Difficulty chip
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: diffColor,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: ink, width: 1.3),
-                    ),
-                    child: Text(
-                      diffLabel,
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: QuestColors.onAccent(diffColor),
-                        fontSize: 10,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ),
-                  // XP chip
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: QuestColors.pureWhite.withAlpha(36),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: onTint, width: 1.3),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bolt_rounded, color: onTint, size: 12),
-                        const SizedBox(width: 3),
-                        Text(
-                          '+${quest.xpReward} XP',
-                          maxLines: 1,
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: onTint,
-                            fontSize: 10,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// `3H · 120 XP · MED` — the frame's single meta line.
+  static String _meta(QuestModel quest) {
+    final hours = quest.durationHours;
+    final duration = hours <= 0
+        ? 'NO LIMIT'
+        : hours < 24
+            ? '${hours}H'
+            : '${hours ~/ 24}D';
+    final difficulty = switch (quest.difficulty.toLowerCase()) {
+      'easy' => 'EASY',
+      'hard' => 'HARD',
+      _ => 'MED',
+    };
+    return '$duration · ${quest.xpReward} XP · $difficulty';
+  }
+}
+
+class _ChoiceTag extends StatelessWidget {
+  const _ChoiceTag({required this.label, required this.fill});
+  final String label;
+  final Color fill;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: QuestTypography.osLabelSmall.copyWith(
+          color: QuestColors.onAccent(fill),
+          fontSize: 9,
+          letterSpacing: 1,
         ),
       ),
     );
@@ -2394,22 +1965,10 @@ class _PendingListDialog extends StatelessWidget {
                       ],
                     ),
                   ),
-                  GestureDetector(
+                  ArcadeIconTile(
+                    icon: Icons.close_rounded,
+                    semanticLabel: 'Close',
                     onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: BsMinTouch(
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: QuestColors.cardBg(context),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: ink, width: 1.6),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(Icons.close_rounded, color: ink, size: 16),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -2536,7 +2095,6 @@ class _RecentQuestsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     final sorted = [...quests]..sort((a, b) {
         final at = a.completedAt ?? a.assignedAt;
         final bt = b.completedAt ?? b.assignedAt;
@@ -2544,88 +2102,57 @@ class _RecentQuestsCard extends StatelessWidget {
       });
     final latest = sorted.take(5).toList();
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2),
-        boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Section header — full-width hairline, no SEE MORE here
-          Row(
-            children: [
-              Container(width: 20, height: 2, color: ink),
-              const SizedBox(width: 8),
-              Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // A bare label row on the page, not a wrapping white card: the
+        // frame puts the rows straight on the cream, and a card around
+        // them double-outlined every row.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
                 'RECENT QUESTS',
-                style: QuestTypography.headlineSmall.copyWith(
-                  color: ink,
-                  fontSize: 14,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  height: 2,
-                  color: ink.withAlpha(QuestColors.alphaWhisper),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (var i = 0; i < latest.length; i++) ...[
-            _RecentQuestRow(q: latest[i]),
-            if (i < latest.length - 1) const SizedBox(height: 6),
-          ],
-          const SizedBox(height: 12),
-          // SEE MORE button — centered at the bottom of the card
-          Center(
-            child: GestureDetector(
-              onTap: onSeeMore,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: QuestColors.osPrimary,
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: ink, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ink,
-                      offset: const Offset(0, 2),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'SEE MORE',
-                      style: QuestTypography.labelMedium.copyWith(
-                        color: QuestColors.osTextOnPrimary,
-                        fontSize: 11,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded,
-                        color: QuestColors.osTextOnPrimary, size: 16),
-                  ],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osLabelMedium.copyWith(
+                  color: QuestColors.osTextSecondary,
+                  fontSize: 11,
+                  letterSpacing: 1.32,
                 ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onSeeMore,
+              behavior: HitTestBehavior.opaque,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: QuestSpacing.minTouchTarget,
+                  minWidth: QuestSpacing.minTouchTarget,
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Text(
+                    'SEE MORE',
+                    maxLines: 1,
+                    style: QuestTypography.osLabelMedium.copyWith(
+                      color: QuestColors.osPrimary,
+                      fontSize: 11,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < latest.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          _RecentQuestRow(q: latest[i]),
         ],
-      ),
+      ],
     );
   }
 }
@@ -2634,16 +2161,16 @@ class _RecentQuestRow extends StatelessWidget {
   const _RecentQuestRow({required this.q});
   final UserQuestModel q;
 
-  (String, Color) _statusStyle(BuildContext context) {
+  (String, Color) _statusStyle() {
     switch (q.status) {
       case UserQuestStatus.approved:
-        return ('ACCEPTED', QuestColors.osSuccess);
+        return ('DONE', QuestColors.osSuccess);
       case UserQuestStatus.rejected:
         return ('REJECTED', QuestColors.osRed);
       case UserQuestStatus.expired:
-        return ('TIMED OUT', QuestColors.osTextMuted);
+        return ('EXPIRED', QuestColors.osTextMuted);
       case UserQuestStatus.submitted:
-        return ('PENDING', QuestColors.accentYellow);
+        return ('IN REVIEW', QuestColors.osAccent);
       case UserQuestStatus.assigned:
         return ('ACTIVE', QuestColors.osPrimary);
       default:
@@ -2654,25 +2181,22 @@ class _RecentQuestRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final (statusText, statusColor) = _statusStyle(context);
+    final (statusText, statusColor) = _statusStyle();
     return Container(
+      constraints: const BoxConstraints(
+        minHeight: QuestSpacing.minTouchTarget,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
-        // The frame draws these as white cards with a full 2px outline, not
-        // warm surface behind a hairline.
+        // The frame draws these as white cards with a full 2px outline,
+        // not warm surface behind a hairline.
         color: QuestColors.osCard,
         borderRadius: BorderRadius.circular(12),
+        // The shadow carries the status. Reading a row's outcome from the
+        // colour under it is faster than reading the label, which is the
+        // whole reason the design tints it rather than using ink here.
+        boxShadow: QuestSpacing.hardShadow(3, color: statusColor),
         border: Border.all(color: ink, width: 2),
-        boxShadow: [
-          // The shadow carries the status. Reading a row's outcome from the
-          // colour under it is faster than reading the label, which is the
-          // whole reason the design tints it rather than using ink here.
-          BoxShadow(
-            color: statusColor,
-            offset: const Offset(3, 3),
-            blurRadius: 0,
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -2692,33 +2216,27 @@ class _RecentQuestRow extends StatelessWidget {
           Expanded(
             child: Text(
               q.quest?.title ?? 'Quest',
-              overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: QuestTypography.labelMedium.copyWith(
-                color: ink,
-                fontSize: 12,
-                letterSpacing: 0.2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osBodyMedium.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontVariations: const [FontVariation('wght', 600)],
+                height: 1.2,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: ink, width: 1),
-            ),
-            child: Text(
-              statusText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: QuestTypography.labelSmall.copyWith(
-                color: QuestColors.onAccent(statusColor),
-                fontSize: 9,
-                letterSpacing: 0.8,
-                height: 1,
-              ),
+          const SizedBox(width: 10),
+          // Plain mono type in the frame, not a filled pill: the dot and
+          // the shadow already carry the colour, and a third coloured
+          // element on a 44pt row is noise.
+          Text(
+            statusText,
+            maxLines: 1,
+            style: QuestTypography.osLabelSmall.copyWith(
+              color: QuestColors.osTextSecondary,
+              fontSize: 9,
+              letterSpacing: 0.72,
             ),
           ),
         ],
@@ -2734,18 +2252,17 @@ class _RecentQuestRow extends StatelessWidget {
 Future<void> _showQuestPreview(
   BuildContext context, {
   required QuestModel quest,
-  required Color tint,
   required VoidCallback onPick,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: QuestColors.pureBlack.withAlpha(170),
+    barrierColor: QuestColors.osTextPrimary.withAlpha(184),
     useSafeArea: true,
     builder: (sheetContext) => _QuestPreviewSheet(
       quest: quest,
-      tint: tint,
+      tint: QuestColors.category(quest.category),
       onPick: () {
         Navigator.of(sheetContext).pop();
         onPick();

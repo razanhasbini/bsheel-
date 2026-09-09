@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/backend/app_backend.dart';
-import '../../../../core/providers/admin_counts_provider.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/layout/admin_shell.dart';
@@ -49,6 +48,51 @@ final _queueHeadProvider =
   return rows.map(PendingSubmission.fromJson).toList();
 });
 
+/// How far back the throughput chart and the actions list read. The
+/// design draws fourteen bars; the window is capped by [_decidedLimit],
+/// so the chart renders only the days it can actually see (see
+/// [_ThroughputPanel]) rather than painting a truncated day as a zero.
+const int _throughputDays = 14;
+
+/// One API page of decided submissions. Both right-column panels read the
+/// same fetch — the chart buckets it by day, the actions list takes the
+/// head of it — so the dashboard does not issue two overlapping reads for
+/// the same rows.
+const int _decidedLimit = 400;
+
+/// Decided submissions, newest decision first.
+///
+/// There is no `admin_audit_log` read endpoint on the API (the table is
+/// written but never exposed), so this is the whole of the admin activity
+/// the console can honestly show: moderation decisions. Anything else an
+/// admin does — setting the Quest of the Day, editing the bank — is
+/// audited server-side and cannot be read back yet.
+final _decidedProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await AppBackend.repositories.moderation.listSubmissionsForAdmin(
+    status: 'all',
+    order: 'desc',
+    limit: _decidedLimit,
+  );
+  // `status: all` includes what is still pending; a decision is a row with
+  // a `reviewed_at`, so filter on that rather than on the status string.
+  final decided = rows
+      .where(
+        (r) =>
+            DateTime.tryParse(
+              (r[SubmissionColumns.reviewedAt] ?? '').toString(),
+            ) !=
+            null,
+      )
+      .toList()
+    ..sort((a, b) => _reviewedAt(b)!.compareTo(_reviewedAt(a)!));
+  return decided;
+});
+
+DateTime? _reviewedAt(Map<String, dynamic> row) => DateTime.tryParse(
+      (row[SubmissionColumns.reviewedAt] ?? '').toString(),
+    );
+
 /// The moment the counters last landed, for the header's freshness line.
 ///
 /// Derived rather than folded into [_dashboardStatsProvider] so that
@@ -77,27 +121,70 @@ class AdminDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fetchedAt = ref.watch(_statsFetchedAtProvider);
 
-    // Real admin name from the signed-in profile; falls back to "Admin"
-    // while the lookup is in flight (same source as the sidebar footer).
-    // The design's header is the page title, so the greeting the old hero
-    // carried lives on the meta line instead.
-    final adminName =
-        ref.watch(adminMetaProvider).valueOrNull?.displayName.trim() ?? '';
-    final firstName = adminName.isEmpty ? 'Admin' : adminName.split(' ').first;
-
     return AdminPage(
       title: 'Dashboard',
-      meta: fetchedAt == null
-          ? firstName
-          : '$firstName · Updated ${_hhmm(fetchedAt)}',
+      // The design's meta line is the freshness stamp and nothing else —
+      // who is signed in is already the sidebar footer's job, and saying
+      // it twice on the same screen is what pushed the stamp off the end
+      // of the line on a narrow window.
+      meta: fetchedAt == null ? null : 'Updated ${_hhmm(fetchedAt)}',
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _StatTiles(),
           SizedBox(height: 22),
-          _QueueSection(),
+          _WorkColumns(),
         ],
       ),
+    );
+  }
+}
+
+/// The queue beside the two read-only panels, `1.35fr / 1fr` as drawn.
+/// Below the two-column threshold they stack, queue first: the queue is
+/// the only thing on this page a moderator can act on.
+class _WorkColumns extends StatelessWidget {
+  const _WorkColumns();
+
+  /// Under this the 4-column queue table and a 300px-ish panel column
+  /// cannot both hold their minimums.
+  static const double _twoColumnMin = 900;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _twoColumnMin) {
+          return const Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _QueueSection(),
+              SizedBox(height: 20),
+              _ThroughputPanel(),
+              SizedBox(height: 20),
+              _RecentActionsPanel(),
+            ],
+          );
+        }
+        return const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 135, child: _QueueSection()),
+            SizedBox(width: 20),
+            Expanded(
+              flex: 100,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ThroughputPanel(),
+                  SizedBox(height: 20),
+                  _RecentActionsPanel(),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -151,9 +238,8 @@ class _StatTiles extends ConsumerWidget {
             BsheelStatTile(
               label: 'Awaiting review',
               value: '${s['pending']}',
-              footnote: (oldest == null || oldest.isEmpty)
-                  ? null
-                  : 'Oldest $oldest',
+              footnote:
+                  (oldest == null || oldest.isEmpty) ? null : 'Oldest $oldest',
               ground: BsheelColors.accent,
               onTap: () => context.goNamed(AdminRouteNames.pendingSubmissions),
             ),
@@ -203,14 +289,12 @@ class _TileGrid extends StatelessWidget {
                 ? 2
                 : 4;
         const gap = 12.0;
-        final width =
-            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final child in children)
-              SizedBox(width: width, child: child),
+            for (final child in children) SizedBox(width: width, child: child),
           ],
         );
       },
@@ -261,6 +345,10 @@ class _QueueSection extends ConsumerWidget {
               );
             }
             return BsheelTable(
+              // 4px here, not the 5px a full-page table takes: on the
+              // dashboard this is one panel among several, and the design
+              // reserves the deeper shadow for a table that *is* the page.
+              depth: 4,
               columns: const [
                 BsheelColumn('Submission'),
                 BsheelColumn('User', width: 96),
@@ -268,8 +356,7 @@ class _QueueSection extends ConsumerWidget {
                 BsheelColumn('Type', width: 82),
               ],
               rows: [
-                for (final submission in queue)
-                  _queueRow(context, submission),
+                for (final submission in queue) _queueRow(context, submission),
               ],
             );
           },
@@ -306,6 +393,261 @@ class _QueueSection extends ConsumerWidget {
       onTap: () => context.goNamed(
         AdminRouteNames.submissionReview,
         pathParameters: {'id': submission.id},
+      ),
+    );
+  }
+}
+
+// ── Review throughput ────────────────────────────────────────────────
+
+/// Decisions per day, newest on the right, as a bar per day.
+///
+/// The label carries the number of days the chart actually covers rather
+/// than a flat `14 DAYS`: the fetch is one API page, so on a busy console
+/// it may only reach back a few days, and drawing the days it cannot see
+/// as empty bars would read as "nobody worked" instead of "not fetched".
+class _ThroughputPanel extends ConsumerWidget {
+  const _ThroughputPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final decidedAsync = ref.watch(_decidedProvider);
+
+    return decidedAsync.when(
+      loading: () => const _Panel(
+        label: 'Review throughput',
+        child: BsheelSkeleton(height: 124, radius: BsheelRadii.lg),
+      ),
+      // The chart is a read-only aside. A failure here must not shout over
+      // the queue, which is the page's actual job, so it states the gap on
+      // one line and leaves the retry to the queue's own error state.
+      error: (_, __) => const _Panel(
+        label: 'Review throughput',
+        child: _PanelNote('The decision history did not come back, so the '
+            'chart is empty. Nothing else on this page is affected.'),
+      ),
+      data: (decided) {
+        if (decided.isEmpty) {
+          return const _Panel(
+            label: 'Review throughput',
+            child: _PanelNote('No submission has been decided yet, so there '
+                'is nothing to plot.'),
+          );
+        }
+
+        final today = DateTime.now().toLocal();
+        final midnight = DateTime(today.year, today.month, today.day);
+
+        // Only count back as far as the fetch reached, so a truncated
+        // window shows fewer bars rather than false zeroes.
+        final oldest = _reviewedAt(decided.last)!.toLocal();
+        final covered = midnight
+                .difference(DateTime(oldest.year, oldest.month, oldest.day))
+                .inDays +
+            1;
+        final days = covered.clamp(1, _throughputDays);
+
+        final buckets = List<double>.filled(days, 0);
+        for (final row in decided) {
+          final at = _reviewedAt(row)!.toLocal();
+          final age =
+              midnight.difference(DateTime(at.year, at.month, at.day)).inDays;
+          if (age < 0 || age >= days) continue;
+          buckets[days - 1 - age] += 1;
+        }
+
+        return _Panel(
+          label: 'Review throughput · $days ${days == 1 ? "day" : "days"}',
+          child: BsheelBarChart(values: buckets),
+        );
+      },
+    );
+  }
+}
+
+// ── Recent admin actions ─────────────────────────────────────────────
+
+/// The last few moderation decisions, newest first.
+class _RecentActionsPanel extends ConsumerWidget {
+  const _RecentActionsPanel();
+
+  /// Three rows is what the design draws, and what fits beside the chart
+  /// without the column outgrowing the queue next to it.
+  static const int _rows = 3;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final decidedAsync = ref.watch(_decidedProvider);
+
+    return decidedAsync.when(
+      loading: () => const _Panel(
+        label: 'Recent admin actions',
+        footnote: _actionsFootnote,
+        child: BsheelSkeleton(height: 116, radius: BsheelRadii.lg),
+      ),
+      error: (_, __) => const _Panel(
+        label: 'Recent admin actions',
+        child: _PanelNote('The decision log did not come back. No decision '
+            'was lost — this panel only reads.'),
+      ),
+      data: (decided) {
+        if (decided.isEmpty) {
+          return const _Panel(
+            label: 'Recent admin actions',
+            footnote: _actionsFootnote,
+            child: _PanelNote('Nothing has been decided yet. The first '
+                'approval or rejection lands here.'),
+          );
+        }
+
+        final rows = decided.take(_rows).toList();
+        return _Panel(
+          label: 'Recent admin actions',
+          footnote: _actionsFootnote,
+          child: Container(
+            decoration: BoxDecoration(
+              color: BsheelColors.card,
+              borderRadius: BorderRadius.circular(BsheelRadii.lg),
+              border: const Border.fromBorderSide(BsheelBorders.inkSide),
+              boxShadow: BsheelShadows.md,
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < rows.length; i++)
+                  _ActionRow(row: rows[i], last: i == rows.length - 1),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// The design's footnote reads `IMMUTABLE — WRITTEN TO admin_audit_log`.
+  /// The audit table exists and is written, but the API exposes no way to
+  /// read it, so this panel is built from the submissions themselves and
+  /// says exactly that instead of claiming a source it never touched.
+  static const String _actionsFootnote =
+      'Moderation decisions only — the full audit log is not readable yet';
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.row, required this.last});
+
+  final Map<String, dynamic> row;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final at = _reviewedAt(row)!.toLocal();
+    final approved = (row[SubmissionColumns.status] ?? '').toString() ==
+        SubmissionStatus.approved;
+    final note = (row[SubmissionColumns.reviewNote] as String?)
+        ?.split('\n')
+        .map((line) => line.replaceFirst('•', '').trim())
+        .where((line) => line.isNotEmpty)
+        .join(', ');
+    final moderator = _shortId(row[SubmissionColumns.reviewedBy]);
+    final target = _shortId(row[SubmissionColumns.id]);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
+      decoration: last
+          ? null
+          : const BoxDecoration(border: Border(bottom: BsheelBorders.rowSide)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _hhmm(at),
+            style: BsheelType.labelMd.copyWith(letterSpacing: 0),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Moderator '),
+                  TextSpan(text: moderator, style: _idStyle),
+                  TextSpan(text: approved ? ' approved ' : ' rejected '),
+                  TextSpan(text: target, style: _idStyle),
+                  if (!approved && note != null && note.isNotEmpty)
+                    TextSpan(text: ' — $note'),
+                ],
+              ),
+              // 12px on a 14px line is the design's audit line. Body copy,
+              // so it takes inkSoft rather than the placeholder muted.
+              style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkSoft),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// An id inside the sentence: mono, ink, so it reads as a value to
+  /// quote rather than as part of the prose.
+  static final TextStyle _idStyle = BsheelType.bodyXs.copyWith(
+    fontFamily: BsheelFonts.mono,
+    fontWeight: FontWeight.w700,
+    color: BsheelColors.ink,
+  );
+
+  /// First six characters of a uuid — enough to match a support thread.
+  static String _shortId(Object? value) {
+    final s = (value ?? '').toString().replaceAll('-', '');
+    if (s.isEmpty) return '—';
+    return s.length <= 6 ? s : s.substring(0, 6);
+  }
+}
+
+// ── Panel chrome ─────────────────────────────────────────────────────
+
+/// A tracked mono label, the panel, and an optional footnote under it —
+/// the shape both right-column panels share.
+class _Panel extends StatelessWidget {
+  const _Panel({required this.label, required this.child, this.footnote});
+
+  final String label;
+  final Widget child;
+  final String? footnote;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BsheelLabel(label),
+        const SizedBox(height: 10),
+        child,
+        if (footnote != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            footnote!.toUpperCase(),
+            style: BsheelType.labelSm.copyWith(height: 1.5),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// One sentence where a panel has nothing to draw. Dashed muted outline,
+/// so an empty panel reads as empty rather than as broken.
+class _PanelNote extends StatelessWidget {
+  const _PanelNote(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return BsheelCard.muted(
+      child: Text(
+        message,
+        style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
       ),
     );
   }

@@ -11,9 +11,20 @@ import '../../../../core/security/secure_screen.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
 import '../login_credentials.dart';
+import '../widgets/auth_field.dart';
 import '../widgets/social_sign_in_buttons.dart';
 import '../../../../l10n/app_localizations.dart';
 
+/// Log in, drawn from `export/mobile/16-login.jpg`.
+///
+/// Cream ground, 22 of side padding, everything vertically centred with a
+/// 15pt rhythm: `LOG IN` in Syne 800/42, two labelled fields, a right-aligned
+/// FORGOT PASSWORD?, the violet primary, an OR rule, the social buttons, and
+/// a centred sign-up line.
+///
+/// There is no card behind the fields and no wordmark above the title — both
+/// were inventions of the previous pass. The fields carry no shadow and no
+/// prefix icons.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -112,165 +123,198 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     final l = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: QuestColors.bg(context),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Pure-typographic wordmark. FittedBox auto-scales the
-                  // glyphs so the name always renders on a single line —
-                  // small iPhones (SE-class) get a smaller cap height,
-                  // Pro Max widths get more presence — without any text
-                  // ever wrapping or the screen having to reflow.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.center,
-                    child: Text(
-                      'BSHEEL',
-                      maxLines: 1,
-                      style: QuestTypography.displayLarge.copyWith(
-                        color: ink,
-                        fontSize: 44,
-                        letterSpacing: 2.5,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Auth card ─────────────────────────────────────
-                  ArcadeCard(
-                    padding: const EdgeInsets.all(18),
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Padding(
+                  // 22 of side padding, 24 top and bottom.
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        ArcadeTextField(
+                        Text(
+                          l.login.toUpperCase(),
+                          style: QuestTypography.osDisplayLarge.copyWith(
+                            fontSize: 42,
+                            height: 0.95,
+                            // -0.04em at 42px.
+                            letterSpacing: -1.68,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
                           label: l.email,
                           hint: l.enterEmail,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
-                          prefixIcon: Icons.alternate_email_rounded,
                           errorText: _emailError,
                           autocorrect: false,
                           autofillHints: const [AutofillHints.username],
                           onSubmitted: (_) => _passwordFocus.requestFocus(),
                         ),
-                        const SizedBox(height: 14),
-                        ArcadeTextField(
+                        const SizedBox(height: 15),
+                        AuthField(
                           controller: _passwordController,
                           focusNode: _passwordFocus,
                           label: l.password,
                           hint: l.enterPassword,
                           obscureText: true,
                           textInputAction: TextInputAction.done,
-                          prefixIcon: Icons.lock_outline_rounded,
                           errorText: _passwordError,
+                          autocorrect: false,
                           autofillHints: const [AutofillHints.password],
                           onSubmitted: (_) => _login(),
                         ),
                         // Offered only after a login attempt failed with
                         // "email not confirmed" — one tap re-sends the
                         // signup confirmation email.
-                        if (_offerResendConfirmation) ...[
-                          const SizedBox(height: 10),
-                          Align(
+                        // No 15 either side of these: `_MonoLink` is a 45pt
+                        // box around a 15pt label, which is exactly the
+                        // frame's 15 + label + 15. Padding it as well would
+                        // push the primary button 29 down the screen.
+                        if (_offerResendConfirmation)
+                          _MonoLink(
+                            label: 'RESEND CONFIRMATION EMAIL',
                             alignment: Alignment.centerLeft,
-                            child: GestureDetector(
-                              onTap: _resendConfirmation,
-                              behavior: HitTestBehavior.opaque,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Text(
-                                  'RESEND CONFIRMATION EMAIL',
-                                  style: QuestTypography.labelSmall.copyWith(
-                                    color: QuestColors.osPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
+                            onTap: _resendConfirmation,
                           ),
-                        ],
-                        const SizedBox(height: 10),
-                        Align(
+                        _MonoLink(
+                          label: l.forgotPassword,
                           alignment: Alignment.centerRight,
-                          child: GestureDetector(
-                            onTap: () =>
-                                context.pushNamed(RouteNames.forgotPassword),
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Text(
-                                l.forgotPassword,
-                                style: QuestTypography.bodySmall.copyWith(
-                                  color: QuestColors.osPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
+                          onTap: () =>
+                              context.pushNamed(RouteNames.forgotPassword),
                         ),
-                        const SizedBox(height: 12),
                         ArcadeButton(
-                          // No icon in the render, and the sheet's button is
-                          // 56pt (medium), not 60. The variant is left at the
-                          // default primary, which is violet with white text.
+                          // The frame's primary: violet ground, white label,
+                          // 56pt, r14, 5px shadow. No icon.
                           label: _isLoading ? l.loading : l.login,
                           isLoading: _isLoading,
                           onTap: _isLoading ? null : _login,
                         ),
+                        // SocialSignInButtons renders the OR rule itself
+                        // (and nothing at all when social login is off).
+                        const SocialSignInButtons(),
+                        // 6 + the 44pt box's 22 of half-height puts the
+                        // line's baseline where the frame's 15 + 4 margin
+                        // does, without the hit target moving it.
+                        const SizedBox(height: 6),
+                        _SignUpLine(
+                          prompt: l.noAccountYet,
+                          action: l.signup,
+                          onTap: () => context.goNamed(RouteNames.signup),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
-
-                  // SocialSignInButtons renders its own 'OR' divider
-                  // internally (only when social login is enabled).
-                  const SocialSignInButtons(),
-                  const SizedBox(height: 20),
-
-                  // ── Sign-up link ──────────────────────────────────
-                  Center(
-                    child: GestureDetector(
-                      onTap: () => context.goNamed(RouteNames.signup),
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text.rich(
-                          TextSpan(
-                            style: QuestTypography.bodyMedium.copyWith(
-                              color: ink.withAlpha(QuestColors.alphaInkMuted),
-                            ),
-                            children: [
-                              TextSpan(text: '${l.noAccountYet} '),
-                              TextSpan(
-                                text: '${l.signup} →',
-                                style: const TextStyle(
-                                  color: QuestColors.osPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A mono link — FORGOT PASSWORD? and the resend-confirmation action.
+///
+/// The paint is an 11px label. The box is 45 tall, which clears the 44pt
+/// floor *and* stands in for the frame's 15 gap + 15pt label + 15 gap, so
+/// the label lands on the same baseline it does in the frame.
+class _MonoLink extends StatelessWidget {
+  const _MonoLink({
+    required this.label,
+    required this.alignment,
+    required this.onTap,
+  });
+
+  final String label;
+  final AlignmentGeometry alignment;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 45),
+        child: Align(
+          alignment: alignment,
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: authMonoLabel(fontSize: 11, letterSpacingEm: 0.08)
+                .copyWith(color: QuestColors.osPrimary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "No account yet?  SIGN UP" — 14px sentence plus a Syne 700 violet action,
+/// 7 apart, centred, with one 44pt hit box around both.
+class _SignUpLine extends StatelessWidget {
+  const _SignUpLine({
+    required this.prompt,
+    required this.action,
+    required this.onTap,
+  });
+
+  final String prompt;
+  final String action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ConstrainedBox(
+        constraints:
+            const BoxConstraints(minHeight: QuestSpacing.minTouchTarget),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  prompt,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osBodyMedium.copyWith(
+                    color: QuestColors.osTextSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                action.toUpperCase(),
+                maxLines: 1,
+                style: QuestTypography.osHeadlineSmall.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  fontVariations: const [FontVariation('wght', 700)],
+                  letterSpacing: 0,
+                  color: QuestColors.osPrimary,
+                ),
+              ),
+            ],
           ),
         ),
       ),

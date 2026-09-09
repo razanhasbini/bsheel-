@@ -7,7 +7,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart';
 import 'package:shared_ui/shared_ui.dart';
-import '../../../../design/bs_widgets.dart';
+import '../../../feed/presentation/widgets/post_avatar.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/backend/app_backend.dart';
@@ -62,15 +62,13 @@ class CommentsSection extends ConsumerWidget {
     final commentsAsync = ref.watch(commentsProvider(submissionId));
 
     return commentsAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
+      // Skeletons, never a spinner: the rows are already the right shape
+      // when the data lands, so the thread doesn't jump.
+      loading: () => const ArcadeSkeletonList(
+        itemCount: 3,
+        itemHeight: 62,
+        spacing: 14,
+        padding: EdgeInsets.symmetric(vertical: 6),
       ),
       error: (e, __) {
         if (kDebugMode) debugPrint('[Comments] Widget showing error: $e');
@@ -78,8 +76,8 @@ class CommentsSection extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
             AppLocalizations.of(context)!.couldNotLoadComments,
-            style: QuestTypography.bodySmall.copyWith(
-              color: QuestColors.textDim(context),
+            style: QuestTypography.osBodyMedium.copyWith(
+              color: QuestColors.osTextSecondary,
             ),
           ),
         );
@@ -90,8 +88,8 @@ class CommentsSection extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
               AppLocalizations.of(context)!.noCommentsYet,
-              style: QuestTypography.bodySmall.copyWith(
-                color: QuestColors.textDim(context),
+              style: QuestTypography.osBodyMedium.copyWith(
+                color: QuestColors.osTextSecondary,
               ),
             ),
           );
@@ -136,17 +134,31 @@ class _CommentThread extends StatelessWidget {
           onReplyTap: onReplyTap,
         ),
         if (comment.replies.isNotEmpty)
+          // The render threads replies behind a 2px vertical rule rather
+          // than indenting them into empty space, so a long thread still
+          // reads as one conversation.
           Padding(
-            padding: const EdgeInsets.only(left: 36),
-            child: Column(
-              children: comment.replies
-                  .map((reply) => _CommentTile(
-                        comment: reply,
-                        timeAgo: timeAgo,
-                        onReplyTap: onReplyTap,
-                        isReply: true,
-                      ))
-                  .toList(),
+            padding: const EdgeInsets.only(left: 20, bottom: 4),
+            child: Container(
+              padding: const EdgeInsets.only(left: 16),
+              decoration: const BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: QuestColors.osTextMuted,
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: Column(
+                children: comment.replies
+                    .map((reply) => _CommentTile(
+                          comment: reply,
+                          timeAgo: timeAgo,
+                          onReplyTap: onReplyTap,
+                          isReply: true,
+                        ))
+                    .toList(),
+              ),
             ),
           ),
       ],
@@ -200,7 +212,7 @@ class _CommentTile extends ConsumerWidget {
     final isMine = ref.watch(authSessionProvider)?.id == comment.userId;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         // UX-107: long-press own comment → confirm + delete.
@@ -213,46 +225,49 @@ class _CommentTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PixelAvatar(
+            PostAvatar(
               imageUrl: comment.avatarUrl,
               username: comment.username,
-              size: isReply ? 22 : 28,
+              size: isReply ? 28 : 34,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      // Main: shrink-to-fit the author name so long handles
-                      // don't push the timestamp off the row.
+                      // Shrink-to-fit the author name so a long handle
+                      // doesn't push the timestamp off the row.
                       Flexible(
                         child: FitText(
                           name,
-                          minFontSize: 9,
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.text(context),
-                            fontSize: isReply ? 11 : 12,
-                            fontWeight: FontWeight.bold,
+                          minFontSize: 10,
+                          style: QuestTypography.osHeadlineMedium.copyWith(
+                            fontSize: isReply ? 14 : 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Flexible(
                         child: Text(
-                          timeAgo(comment.createdAt),
+                          timeAgo(comment.createdAt).toUpperCase(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.text(context).withAlpha(120),
-                            fontSize: 9,
+                          style: QuestTypography.osLabelSmall.copyWith(
+                            color: QuestColors.osTextSecondary,
+                            fontSize: 10,
+                            letterSpacing: 0.8,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   _MentionText(
                     text: comment.body,
                     isReply: isReply,
@@ -260,19 +275,27 @@ class _CommentTile extends ConsumerWidget {
                   if (onReplyTap != null && !isReply)
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onReplyTap!(comment),
-                        child: BsMinTouch(
-                          minWidth: 56,
-                          child: Text(
-                            'REPLY',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: QuestTypography.labelSmall.copyWith(
-                              color: QuestColors.textDim(context),
-                              fontSize: 10,
-                              letterSpacing: 1,
+                      child: Semantics(
+                        button: true,
+                        label: 'REPLY',
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onReplyTap!(comment),
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: QuestSpacing.minTouchTarget,
+                              minHeight: QuestSpacing.minTouchTarget,
+                            ),
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'REPLY',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: QuestTypography.osLabelMedium.copyWith(
+                                color: QuestColors.osTextSecondary,
+                                fontSize: 11,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
                         ),
@@ -350,10 +373,10 @@ class _MentionTextState extends ConsumerState<_MentionText> {
   @override
   Widget build(BuildContext context) {
     _resetRecognizers();
-    final baseStyle = QuestTypography.bodySmall.copyWith(
-      color: QuestColors.text(context),
-      height: 1.4,
-      fontSize: widget.isReply ? 12 : null,
+    final baseStyle = QuestTypography.osBodyMedium.copyWith(
+      color: QuestColors.osTextPrimary,
+      height: 1.45,
+      fontSize: widget.isReply ? 13 : 14,
     );
     final mentionStyle = baseStyle.copyWith(
       color: QuestColors.osPrimary,

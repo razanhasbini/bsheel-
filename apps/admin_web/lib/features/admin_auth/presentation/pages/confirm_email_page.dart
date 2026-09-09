@@ -227,15 +227,19 @@ class _ConfirmEmailPageState extends State<ConfirmEmailPage> {
         BsheelCallout.danger(_error!),
       ],
       const SizedBox(height: 18),
-      Row(
-        mainAxisSize: MainAxisSize.min,
+      // A Wrap, not a Row: both buttons keep their intrinsic width, and
+      // in a locale where either label is longer the second one drops to
+      // its own line instead of painting outside the panel.
+      Wrap(
+        spacing: 9,
+        runSpacing: 9,
+        alignment: WrapAlignment.center,
         children: [
           BsheelButton.primary(
             label: 'OPEN MAIL APP',
             height: 48,
             onPressed: _openMailApp,
           ),
-          const SizedBox(width: 9),
           BsheelButton.ghost(
             label: 'RESEND',
             height: 48,

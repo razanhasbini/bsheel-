@@ -70,3 +70,24 @@ String? validatePassword(
 
   return null;
 }
+
+/// How many of the signup frame's four strength segments to fill, 0-4.
+///
+/// Presentation only — [validatePassword] stays the gate. It lives here so
+/// the meter and the validator read the same signals: length, mixed case,
+/// a digit, and then real length as the fourth.
+int passwordStrength(String password) {
+  if (password.isEmpty) return 0;
+  var score = 0;
+  if (password.length >= 8) score++;
+  if (RegExp(r'[A-Z]').hasMatch(password) &&
+      RegExp(r'[a-z]').hasMatch(password)) {
+    score++;
+  }
+  if (RegExp(r'[0-9]').hasMatch(password)) score++;
+  if (password.length >= passwordMinLength &&
+      RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
+    score++;
+  }
+  return score;
+}

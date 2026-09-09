@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,9 +13,19 @@ import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
 import '../login_credentials.dart';
 import '../password_policy.dart';
-import '../widgets/social_sign_in_buttons.dart';
+import '../widgets/auth_field.dart';
 import '../../../../l10n/app_localizations.dart';
 
+/// Create account, drawn from `export/mobile/17-signup.jpg`.
+///
+/// A 46pt back button, `CREATE ACCOUNT` in Syne 800/36, three labelled
+/// fields on a 14pt rhythm — username with a jade validity tick and a helper
+/// line, email, password with a four-segment strength meter — then the jade
+/// positive button and a centred legal line with violet links.
+///
+/// There is no card, no subtitle, no social block and no "already have an
+/// account" footer; the frame has none of them, and the back button already
+/// returns to login.
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});
 
@@ -31,6 +42,8 @@ class _SignupPageState extends ConsumerState<SignupPage>
   final _usernameFocus = FocusNode();
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  final _termsTap = TapGestureRecognizer();
+  final _privacyTap = TapGestureRecognizer();
 
   bool _isLoading = false;
   // Low/Info (2026-05-17): age confirmation. Required true before submit
@@ -43,6 +56,13 @@ class _SignupPageState extends ConsumerState<SignupPage>
   String? _ageError;
 
   @override
+  void initState() {
+    super.initState();
+    _termsTap.onTap = () => context.pushNamed(RouteNames.terms);
+    _privacyTap.onTap = () => context.pushNamed(RouteNames.privacyPolicy);
+  }
+
+  @override
   void dispose() {
     _usernameController.dispose();
     _emailController.dispose();
@@ -50,6 +70,8 @@ class _SignupPageState extends ConsumerState<SignupPage>
     _usernameFocus.dispose();
     _emailFocus.dispose();
     _passwordFocus.dispose();
+    _termsTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -164,66 +186,76 @@ class _SignupPageState extends ConsumerState<SignupPage>
     }
   }
 
+  /// The frame's username field carries a jade tick once the handle is
+  /// legal. It is a live signal, so it tracks the controller rather than
+  /// the last submit.
+  bool get _usernameLooksValid {
+    final v = _usernameController.text.trim();
+    return v.length >= 3 &&
+        v.length <= 30 &&
+        RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     final l = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: QuestColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          child: ConstrainedBox(
+          child: Center(
+              child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ArcadeBackButton(
-                  onTap: () => context.canPop()
-                      ? context.pop()
-                      : context.goNamed(RouteNames.login),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  l.createAccount,
-                  style: QuestTypography.displayLarge.copyWith(
-                    color: ink,
-                    fontSize: 32,
-                    letterSpacing: -0.4,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: ArcadeBackButton(
+                      onTap: () => context.canPop()
+                          ? context.pop()
+                          : context.goNamed(RouteNames.login),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Join the quest. Start leveling up.',
-                  style: QuestTypography.bodyMedium.copyWith(
-                    color: ink.withAlpha(QuestColors.alphaInkMuted),
-                  ),
-                ),
-                const SizedBox(height: 28),
-                ArcadeCard(
-                  padding: const EdgeInsets.all(18),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ArcadeTextField(
+                      Text(
+                        l.createAccount.toUpperCase(),
+                        style: QuestTypography.osDisplayLarge.copyWith(
+                          fontSize: 36,
+                          height: 0.95,
+                          // -0.04em at 36px.
+                          letterSpacing: -1.44,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      AuthField(
                         controller: _usernameController,
                         focusNode: _usernameFocus,
                         label: l.username,
                         hint: l.chooseUsername,
-                        prefixIcon: Icons.person_outline_rounded,
                         textInputAction: TextInputAction.next,
                         autocorrect: false,
                         errorText: _usernameError,
+                        helperText: 'Letters, numbers, and underscores only.',
+                        trailing:
+                            _usernameLooksValid ? const AuthFieldTick() : null,
+                        onChanged: (_) => setState(() {}),
                         onSubmitted: (_) => _emailFocus.requestFocus(),
                       ),
                       const SizedBox(height: 14),
-                      ArcadeTextField(
+                      AuthField(
                         controller: _emailController,
                         focusNode: _emailFocus,
                         label: l.email,
                         hint: l.enterEmail,
                         keyboardType: TextInputType.emailAddress,
-                        prefixIcon: Icons.alternate_email_rounded,
                         textInputAction: TextInputAction.next,
                         autocorrect: false,
                         autofillHints: const [AutofillHints.email],
@@ -231,100 +263,158 @@ class _SignupPageState extends ConsumerState<SignupPage>
                         onSubmitted: (_) => _passwordFocus.requestFocus(),
                       ),
                       const SizedBox(height: 14),
-                      ArcadeTextField(
+                      AuthField(
                         controller: _passwordController,
                         focusNode: _passwordFocus,
                         label: l.password,
                         hint: l.createPassword,
                         obscureText: true,
-                        prefixIcon: Icons.lock_outline_rounded,
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.newPassword],
-                        helper:
-                            'Min $passwordMinLength chars, mixed case + a number.',
                         errorText: _passwordError,
+                        onChanged: (_) => setState(() {}),
                         onSubmitted: (_) => _signup(),
                       ),
-                      const SizedBox(height: 18),
-                      // Low/Info (2026-05-17): age confirmation checkbox.
-                      // Required true before submission; persisted to
-                      // profiles.age_verified via signup metadata.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Checkbox(
-                            value: _ageConfirmed,
-                            onChanged: (v) => setState(() {
-                              _ageConfirmed = v ?? false;
-                              if (_ageConfirmed) _ageError = null;
-                            }),
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() {
-                                _ageConfirmed = !_ageConfirmed;
-                                if (_ageConfirmed) _ageError = null;
-                              }),
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: Text(
-                                  'I confirm I am 13 years or older.',
-                                  style: QuestTypography.bodyMedium.copyWith(
-                                    color: ink,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 6),
+                      _StrengthMeter(
+                        filled: passwordStrength(_passwordController.text),
                       ),
-                      if (_ageError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 12, top: 4),
-                          child: Text(
-                            _ageError!,
-                            style: QuestTypography.bodySmall.copyWith(
-                              color: QuestColors.osRedText,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+                      // Low/Info (2026-05-17): age confirmation. Not in the
+                      // frame, but it is the contemporaneous 13+ record that
+                      // `profiles.age_verified` is written from — it cannot
+                      // be dropped for fidelity.
+                      _AgeConfirm(
+                        value: _ageConfirmed,
+                        errorText: _ageError,
+                        onChanged: (v) => setState(() {
+                          _ageConfirmed = v;
+                          if (v) _ageError = null;
+                        }),
+                      ),
+                      const SizedBox(height: 14),
                       ArcadeButton(
-                        label: _isLoading ? l.loading : l.createAccount,
-                        icon: _isLoading ? null : Icons.bolt_rounded,
+                        // The frame's positive: jade ground, ink label,
+                        // 56pt, r14, 5px shadow.
+                        label: _isLoading ? l.loading : l.signup,
                         isLoading: _isLoading,
-                        size: ArcadeButtonSize.large,
+                        variant: ArcadeButtonVariant.positive,
                         onTap: _isLoading ? null : _signup,
+                      ),
+                      const SizedBox(height: 14),
+                      _LegalLine(
+                        termsTap: _termsTap,
+                        privacyTap: _privacyTap,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                const SocialSignInButtons(),
-                const SizedBox(height: 20),
-                Center(
-                  child: GestureDetector(
-                    onTap: () => context.goNamed(RouteNames.login),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text.rich(
-                        TextSpan(
-                          text: '${l.alreadyHaveAccount} ',
-                          style: QuestTypography.bodyMedium.copyWith(
-                            color: ink.withAlpha(QuestColors.alphaInkMuted),
-                          ),
-                          children: [
-                            TextSpan(
-                              text: l.login,
-                              style: const TextStyle(
-                                color: QuestColors.osPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              ],
+            ),
+          )),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Strength meter ───────────────────────────────────────────────────────────
+
+/// Four segments, 4 apart: 8 of content inside a 2px ink stroke at r4, jade
+/// when earned and warm surface when not.
+class _StrengthMeter extends StatelessWidget {
+  const _StrengthMeter({required this.filled});
+
+  final int filled;
+
+  static const _segments = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < _segments; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              height: 12,
+              decoration: BoxDecoration(
+                color:
+                    i < filled ? QuestColors.osSuccess : QuestColors.osSurface,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Age confirmation ─────────────────────────────────────────────────────────
+
+class _AgeConfirm extends StatelessWidget {
+  const _AgeConfirm({
+    required this.value,
+    required this.errorText,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final String? errorText;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => onChanged(!value),
+          behavior: HitTestBehavior.opaque,
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(minHeight: QuestSpacing.minTouchTarget),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: value
+                        ? QuestColors.osSuccess
+                        : QuestColors.cardBg(context),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: errorText != null
+                          ? QuestColors.osRed
+                          : QuestColors.osTextPrimary,
+                      width: 2,
+                    ),
+                  ),
+                  child: value
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: 14,
+                          // Jade ground: ink, never white.
+                          color: QuestColors.onAccent(QuestColors.osSuccess),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'I confirm I am 13 years or older.',
+                    style: QuestTypography.osBodySmall.copyWith(
+                      fontSize: 12,
+                      height: 1.55,
+                      color: QuestColors.osTextSecondary,
                     ),
                   ),
                 ),
@@ -332,7 +422,58 @@ class _SignupPageState extends ConsumerState<SignupPage>
             ),
           ),
         ),
+        if (errorText != null)
+          Text(
+            errorText!,
+            style: QuestTypography.osBodySmall.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              fontVariations: const [FontVariation('wght', 600)],
+              color: QuestColors.onCream(QuestColors.osRed),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Legal line ───────────────────────────────────────────────────────────────
+
+class _LegalLine extends StatelessWidget {
+  const _LegalLine({required this.termsTap, required this.privacyTap});
+
+  final GestureRecognizer termsTap;
+  final GestureRecognizer privacyTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = QuestTypography.osBodySmall.copyWith(
+      fontSize: 12,
+      height: 1.55,
+      color: QuestColors.osTextSecondary,
+    );
+    final link = base.copyWith(color: QuestColors.osPrimary);
+
+    return Text.rich(
+      TextSpan(
+        style: base,
+        children: [
+          const TextSpan(text: 'By signing up you agree to the '),
+          TextSpan(
+            text: 'Terms of Service',
+            style: link,
+            recognizer: termsTap,
+          ),
+          const TextSpan(text: ' and '),
+          TextSpan(
+            text: 'Privacy Policy',
+            style: link,
+            recognizer: privacyTap,
+          ),
+          const TextSpan(text: '.'),
+        ],
       ),
+      textAlign: TextAlign.center,
     );
   }
 }

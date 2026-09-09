@@ -172,7 +172,13 @@ abstract final class QuestColors {
   /// coral measures 3.03:1 and fails WCAG AA; ink on coral measures
   /// 5.88:1 and passes. Call this instead of choosing by hand.
   static Color onAccent(Color ground) {
+    // `osTextPrimary` is ink, and the design uses it as a *ground* in at
+    // least three places: the leaderboard's self row, the collab hero and
+    // a selected chip. It was missing here, so a caller deriving its
+    // foreground from an ink panel got ink back and the text vanished —
+    // exactly the failure this helper exists to prevent.
     if (ground == osPrimary ||
+        ground == osTextPrimary ||
         ground == darkBg ||
         ground == darkCard ||
         ground == darkSurface) {
@@ -207,7 +213,10 @@ abstract final class QuestColors {
     if (ground == osCard || ground == osBg || ground == osSurface) {
       return osTextSecondary;
     }
-    if (ground == darkBg || ground == darkCard || ground == darkSurface) {
+    if (ground == osTextPrimary ||
+        ground == darkBg ||
+        ground == darkCard ||
+        ground == darkSurface) {
       return textSecondary;
     }
     return onAccent(ground);

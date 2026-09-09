@@ -123,8 +123,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ready = _titleCtrl.text.trim().isNotEmpty &&
-        _bodyCtrl.text.trim().isNotEmpty;
+    final ready =
+        _titleCtrl.text.trim().isNotEmpty && _bodyCtrl.text.trim().isNotEmpty;
 
     return AdminPane(
       title: 'Announcements',
@@ -227,7 +227,7 @@ class _SentRow extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             entry.receipt,
-            style: BsheelType.monoSm.copyWith(color: BsheelColors.inkMuted),
+            style: BsheelType.monoSm.copyWith(color: BsheelColors.inkSoft),
           ),
         ],
       ),
@@ -251,8 +251,7 @@ class _SentAnnouncement {
   /// `09 MAR · 8,390 DELIVERED`. Invalid-token counts come back from the
   /// push worker, which the admin API does not expose, so the line stops
   /// at what is known.
-  String get receipt =>
-      '${_date(sentAt)} · ${_grouped(recipients)} DELIVERED';
+  String get receipt => '${_date(sentAt)} · ${_grouped(recipients)} DELIVERED';
 }
 
 // ── Formatting ───────────────────────────────────────────────────────────────

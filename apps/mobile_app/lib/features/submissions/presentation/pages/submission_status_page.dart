@@ -1,26 +1,33 @@
-import '../../../../design/bs_widgets.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/router/route_names.dart';
-import '../../../../core/utils/account_lock_guard.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_repositories/app_repositories.dart'
-    show RealtimeDomainEvent;
+    show ApiRealtimeClient, RealtimeDomainEvent;
 import 'package:app_contracts/app_contracts.dart';
+import 'package:shared_ui/shared_ui.dart';
+import '../../../../core/router/route_names.dart';
+import '../../../../core/utils/account_lock_guard.dart';
+import '../../../../core/backend/app_backend.dart';
+import '../../../../features/quests/presentation/widgets/arcade_page_chrome.dart';
 import '../../data/submission_providers.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../../feed/presentation/providers/feed_provider.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../../core/backend/app_backend.dart';
 
-// Screen-specific colours — not theme tokens.
-const Color _inkShadow = Color(0x331A1330); // ~20% ink hard offset shadow
-const Color _inkShadowSoft = Color(0x261A1330); // ~15% ink text-field shadow
-
+/// Submission status and the appeal, drawn to
+/// `export/mobile/08-submission-rejected.jpg` plus the SUBMISSION · STATE
+/// SET panel beside it.
+///
+/// The verdict is a single full-bleed card whose ground *is* the outcome —
+/// coral rejected, jade approved, gold waiting, dashed cream once the
+/// decision is final. The appeal composer sits inline underneath with
+/// SEND REQUEST on the sticky footer; it used to live in a bottom sheet
+/// behind a REQUEST REVALIDATION button, which put the one durable action
+/// on this page two taps away.
 class SubmissionStatusPage extends ConsumerStatefulWidget {
   final String submissionId;
 
@@ -34,11 +41,15 @@ class SubmissionStatusPage extends ConsumerStatefulWidget {
 class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
   StreamSubscription<RealtimeDomainEvent>? _realtimeSubscription;
   bool _postSubscribed = false;
-  // ARC-003: gate the appeal RPC against double-submit. The bottom
-  // sheet's send button can be tapped twice in quick succession on a
-  // slow connection, which used to fire two RPCs (the second of which
-  // hits "Already appealed" from 0119 and surfaced as a raw exception).
+
+  // ARC-003: gate the appeal RPC against double-submit. The send button can
+  // be tapped twice in quick succession on a slow connection, which used to
+  // fire two RPCs (the second of which hits "Already appealed" from 0119
+  // and surfaced as a raw exception).
   bool _appealing = false;
+
+  final TextEditingController _appealController = TextEditingController();
+  final FocusNode _appealFocus = FocusNode();
 
   String get submissionId => widget.submissionId;
 
@@ -47,7 +58,8 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
   @override
   void initState() {
     super.initState();
-    final realtime = AppBackend.repositories.realtime;
+    final realtime = _realtime();
+    if (realtime == null) return;
     _realtimeSubscription = realtime.events.where((event) {
       return event.data['submissionId'] == submissionId &&
           event.type.startsWith('submission.');
@@ -74,14 +86,29 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
   void dispose() {
     if (_postSubscribed) {
       try {
-        AppBackend.repositories.realtime.unsubscribeFromPost(submissionId);
+        _realtime()?.unsubscribeFromPost(submissionId);
       } on Object {
         // The shared socket may already be reconnecting or signed out.
       }
     }
     final subscription = _realtimeSubscription;
     if (subscription != null) unawaited(subscription.cancel());
+    _appealController.dispose();
+    _appealFocus.dispose();
     super.dispose();
+  }
+
+  /// The realtime handle, or null when there is no backend to talk to.
+  ///
+  /// Live status flips are an enhancement on this page — the verdict is
+  /// already in the fetched submission. Resolving this eagerly meant a
+  /// cold deep link (or any widget test) threw before painting anything.
+  ApiRealtimeClient? _realtime() {
+    try {
+      return AppBackend.repositories.realtime;
+    } on Object {
+      return null;
+    }
   }
 
   void _handleStatusUpdate(String? newStatus) {
@@ -100,15 +127,13 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
         final approved = newStatus == SubmissionStatus.approved;
         final rejected = newStatus == SubmissionStatus.rejected;
         final friendly = approved
-            ? 'Submission approved! 🎉 XP awarded.'
+            ? 'Submission approved. XP awarded.'
             : rejected
                 ? 'Submission rejected. See the reviewer notes below.'
                 : 'Submission status updated.';
         messenger.showSnackBar(
           SnackBar(
             content: Text(friendly),
-            backgroundColor:
-                approved ? QuestColors.osSuccess : QuestColors.osRed,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -119,6 +144,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final submissionAsync = ref.watch(submissionByIdProvider(submissionId));
     // Seed _lastKnownStatus from the initial fetch so the very first
     // realtime status flip after page open is detected. Without this
@@ -135,768 +161,626 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
       } catch (_) {/* surfaced through .when error state */}
     }
 
-    return Scaffold(
-      backgroundColor: QuestColors.bg(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // App bar — chunky back tile, centered title.
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: QuestSpacing.screenPadding,
-                vertical: QuestSpacing.sm,
+    final submission = submissionAsync.valueOrNull;
+    final canAppeal = submission != null &&
+        submission.status == SubmissionStatus.rejected &&
+        !submission.appealed &&
+        submission.deletedAt == null;
+
+    return GestureDetector
+        // Tapping the page dismisses the appeal keyboard without stealing
+        // taps from the controls inside it.
+        (
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: QuestColors.bg(context),
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              ArcadePageHeader(
+                title: l.submissionTitle,
+                onBack: () {
+                  if (Navigator.of(context).canPop()) {
+                    context.pop();
+                  } else {
+                    context.goNamed(RouteNames.home);
+                  }
+                },
               ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      if (Navigator.of(context).canPop()) {
-                        context.pop();
-                      } else {
-                        context.goNamed(RouteNames.home);
-                      }
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: BsMinTouch(
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: _chunkyDecoration(
-                          radius: QuestSpacing.radiusSm,
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.arrow_back,
-                          size: 20,
-                          color: QuestColors.osTextPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Flexible(
-                    child: Text(
-                      AppLocalizations.of(context)!
-                          .submissionTitle
-                          .toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: QuestTypography.headlineSmall.copyWith(
-                        color: QuestColors.osTextPrimary,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 40),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: RefreshIndicator(
-                color: QuestColors.violet,
-                backgroundColor: QuestColors.osCard,
-                onRefresh: handleRefresh,
-                child: submissionAsync.when(
-                  loading: () => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 160),
-                      Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    ],
-                  ),
-                  error: (e, _) => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: QuestSpacing.screenPadding,
-                    ),
-                    children: [
-                      const SizedBox(height: 100),
-                      Icon(Icons.error_outline,
-                          color: QuestColors.textDim(context), size: 48),
-                      const SizedBox(height: QuestSpacing.md),
-                      Text(
-                        'Failed to load submission',
-                        textAlign: TextAlign.center,
-                        style: QuestTypography.bodyMedium.copyWith(
-                          color: QuestColors.textDim(context),
-                        ),
-                      ),
-                      const SizedBox(height: QuestSpacing.sm),
-                      Center(
-                        child: Text(
-                          'PULL TO RETRY',
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.accent(context),
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  data: (submission) {
-                    if (submission == null) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 120),
-                          Center(
-                            child: Text(
-                              AppLocalizations.of(context)!.submissionNotFound,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    final status = submission.status;
-                    final statusColor = _statusColor(status);
-                    final statusIcon = _statusIcon(status);
-                    final isRejected = status == SubmissionStatus.rejected;
-                    final rejectionReasons = isRejected
-                        ? _extractRejectionReasons(submission.reviewNote)
-                        : const <String>[];
-
-                    return SingleChildScrollView(
+              Expanded(
+                child: RefreshIndicator(
+                  color: QuestColors.osPrimary,
+                  backgroundColor: QuestColors.osCard,
+                  onRefresh: handleRefresh,
+                  child: submissionAsync.when(
+                    loading: () => const _StatusSkeleton(),
+                    error: (e, _) => ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(QuestSpacing.screenPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Status banner — white card with colored icon disc
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(QuestSpacing.lg),
-                            decoration: _chunkyDecoration(),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: statusColor,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: QuestColors.osBorderStrong,
-                                      width: 2,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: _inkShadow,
-                                        offset: Offset(3, 3),
-                                        blurRadius: 0,
-                                      ),
-                                    ],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Icon(statusIcon,
-                                      color: QuestColors.onAccent(statusColor),
-                                      size: 32),
-                                ),
-                                const SizedBox(height: QuestSpacing.md),
-                                Text(
-                                  status.toUpperCase(),
-                                  style:
-                                      QuestTypography.headlineMedium.copyWith(
-                                    color: QuestColors.osTextPrimary,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: QuestSpacing.xs),
-                                Text(
-                                  status == SubmissionStatus.pending
-                                      ? 'Your submission is being reviewed'
-                                      : status == SubmissionStatus.approved
-                                          ? 'Your submission was approved!'
-                                          : 'Your submission was rejected',
-                                  textAlign: TextAlign.center,
-                                  style: QuestTypography.bodySmall.copyWith(
-                                    color: QuestColors.osTextSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: QuestSpacing.xl),
-
-                          // Media proof
-                          _SectionLabel(
-                            AppLocalizations.of(context)!.yourProof,
-                          ),
-                          const SizedBox(height: QuestSpacing.sm),
-                          _ProofMediaCarousel(submission: submission),
-                          const SizedBox(height: QuestSpacing.lg),
-
-                          // Caption
-                          if (submission.caption != null &&
-                              submission.caption!.isNotEmpty) ...[
-                            const _SectionLabel('CAPTION'),
-                            const SizedBox(height: QuestSpacing.sm),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration: _chunkyDecoration(),
+                      children: [
+                        const SizedBox(height: 80),
+                        ArcadeInlineError(
+                          title: 'SUBMISSION UNAVAILABLE',
+                          subtitle: 'We could not load this submission.',
+                          onRetry: () => ref
+                              .invalidate(submissionByIdProvider(submissionId)),
+                        ),
+                      ],
+                    ),
+                    data: (data) {
+                      if (data == null) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 100),
+                            Center(
                               child: Text(
-                                submission.caption!,
-                                style: QuestTypography.bodyMedium.copyWith(
-                                  color: QuestColors.osTextSecondary,
-                                  height: 1.6,
-                                ),
+                                l.submissionNotFound,
+                                style: QuestTypography.osBodyMedium,
                               ),
                             ),
-                            const SizedBox(height: QuestSpacing.xl),
                           ],
-
-                          // Moderator feedback (approved subs)
-                          if (status == SubmissionStatus.approved &&
-                              submission.reviewNote != null &&
-                              submission.reviewNote!.isNotEmpty) ...[
-                            _SectionLabel(
-                              AppLocalizations.of(context)!.moderatorFeedback,
-                            ),
-                            const SizedBox(height: QuestSpacing.sm),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration:
-                                  _chunkyDecoration(accent: statusColor),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.check_circle_outline,
-                                      color: statusColor, size: 20),
-                                  const SizedBox(width: QuestSpacing.sm),
-                                  Expanded(
-                                    child: Text(
-                                      submission.reviewNote!,
-                                      style:
-                                          QuestTypography.bodyMedium.copyWith(
-                                        color: QuestColors.osTextPrimary,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: QuestSpacing.xl),
-                          ],
-
-                          // Appeal submitted — pending after appeal
-                          if (status == SubmissionStatus.pending &&
-                              submission.appealed) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration: _chunkyDecoration(
-                                accent: QuestColors.violet,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.gavel,
-                                          color: QuestColors.violet, size: 20),
-                                      const SizedBox(width: QuestSpacing.sm),
-                                      Expanded(
-                                        child: Text(
-                                          'APPEAL SUBMITTED',
-                                          style: QuestTypography.labelMedium
-                                              .copyWith(
-                                            color: QuestColors.violet,
-                                            letterSpacing: 1.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (submission.appealNote != null &&
-                                      submission.appealNote!.isNotEmpty) ...[
-                                    const SizedBox(height: QuestSpacing.sm),
-                                    Text(
-                                      submission.appealNote!,
-                                      style: QuestTypography.bodySmall.copyWith(
-                                        color: QuestColors.osTextSecondary,
-                                        fontStyle: FontStyle.italic,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: QuestSpacing.xl),
-                          ],
-
-                          if (isRejected && !submission.appealed) ...[
-                            _SectionLabel(
-                              AppLocalizations.of(context)!.rejectionReasons,
-                            ),
-                            const SizedBox(height: QuestSpacing.sm),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration: _chunkyDecoration(
-                                accent: QuestColors.osRed,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  for (var i = 0;
-                                      i < rejectionReasons.length;
-                                      i++)
-                                    Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: i == rejectionReasons.length - 1
-                                            ? 0
-                                            : QuestSpacing.sm,
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Icon(Icons.block,
-                                              size: 16,
-                                              color: QuestColors.osRed),
-                                          const SizedBox(
-                                              width: QuestSpacing.sm),
-                                          Expanded(
-                                            child: Text(
-                                              rejectionReasons[i],
-                                              style: QuestTypography.bodyMedium
-                                                  .copyWith(
-                                                color:
-                                                    QuestColors.osTextPrimary,
-                                                height: 1.5,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: QuestSpacing.md),
-                            _ChunkyButton(
-                              label: 'REQUEST REVALIDATION',
-                              onTap: () => _showRevalidationSheet(
-                                context,
-                                submission.userQuestId,
-                                ref,
-                              ),
-                            ),
-                            const SizedBox(height: QuestSpacing.xl),
-                          ],
-
-                          if (isRejected && submission.appealed) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(QuestSpacing.md),
-                              decoration: _chunkyDecoration(
-                                accent: QuestColors.violet,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.info_outline,
-                                      color: QuestColors.violet, size: 20),
-                                  const SizedBox(width: QuestSpacing.sm),
-                                  Expanded(
-                                    child: Text(
-                                      'You already appealed this submission. No further appeals allowed.',
-                                      style: QuestTypography.bodySmall.copyWith(
-                                        color: QuestColors.osTextPrimary,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: QuestSpacing.xl),
-                          ],
-
-                          // Submitted timestamp
-                          Row(
-                            children: [
-                              const Icon(Icons.access_time,
-                                  size: 14, color: QuestColors.osTextMuted),
-                              const SizedBox(width: QuestSpacing.xs),
-                              Text(
-                                'SUBMITTED ${timeAgoLong(submission.submittedAt).toUpperCase()}',
-                                style: QuestTypography.labelSmall.copyWith(
-                                  color: QuestColors.osTextMuted,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: QuestSpacing.xxl),
-                        ],
-                      ),
-                    );
-                  },
+                        );
+                      }
+                      return _body(context, data, l, canAppeal);
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+              if (canAppeal)
+                ArcadeStickyFooter(
+                  child: ArcadeButton(
+                    label: l.sendRequest,
+                    variant: ArcadeButtonVariant.primary,
+                    isLoading: _appealing,
+                    onTap: _appealing ? null : _sendAppeal,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Chunky Arcade Pop card decoration: white fill, ink outline, hard
-  // ink-tinted offset shadow. Pass `accent` to override the border color.
-  static BoxDecoration _chunkyDecoration({
-    Color? fill,
-    Color? accent,
-    double radius = QuestSpacing.radiusMd,
-  }) {
-    return BoxDecoration(
-      color: fill ?? QuestColors.osCard,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: accent ?? QuestColors.osBorderStrong,
-        width: 2,
+  Widget _body(
+    BuildContext context,
+    SubmissionModel submission,
+    AppLocalizations l,
+    bool canAppeal,
+  ) {
+    final status = submission.status;
+    final isRejected = status == SubmissionStatus.rejected;
+    final reasons = isRejected
+        ? _extractRejectionReasons(submission.reviewNote)
+        : const <String>[];
+    final caption = submission.caption?.trim() ?? '';
+    final note = _prose(submission.reviewNote, reasons);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        QuestSpacing.screenPadding,
+        0,
+        QuestSpacing.screenPadding,
+        28,
       ),
-      boxShadow: const [
-        BoxShadow(
-          color: _inkShadow,
-          offset: Offset(3, 3),
-          blurRadius: 0,
-        ),
+      children: [
+        // ── Verdict ─────────────────────────────────────────────
+        _VerdictCard(submission: submission),
+        const SizedBox(height: 14),
+
+        // ── Moderator feedback ──────────────────────────────────
+        // On a rejection the note is also the source of the reason chips,
+        // so it is shown as prose here and tokenised below.
+        if (note.isNotEmpty) ...[
+          _BlockLabel(l.moderatorFeedback),
+          const SizedBox(height: 8),
+          _ProseCard(text: note),
+          const SizedBox(height: 14),
+        ],
+
+        // ── Rejection reasons ───────────────────────────────────
+        if (isRejected && reasons.isNotEmpty) ...[
+          _BlockLabel(l.rejectionReasons),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [for (final r in reasons) _ReasonChip(text: r)],
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // ── Your proof ──────────────────────────────────────────
+        _BlockLabel(l.yourProof),
+        const SizedBox(height: 8),
+        _ProofRow(submission: submission, caption: caption),
+        const SizedBox(height: 14),
+
+        // ── Revalidation request ────────────────────────────────
+        if (canAppeal) ...[
+          const _BlockLabel('REVALIDATION REQUEST'),
+          const SizedBox(height: 8),
+          _AppealBox(
+            controller: _appealController,
+            focusNode: _appealFocus,
+            hint: l.revalidationHint,
+            enabled: !_appealing,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "You get one appeal. If it's rejected again, the decision is "
+            'final.',
+            style: QuestTypography.osBodySmall.copyWith(
+              color: QuestColors.osTextSecondary,
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Color _statusColor(String status) => switch (status) {
-        SubmissionStatus.pending => QuestColors.accentYellow,
-        SubmissionStatus.approved => QuestColors.osSuccess,
-        SubmissionStatus.rejected => QuestColors.osRed,
-        _ => QuestColors.osTextMuted,
-      };
+  // ── Appeal ───────────────────────────────────────────────────────────
 
-  IconData _statusIcon(String status) => switch (status) {
-        SubmissionStatus.pending => Icons.hourglass_top,
-        SubmissionStatus.approved => Icons.check_circle_outline,
-        SubmissionStatus.rejected => Icons.cancel_outlined,
-        _ => Icons.help_outline,
-      };
+  Future<void> _sendAppeal() async {
+    if (_appealing) return;
+    if (guardAccountAction(context, ref)) return;
+    final text = _appealController.text.trim();
+    final messenger = ScaffoldMessenger.of(context);
+    if (text.isEmpty) {
+      _appealFocus.requestFocus();
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+          content: Text('Write your revalidation request first.'),
+        ));
+      return;
+    }
 
-  List<String> _extractRejectionReasons(String? reviewNote) {
-    final note = reviewNote?.trim() ?? '';
-    if (note.isEmpty) return const ['No rejection reasons were provided.'];
-
-    final lines = note
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return const ['No rejection reasons were provided.'];
-
-    final cleaned = lines
-        .map(
-          (line) =>
-              line.replaceFirst(RegExp(r'^\s*(?:[-*•]|\d+[.)])\s*'), '').trim(),
-        )
-        .where((line) => line.isNotEmpty)
-        .toList();
-
-    if (cleaned.isEmpty) return const ['No rejection reasons were provided.'];
-    return cleaned.take(3).toList();
-  }
-
-  Future<void> _showRevalidationSheet(
-      BuildContext pageContext, String userQuestId, WidgetRef ref) async {
-    if (guardAccountAction(pageContext, ref)) return;
-    final messenger = ScaffoldMessenger.of(pageContext);
-    final l = AppLocalizations.of(pageContext)!;
-
-    final appealText = await showModalBottomSheet<String>(
-      context: pageContext,
-      isScrollControlled: true,
-      // Force the sheet onto the cream page bg, never the dark surface,
-      // so the chunky white card inside reads correctly.
-      backgroundColor: QuestColors.osBg,
-      barrierColor: QuestColors.pureBlack.withAlpha(120),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(QuestSpacing.radiusLg),
-        ),
-        side: BorderSide(
-          color: QuestColors.osBorderStrong,
-          width: 2,
-        ),
-      ),
-      builder: (_) => _RevalidationSheetContent(
-        hintText: l.revalidationHint,
-        buttonLabel: l.sendRequest,
-      ),
-    );
-
-    if (appealText == null || appealText.isEmpty) return;
-    if (_appealing) return; // ARC-003: ignore re-taps while in flight.
-    _appealing = true;
-
+    setState(() => _appealing = true);
     try {
       await AppBackend.repositories.submissions
-          .appealSubmission(submissionId, appealText);
-      // Refresh all related providers so UI updates immediately. Includes
-      // activeQuestProvider so the home screen flips the appealed quest
+          .appealSubmission(submissionId, text);
+      // Refresh all related providers so the UI updates immediately.
+      // activeQuestProvider is included so home flips the appealed quest
       // back into IN REVIEW without a manual refresh.
       ref.invalidate(submissionByIdProvider(submissionId));
       ref.invalidate(userSubmissionsProvider);
       ref.invalidate(questHistoryProvider);
       ref.invalidate(activeQuestProvider);
+      _appealController.clear();
       messenger.showSnackBar(
-        const SnackBar(content: Text('Appeal submitted! Waiting for review.')),
+        const SnackBar(content: Text('Appeal sent. Back in the review queue.')),
       );
     } catch (e) {
-      // ARC-023: route raw Postgres errors through the shared mapper
-      // so users don't see exception strings.
+      // ARC-023: route raw Postgres errors through the shared mapper so
+      // users don't see exception strings.
       messenger
         ..clearSnackBars()
         ..showSnackBar(SnackBar(
           content: Text(mapDbError(e, action: 'submit appeal')),
         ));
     } finally {
-      _appealing = false;
+      if (mounted) setState(() => _appealing = false);
     }
   }
-}
 
-/// Extracted as a proper StatefulWidget to avoid the _dependents.isEmpty
-/// assertion that occurs when StatefulBuilder + MediaQuery is used inside
-/// a bottom sheet that gets dismissed.
-class _RevalidationSheetContent extends StatefulWidget {
-  const _RevalidationSheetContent({
-    required this.hintText,
-    required this.buttonLabel,
-  });
-  final String hintText;
-  final String buttonLabel;
-
-  @override
-  State<_RevalidationSheetContent> createState() =>
-      _RevalidationSheetContentState();
-}
-
-class _RevalidationSheetContentState extends State<_RevalidationSheetContent> {
-  final _controller = TextEditingController();
-  bool _canSubmit = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  /// The note minus whatever the chip row already shows, so a reason is
+  /// never printed twice.
+  static String _prose(String? reviewNote, List<String> reasons) {
+    final note = reviewNote?.trim() ?? '';
+    if (note.isEmpty || reasons.isEmpty) return note;
+    final taken = reasons.map((r) => r.toLowerCase()).toSet();
+    return note
+        .split(RegExp(r'\r?\n'))
+        .where((line) => !taken.contains(line.trim().toLowerCase()))
+        .join('\n')
+        .trim();
   }
+
+  /// Splits a moderator note into up to three short reason chips.
+  static List<String> _extractRejectionReasons(String? reviewNote) {
+    final note = reviewNote?.trim() ?? '';
+    if (note.isEmpty) return const [];
+
+    final lines = note
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length < 2) return const [];
+
+    final cleaned = lines
+        .map(
+          (line) =>
+              line.replaceFirst(RegExp(r'^\s*(?:[-*•]|\d+[.)])\s*'), '').trim(),
+        )
+        .where((line) => line.isNotEmpty && line.length <= 40)
+        .toList();
+
+    return cleaned.take(3).toList();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PIECES
+// ══════════════════════════════════════════════════════════════════════════
+
+class _BlockLabel extends StatelessWidget {
+  const _BlockLabel(this.text);
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        QuestSpacing.lg,
-        QuestSpacing.lg,
-        QuestSpacing.lg,
-        QuestSpacing.lg + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Grab handle — small visual affordance that this sheet is
-          // dismissable.
-          Center(
-            child: Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: QuestColors.osTextMuted.withAlpha(140),
-                borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
-              ),
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.lg),
-          // Violet pill icon with hard ink shadow — matches the rest of
-          // the chunky Arcade Pop accents.
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: QuestColors.violet,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: QuestColors.osBorderStrong,
-                width: 2,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: _inkShadow,
-                  offset: Offset(3, 3),
-                  blurRadius: 0,
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.gavel,
-                color: QuestColors.osTextOnPrimary, size: 22),
-          ),
-          const SizedBox(height: QuestSpacing.md),
-          Text(
-            'REQUEST REVALIDATION',
-            style: QuestTypography.headlineSmall.copyWith(
-              color: QuestColors.osTextPrimary,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.xs),
-          Text(
-            'Explain why this submission should be reviewed again.',
-            style: QuestTypography.bodySmall.copyWith(
-              color: QuestColors.osTextSecondary,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.lg),
-          // Chunky text field — explicit ink text + cursor so input is
-          // always visible regardless of theme brightness inference.
-          DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-              boxShadow: const [
-                BoxShadow(
-                  color: _inkShadowSoft,
-                  offset: Offset(3, 3),
-                  blurRadius: 0,
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _controller,
-              minLines: 4,
-              maxLines: 6,
-              autofocus: true,
-              cursorColor: QuestColors.violet,
-              cursorWidth: 2,
-              onChanged: (_) => setState(() {
-                _canSubmit = _controller.text.trim().isNotEmpty;
-              }),
-              style: QuestTypography.bodyMedium.copyWith(
-                color: QuestColors.osTextPrimary,
-                height: 1.5,
-              ),
-              decoration: InputDecoration(
-                hintText: widget.hintText,
-                hintStyle: QuestTypography.bodyMedium.copyWith(
-                  color: QuestColors.osTextMuted,
-                ),
-                filled: true,
-                fillColor: QuestColors.osCard,
-                contentPadding: const EdgeInsets.all(QuestSpacing.md),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-                  borderSide: const BorderSide(
-                    color: QuestColors.osBorderStrong,
-                    width: 2,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-                  borderSide: const BorderSide(
-                    color: QuestColors.osBorderStrong,
-                    width: 2,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-                  borderSide: const BorderSide(
-                    color: QuestColors.violet,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.lg),
-          GestureDetector(
-            onTap: _canSubmit
-                ? () => Navigator.of(context).pop(_controller.text.trim())
-                : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: QuestSpacing.md),
-              decoration: BoxDecoration(
-                color: _canSubmit
-                    ? QuestColors.violet
-                    : QuestColors.osTextMuted.withAlpha(80),
-                borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-                border: Border.all(
-                  color: QuestColors.osBorderStrong,
-                  width: 2,
-                ),
-                boxShadow: _canSubmit
-                    ? const [
-                        BoxShadow(
-                          color: _inkShadow,
-                          offset: Offset(3, 3),
-                          blurRadius: 0,
-                        ),
-                      ]
-                    : const [],
-              ),
-              child: Text(
-                widget.buttonLabel.toUpperCase(),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: QuestTypography.buttonText.copyWith(
-                  color: _canSubmit
-                      ? QuestColors.onAccent(QuestColors.violet)
-                      : QuestColors.osTextSecondary,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          Center(
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: QuestSpacing.sm,
-                  horizontal: QuestSpacing.lg,
-                ),
-                child: Text(
-                  'CANCEL',
-                  style: QuestTypography.labelMedium.copyWith(
-                    color: QuestColors.osTextMuted,
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+    return Text(
+      text.toUpperCase(),
+      style: QuestTypography.osLabelMedium.copyWith(
+        color: QuestColors.osTextSecondary,
+        fontSize: 11,
+        letterSpacing: 1.32,
       ),
     );
   }
 }
 
-class _ProofMediaCarousel extends StatefulWidget {
-  const _ProofMediaCarousel({required this.submission});
+/// The verdict card. Its ground is the outcome, so the state is legible
+/// before a word is read.
+///
+/// | State                       | Ground        | Shape           |
+/// |-----------------------------|---------------|-----------------|
+/// | rejected, appeal open       | coral         | `r16`, 5px ink  |
+/// | approved                    | jade          | `r16`, 5px ink  |
+/// | pending (fresh or appealed) | gold          | `r16`, 5px ink  |
+/// | rejected after an appeal    | dashed cream  | `r14`, no shadow|
+///
+/// The final state is the only one drawn dashed: there is nothing left to
+/// act on, and a solid card would keep implying there is.
+class _VerdictCard extends StatelessWidget {
+  const _VerdictCard({required this.submission});
   final SubmissionModel submission;
 
   @override
-  State<_ProofMediaCarousel> createState() => _ProofMediaCarouselState();
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    final status = submission.status;
+    final title = (submission.questTitle ?? 'YOUR SUBMISSION').toUpperCase();
+    final isFinal = status == SubmissionStatus.rejected && submission.appealed;
+
+    final (String kicker, Color ground) = switch (status) {
+      SubmissionStatus.approved => (
+          'APPROVED · XP AWARDED',
+          QuestColors.osSuccess,
+        ),
+      SubmissionStatus.rejected when submission.appealed => (
+          'RE-REJECTED · FINAL',
+          QuestColors.osSurface,
+        ),
+      SubmissionStatus.rejected => (
+          'REJECTED · 1 APPEAL AVAILABLE',
+          QuestColors.osRed,
+        ),
+      SubmissionStatus.pending when submission.appealed => (
+          'PENDING · APPEALED',
+          QuestColors.osAccent,
+        ),
+      _ => ('IN REVIEW', QuestColors.osAccent),
+    };
+
+    final fg =
+        isFinal ? QuestColors.osTextSecondary : QuestColors.onAccent(ground);
+    final stamp = submission.reviewedAt != null
+        ? 'REVIEWED ${_stamp(submission.reviewedAt!)}'
+        : 'SUBMITTED ${_stamp(submission.submittedAt)}';
+
+    final content = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            kicker,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: fg,
+              fontSize: 10,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            title,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osDisplaySmall.copyWith(
+              color: fg,
+              fontSize: 21,
+              height: 1.1,
+              letterSpacing: -0.63,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            stamp,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: fg,
+              fontSize: 10,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (isFinal) {
+      return ArcadeDashedBox(radius: 14, child: content);
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: ground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: QuestSpacing.shadowLg,
+      ),
+      child: content,
+    );
+  }
+
+  /// `12 MAR · 18:04` — the frame's stamp, in the device's local time.
+  static String _stamp(DateTime at) {
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    final t = at.toLocal();
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '${t.day} ${months[t.month - 1]} · $hh:$mm';
+  }
 }
 
-class _ProofMediaCarouselState extends State<_ProofMediaCarousel> {
+/// White `r13` prose card, 2px ink, 3px ink shadow, `13 / 14` padding.
+class _ProseCard extends StatelessWidget {
+  const _ProseCard({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: QuestSpacing.shadowSm,
+      ),
+      child: Text(
+        text,
+        style: QuestTypography.osBodyMedium.copyWith(
+          fontSize: 14,
+          height: 1.55,
+        ),
+      ),
+    );
+  }
+}
+
+/// A rejection reason: white, `r8`, 2px ink, mono 10. Square-ish so it
+/// reads as a tag rather than a status pill.
+class _ReasonChip extends StatelessWidget {
+  const _ReasonChip({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ink, width: 2),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: QuestTypography.osLabelMedium.copyWith(
+          color: QuestColors.osTextPrimary,
+          fontSize: 10,
+          letterSpacing: 0.7,
+        ),
+      ),
+    );
+  }
+}
+
+/// `96 x 118` proof thumb with the caption beside it. Tapping opens the
+/// full-size viewer; a mono counter marks a multi-file submission.
+class _ProofRow extends StatelessWidget {
+  const _ProofRow({required this.submission, required this.caption});
+  final SubmissionModel submission;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    final urls = submission.mediaUrls.where((u) => u.isNotEmpty).toList();
+    final isVideo = submission.mediaType == MediaType.video;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: urls.isEmpty ? null : () => _openViewer(context, urls),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: 96,
+            height: 118,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ink, width: 2),
+              boxShadow: QuestSpacing.shadowSm,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const ArcadeHatch(),
+                  if (urls.isNotEmpty && !isVideo)
+                    Image.network(
+                      urls.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  if (isVideo)
+                    Center(
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: ink,
+                        size: 30,
+                      ),
+                    ),
+                  if (urls.length > 1)
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: QuestColors.osBg,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: ink, width: 2),
+                        ),
+                        child: Text(
+                          '${urls.length}',
+                          style: QuestTypography.osLabelSmall.copyWith(
+                            color: QuestColors.osTextPrimary,
+                            fontSize: 9,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            caption.isEmpty ? 'No caption.' : '"$caption"',
+            style: QuestTypography.osBodySmall.copyWith(
+              color: QuestColors.osTextSecondary,
+              fontSize: 13,
+              height: 1.55,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openViewer(BuildContext context, List<String> urls) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ProofViewer(urls: urls),
+      ),
+    );
+  }
+}
+
+/// The appeal composer: white `r13`, 2px ink, 3px ink shadow, a 76pt floor.
+class _AppealBox extends StatelessWidget {
+  const _AppealBox({
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    required this.enabled,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = QuestColors.text(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: QuestSpacing.shadowSm,
+      ),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        enabled: enabled,
+        minLines: 2,
+        maxLines: 6,
+        maxLength: 600,
+        cursorColor: QuestColors.osPrimary,
+        style: QuestTypography.osBodyMedium.copyWith(
+          fontSize: 14,
+          height: 1.55,
+        ),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: QuestTypography.osBodyMedium.copyWith(
+            color: QuestColors.osTextMuted,
+            fontSize: 14,
+            height: 1.55,
+          ),
+          isDense: true,
+          filled: false,
+          counterText: '',
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-size proof viewer. Not in any frame — a utility surface reached by
+/// tapping the thumb.
+class _ProofViewer extends StatefulWidget {
+  const _ProofViewer({required this.urls});
+  final List<String> urls;
+
+  @override
+  State<_ProofViewer> createState() => _ProofViewerState();
+}
+
+class _ProofViewerState extends State<_ProofViewer> {
   final PageController _controller = PageController();
   int _page = 0;
 
@@ -908,185 +792,87 @@ class _ProofMediaCarouselState extends State<_ProofMediaCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final urls =
-        widget.submission.mediaUrls.where((u) => u.isNotEmpty).toList();
-
-    if (urls.isEmpty) {
-      return Container(
-        width: double.infinity,
-        height: 220,
-        decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-          border: Border.all(color: QuestColors.borderC(context), width: 2),
-        ),
-        child: Center(
-          child: Icon(Icons.image_outlined,
-              size: 48, color: QuestColors.textDim(context)),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 220,
-          child: Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-                child: PageView.builder(
-                  controller: _controller,
-                  itemCount: urls.length,
-                  onPageChanged: (i) => setState(() => _page = i),
-                  itemBuilder: (_, i) {
-                    final url = urls[i];
-                    final isVideo = url.contains('.mp4') ||
-                        url.contains('.mov') ||
-                        url.contains('.webm') ||
-                        (widget.submission.mediaType == MediaType.video &&
-                            urls.length == 1);
-                    if (isVideo) {
-                      return Container(
-                        color: QuestColors.cardBg(context),
-                        child: const Center(
-                          child: Icon(Icons.videocam,
-                              size: 52, color: QuestColors.accentYellow),
-                        ),
-                      );
-                    }
-                    return Image.network(url,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                              child: Icon(Icons.image_outlined,
-                                  size: 48,
-                                  color: QuestColors.textDim(context)),
-                            ));
-                  },
-                ),
-              ),
-              if (urls.length > 1)
-                Positioned(
-                  top: QuestSpacing.sm,
-                  right: QuestSpacing.sm,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: QuestSpacing.sm, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: QuestColors.pureBlack.withAlpha(153),
-                      borderRadius:
-                          BorderRadius.circular(QuestSpacing.radiusFull),
-                    ),
-                    child: Text(
-                      '${_page + 1} / ${urls.length}',
-                      style: const TextStyle(
-                          color: QuestColors.textPrimary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                    ),
+    return Scaffold(
+      backgroundColor: QuestColors.pureBlack,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.urls.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (_, i) => InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  widget.urls[i],
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const ArcadeSkeleton(
+                    width: 240,
+                    height: 320,
+                    radius: 12,
                   ),
                 ),
-            ],
-          ),
-        ),
-        if (urls.length > 1) ...[
-          const SizedBox(height: QuestSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(urls.length, (i) {
-              final active = i == _page;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: active ? 16 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: active ? QuestColors.violet : QuestColors.border,
-                  borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
-                ),
-              );
-            }),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label.toUpperCase(),
-      style: QuestTypography.labelMedium.copyWith(
-        color: QuestColors.osTextSecondary,
-        letterSpacing: 1.4,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-class _ChunkyButton extends StatefulWidget {
-  const _ChunkyButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_ChunkyButton> createState() => _ChunkyButtonState();
-}
-
-class _ChunkyButtonState extends State<_ChunkyButton> {
-  double _scale = 1.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _scale = 0.96),
-      onTapCancel: () => setState(() => _scale = 1.0),
-      onTapUp: (_) {
-        setState(() => _scale = 1.0);
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _scale,
-        duration: const Duration(milliseconds: 90),
-        curve: Curves.easeOut,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: QuestSpacing.md),
-          decoration: BoxDecoration(
-            color: QuestColors.violet,
-            borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-            border: Border.all(
-              color: QuestColors.osBorderStrong,
-              width: 2,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: _inkShadow,
-                offset: Offset(3, 3),
-                blurRadius: 0,
               ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            widget.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: QuestTypography.buttonText.copyWith(
-              color: QuestColors.onAccent(QuestColors.violet),
-              letterSpacing: 1.5,
             ),
           ),
-        ),
+          Positioned(
+            top: MediaQuery.viewPaddingOf(context).top + 8,
+            left: 12,
+            child: ArcadeIconTile(
+              icon: Icons.close_rounded,
+              semanticLabel: 'Close',
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+          if (widget.urls.length > 1)
+            Positioned(
+              top: MediaQuery.viewPaddingOf(context).top + 8,
+              right: 12,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: QuestColors.osBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  '${_page + 1} / ${widget.urls.length}',
+                  style: QuestTypography.osLabelMedium.copyWith(fontSize: 10),
+                ),
+              ),
+            ),
+        ],
       ),
+    );
+  }
+}
+
+class _StatusSkeleton extends StatelessWidget {
+  const _StatusSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(
+        horizontal: QuestSpacing.screenPadding,
+      ),
+      children: const [
+        ArcadeSkeleton(height: 150, radius: 16),
+        SizedBox(height: 14),
+        ArcadeSkeleton(width: 160, height: 11, radius: 4, bordered: false),
+        SizedBox(height: 8),
+        ArcadeSkeleton(height: 92, radius: 13),
+        SizedBox(height: 14),
+        ArcadeSkeleton(width: 130, height: 11, radius: 4, bordered: false),
+        SizedBox(height: 8),
+        ArcadeSkeleton(height: 118, radius: 12),
+      ],
     );
   }
 }

@@ -32,8 +32,7 @@ final usersProvider = FutureProvider.autoDispose<List<_UserRow>>((ref) async {
       avatarUrl: row['avatar_url']?.toString(),
       bio: row['bio']?.toString(),
       email: row['email']?.toString(),
-      accountStatus:
-          row['account_status']?.toString() ?? _AccountStatus.active,
+      accountStatus: row['account_status']?.toString() ?? _AccountStatus.active,
       xp: (row['xp'] as num?)?.toInt() ?? 0,
       level: (row['level'] as num?)?.toInt() ?? 1,
       questsCompleted: (row['quests_completed'] as num?)?.toInt() ?? 0,
@@ -91,8 +90,7 @@ class _UserRow {
   bool get isRestricted => accountStatus != _AccountStatus.active;
 
   /// What the moderator searches by — the header hint promises both.
-  String get haystack =>
-      '$username $displayName ${email ?? ''}'.toLowerCase();
+  String get haystack => '$username $displayName ${email ?? ''}'.toLowerCase();
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -195,14 +193,14 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              BsheelButton.ghost(
+              // White, not cream: this row sits on the cream page ground.
+              BsheelButton.secondary(
                 label: 'Export',
                 icon: Icons.file_download_rounded,
                 small: true,
                 // Nothing to export until the list is on screen, and a
                 // button that cannot act says so by losing its shadow.
-                onPressed:
-                    loaded.isEmpty ? null : () => _exportToExcel(loaded),
+                onPressed: loaded.isEmpty ? null : () => _exportToExcel(loaded),
               ),
               BsheelButton.primary(
                 label: 'Add user',
@@ -456,8 +454,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           label: 'View submissions',
           small: true,
           expand: true,
-          onPressed: () =>
-              context.goNamed(AdminRouteNames.submissionHistory),
+          onPressed: () => context.goNamed(AdminRouteNames.submissionHistory),
         ),
         const SizedBox(height: QuestSpacing.sm),
         BsheelButton.gold(
@@ -1475,7 +1472,7 @@ class _RoleBadge extends StatelessWidget {
     if (role0 == null) {
       return Text(
         'Regular user',
-        style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+        style: BsheelType.bodySm.copyWith(color: BsheelColors.inkSoft),
       );
     }
     final (BsheelPillTone tone, String label) = switch (role0) {
@@ -1653,8 +1650,7 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                           color: isSelected
                               ? BsheelColors.card
                               : BsheelColors.surface,
-                          onTap: () =>
-                              setState(() => _selectedQuestId = qId),
+                          onTap: () => setState(() => _selectedQuestId = qId),
                           child: Row(
                             children: [
                               Icon(
@@ -1669,8 +1665,7 @@ class _AssignQuestDialogState extends State<_AssignQuestDialog> {
                               const SizedBox(width: QuestSpacing.sm),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       q[QuestColumns.title].toString(),

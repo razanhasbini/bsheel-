@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 final _appConfigProvider = FutureProvider<Map<String, String>>((ref) async {
@@ -266,44 +267,33 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
   Widget build(BuildContext context) {
     final configAsync = ref.watch(_appConfigProvider);
 
-    return SingleChildScrollView(
+    // A 640px content pane, like every other page that is not a
+    // full-width work surface. The page title lives in the header bar
+    // the pane draws, so the old hero card — a second title inside the
+    // page, in a size the type scale no longer has — is gone.
+    return AdminPane(
+      title: 'Settings',
+      meta: 'Live for every user',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BsheelCard(
-            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('System · Settings'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Tune the {economy.}',
-                  baseStyle: BsheelType.hero(context),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'App-wide feature flags. Changes take effect immediately '
-                  'for every user — be deliberate.',
-                  style: BsheelType.bodyMd.copyWith(
-                    color: BsheelColors.inkSoft,
-                  ),
-                ),
-              ],
-            ),
+          const BsheelCallout.warning(
+            'These are live. A flag flipped here takes effect on every '
+            'user\'s next request — there is no staging copy of it.',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
             child: configAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              error: (e, _) => Text(
-                'Error loading config: $e',
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
+              // Skeletons in the shape of the real rows, so nothing
+              // jumps when the config lands. No spinner.
+              loading: () => const BsheelLoadingList(rows: 4, rowHeight: 76),
+              error: (e, _) => BsheelErrorState(
+                title: 'Settings didn’t load',
+                message: 'The runtime config didn’t come back, so nothing '
+                    'is shown rather than something stale. No flag was '
+                    'changed. $e',
+                onRetry: () => ref.invalidate(_appConfigProvider),
               ),
               data: (config) {
                 final socialEnabled = config['social_login_enabled'] != 'false';

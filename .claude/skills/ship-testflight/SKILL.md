@@ -18,16 +18,47 @@ same place. The hook refuses a dirty tree for the reason below.
 
 ## Before anything else
 
-Work from the repo root:
+Work from the repo root. **Do not hardcode a path.** This repo is a fork of
+`quest-app` and ships the *same* bundle id, so a stale `cd` into that other tree
+builds the wrong code, uploads it successfully, and reports a plausible version
+and build number. Every check below would still pass. Locate the root by its own
+marker instead, and refuse to continue if it is not this repo:
 
 ```bash
-cd /Users/tayseerlaz/Projects/quest-app/4hoursonly
+ROOT=$PWD
+# Walk up to the melos root, then verify it is the right one.
+while [ "$ROOT" != "/" ] && [ ! -f "$ROOT/melos.yaml" ]; do ROOT=$(dirname "$ROOT"); done
+cd "$ROOT" || exit 1
+# Identify the repo by its architecture, not its name: melos.yaml still says
+# "quest_app" in both, and quest-app's own CLAUDE.md mentions Bsheel, so
+# neither is a discriminator. Bsheel has a self-hosted backend/ and no
+# supabase/ — that is the documented difference between the two.
+if [ ! -d backend ] || [ -d supabase ]; then
+  echo "REFUSING: $(pwd) is not the Bsheel repo (expected backend/ and no supabase/)."
+  echo "quest-app and Bsheel share bundle id com.questapp.mobileApp, so building"
+  echo "the wrong one uploads successfully and reports a plausible build number."
+  exit 1
+fi
+echo "Building from: $(pwd)"
 ```
+
+If the user invoked this from somewhere else, ask which repo they mean rather
+than guessing — quest-app and Bsheel are indistinguishable from the bundle id
+alone.
 
 Check three things and report them to the user before building:
 
 ```bash
-git status --short | head            # uncommitted work will NOT be in the build unless it is here
+# The build ships the WORKING TREE. Check git's exit code — a failed status
+# prints nothing and looks identical to a clean tree.
+git status --short > /tmp/ship-status.txt 2>/tmp/ship-status.err
+if [ $? -ne 0 ]; then
+  echo "WARNING: git status failed — cannot verify the tree is clean:"
+  cat /tmp/ship-status.err
+  echo "Proceed only if the user confirms the working tree is what they want shipped."
+else
+  head /tmp/ship-status.txt
+fi
 grep -E '^version:' apps/mobile_app/pubspec.yaml
 python3 scripts/appstore.py next-build com.questapp.mobileApp
 ```

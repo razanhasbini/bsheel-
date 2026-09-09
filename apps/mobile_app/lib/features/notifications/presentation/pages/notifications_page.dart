@@ -5,7 +5,6 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:app_contracts/app_contracts.dart';
 import 'package:shared_ui/shared_ui.dart';
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/router/safe_back.dart';
@@ -15,8 +14,13 @@ import '../../../../core/utils/account_lock_guard.dart';
 import '../providers/notifications_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Arcade Pop notifications page. Logic (auto mark-as-read, badge clearing,
-/// filtering, navigation per notification type) is unchanged.
+/// Arcade Pop notifications page, matched to `export/mobile/11-notifications
+/// .jpg` and the 19-card catalogue in `export/notifications/`.
+///
+/// Logic (auto mark-as-read, badge clearing, filtering, navigation per
+/// notification type) is unchanged — the destinations in
+/// [_navigateForNotification] are load-bearing, and `submission_rejected`
+/// is the primary route into the appeal flow.
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
@@ -66,6 +70,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               n.type == NotificationType.commentReply ||
               n.type == NotificationType.mention ||
               n.type == NotificationType.followQuestCompleted ||
+              n.type == NotificationType.collabJoined ||
               n.type == NotificationType.leaderboardOvertaken ||
               n.type == NotificationType.top10Entry;
         case 2:
@@ -79,12 +84,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               n.type == NotificationType.announcement ||
               n.type == NotificationType.newSubmission ||
               n.type == NotificationType.appealSubmitted ||
+              n.type == NotificationType.collabPartnerApproved ||
               n.type == NotificationType.pendingReviewReminder;
         default:
           return true;
       }
     }).toList();
   }
+
+  static const EdgeInsets _listPadding = EdgeInsets.fromLTRB(
+    QuestSpacing.screenPadding,
+    8,
+    QuestSpacing.screenPadding,
+    24,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -101,10 +114,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       body: Column(
         children: [
           // ── Header ────────────────────────────────────────────────
+          // The render draws a 42pt white icon button at r11 with a 3px
+          // ink shadow, then the page title in Syne 800 23. Nothing else
+          // sits on this row.
           Padding(
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).padding.top + 14,
-              bottom: 4,
+              bottom: 12,
               left: QuestSpacing.screenPadding,
               right: QuestSpacing.screenPadding,
             ),
@@ -113,101 +129,80 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 GestureDetector(
                   onTap: () => safeBack(context),
                   behavior: HitTestBehavior.opaque,
-                  child: BsMinTouch(
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: ink, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ink,
-                            offset: const Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ],
+                  // 44pt hit box around a 42pt paint box: the design draws
+                  // the smaller square, the touch floor is non-negotiable.
+                  child: SizedBox(
+                    width: QuestSpacing.minTouchTarget,
+                    height: QuestSpacing.minTouchTarget,
+                    child: Center(
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: QuestColors.cardBg(context),
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: ink, width: 2),
+                          boxShadow: QuestSpacing.shadowSm,
+                        ),
+                        child: Icon(Icons.arrow_back_rounded,
+                            color: ink, size: 18),
                       ),
-                      child:
-                          Icon(Icons.arrow_back_rounded, color: ink, size: 20),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Flexible(
+                const SizedBox(width: 11),
+                Expanded(
                   child: Text(
-                    'SIGNALS',
+                    l.notifications.toUpperCase(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.headlineLarge.copyWith(
+                    style: QuestTypography.osDisplaySmall.copyWith(
                       color: ink,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                      height: 1,
+                      fontSize: 23,
+                      letterSpacing: -0.6,
+                      height: 1.1,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Container(
-                  width: 40,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: QuestColors.osRed,
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: ink, width: 2),
-                  ),
-                ),
-                const Spacer(),
               ],
             ),
           ),
 
           // ── Filter chips ────────────────────────────────────────────
           SizedBox(
-            height: 36,
+            height: QuestSpacing.minTouchTarget,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(
-                  horizontal: QuestSpacing.screenPadding, vertical: 4),
+                  horizontal: QuestSpacing.screenPadding),
               itemCount: filters.length,
               itemBuilder: (context, i) {
                 final active = i == _filterIndex;
                 return GestureDetector(
                   onTap: () => setState(() => _filterIndex = i),
+                  behavior: HitTestBehavior.opaque,
                   child: Padding(
                     padding:
-                        EdgeInsets.only(right: i < filters.length - 1 ? 8 : 0),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        // The render draws the selected filter as an ink
-                        // chip with cream text, not a gold one. Gold means
-                        // "waiting on you" in this design; spending it on a
-                        // tab selection weakens it where it matters.
-                        color: active ? ink : QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: ink, width: 2),
-                        boxShadow: active
-                            ? [
-                                BoxShadow(
-                                  color: ink,
-                                  offset: const Offset(1.5, 2),
-                                  blurRadius: 0,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Center(
+                        EdgeInsets.only(right: i < filters.length - 1 ? 6 : 0),
+                    child: Center(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          // The render draws the selected filter as an ink
+                          // chip with cream text, not a gold one. Gold means
+                          // "waiting on you" in this design; spending it on a
+                          // tab selection weakens it where it matters.
+                          color: active ? ink : QuestColors.cardBg(context),
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: ink, width: 2),
+                        ),
                         child: Text(
                           filters[i].toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                          style: QuestTypography.osLabelSmall.copyWith(
                             letterSpacing: 0.8,
+                            height: 1.2,
                             color: active ? QuestColors.osBg : ink,
                           ),
                         ),
@@ -218,13 +213,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               },
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
 
           // ── Content ────────────────────────────────────────────────
           Expanded(
             child: notificationsAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              loading: () => const ArcadeSkeletonList(
+                itemCount: 5,
+                itemHeight: 80,
+                spacing: 10,
+                padding: _listPadding,
               ),
               error: (e, _) => _ErrorState(
                 message: l.failedToLoad,
@@ -233,74 +231,35 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               ),
               data: (allNotifications) {
                 final notifications = _filtered(allNotifications);
-                if (notifications.isEmpty) {
-                  return _EmptyState(title: l.noNewSignals);
-                }
-
                 return RefreshIndicator(
                   color: QuestColors.osRed,
                   backgroundColor: QuestColors.cardBg(context),
                   onRefresh: () async => ref.invalidate(notificationsProvider),
-                  child: ListView.separated(
-                    // Keyed by the active filter so scroll position is
-                    // preserved when the user toggles ALL ↔ SOCIAL etc.,
-                    // instead of snapping back to the top on every tap.
-                    key: PageStorageKey<int>(_filterIndex),
-                    padding: const EdgeInsets.fromLTRB(
-                      QuestSpacing.screenPadding,
-                      8,
-                      QuestSpacing.screenPadding,
-                      24,
-                    ),
-                    itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final n = notifications[index];
-                      return _ArcadeNotificationTile(
-                        title: n.title,
-                        body: n.body,
-                        type: n.type,
-                        isRead: n.isRead,
-                        timeAgo: _timeAgo(n.createdAt),
-                        actorAvatarUrl: n.actorAvatarUrl,
-                        actorUsername: n.actorUsername,
-                        onActorTap: n.actorId == null
-                            ? null
-                            : () => context.pushNamed(
-                                  RouteNames.userProfile,
-                                  pathParameters: {'userId': n.actorId!},
-                                ),
-                        onTap: () async {
-                          // Wrap the read-mark in try/catch so a transient
-                          // RLS/network blip doesn't (a) silently swallow
-                          // the failure and leave the unread dot stale OR
-                          // (b) block the navigation. Navigate either
-                          // way; only invalidate the providers if the
-                          // mark actually succeeded.
-                          if (!n.isRead) {
-                            try {
-                              await ref
-                                  .read(notificationsRepositoryProvider)
-                                  .markAsRead(n.id);
-                              if (context.mounted) {
-                                ref.invalidate(notificationsProvider);
-                                ref.invalidate(unreadCountProvider);
-                              }
-                            } catch (e) {
-                              AppLogger.warning(
-                                  '[Notifications] markAsRead failed for ${n.id}: $e');
-                            }
-                          }
-                          if (context.mounted) {
-                            ref
-                                .read(analyticsProvider)
-                                .notificationTapped(n.type);
-                            _navigateForNotification(context, n);
-                          }
-                        },
-                      );
-                    },
-                  ),
+                  child: notifications.isEmpty
+                      ? ListView(
+                          padding: _listPadding,
+                          children: [_EmptyState(title: l.noNewSignals)],
+                        )
+                      : ListView.separated(
+                          // Keyed by the active filter so scroll position is
+                          // preserved when the user toggles ALL ↔ SOCIAL etc.,
+                          // instead of snapping back to the top on every tap.
+                          key: PageStorageKey<int>(_filterIndex),
+                          padding: _listPadding,
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: _NotificationCard.gap),
+                          itemBuilder: (context, index) {
+                            final n = notifications[index];
+                            return _NotificationCard(
+                              type: n.type,
+                              body: n.body,
+                              isRead: n.isRead,
+                              timeAgo: timeAgo(n.createdAt),
+                              onTap: () => _handleTap(n),
+                            );
+                          },
+                        ),
                 );
               },
             ),
@@ -308,6 +267,27 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleTap(NotificationModel n) async {
+    // Wrap the read-mark in try/catch so a transient RLS/network blip
+    // doesn't (a) silently swallow the failure and leave the unread state
+    // stale OR (b) block the navigation. Navigate either way; only
+    // invalidate the providers if the mark actually succeeded.
+    if (!n.isRead) {
+      try {
+        await ref.read(notificationsRepositoryProvider).markAsRead(n.id);
+        if (mounted) {
+          ref.invalidate(notificationsProvider);
+          ref.invalidate(unreadCountProvider);
+        }
+      } catch (e) {
+        AppLogger.warning('[Notifications] markAsRead failed for ${n.id}: $e');
+      }
+    }
+    if (!mounted) return;
+    ref.read(analyticsProvider).notificationTapped(n.type);
+    _navigateForNotification(context, n);
   }
 
   void _navigateForNotification(
@@ -366,307 +346,323 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         context.goNamed(RouteNames.home);
     }
   }
-
-  String _timeAgo(DateTime dt) => timeAgo(dt);
 }
 
-// ── Tile ────────────────────────────────────────────────────────────────────
+// ── Card ────────────────────────────────────────────────────────────────────
 
-class _ArcadeNotificationTile extends StatelessWidget {
-  const _ArcadeNotificationTile({
-    required this.title,
-    required this.body,
+/// One notification, drawn as the render draws it: the **whole card** is
+/// tinted by what the notification means, and every line of type on it is
+/// picked by [QuestColors.onAccent] so contrast holds on every ground.
+///
+/// Read/unread is carried by **border weight and shadow only** — the fill
+/// says what the notification is about, never whether it has been opened,
+/// and the body text is never dimmed for having been looked at.
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
     required this.type,
+    required this.body,
     required this.isRead,
     required this.timeAgo,
     required this.onTap,
-    this.actorAvatarUrl,
-    this.actorUsername,
-    this.onActorTap,
   });
 
-  final String title;
-  final String body;
   final String type;
+  final String body;
   final bool isRead;
   final String timeAgo;
   final VoidCallback onTap;
-  final String? actorAvatarUrl;
-  final String? actorUsername;
-  final VoidCallback? onActorTap;
+
+  /// Gap between cards in the list.
+  static const double gap = 10;
+
+  /// Radius, shadow depth and padding read off
+  /// `export/mobile/11-notifications.jpg`.
+  static const double _radius = 14;
+  static const double _shadowDepth = 4;
+  static const EdgeInsets _padding = EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 13,
+  );
+
+  /// The ground for a notification type.
+  ///
+  /// Read one-by-one off `export/notifications/notif-01.jpg` …
+  /// `notif-19.jpg`, which is one card per type. Colour maps to **meaning**:
+  ///
+  /// | Ground | Means | Types |
+  /// |---|---|---|
+  /// | jade | cleared | `submission_approved`, `collab_partner_approved` |
+  /// | coral | rejected / urgent | `submission_rejected`, `quest_timer_warning`, `leaderboard_overtaken` |
+  /// | gold | a person has to act | `appeal_submitted`, `quest_assigned`, `top_10_entry` |
+  /// | violet | progression | `level_up`, `new_follower`, `collab_joined` |
+  /// | sky | you were named | `mention` |
+  /// | cream + dashed | spent, nothing to do | `quest_expired` |
+  /// | white | informational | everything else |
+  ///
+  /// `collab_joined` and `collab_partner_approved` have no card in the
+  /// catalogue; they take the ground of the bucket they belong to.
+  static Color _ground(String type) => switch (type) {
+        NotificationType.submissionApproved => QuestColors.osSuccess,
+        NotificationType.collabPartnerApproved => QuestColors.osSuccess,
+        NotificationType.submissionRejected => QuestColors.osRed,
+        NotificationType.questTimerWarning => QuestColors.osRed,
+        NotificationType.leaderboardOvertaken => QuestColors.osRed,
+        NotificationType.appealSubmitted => QuestColors.osAccent,
+        NotificationType.questAssigned => QuestColors.osAccent,
+        NotificationType.top10Entry => QuestColors.osAccent,
+        NotificationType.levelUp => QuestColors.osPrimary,
+        NotificationType.newFollower => QuestColors.osPrimary,
+        NotificationType.collabJoined => QuestColors.osPrimary,
+        NotificationType.mention => QuestColors.osCool,
+        NotificationType.questExpired => QuestColors.osSurface,
+        // white: new_submission, pending_review_reminder,
+        // reaction_received, reaction_milestone, new_comment,
+        // comment_reply, follow_quest_completed, announcement.
+        _ => QuestColors.osCard,
+      };
+
+  /// The mono label above the body — the type, ALL CAPS, spaces for
+  /// underscores, exactly as the render prints it ("SUBMISSION REJECTED",
+  /// "SUBMISSION APPROVED", "MENTION"). Every type yields four words or
+  /// fewer, so the caps rule holds without a per-type table.
+  static String _label(String type) =>
+      type.replaceAll('_', ' ').trim().toUpperCase();
 
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
+    final ground = _ground(type);
+
+    // `quest_expired` is the one type the render draws with a dashed
+    // outline on the warm surface — the same language the disabled button
+    // uses, so it reads as "over" rather than merely quiet.
+    final expired = type == NotificationType.questExpired;
+    final flat =
+        ground == QuestColors.osCard || ground == QuestColors.osSurface;
+
+    // On a tinted ground the shadow is ink. On white it is muted, so the
+    // coral/jade/gold cards keep the visual lead they are meant to have.
+    final shadowColor = flat ? QuestColors.osTextMuted : ink;
+    final borderColor = expired || isRead ? QuestColors.osTextMuted : ink;
+    final borderWidth = isRead ? 1.0 : QuestSpacing.cardBorderWidth;
+
+    final labelColor = QuestColors.onAccentSoft(ground);
+    // The body is never alpha-dimmed: `onAccent` is what keeps ink on
+    // coral/jade/sky and white on violet, and dimming it drops below AA.
+    final bodyColor = expired
+        ? QuestColors.onAccentSoft(ground)
+        : QuestColors.onAccent(ground);
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _label(type),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osLabelSmall.copyWith(color: labelColor),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          body,
+          // Bounded so a long quest title inside the message cannot push
+          // the timestamp off the card. Checked at 320dp.
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osBodyMedium.copyWith(
+            color: bodyColor,
+            fontWeight: FontWeight.w600,
+            fontVariations: const [FontVariation('wght', 600)],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          timeAgo.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osLabelSmall.copyWith(
+            color: labelColor,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+
+    final decorated = expired
+        ? _DashedCard(
+            radius: _radius,
+            color: borderColor,
+            strokeWidth: borderWidth,
+            fill: ground,
+            child: Padding(padding: _padding, child: content),
+          )
+        : Container(
+            padding: _padding,
+            decoration: BoxDecoration(
+              color: ground,
+              borderRadius: BorderRadius.circular(_radius),
+              border: Border.all(color: borderColor, width: borderWidth),
+              // Unread keeps the hard shadow; read drops it and thins the
+              // border to 1px. This is the one place a 1px border is right.
+              boxShadow: isRead
+                  ? null
+                  : QuestSpacing.hardShadow(_shadowDepth, color: shadowColor),
+            ),
+            child: content,
+          );
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          // Read/unread is distinguished by border + shadow below, not fill.
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isRead ? ink.withAlpha(120) : ink,
-            width: isRead ? 1.5 : 2,
-          ),
-          boxShadow: isRead
-              ? null
-              : [
-                  BoxShadow(
-                    color: ink,
-                    offset: const Offset(3, 3),
-                    blurRadius: 0,
-                  ),
-                ],
+      behavior: HitTestBehavior.opaque,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minHeight: QuestSpacing.minTouchTarget,
         ),
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icon tile or actor avatar
-            _buildLeadingWidget(ink),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: QuestTypography.labelMedium.copyWith(
-                            color: ink,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13.5,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (!isRead)
-                        Container(
-                          width: 9,
-                          height: 9,
-                          margin: const EdgeInsets.only(left: 6, top: 2),
-                          decoration: BoxDecoration(
-                            color: QuestColors.osRed,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: ink, width: 2),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    body,
-                    style: QuestTypography.bodySmall.copyWith(
-                      color: ink.withAlpha(180),
-                      fontSize: 12.5,
-                      height: 1.35,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (_isSocialType(type) && actorUsername != null)
-                        GestureDetector(
-                          onTap: onActorTap,
-                          child: _MetaPill(
-                            label: '@$actorUsername',
-                            ink: ink,
-                            backgroundColor: QuestColors.accentYellow,
-                          ),
-                        ),
-                      _MetaPill(
-                        label: timeAgo,
-                        ink: ink,
-                        backgroundColor: QuestColors.bg(context),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        child: decorated,
       ),
     );
-  }
-
-  bool _isSocialType(String type) {
-    return type == NotificationType.reactionReceived ||
-        type == NotificationType.reactionMilestone ||
-        type == NotificationType.newFollower ||
-        type == NotificationType.newComment ||
-        type == NotificationType.commentReply ||
-        type == NotificationType.followQuestCompleted;
-  }
-
-  Widget _buildLeadingWidget(Color ink) {
-    if (_isSocialType(type) &&
-        (actorAvatarUrl != null || actorUsername != null)) {
-      return GestureDetector(
-        onTap: onActorTap,
-        child: PixelAvatar(
-          imageUrl: actorAvatarUrl,
-          username: actorUsername ?? '?',
-          size: 40,
-          borderColor: ink,
-        ),
-      );
-    }
-    final (icon, tint) = _iconAndTint(type);
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: tint,
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: ink, width: 2),
-      ),
-      child: Icon(icon, color: QuestColors.onAccent(tint), size: 20),
-    );
-  }
-
-  (IconData, Color) _iconAndTint(String type) {
-    switch (type) {
-      case NotificationType.submissionApproved:
-        return (Icons.check_circle_rounded, QuestColors.osSuccess);
-      case NotificationType.submissionRejected:
-        return (Icons.cancel_rounded, QuestColors.osRed);
-      case NotificationType.levelUp:
-        return (Icons.trending_up_rounded, QuestColors.osPrimary);
-      case NotificationType.questAssigned:
-        return (Icons.flag_rounded, QuestColors.accentYellow);
-      case NotificationType.questExpired:
-        return (Icons.hourglass_empty_rounded, QuestColors.osTextMuted);
-      case NotificationType.questTimerWarning:
-        return (Icons.alarm_rounded, QuestColors.osRed);
-      case NotificationType.reactionReceived:
-      case NotificationType.reactionMilestone:
-        return (Icons.favorite_rounded, QuestColors.osRed);
-      case NotificationType.newFollower:
-        return (Icons.person_add_rounded, QuestColors.osPrimary);
-      case NotificationType.newComment:
-      case NotificationType.commentReply:
-        return (Icons.chat_bubble_rounded, QuestColors.osPrimary);
-      case NotificationType.followQuestCompleted:
-        return (Icons.emoji_events_rounded, QuestColors.accentYellow);
-      case NotificationType.leaderboardOvertaken:
-        return (Icons.bolt_rounded, QuestColors.osRed);
-      case NotificationType.top10Entry:
-        return (Icons.military_tech_rounded, QuestColors.accentYellow);
-      case NotificationType.announcement:
-        return (Icons.campaign_rounded, QuestColors.osPrimary);
-      case NotificationType.newSubmission:
-      case NotificationType.appealSubmitted:
-      case NotificationType.pendingReviewReminder:
-        return (Icons.assignment_rounded, QuestColors.osPrimary);
-      default:
-        return (Icons.notifications_rounded, QuestColors.osPrimary);
-    }
   }
 }
 
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({
-    required this.label,
-    required this.ink,
-    required this.backgroundColor,
+// ── Dashed rounded rectangle ────────────────────────────────────────────────
+
+/// A filled, dashed-outline rounded rectangle.
+///
+/// Flutter has no dashed [Border], and the design uses one twice on this
+/// screen: on the `quest_expired` card and on the empty state.
+class _DashedCard extends StatelessWidget {
+  const _DashedCard({
+    required this.child,
+    required this.radius,
+    required this.color,
+    required this.strokeWidth,
+    this.fill,
   });
 
-  final String label;
-  final Color ink;
-  final Color backgroundColor;
+  final Widget child;
+  final double radius;
+  final Color color;
+  final double strokeWidth;
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: ink, width: 1.2),
+        color: fill,
+        borderRadius: BorderRadius.circular(radius),
       ),
-      // Cap the chip width so a 30-char @handle truncates with an ellipsis
-      // instead of stretching past the row on small phones.
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: QuestTypography.labelSmall.copyWith(
-            color: ink,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.3,
-          ),
+      child: CustomPaint(
+        painter: _DashedRRectPainter(
+          radius: radius,
+          color: color,
+          strokeWidth: strokeWidth,
         ),
+        child: child,
       ),
     );
   }
+}
+
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({
+    required this.radius,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final double radius;
+  final Color color;
+  final double strokeWidth;
+
+  // Dash geometry is fixed rather than configurable: a dashed outline means
+  // one thing in this design, so it should look identical everywhere.
+  static const double _dash = 6;
+  static const double _gap = 5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    // Inset by half the stroke so the dashes sit inside the bounds rather
+    // than straddling them.
+    final inset = strokeWidth / 2;
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        inset,
+        inset,
+        size.width - strokeWidth,
+        size.height - strokeWidth,
+      ),
+      Radius.circular(radius - inset),
+    );
+
+    final path = Path()..addRRect(rrect);
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + _dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + _gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRRectPainter oldDelegate) =>
+      oldDelegate.radius != radius ||
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
 
 // ── Empty + error ───────────────────────────────────────────────────────────
 
+/// `EMPTY STATE` in mono muted over `NO NEW SIGNALS` in Syne, inside a
+/// dashed r14 box with no fill — exactly as the render draws it.
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.title});
   final String title;
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: ink, width: 2),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [QuestColors.osPrimary, QuestColors.osRed],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: ink,
-                  offset: const Offset(3, 3),
-                  blurRadius: 0,
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: _DashedCard(
+        radius: 14,
+        color: QuestColors.osTextMuted,
+        strokeWidth: QuestSpacing.cardBorderWidth,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'EMPTY STATE',
+                textAlign: TextAlign.center,
+                style: QuestTypography.osLabelSmall.copyWith(
+                  color: QuestColors.osTextMuted,
                 ),
-              ],
-            ),
-            child: const Icon(Icons.notifications_off_rounded,
-                color: QuestColors.osTextOnPrimary, size: 38),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                title.toUpperCase(),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osHeadlineMedium.copyWith(
+                  color: QuestColors.osTextSecondary,
+                  fontSize: 17,
+                  height: 1.15,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          Text(
-            title.toUpperCase(),
-            style: QuestTypography.headlineSmall.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Your signal feed is clear.',
-            style: QuestTypography.bodyMedium.copyWith(
-              color: ink.withAlpha(170),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -686,63 +682,40 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: QuestColors.osRed,
-              shape: BoxShape.circle,
-              border: Border.all(color: ink, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: ink,
-                  offset: const Offset(3, 3),
-                  blurRadius: 0,
-                ),
-              ],
-            ),
-            child: Icon(Icons.error_outline,
-                color: QuestColors.onAccent(QuestColors.osRed), size: 36),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            message,
-            style: QuestTypography.headlineSmall.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: onRetry,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(QuestSpacing.screenPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: QuestColors.accentYellow,
-                borderRadius: BorderRadius.circular(12),
+                color: QuestColors.osRed,
+                shape: BoxShape.circle,
                 border: Border.all(color: ink, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: ink,
-                    offset: const Offset(3, 3),
-                    blurRadius: 0,
-                  ),
-                ],
+                boxShadow: QuestSpacing.shadowSm,
               ),
-              child: Text(
-                retryLabel.toUpperCase(),
-                style: QuestTypography.labelMedium.copyWith(
-                  color: ink,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              child: Icon(Icons.error_outline,
+                  color: QuestColors.onAccent(QuestColors.osRed), size: 36),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osHeadlineMedium.copyWith(color: ink),
+            ),
+            const SizedBox(height: 14),
+            ArcadeButton(
+              label: retryLabel,
+              onTap: onRetry,
+              variant: ArcadeButtonVariant.secondary,
+              size: ArcadeButtonSize.small,
+              expand: false,
+            ),
+          ],
+        ),
       ),
     );
   }

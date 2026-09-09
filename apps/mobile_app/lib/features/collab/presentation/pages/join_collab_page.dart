@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../data/collab_providers.dart';
 
+/// Join a collab — built to the JOIN A COLLAB block in
+/// `export/panels/panel-04.jpg`: a violet `r16` panel with white type, the
+/// code set in a cream box, and a jade JOIN GROUP with **ink** type.
 class JoinCollabPage extends ConsumerStatefulWidget {
   final String code;
   const JoinCollabPage({super.key, required this.code});
@@ -20,11 +22,6 @@ class JoinCollabPage extends ConsumerStatefulWidget {
 }
 
 class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
-  static const Color _inkShadow20 =
-      Color(0x331A1330); // Screen-specific colour — not a theme token.
-  static const Color _inkShadow15 =
-      Color(0x261A1330); // Screen-specific colour — not a theme token.
-
   bool _joining = false;
   bool _abandoning = false;
 
@@ -86,25 +83,51 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
   Future<bool> _showAbandonDialog() async {
     return await showDialog<bool>(
           context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: QuestColors.cardBg(context),
-            title: Text('ABANDON CURRENT QUEST?',
-                style: QuestTypography.headlineSmall
-                    .copyWith(color: QuestColors.text(context))),
-            content: Text(
-                'You have an active quest. Abandon it to join this group.',
-                style: QuestTypography.bodyMedium
-                    .copyWith(color: QuestColors.textDim(context))),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: Text('CANCEL',
-                      style: TextStyle(color: QuestColors.text(context)))),
-              TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('ABANDON & JOIN',
-                      style: TextStyle(color: QuestColors.osSuccess))),
-            ],
+          barrierColor:
+              QuestColors.pureBlack.withAlpha(QuestColors.alphaOverlay),
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(24),
+            child: ArcadeCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('ABANDON CURRENT QUEST?',
+                      style: QuestTypography.osHeadlineLarge
+                          .copyWith(color: QuestColors.osRedText)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You have an active quest. Abandon it to join this group.',
+                    style: QuestTypography.osBodyMedium
+                        .copyWith(color: QuestColors.osTextSecondary),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ArcadeButton(
+                          label: 'Cancel',
+                          size: ArcadeButtonSize.small,
+                          variant: ArcadeButtonVariant.ghost,
+                          onTap: () => Navigator.of(ctx).pop(false),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ArcadeButton(
+                          label: 'Abandon & join',
+                          size: ArcadeButtonSize.small,
+                          variant: ArcadeButtonVariant.positive,
+                          onTap: () => Navigator.of(ctx).pop(true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ) ??
         false;
@@ -113,7 +136,6 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
   @override
   Widget build(BuildContext context) {
     final groupAsync = ref.watch(collabGroupDetailsProvider(widget.code));
-    final navyColor = QuestColors.text(context);
 
     // Deep-link cold-start protection: this page is the App Store landing
     // route for `/join/:code` shares, so there's no implicit Navigator
@@ -128,295 +150,87 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
     }
 
     return Scaffold(
-      backgroundColor: QuestColors.bg(context),
+      backgroundColor: QuestColors.osBg,
       body: SafeArea(
-        child: Stack(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
           children: [
-            Positioned(
-              top: 8,
-              left: QuestSpacing.screenPadding,
-              child: _BackButton(onTap: onBack),
+            Row(
+              children: [
+                _IconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 56),
-              child: groupAsync.when(
-                loading: () => const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(QuestSpacing.screenPadding),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            size: 48, color: QuestColors.osRed),
-                        const SizedBox(height: QuestSpacing.md),
-                        Text('GROUP NOT FOUND',
-                            style: QuestTypography.headlineSmall
-                                .copyWith(color: navyColor)),
-                        const SizedBox(height: QuestSpacing.sm),
-                        Text('This group may have expired or is full.',
-                            style: QuestTypography.bodyMedium
-                                .copyWith(color: navyColor.withAlpha(160)),
-                            textAlign: TextAlign.center),
-                        const SizedBox(height: QuestSpacing.xl),
-                        GestureDetector(
-                          onTap: () => context.goNamed(RouteNames.home),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: QuestSpacing.xl,
-                                vertical: QuestSpacing.md),
-                            decoration: BoxDecoration(
-                                color: QuestColors.violet,
-                                borderRadius: BorderRadius.circular(18)),
-                            child: Text('GO HOME',
-                                style: QuestTypography.labelMedium.copyWith(
-                                    color: QuestColors.osTextOnPrimary,
-                                    letterSpacing: 1.5)),
-                          ),
-                        ),
-                      ],
-                    ),
+            const SizedBox(height: 16),
+            groupAsync.when(
+              loading: () => const ArcadeSkeleton(height: 260, radius: 16),
+              error: (e, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _DashedPanel(
+                    label: 'EMPTY STATE',
+                    title: 'GROUP NOT FOUND',
+                    body: 'This group may have expired or is full.',
                   ),
-                ),
-                data: (group) {
-                  final isVersus = group.mode == CollabMode.versus;
-                  // Versus = competitive red, coop = collaborative green (mirrors
-                  // the reels-card collab badge + post detail page).
-                  final accentColor =
-                      isVersus ? QuestColors.osRed : QuestColors.osSuccess;
-                  final isBusy = _joining || _abandoning;
-
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(QuestSpacing.screenPadding),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: QuestSpacing.xl),
-
-                        // Mode badge — chunky pill matching the rest of the app
-                        Container(
+                  const SizedBox(height: 16),
+                  ArcadeButton(
+                    label: 'Go home',
+                    onTap: () => context.goNamed(RouteNames.home),
+                  ),
+                ],
+              ),
+              data: (group) {
+                final isBusy = _joining || _abandoning;
+                final isVersus = group.mode == CollabMode.versus;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _InvitePanel(
+                      creator: group.creatorUsername.isNotEmpty
+                          ? group.creatorUsername
+                          : group.creatorDisplayName,
+                      groupTitle: group.questTitle,
+                      code: group.code,
+                      buttonLabel: _abandoning
+                          ? 'ABANDONING QUEST…'
+                          : _joining
+                              ? 'JOINING…'
+                              : 'JOIN GROUP',
+                      onJoin: isBusy ? null : _join,
+                    ),
+                    const SizedBox(height: 16),
+                    _QuestPreviewCard(
+                      title: group.questTitle,
+                      description: group.questDescription,
+                      category: group.questCategory,
+                      xpReward: group.questXpReward,
+                      isVersus: isVersus,
+                      joined: group.memberCount,
+                      capacity: group.maxMembers,
+                    ),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => context.goNamed(RouteNames.home),
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: accentColor.withAlpha(28),
-                            borderRadius:
-                                BorderRadius.circular(QuestSpacing.radiusFull),
-                            border: Border.all(color: accentColor, width: 2),
+                            horizontal: 20,
+                            vertical: 12,
                           ),
                           child: Text(
-                            isVersus ? 'VERSUS QUEST' : 'COLLAB QUEST',
-                            style: QuestTypography.labelMedium.copyWith(
-                              color: accentColor,
-                              letterSpacing: 2,
-                              fontWeight: FontWeight.w800,
+                            'NOT NOW',
+                            style: QuestTypography.osLabelMedium.copyWith(
+                              color: QuestColors.osTextSecondary,
+                              letterSpacing: 1.6,
                             ),
                           ),
                         ),
-                        const SizedBox(height: QuestSpacing.lg),
-
-                        // Creator avatar with chunky drop shadow
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(QuestSpacing.radiusSm),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: _inkShadow20,
-                                offset: Offset(3, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: PixelAvatar(
-                            username: group.creatorUsername,
-                            imageUrl: group.creatorAvatarUrl,
-                            size: 72,
-                          ),
-                        ),
-                        const SizedBox(height: QuestSpacing.sm),
-                        Text(
-                          group.creatorDisplayName,
-                          style: QuestTypography.headlineSmall.copyWith(
-                            color: navyColor,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                        Text(
-                          'INVITES YOU TO JOIN',
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.osTextSecondary,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                        const SizedBox(height: QuestSpacing.lg),
-
-                        // Quest preview — chunky white card
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(QuestSpacing.lg),
-                          decoration: BoxDecoration(
-                            color: QuestColors.osCard,
-                            borderRadius:
-                                BorderRadius.circular(QuestSpacing.radiusMd),
-                            border: Border.all(
-                              color: QuestColors.osBorderStrong,
-                              width: 2,
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: _inkShadow20,
-                                offset: Offset(3, 3),
-                                blurRadius: 0,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                group.questTitle.toUpperCase(),
-                                style: QuestTypography.headlineSmall.copyWith(
-                                  color: navyColor,
-                                  letterSpacing: 1.5,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: QuestSpacing.sm),
-                              Text(
-                                group.questDescription,
-                                style: QuestTypography.bodyMedium.copyWith(
-                                  color: QuestColors.osTextSecondary,
-                                  height: 1.5,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: QuestSpacing.md),
-                              Wrap(
-                                alignment: WrapAlignment.center,
-                                spacing: QuestSpacing.sm,
-                                runSpacing: QuestSpacing.xs,
-                                children: [
-                                  _Chip(
-                                    label: group.questCategory.toUpperCase(),
-                                    color: QuestColors.violet,
-                                  ),
-                                  _Chip(
-                                    label: group.questDifficulty.toUpperCase(),
-                                    color: QuestColors.xpGold,
-                                  ),
-                                  _Chip(
-                                    label: '${group.questXpReward} XP',
-                                    color: QuestColors.osSuccess,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: QuestSpacing.lg),
-
-                        // Members already joined
-                        Text(
-                          '${group.memberCount}/${group.maxMembers} JOINED',
-                          style: QuestTypography.labelSmall.copyWith(
-                            color: QuestColors.osTextMuted,
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: QuestSpacing.sm),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          alignment: WrapAlignment.center,
-                          children: group.members
-                              .map((m) => Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(
-                                        QuestSpacing.radiusSm,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: _inkShadow15,
-                                          offset: Offset(1.5, 2),
-                                          blurRadius: 0,
-                                        ),
-                                      ],
-                                    ),
-                                    child: PixelAvatar(
-                                      username: m.username,
-                                      imageUrl: m.avatarUrl,
-                                      size: 44,
-                                    ),
-                                  ))
-                              .toList(),
-                        ),
-                        const SizedBox(height: QuestSpacing.xl),
-
-                        // Accept button — chunky with hard offset shadow
-                        GestureDetector(
-                          onTap: isBusy ? null : _join,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 120),
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: QuestSpacing.lg),
-                            decoration: BoxDecoration(
-                              color: isBusy
-                                  ? accentColor.withAlpha(140)
-                                  : accentColor,
-                              borderRadius:
-                                  BorderRadius.circular(QuestSpacing.radiusMd),
-                              border: Border.all(
-                                color: QuestColors.osBorderStrong,
-                                width: 2,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: _inkShadow20,
-                                  offset: Offset(3, 3),
-                                  blurRadius: 0,
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              _abandoning
-                                  ? 'ABANDONING QUEST...'
-                                  : _joining
-                                      ? 'JOINING...'
-                                      : 'ACCEPT & JOIN',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: QuestTypography.headlineSmall.copyWith(
-                                color: QuestColors.onAccent(accentColor),
-                                letterSpacing: 2,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: QuestSpacing.md),
-                        GestureDetector(
-                          onTap: () => context.goNamed(RouteNames.home),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: QuestSpacing.sm,
-                              horizontal: QuestSpacing.lg,
-                            ),
-                            child: Text(
-                              'NOT NOW',
-                              style: QuestTypography.labelMedium.copyWith(
-                                color: QuestColors.osTextMuted,
-                                letterSpacing: 1.6,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  );
-                },
-              ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -425,52 +239,311 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
   }
 }
 
-class _BackButton extends StatelessWidget {
-  const _BackButton({required this.onTap});
+// ── Invite panel ──────────────────────────────────────────────────────────
+
+class _InvitePanel extends StatelessWidget {
+  const _InvitePanel({
+    required this.creator,
+    required this.groupTitle,
+    required this.code,
+    required this.buttonLabel,
+    required this.onJoin,
+  });
+
+  final String creator;
+  final String groupTitle;
+  final String code;
+  final String buttonLabel;
+  final VoidCallback? onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: QuestColors.osPrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: QuestColors.osTextPrimary,
+            offset: Offset(4, 4),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FitText(
+            'JOIN A COLLAB',
+            minFontSize: 16,
+            style: QuestTypography.displaySmall.copyWith(
+              fontSize: 24,
+              // White on violet is the correct pair and must stay.
+              color: QuestColors.onAccent(QuestColors.osPrimary),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '$creator invited you to '),
+                TextSpan(
+                  text: groupTitle,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const TextSpan(text: '.'),
+              ],
+            ),
+            style: QuestTypography.bodyMedium.copyWith(
+              color: QuestColors.pureWhite,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: QuestColors.osBg,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+            ),
+            child: FitText(
+              code.toUpperCase(),
+              minFontSize: 12,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osDisplaySmall.copyWith(
+                fontSize: 20,
+                letterSpacing: 8,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Jade with ink type — `onAccent(jade)` returns ink.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onJoin,
+            child: Container(
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: QuestColors.osSuccess,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+              ),
+              child: FitText(
+                buttonLabel,
+                minFontSize: 12,
+                textAlign: TextAlign.center,
+                style: QuestTypography.osDisplaySmall.copyWith(
+                  fontSize: 20,
+                  color: QuestColors.onAccent(QuestColors.osSuccess),
+                  letterSpacing: 0.4,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Quest preview ─────────────────────────────────────────────────────────
+
+class _QuestPreviewCard extends StatelessWidget {
+  const _QuestPreviewCard({
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.xpReward,
+    required this.isVersus,
+    required this.joined,
+    required this.capacity,
+  });
+
+  final String title;
+  final String description;
+  final String category;
+  final int xpReward;
+  final bool isVersus;
+  final int joined;
+  final int capacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = QuestColors.category(category);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        boxShadow: [
+          // Category shadow, as on the feed card.
+          BoxShadow(color: tint, offset: const Offset(3, 3), blurRadius: 0),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ArcadeCategoryTag(label: category, tint: tint),
+              ArcadeCategoryTag(
+                label: '+$xpReward XP',
+                tint: QuestColors.osAccent,
+              ),
+              ArcadeCategoryTag(
+                label: isVersus ? 'VERSUS' : 'WITH',
+                tint: isVersus ? QuestColors.osRed : QuestColors.osSuccess,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title.toUpperCase(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osDisplaySmall
+                .copyWith(fontSize: 20, height: 1.1),
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              description,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osBodyMedium
+                  .copyWith(color: QuestColors.osTextSecondary),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            '$joined / $capacity JOINED',
+            style: QuestTypography.osLabelSmall.copyWith(letterSpacing: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Pieces ────────────────────────────────────────────────────────────────
+
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: BsMinTouch(
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: QuestColors.cardBg(context),
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: ink, width: 2),
-            boxShadow: [
-              BoxShadow(color: ink, offset: const Offset(2, 2), blurRadius: 0),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Icon(Icons.arrow_back_rounded, size: 18, color: ink),
+      child: Container(
+        width: QuestSpacing.minTouchTarget,
+        height: QuestSpacing.minTouchTarget,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: QuestColors.osCard,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: QuestColors.osTextPrimary,
+              offset: Offset(3, 3),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
+      ),
+    );
+  }
+}
+
+class _DashedPanel extends StatelessWidget {
+  const _DashedPanel({
+    required this.label,
+    required this.title,
+    required this.body,
+  });
+
+  final String label;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _DashedBorderPainter(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+        child: Column(
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osLabelSmall
+                  .copyWith(color: QuestColors.osTextMuted),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osDisplaySmall.copyWith(
+                color: QuestColors.osTextSecondary,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osBodyMedium
+                  .copyWith(color: QuestColors.osTextSecondary),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Chip({required this.label, required this.color});
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withAlpha(80))),
-      child: Text(label,
-          style: QuestTypography.labelSmall
-              .copyWith(color: color, fontSize: 10, letterSpacing: 1)),
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = QuestColors.osTextMuted
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      const Radius.circular(16),
     );
+    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + 5;
+      }
+    }
   }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) => false;
 }

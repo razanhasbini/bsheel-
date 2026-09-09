@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_repositories/app_repositories.dart' show AuthUser;
 import 'package:app_core/app_core.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/auth_repository_provider.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
+import 'auth_field.dart';
 
 class SocialSignInButtons extends ConsumerStatefulWidget {
   const SocialSignInButtons({super.key});
@@ -108,96 +110,53 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
     final enabled = ref.watch(socialLoginEnabledProvider);
     if (!enabled) return const SizedBox.shrink();
 
+    // The login frame sets a 15pt rhythm and gives the rule 2 of extra
+    // margin on each side; the buttons are the frame's outlined white
+    // control, which `ArcadeButton.ghost` draws.
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Expanded(child: Divider(color: QuestColors.osBorder)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: QuestSpacing.md),
-              child: Text(
-                'OR',
-                style: QuestTypography.bodySmall
-                    .copyWith(color: QuestColors.osTextMuted),
-              ),
-            ),
-            const Expanded(child: Divider(color: QuestColors.osBorder)),
-          ],
-        ),
-        const SizedBox(height: QuestSpacing.lg),
-        _SocialButton(
-          onPressed: _anyLoading ? null : _signInWithApple,
-          isLoading: _appleLoading,
-          icon: Icons.apple,
+        const SizedBox(height: 17),
+        const _OrRule(),
+        const SizedBox(height: 17),
+        ArcadeButton(
           label: 'CONTINUE WITH APPLE',
+          icon: Icons.apple,
+          variant: ArcadeButtonVariant.ghost,
+          isLoading: _appleLoading,
+          onTap: _anyLoading ? null : _signInWithApple,
         ),
-        const SizedBox(height: QuestSpacing.md),
-        _SocialButton(
-          onPressed: _anyLoading ? null : _signInWithGoogle,
-          isLoading: _googleLoading,
-          icon: Icons.g_mobiledata,
+        const SizedBox(height: 15),
+        ArcadeButton(
           label: 'CONTINUE WITH GOOGLE',
-          iconSize: 28,
+          icon: Icons.g_mobiledata,
+          variant: ArcadeButtonVariant.ghost,
+          isLoading: _googleLoading,
+          onTap: _anyLoading ? null : _signInWithGoogle,
         ),
       ],
     );
   }
 }
 
-class _SocialButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final bool isLoading;
-  final IconData icon;
-  final String label;
-  final double iconSize;
-
-  const _SocialButton({
-    required this.onPressed,
-    required this.isLoading,
-    required this.icon,
-    required this.label,
-    this.iconSize = 22,
-  });
+/// A 2px lavender rule either side of a mono OR, 12 apart.
+class _OrRule extends StatelessWidget {
+  const _OrRule();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: QuestColors.osCard,
-          side: const BorderSide(
-            color: QuestColors.osBorderStrong,
-            width: QuestSpacing.cardBorderWidth,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
-          ),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: QuestColors.osTextPrimary,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: QuestColors.osTextPrimary, size: iconSize),
-                  const SizedBox(width: QuestSpacing.sm),
-                  Text(
-                    label,
-                    style: QuestTypography.labelSmall
-                        .copyWith(color: QuestColors.osTextPrimary),
-                  ),
-                ],
-              ),
-      ),
+    // #C7C0E0 — the lavender the design rules with.
+    const rule = QuestColors.textSecondary;
+    return Row(
+      children: [
+        const Expanded(
+            child: SizedBox(height: 2, child: ColoredBox(color: rule))),
+        const SizedBox(width: 12),
+        Text('OR', style: authMonoLabel()),
+        const SizedBox(width: 12),
+        const Expanded(
+            child: SizedBox(height: 2, child: ColoredBox(color: rule))),
+      ],
     );
   }
 }

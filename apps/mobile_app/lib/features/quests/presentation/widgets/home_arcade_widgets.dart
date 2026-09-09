@@ -19,13 +19,14 @@ Color _surface(BuildContext c) => Theme.of(c).brightness == Brightness.dark
     ? QuestColors.darkCard
     : QuestColors.osCard;
 
-Color _surfaceAlt(BuildContext c) => Theme.of(c).brightness == Brightness.dark
-    ? QuestColors.darkSurface
-    : QuestColors.osSurface;
-
+/// The Arcade Pop hard shadow: zero blur, ink, **equal x and y**.
+///
+/// This used to be `Offset(0, n)`. A vertical-only offset reads as a soft
+/// drop shadow no matter how hard its edge is, and it silently applied to
+/// every avatar, chip, bell, stat tile and card on home.
 BoxShadow _hardShadow(BuildContext c, {double offset = 4}) => BoxShadow(
       color: _ink(c),
-      offset: Offset(0, offset),
+      offset: Offset(offset, offset),
       blurRadius: 0,
     );
 
@@ -204,51 +205,69 @@ class ArcadeNotificationBell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _surface(context),
-                border: Border.all(color: ink, width: 2),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [_hardShadow(context, offset: 3)],
+    return Semantics(
+      button: true,
+      label: unreadCount > 0
+          ? 'Notifications, $unreadCount unread'
+          : 'Notifications',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          // 44 painted, so the tile itself is already the hit target.
+          width: QuestSpacing.minTouchTarget,
+          height: QuestSpacing.minTouchTarget,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: QuestSpacing.minTouchTarget,
+                height: QuestSpacing.minTouchTarget,
+                decoration: BoxDecoration(
+                  // Gold in the frame, not white: the bell is the one
+                  // control in the name row, and gold is how the design
+                  // says so.
+                  color: QuestColors.osAccent,
+                  border: Border.all(color: ink, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [_hardShadow(context, offset: 3)],
+                ),
+                child: Icon(
+                  Icons.notifications_none_rounded,
+                  color: QuestColors.onAccent(QuestColors.osAccent),
+                  size: 22,
+                ),
               ),
-              child: Icon(Icons.notifications_none, color: ink, size: 22),
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                top: -4,
-                right: -4,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  constraints: const BoxConstraints(minWidth: 20),
-                  decoration: BoxDecoration(
-                    color: QuestColors.osRed,
-                    border: Border.all(color: ink, width: 2),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Text(
-                    unreadCount > 9 ? '9+' : '$unreadCount',
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    style: QuestTypography.headlineSmall.copyWith(
-                      color: QuestColors.onAccent(QuestColors.osRed),
-                      fontSize: 10,
-                      height: 1,
+              if (unreadCount > 0)
+                Positioned(
+                  top: -6,
+                  right: -6,
+                  child: Container(
+                    height: 20,
+                    constraints: const BoxConstraints(minWidth: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: QuestColors.osRed,
+                      border: Border.all(color: ink, width: 2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      unreadCount > 9 ? '9+' : '$unreadCount',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: QuestTypography.osLabelMedium.copyWith(
+                        // Ink on coral. White on coral is 3.03:1.
+                        color: QuestColors.onAccent(QuestColors.osRed),
+                        fontSize: 10,
+                        letterSpacing: 0,
+                        height: 1,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -345,83 +364,77 @@ class ArcadeStatTile extends StatelessWidget {
     this.icon,
   });
 
-  /// e.g. "Quests done"
+  /// e.g. "QUESTS DONE"
   final String label;
 
-  /// big number, e.g. "17"
+  /// The big number, e.g. "27"
   final String value;
 
-  /// small line under value, e.g. "+4 vs last week"
+  /// The small line under the value, e.g. "ALL TIME"
   final String? sublabel;
 
-  /// card background
+  /// Card ground: gold on the left tile, violet on the right.
   final Color tint;
 
+  /// Unused by the frame — it draws no glyph on these tiles. Kept so
+  /// existing call sites compile.
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
-    // Derived, never passed in: the ground decides the text colour, and the
-    // sublabel stays full-opacity because dimming ink on an accent fill
-    // drops it back under AA.
+    // Derived, never passed in: the ground decides the text colour. Gold
+    // takes osAccentInk, violet takes white.
     final onTint = QuestColors.onAccent(tint);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: tint,
         border: Border.all(color: ink, width: 2),
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusLg),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [_hardShadow(context)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label.toUpperCase(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: QuestTypography.labelSmall.copyWith(
-                    color: onTint,
-                    fontSize: 10,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-              if (icon != null) ...[
-                const SizedBox(width: 4),
-                Icon(icon, color: onTint, size: 16),
-              ],
-            ],
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: onTint,
+              fontSize: 10,
+              letterSpacing: 1,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 1),
           // Big numbers scale down rather than clip once they run long.
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Text(
               value,
               maxLines: 1,
-              style: QuestTypography.displayLarge.copyWith(
+              style: QuestTypography.osDisplayMedium.copyWith(
                 color: onTint,
-                fontSize: 40,
-                height: 1,
-                letterSpacing: -0.5,
+                fontSize: 32,
+                height: 1.05,
+                letterSpacing: -1.12,
               ),
             ),
           ),
           if (sublabel != null) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
-              sublabel!,
+              sublabel!.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: QuestTypography.bodySmall.copyWith(
-                color: QuestColors.onAccentSoft(tint),
-                fontSize: 11,
+              style: QuestTypography.osLabelSmall.copyWith(
+                // Full opacity on an accent ground: dimming ink on gold
+                // drops it back under AA.
+                color: onTint,
+                fontSize: 9,
+                letterSpacing: 0.9,
               ),
             ),
           ],
@@ -444,178 +457,70 @@ class ArcadeStreakCard extends StatelessWidget {
   final int currentStreak;
   final int longestStreak;
 
-  /// length 28, bools for last 28 days (oldest first).
+  /// Length 28, oldest first. The frame no longer draws a heatmap, but
+  /// callers still compute it, so the parameter stays.
   final List<bool> activeDays;
 
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
-    // Keep only the last 7 days (Monday → Sunday of this week).
-    // `activeDays` is oldest-first, length 28 by convention — we just take
-    // the trailing 7.
-    final week = activeDays.length >= 7
-        ? activeDays.sublist(activeDays.length - 7)
-        : [
-            ...List<bool>.filled(7 - activeDays.length, false),
-            ...activeDays,
-          ];
-    const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    final now = DateTime.now();
-    final todayWeekday = now.weekday; // Mon=1 … Sun=7
-
+    // Ink on coral. The 28-cell heatmap this replaced was not in any
+    // frame, and it made the streak the tallest card on a page whose
+    // point is the quest.
+    final fg = QuestColors.onAccent(QuestColors.osRed);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
-        color: _surface(context),
+        color: QuestColors.osRed,
         border: Border.all(color: ink, width: 2),
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusLg),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [_hardShadow(context)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'STREAK',
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: _inkSoft(context),
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Animated flame — swells with milestone tier so a
-                        // 30-day inferno feels visibly different from a
-                        // 3-day ember without needing more screen space.
-                        BsStreakFlame(streak: currentStreak, size: 30),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$currentStreak',
-                          maxLines: 1,
-                          style: QuestTypography.displayLarge.copyWith(
-                            color: QuestColors.osRedText,
-                            fontSize: 30,
-                            height: 1,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              'days',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: QuestTypography.bodyMedium.copyWith(
-                                color: _inkSoft(context),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'LONGEST',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: QuestTypography.labelSmall.copyWith(
-                        color: _inkSoft(context),
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    Text(
-                      '$longestStreak days',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: QuestTypography.headlineSmall.copyWith(
-                        color: ink,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            '$currentStreak',
+            maxLines: 1,
+            style: QuestTypography.osDisplayMedium.copyWith(
+              color: fg,
+              fontSize: 30,
+              height: 1,
+            ),
           ),
-          const SizedBox(height: 14),
-          // This week only: 7 cells, one per weekday (Mon → Sun).
-          LayoutBuilder(builder: (context, constraints) {
-            const gap = 6.0;
-            final cellSize =
-                ((constraints.maxWidth - gap * 6) / 7).clamp(22.0, 44.0);
-            return Column(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: List.generate(7, (i) {
-                    return Padding(
-                      padding: EdgeInsets.only(right: i < 6 ? gap : 0),
-                      child: SizedBox(
-                        width: cellSize,
-                        child: Center(
-                          child: Text(
-                            weekdayLabels[i],
-                            style: QuestTypography.labelSmall.copyWith(
-                              color: _inkSoft(context),
-                              fontSize: 9,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                Text(
+                  'DAY STREAK',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osHeadlineMedium.copyWith(
+                    color: fg,
+                    fontSize: 15,
+                    letterSpacing: -0.23,
+                    height: 1.2,
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: List.generate(7, (i) {
-                    final on = week[i];
-                    final isToday = (i + 1) == todayWeekday;
-                    final isFuture = (i + 1) > todayWeekday;
-                    return Padding(
-                      padding: EdgeInsets.only(right: i < 6 ? gap : 0),
-                      child: Container(
-                        width: cellSize,
-                        height: cellSize,
-                        decoration: BoxDecoration(
-                          color: isFuture
-                              ? _surfaceAlt(context).withAlpha(120)
-                              : on
-                                  ? QuestColors.osRed
-                                  : _surfaceAlt(context),
-                          border: Border.all(
-                            color: isToday
-                                ? ink
-                                : on
-                                    ? ink
-                                    : ink.withAlpha(QuestColors.alphaWhisper),
-                            width: isToday ? 2 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    );
-                  }),
+                const SizedBox(height: 1),
+                Text(
+                  'LONGEST: $longestStreak',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osLabelMedium.copyWith(
+                    color: fg,
+                    fontSize: 10,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ],
-            );
-          }),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // The flame is the frame's one glyph here, and it swells with
+          // the milestone tier so a 30-day run reads hotter than a 3-day.
+          BsStreakFlame(streak: currentStreak, size: 24),
         ],
       ),
     );

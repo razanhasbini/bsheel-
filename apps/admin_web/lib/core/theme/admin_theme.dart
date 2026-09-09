@@ -204,7 +204,7 @@ abstract final class AdminTheme {
       iconTheme: const IconThemeData(color: BsheelColors.ink, size: 20),
       tabBarTheme: const TabBarThemeData(
         labelColor: BsheelColors.ink,
-        unselectedLabelColor: BsheelColors.inkMuted,
+        unselectedLabelColor: BsheelColors.inkSoft,
         indicatorColor: BsheelColors.primary,
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: BsheelColors.rowLine,
@@ -242,7 +242,7 @@ abstract final class AdminTheme {
         checkColor: const WidgetStatePropertyAll(BsheelColors.pureWhite),
         side: BsheelBorders.inkSide,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(BsheelRadii.fill),
         ),
       ),
       radioTheme: const RadioThemeData(

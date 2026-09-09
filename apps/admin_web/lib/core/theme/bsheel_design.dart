@@ -178,6 +178,11 @@ abstract final class BsheelColors {
 }
 
 /// Corner radii. 9–11 controls · 12–14 cards · 16 page frames · 999 pills.
+///
+/// The three sub-9 values are **not** a second scale. Each is the inner
+/// corner of a shape whose outer corner is already on the scale above, and
+/// an inner radius has to be smaller than its outer one or the two curves
+/// fight. They live here so no call site has to reach for a literal.
 abstract final class BsheelRadii {
   static const double sm = 9; // chips, small buttons, thumbnails
   static const double md = 11; // inputs, buttons, callouts
@@ -189,6 +194,24 @@ abstract final class BsheelRadii {
   static const double card = 12;
   static const double cardLg = lg;
   static const double frame = xl;
+
+  // ── Inner corners ─────────────────────────────────────────────────
+
+  /// Category tag — the one square-ish chip, so its shape separates it
+  /// from a status pill before the text is read. Matches the mobile
+  /// `ArcadeCategoryTag`.
+  static const double tag = 8;
+
+  /// A skeleton line, sitting inside an [md] block.
+  static const double line = 6;
+
+  /// The inner corner of a small control: the fill inside a
+  /// [BsheelProgress] track (whose own corner is [sm]), and the
+  /// checkbox box.
+  static const double fill = 5;
+
+  /// A chart bar. Anything larger reads as a pill at this width.
+  static const double bar = 3;
 }
 
 /// Border weights. Every outline is 2px ink; 1px exists only for row

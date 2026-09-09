@@ -22,13 +22,38 @@ Before touching anything, tell the user plainly what is about to happen and get 
 If the user asked for TestFlight rather than a public release, use `ship-testflight` instead.
 "Deploy" is ambiguous; a public release is not the safe default reading. Ask.
 
+## Work from the right repo
+
+**Do not hardcode a path.** This repo is a fork of `quest-app` and ships the
+*same* bundle id, `com.questapp.mobileApp`. A stale `cd` into that other tree
+builds the wrong code, uploads it successfully, and reports a plausible version
+and build number — and for a public release that ships the wrong app to every
+user. Locate the root by its own marker and refuse otherwise:
+
+```bash
+ROOT=$PWD
+while [ "$ROOT" != "/" ] && [ ! -f "$ROOT/melos.yaml" ]; do ROOT=$(dirname "$ROOT"); done
+cd "$ROOT" || exit 1
+# Identify the repo by its architecture, not its name: melos.yaml still says
+# "quest_app" in both, and quest-app's own CLAUDE.md mentions Bsheel, so
+# neither is a discriminator. Bsheel has a self-hosted backend/ and no
+# supabase/ — that is the documented difference between the two.
+if [ ! -d backend ] || [ -d supabase ]; then
+  echo "REFUSING: $(pwd) is not the Bsheel repo (expected backend/ and no supabase/)."
+  exit 1
+fi
+echo "Releasing from: $(pwd)"
+```
+
+If the user invoked this from somewhere else, ask which repo they mean rather
+than guessing.
+
 ## The version must be new
 
 Apple rejects a version string that is not higher than what is already there. Check **before**
 the 15-minute build, not after:
 
 ```bash
-cd /Users/tayseerlaz/Projects/quest-app/4hoursonly
 VERSION=$(grep -E '^version:' apps/mobile_app/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*//')
 python3 scripts/appstore.py check-version com.questapp.mobileApp "$VERSION"
 ```
@@ -44,7 +69,16 @@ The build ships the working tree, not a commit. For a public release this matter
 anywhere else:
 
 ```bash
-git status --short
+# Check git's exit code. A failed `git status` prints nothing, which looks
+# exactly like a clean tree — that is how a dirty tree ships unnoticed.
+git status --short > /tmp/rel-status.txt 2>/tmp/rel-status.err
+if [ $? -ne 0 ]; then
+  echo "STOP: git status failed, so the tree cannot be verified:"
+  cat /tmp/rel-status.err
+  echo "Do not proceed with a PUBLIC release on an unverifiable tree."
+  exit 1
+fi
+cat /tmp/rel-status.txt
 git log --oneline -3
 ```
 

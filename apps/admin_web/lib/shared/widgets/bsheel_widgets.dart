@@ -32,12 +32,18 @@ class BsheelPressable extends StatefulWidget {
   final double depth;
   final String? tooltip;
 
+  /// Pads the *gesture* box out to [BsheelLayout.minTarget] without
+  /// moving the child, for a control the design draws smaller than 44px.
+  /// The child stays its own size and centred; only the hit area grows.
+  final bool minTarget;
+
   const BsheelPressable({
     super.key,
     required this.child,
     this.onTap,
     this.depth = 3,
     this.tooltip,
+    this.minTarget = false,
   });
 
   @override
@@ -63,6 +69,16 @@ class _BsheelPressableState extends State<BsheelPressable> {
 
     if (widget.tooltip != null) {
       out = Tooltip(message: widget.tooltip!, child: out);
+    }
+
+    if (widget.minTarget) {
+      out = ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: BsheelLayout.minTarget,
+          minHeight: BsheelLayout.minTarget,
+        ),
+        child: Center(child: out),
+      );
     }
 
     return MouseRegion(
@@ -292,8 +308,53 @@ class BsheelPageHeader extends StatelessWidget {
     this.actions = const [],
   });
 
+  /// Below this the title, the meta line and the actions cannot share a
+  /// row without the actions painting outside the page, so the actions
+  /// drop to a second line under the title.
+  static const double _stackBelow = 720;
+
   @override
   Widget build(BuildContext context) {
+    final hasActions = meta != null || actions.isNotEmpty;
+
+    // The sidebar collapses to a drawer below the tablet breakpoint, so
+    // the header carries the only way back to it.
+    final drawerButton = (Scaffold.maybeOf(context)?.hasDrawer ?? false)
+        ? Builder(
+            builder: (context) => Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: BsheelIconButton(
+                icon: Icons.menu_rounded,
+                tooltip: 'Menu',
+                size: 40,
+                onTap: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
+          )
+        : null;
+
+    final titleText = Text(
+      title.toUpperCase(),
+      style: BsheelType.displayMd,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    // Actions carry their own intrinsic widths — a 230px search field, a
+    // button — so they wrap rather than flex. A `Wrap` is the only layout
+    // that lets them keep those widths and still not overflow.
+    Widget trailing({required bool alignEnd}) => Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          alignment: alignEnd ? WrapAlignment.end : WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (meta != null)
+              BsheelLabel(meta!, color: metaColor ?? BsheelColors.inkSoft),
+            ...actions,
+          ],
+        );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       constraints: const BoxConstraints(minHeight: BsheelLayout.headerHeight),
@@ -301,44 +362,37 @@ class BsheelPageHeader extends StatelessWidget {
         color: BsheelColors.surface,
         border: Border(bottom: BsheelBorders.inkSide),
       ),
-      child: Row(
-        children: [
-          // The sidebar collapses to a drawer below the tablet breakpoint,
-          // so the header carries the only way back to it.
-          if (Scaffold.maybeOf(context)?.hasDrawer ?? false) ...[
-            Builder(
-              builder: (context) => Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: BsheelIconButton(
-                  icon: Icons.menu_rounded,
-                  tooltip: 'Menu',
-                  size: 40,
-                  onTap: () => Scaffold.of(context).openDrawer(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = hasActions && constraints.maxWidth < _stackBelow;
+
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    if (drawerButton != null) drawerButton,
+                    Expanded(child: titleText),
+                  ],
                 ),
-              ),
-            ),
-          ],
-          Expanded(
-            child: Text(
-              title.toUpperCase(),
-              style: BsheelType.displayMd,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (meta != null) ...[
-            const SizedBox(width: 12),
-            Flexible(
-              child: BsheelLabel(
-                meta!,
-                color: metaColor ?? BsheelColors.inkSoft,
-              ),
-            ),
-          ],
-          for (final action in actions) ...[
-            const SizedBox(width: 10),
-            action,
-          ],
-        ],
+                const SizedBox(height: 10),
+                trailing(alignEnd: false),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              if (drawerButton != null) drawerButton,
+              Expanded(child: titleText),
+              if (hasActions) ...[
+                const SizedBox(width: 12),
+                trailing(alignEnd: true),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -385,7 +439,8 @@ class BsheelSectionHeader extends StatelessWidget {
                   style: BsheelType.displayMd,
                 ),
               ),
-              if (actionLabel != null) BsheelLink(actionLabel!, onTap: onAction),
+              if (actionLabel != null)
+                BsheelLink(actionLabel!, onTap: onAction),
             ],
           ),
         ],
@@ -395,6 +450,10 @@ class BsheelSectionHeader extends StatelessWidget {
 }
 
 /// Violet tracked-mono text link.
+///
+/// An 11px line of type is a 14px-tall hit area, so the gesture box is
+/// padded out to the 44px floor without moving the text: the label stays
+/// on its baseline and the extra height is transparent.
 class BsheelLink extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
@@ -404,15 +463,29 @@ class BsheelLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Text(
+      label.toUpperCase(),
+      textAlign: align,
+      style: BsheelType.labelMd.copyWith(
+        color: onTap == null ? BsheelColors.inkMuted : BsheelColors.primary,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+
     return MouseRegion(
       cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Text(
-          label.toUpperCase(),
-          textAlign: align,
-          style: BsheelType.labelMd.copyWith(color: BsheelColors.primary),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
+          child: Align(
+            alignment: align == TextAlign.center
+                ? Alignment.center
+                : Alignment.centerLeft,
+            child: text,
+          ),
         ),
       ),
     );
@@ -462,10 +535,18 @@ class BsheelPill extends StatelessWidget {
   /// Resolves a submission or account status to its pill.
   factory BsheelPill.status(String status, {bool small = true}) {
     final tone = switch (status.toLowerCase()) {
-      'approved' || 'active' || 'live' || 'invited' || 'visible' =>
+      'approved' ||
+      'active' ||
+      'live' ||
+      'invited' ||
+      'visible' =>
         BsheelPillTone.green,
       'rejected' || 'banned' || 'flagged' || 'deleted' => BsheelPillTone.coral,
-      'pending' || 'in review' || 'waiting' || 'suspended' || 'appeal' =>
+      'pending' ||
+      'in review' ||
+      'waiting' ||
+      'suspended' ||
+      'appeal' =>
         BsheelPillTone.gold,
       're-rejected' || 'final' => BsheelPillTone.ink,
       'expired' || 'retired' => BsheelPillTone.ghost,
@@ -533,7 +614,7 @@ class BsheelTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(BsheelRadii.tag),
         border: const Border.fromBorderSide(BsheelBorders.inkSide),
       ),
       child: Text(
@@ -657,7 +738,9 @@ class BsheelButton extends StatelessWidget {
         background = null,
         foreground = null;
 
-  /// Secondary — cream ground, ink label, 3px shadow.
+  /// Secondary — cream ground, ink label, 3px shadow. The design draws
+  /// this one where the button sits *on* white or beside an accent, so
+  /// the cream reads as a step down: RESEND, DISMISS, VIEW SUBMISSIONS.
   const BsheelButton.ghost({
     super.key,
     required this.label,
@@ -672,6 +755,25 @@ class BsheelButton extends StatelessWidget {
         background = null,
         foreground = null;
 
+  /// Secondary on a **cream** ground — white fill, ink label, 3px shadow.
+  ///
+  /// [BsheelButton.ghost] is cream, which disappears when the button is
+  /// itself sitting on the cream header bar or the cream page ground. The
+  /// design draws those buttons white instead: EXPORT CSV, PREV, NEXT.
+  const BsheelButton.secondary({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.icon,
+    this.small = false,
+    this.loading = false,
+    this.expand = false,
+    this.height,
+  })  : tone = BsheelPillTone.paper,
+        ghost = true,
+        background = null,
+        foreground = null;
+
   @override
   Widget build(BuildContext context) {
     final disabled = onPressed == null || loading;
@@ -679,7 +781,7 @@ class BsheelButton extends StatelessWidget {
     final fg = foreground ?? BsheelColors.onAccent(ground);
 
     // Primary weight carries 4px; secondary and small carry 3px.
-    final depth = (tone == BsheelPillTone.ghost || small) ? 3.0 : 4.0;
+    final depth = (ghost || small) ? 3.0 : 4.0;
     final h = height ?? (small ? BsheelLayout.minTarget : 50.0);
     final hPad = small ? 14.0 : 18.0;
     final textStyle = (small ? BsheelType.buttonSm : BsheelType.buttonMd);
@@ -789,13 +891,23 @@ class BsheelIconButton extends StatelessWidget {
         boxShadow: BsheelShadows.sm,
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: 18, color: BsheelColors.onAccent(ground)),
+      child: Icon(
+        icon,
+        // The glyph tracks the button, so a 36px button in a dense rail
+        // header does not carry an 18px icon in a 6px surround.
+        size: size < BsheelLayout.minTarget ? 16 : 18,
+        color: BsheelColors.onAccent(ground),
+      ),
     );
 
     return BsheelPressable(
       onTap: onTap,
       depth: 3,
       tooltip: tooltip,
+      // [size] is the *paint*. Where a dense header draws the button
+      // smaller than 44px the hit box stays at 44 and the extra ring is
+      // transparent, so a moderator working by pointer never has to aim.
+      minTarget: true,
       child: badge == null
           ? btn
           : Stack(
@@ -936,12 +1048,19 @@ class BsheelCallout extends StatelessWidget {
   final Widget? trailing;
   final List<InlineSpan>? richMessage;
 
+  /// A page-level warning, rather than one sitting inside a form. The
+  /// design draws the appeals banner a step up from the login error —
+  /// 14px copy on a 4px shadow — because it is the first thing on the
+  /// page and it states an irreversible consequence.
+  final bool large;
+
   const BsheelCallout(
     this.message, {
     super.key,
     this.tone = BsheelPillTone.gold,
     this.trailing,
     this.richMessage,
+    this.large = false,
   });
 
   const BsheelCallout.danger(
@@ -949,6 +1068,7 @@ class BsheelCallout extends StatelessWidget {
     super.key,
     this.trailing,
     this.richMessage,
+    this.large = false,
   }) : tone = BsheelPillTone.coral;
 
   const BsheelCallout.warning(
@@ -956,6 +1076,7 @@ class BsheelCallout extends StatelessWidget {
     super.key,
     this.trailing,
     this.richMessage,
+    this.large = false,
   }) : tone = BsheelPillTone.gold;
 
   const BsheelCallout.positive(
@@ -963,38 +1084,42 @@ class BsheelCallout extends StatelessWidget {
     super.key,
     this.trailing,
     this.richMessage,
+    this.large = false,
   }) : tone = BsheelPillTone.green;
 
   @override
   Widget build(BuildContext context) {
     final ground = tone.ground;
     final fg = BsheelColors.onAccent(ground);
+    final body = (large ? BsheelType.bodyMdMedium : BsheelType.bodySmMedium)
+        .copyWith(color: fg);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      padding: EdgeInsets.symmetric(
+        horizontal: large ? 15 : 13,
+        vertical: large ? 13 : 11,
+      ),
       decoration: BoxDecoration(
         color: ground,
         borderRadius: BorderRadius.circular(BsheelRadii.md),
         border: const Border.fromBorderSide(BsheelBorders.inkSide),
-        boxShadow: BsheelShadows.sm,
+        boxShadow: large ? BsheelShadows.md : BsheelShadows.sm,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            large ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
           Text(
             '!',
-            style: BsheelType.displayXs.copyWith(color: fg, fontSize: 15),
+            style: BsheelType.displayXs.copyWith(
+              color: fg,
+              fontSize: large ? 17 : 15,
+            ),
           ),
-          const SizedBox(width: 9),
+          SizedBox(width: large ? 11 : 9),
           Expanded(
             child: richMessage != null
-                ? Text.rich(
-                    TextSpan(children: richMessage),
-                    style: BsheelType.bodySmMedium.copyWith(color: fg),
-                  )
-                : Text(
-                    message,
-                    style: BsheelType.bodySmMedium.copyWith(color: fg),
-                  ),
+                ? Text.rich(TextSpan(children: richMessage), style: body)
+                : Text(message, style: body),
           ),
           if (trailing != null) ...[
             const SizedBox(width: 10),
@@ -1019,11 +1144,23 @@ class BsheelColumn {
 /// Table wrapped in a 2px ink outline with a 5px shadow. The header row
 /// sits on cream with a 2px rule beneath; body rows are separated by the
 /// only 1px hairline in the system.
+///
+/// Seven and eight column tables cannot hold their fixed widths in a
+/// narrow browser window, so the table scrolls horizontally *inside* its
+/// card rather than letting the flexing column collapse to nothing. The
+/// floor is the sum of the fixed columns, their gaps and the row padding,
+/// plus [flexMinWidth] for each flexing column — computed here so no page
+/// has to restate its own column arithmetic.
 class BsheelTable extends StatelessWidget {
   final List<BsheelColumn> columns;
   final List<BsheelRow> rows;
   final double depth;
   final double gap;
+
+  /// The narrowest a flexing column may become before the table starts
+  /// scrolling instead. A quest title or a username needs about this much
+  /// to show more than an ellipsis.
+  final double flexMinWidth;
 
   const BsheelTable({
     super.key,
@@ -1031,7 +1168,20 @@ class BsheelTable extends StatelessWidget {
     required this.rows,
     this.depth = 5,
     this.gap = 12,
+    this.flexMinWidth = 180,
   });
+
+  /// Horizontal padding inside a header or body row.
+  static const double _rowPadding = 14;
+
+  /// The width below which the table scrolls rather than squeezes.
+  double get _minWidth {
+    var total = _rowPadding * 2 + gap * (columns.length - 1);
+    for (final c in columns) {
+      total += c.width ?? flexMinWidth;
+    }
+    return total;
+  }
 
   List<Widget> _cells(List<Widget> children) {
     final out = <Widget>[];
@@ -1039,9 +1189,7 @@ class BsheelTable extends StatelessWidget {
       final child = i < children.length ? children[i] : const SizedBox();
       final w = columns[i].width;
       out.add(
-        w == null
-            ? Expanded(child: child)
-            : SizedBox(width: w, child: child),
+        w == null ? Expanded(child: child) : SizedBox(width: w, child: child),
       );
       if (i != columns.length - 1) out.add(SizedBox(width: gap));
     }
@@ -1050,6 +1198,39 @@ class BsheelTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final table = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: _rowPadding,
+            vertical: 10,
+          ),
+          decoration: const BoxDecoration(
+            color: BsheelColors.surface,
+            border: Border(bottom: BsheelBorders.inkSide),
+          ),
+          child: Row(
+            children: _cells([
+              for (final c in columns)
+                Text(
+                  c.label.toUpperCase(),
+                  style: BsheelType.labelSm.copyWith(letterSpacing: 1.1),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ]),
+          ),
+        ),
+        for (var i = 0; i < rows.length; i++)
+          _BsheelTableRow(
+            row: rows[i],
+            cells: _cells(rows[i].cells),
+            last: i == rows.length - 1,
+          ),
+      ],
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: BsheelColors.card,
@@ -1058,34 +1239,25 @@ class BsheelTable extends StatelessWidget {
         boxShadow: depth > 0 ? BsheelShadows.hard(depth) : null,
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: const BoxDecoration(
-              color: BsheelColors.surface,
-              border: Border(bottom: BsheelBorders.inkSide),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewport = constraints.maxWidth;
+          final floor = _minWidth;
+          // Wide enough: the flexing columns take the slack, no scrollbar.
+          if (!viewport.isFinite || viewport >= floor) return table;
+          // Too narrow: scroll the whole grid, header included, so a
+          // column never collapses under its own label.
+          return Scrollbar(
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: floor),
+                child: SizedBox(width: floor, child: table),
+              ),
             ),
-            child: Row(
-              children: _cells([
-                for (final c in columns)
-                  Text(
-                    c.label.toUpperCase(),
-                    style: BsheelType.labelSm.copyWith(letterSpacing: 1.1),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ]),
-            ),
-          ),
-          for (var i = 0; i < rows.length; i++)
-            _BsheelTableRow(
-              row: rows[i],
-              cells: _cells(rows[i].cells),
-              last: i == rows.length - 1,
-            ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1137,6 +1309,9 @@ class _BsheelTableRowState extends State<_BsheelTableRow> {
         onTap: widget.row.onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          // A moderator works this table by pointer for hours, so every
+          // row clears the 44px floor even when its content is one line.
+          constraints: const BoxConstraints(minHeight: BsheelLayout.minTarget),
           decoration: BoxDecoration(
             color: bg,
             border: widget.last
@@ -1245,13 +1420,23 @@ class BsheelKeyValues extends StatelessWidget {
                       style: BsheelType.bodySm.copyWith(
                         color: BsheelColors.inkSoft,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    entries[i].value,
-                    style: BsheelType.monoMd.copyWith(
-                      color: entries[i].emphasis ?? BsheelColors.ink,
+                  // A value is normally two or three characters, but a
+                  // date or a percentage in a 300px rail can reach the
+                  // edge, so it ellipsises rather than painting out.
+                  Flexible(
+                    child: Text(
+                      entries[i].value,
+                      style: BsheelType.monoMd.copyWith(
+                        color: entries[i].emphasis ?? BsheelColors.ink,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
                     ),
                   ),
                 ],
@@ -1354,8 +1539,7 @@ class BsheelSwitch extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BsheelRadii.full),
                 border: const Border.fromBorderSide(BsheelBorders.inkSide),
               ),
-              alignment:
-                  value ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 width: 20,
                 height: 20,
@@ -1437,9 +1621,8 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ground = active
-        ? BsheelColors.ink
-        : (filter.ground ?? BsheelColors.card);
+    final ground =
+        active ? BsheelColors.ink : (filter.ground ?? BsheelColors.card);
     final label = filter.count == null
         ? filter.label.toUpperCase()
         : '${filter.label.toUpperCase()} ${filter.count}';
@@ -1503,8 +1686,7 @@ class BsheelSegmented extends StatelessWidget {
   Widget build(BuildContext context) {
     return BsheelFilterChips(
       filters: [
-        for (var i = 0; i < options.length; i++)
-          BsheelFilter('$i', options[i]),
+        for (var i = 0; i < options.length; i++) BsheelFilter('$i', options[i]),
       ],
       selected: '$selected',
       onChanged: (v) => onChanged?.call(int.parse(v)),
@@ -1544,7 +1726,7 @@ class BsheelProgress extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: fill,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(BsheelRadii.fill),
             ),
           ),
         ),
@@ -1598,9 +1780,8 @@ class BsheelBarChart extends StatelessWidget {
                         : (values[i] >= max * 0.7
                             ? BsheelColors.primary
                             : BsheelColors.lavender),
-                    borderRadius: BorderRadius.circular(3),
-                    border:
-                        const Border.fromBorderSide(BsheelBorders.inkSide),
+                    borderRadius: BorderRadius.circular(BsheelRadii.bar),
+                    border: const Border.fromBorderSide(BsheelBorders.inkSide),
                   ),
                 ),
               ),
@@ -2135,7 +2316,7 @@ class BsheelSkeleton extends StatelessWidget {
   const BsheelSkeleton.line({super.key, this.widthFactor = 0.45})
       : height = 16,
         width = null,
-        radius = 6;
+        radius = BsheelRadii.line;
 
   @override
   Widget build(BuildContext context) {
@@ -2476,7 +2657,8 @@ String bsheelWaiting(String? iso, {String fallback = '—'}) {
 }
 
 /// True once a queue item has waited long enough to need coral.
-bool bsheelIsStale(String? iso, {Duration threshold = const Duration(hours: 4)}) {
+bool bsheelIsStale(String? iso,
+    {Duration threshold = const Duration(hours: 4)}) {
   if (iso == null) return false;
   final dt = DateTime.tryParse(iso);
   if (dt == null) return false;

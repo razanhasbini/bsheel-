@@ -4,27 +4,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_contracts/app_contracts.dart';
+import 'package:app_models/app_models.dart';
+import 'package:shared_ui/shared_ui.dart';
 
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../l10n/app_localizations.dart';
-import '../../../comments/presentation/widgets/comments_section.dart';
+import '../../../comments/presentation/pages/comments_page.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../providers/feed_provider.dart';
 import '../providers/post_realtime_provider.dart';
-import '../widgets/comments_sheet.dart';
-import '../widgets/feed_filter_sheet.dart';
+// Imported for the sort keys. The render's header carries HOT / NEW /
+// FOLLOWING and no filter button, so the sheet's own three extra sorts
+// (most-upvoted, least-upvoted, graveyard) have no affordance here any
+// more — see the audit note; the sheet itself is left intact.
+import '../widgets/feed_filter_sheet.dart' show feedSortHot, feedSortRecent;
+import '../widgets/feed_post_card.dart';
 import '../widgets/post_actions_sheet.dart';
-import '../widgets/reels_card.dart';
 
-/// Vertical full-screen Reels-style feed.
+/// The feed: an inline header over a scrolling list of bordered post cards.
 ///
-/// Each post is a full-screen page in a vertical [PageView]. The header
-/// (FEED title, scope switch, sort filters) is overlaid on top of the media
-/// so the post itself takes the entire viewport.
+/// `export/mobile/09-feed.jpg` shows several posts per screen, each a white
+/// `r16` card with a category-coloured shadow — not the full-screen vertical
+/// `PageView` this page used to be. The reels player, its `PageController`,
+/// the page-index state and the per-page autoplay plumbing are all gone;
+/// nothing here plays video, so the list can never have four players
+/// competing for the audio session (and the web build never reaches
+/// `video_compress`). A video post shows a tap-to-play face and hands
+/// playback to the post-detail screen, which owns a real player.
+///
+/// Everything behind the presentation is unchanged: the same providers, the
+/// same sort/scope handling, the same pull-to-refresh, the same optimistic
+/// vote logic.
 class FeedPage extends ConsumerStatefulWidget {
   const FeedPage({super.key});
 
@@ -33,71 +46,72 @@ class FeedPage extends ConsumerStatefulWidget {
 }
 
 class _FeedPageState extends ConsumerState<FeedPage> {
-  // Initial page comes from the persisted index so a tab-switch returns to
-  // the post the user was watching. Riverpod state outlives the widget,
-  // unlike the PageController itself.
-  late final PageController _pageController;
-  late int _currentPage;
+  /// Rough height of one card + its separator. A list of variable-height
+  /// cards has no page index, so the scroll-depth analytics milestone is
+  /// estimated from the offset instead of counted exactly.
+  static const double _approxCardExtent = 430;
+
+  /// Start the next page fetch while roughly three cards remain, matching
+  /// the old `page >= length - 3` trigger.
+  static const double _prefetchWindow = _approxCardExtent * 3;
+
+  final _scroll = ScrollController();
   bool _feedViewTracked = false;
+  int _lastMilestone = 0;
 
   @override
   void initState() {
     super.initState();
-    _currentPage = ref.read(feedLastIndexProvider);
-    _pageController = PageController(initialPage: _currentPage);
-    _pageController.addListener(_onScroll);
+    _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _pageController.removeListener(_onScroll);
-    _pageController.dispose();
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
     super.dispose();
   }
 
   void _onScroll() {
+    if (!_scroll.hasClients) return;
     final feedState = ref.read(feedProvider).valueOrNull;
     if (feedState == null) return;
-    if (!_pageController.hasClients) return;
-    final page = _pageController.page ?? 0;
-    // Pre-fetch when within 3 cards of the end.
+    final position = _scroll.position;
+
     if (feedState.hasMore &&
         !feedState.isLoadingMore &&
-        page >= feedState.posts.length - 3) {
+        position.pixels >= position.maxScrollExtent - _prefetchWindow) {
       ref.read(feedProvider.notifier).loadMore();
+    }
+
+    final approxIndex = (position.pixels / _approxCardExtent).floor();
+    if (approxIndex >= _lastMilestone + 5) {
+      _lastMilestone = approxIndex - (approxIndex % 5);
+      ref.read(analyticsProvider).feedScrolled(_lastMilestone);
     }
   }
 
-  void _onPageChanged(int index) {
-    setState(() => _currentPage = index);
-    // Persist so the next FeedPage mount returns to this post.
-    ref.read(feedLastIndexProvider.notifier).state = index;
-    // Track scroll milestone every 5 cards.
-    if (index > 0 && index % 5 == 0) {
-      ref.read(analyticsProvider).feedScrolled(index);
-    }
-    // Pre-warm comments for the post that just came into view, so when
-    // the user taps the comment button the data is already in flight.
-    final state = ref.read(feedProvider).valueOrNull;
-    if (state != null && index < state.posts.length) {
-      ref.read(commentsProvider(state.posts[index].id).future).ignore();
-    }
+  Future<void> _refresh() {
+    // Same call the pull-to-refresh made before: re-run the current sort,
+    // which the notifier resolves against the current scope.
+    return ref
+        .read(feedProvider.notifier)
+        .changeSort(ref.read(feedSortProvider));
   }
 
   @override
   Widget build(BuildContext context) {
     // Realtime: new approved submissions and reaction/save edits flow in
-    // without pull-to-refresh. autoDispose ensures the channel closes when
-    // the user leaves the FEED tab.
+    // without pull-to-refresh. autoDispose closes the channel on leaving.
     ref.watch(feedRealtimeProvider);
 
-    // Listen for nav-bar FEED button taps. The shell increments the tick;
-    // we animate the live PageController back to 0 so the user sees the
-    // top of the feed instead of staying on whichever post they were on.
+    // Nav-bar FEED taps bump the tick; scroll the live list back to the top
+    // so the user sees the newest post rather than wherever they were.
     ref.listen<int>(feedScrollResetTickProvider, (prev, next) {
       if (prev == null || prev == next) return;
-      if (!_pageController.hasClients) return;
-      _pageController.animateToPage(
+      if (!_scroll.hasClients) return;
+      _lastMilestone = 0;
+      _scroll.animateTo(
         0,
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
@@ -105,124 +119,214 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     });
 
     final feedAsync = ref.watch(feedProvider);
-    final feedHasPosts = (feedAsync.valueOrNull?.posts.isNotEmpty ?? false);
-    // Only fire `feedViewed` once the user has actually seen posts —
-    // previously it fired on first hasValue even when the list was
-    // empty, polluting the funnel with phantom views.
-    if (!_feedViewTracked && feedAsync.hasValue && feedHasPosts) {
+    final hasPosts = feedAsync.valueOrNull?.posts.isNotEmpty ?? false;
+    // Only fire `feedViewed` once posts have actually been seen — firing on
+    // first hasValue counted phantom views of an empty list.
+    if (!_feedViewTracked && feedAsync.hasValue && hasPosts) {
       _feedViewTracked = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(analyticsProvider).feedViewed();
-        // Pre-warm comments for the very first post too. _onPageChanged
-        // never fires for index 0, so without this the comment button on
-        // the first card pays the full network round-trip.
-        final state = ref.read(feedProvider).valueOrNull;
-        if (state != null && state.posts.isNotEmpty) {
-          ref.read(commentsProvider(state.posts.first.id).future).ignore();
-        }
       });
     }
 
     return Scaffold(
-      backgroundColor: QuestColors.pureBlack,
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          // ── Feed body ─────────────────────────────────────────────────
-          Positioned.fill(
-            child: feedAsync.when(
-              loading: () => const _LoadingView(),
-              error: (e, _) => _ErrorState(
-                onRetry: () => ref.invalidate(feedProvider),
-              ),
-              data: (feedState) {
-                final posts = feedState.posts;
-                if (posts.isEmpty) {
-                  final l = AppLocalizations.of(context)!;
-                  return _EmptyState(
-                    title: l.noPostsYet,
-                    subtitle: l.completeToAppear,
-                  );
-                }
-                return RefreshIndicator(
-                  color: QuestColors.osRed,
-                  backgroundColor: QuestColors.osCard,
-                  onRefresh: () async {
-                    await ref
-                        .read(feedProvider.notifier)
-                        .changeSort(ref.read(feedSortProvider));
-                  },
-                  child: PageView.builder(
-                    controller: _pageController,
-                    scrollDirection: Axis.vertical,
-                    onPageChanged: _onPageChanged,
-                    itemCount: posts.length,
-                    itemBuilder: (context, index) {
-                      final post = posts[index];
-                      return _ReelsPostHost(
-                        key: ValueKey(post.id),
-                        post: post,
-                        isActive: index == _currentPage,
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // ── Top overlay: header + scope ───────────────────────────────
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: _TopOverlay(),
-            ),
-          ),
-
-          // ── Loading-more spinner at bottom of feed ────────────────────
-          if (feedAsync.valueOrNull?.isLoadingMore ?? false)
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: QuestColors.pureBlack.withAlpha(140),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          QuestColors.textPrimary),
-                    ),
-                  ),
+      backgroundColor: QuestColors.osBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const _FeedHeader(),
+            Expanded(
+              child: feedAsync.when(
+                loading: () => const _LoadingView(),
+                error: (e, _) => _ErrorState(
+                  onRetry: () => ref.invalidate(feedProvider),
                 ),
+                data: (feedState) {
+                  final posts = feedState.posts;
+                  if (posts.isEmpty) {
+                    final l = AppLocalizations.of(context)!;
+                    return _EmptyState(
+                      title: l.noPostsYet,
+                      subtitle: l.completeToAppear,
+                      onRefresh: _refresh,
+                    );
+                  }
+                  // The nav pill floats over the content, so the last card
+                  // needs to clear it.
+                  final navInset =
+                      MediaQuery.of(context).padding.bottom * 0.3 + 88;
+                  return RefreshIndicator(
+                    color: QuestColors.osPrimary,
+                    backgroundColor: QuestColors.osCard,
+                    onRefresh: _refresh,
+                    child: ListView.separated(
+                      controller: _scroll,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(14, 4, 14, navInset),
+                      itemCount:
+                          posts.length + (feedState.isLoadingMore ? 1 : 0),
+                      separatorBuilder: (_, __) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        if (index >= posts.length) {
+                          return const _LoadingMoreCard();
+                        }
+                        final post = posts[index];
+                        return _FeedPostHost(
+                          key: ValueKey(post.id),
+                          post: post,
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Header: wordmark + sort / scope chips ───────────────────────────────────
+
+/// `FEED` plus the `HOT` / `NEW` / `FOLLOWING` chips from the render.
+///
+/// This is an ordinary inline header now, not an overlay: the list scrolls
+/// under nothing, so there is nothing to float above.
+class _FeedHeader extends ConsumerWidget {
+  const _FeedHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sort = ref.watch(feedSortProvider);
+    final scope = ref.watch(feedScopeProvider);
+
+    void setSort(String next) {
+      HapticFeedback.selectionClick();
+      ref.read(feedProvider.notifier).changeSort(next);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+      child: Row(
+        children: [
+          // The chip group always gets its natural width; the wordmark takes
+          // what is left and shrinks into it. That keeps all three chips on
+          // the row at 320dp instead of scrolling HOT off the left edge,
+          // and nothing here can overflow.
+          Expanded(
+            child: FitText(
+              'FEED',
+              minFontSize: 18,
+              style: QuestTypography.osDisplaySmall.copyWith(
+                fontSize: 28,
+                height: 1,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _HeaderChip(
+                label: 'HOT',
+                active: sort == feedSortHot,
+                onTap: () => setSort(feedSortHot),
+              ),
+              const SizedBox(width: 8),
+              _HeaderChip(
+                label: 'NEW',
+                active: sort == feedSortRecent,
+                onTap: () => setSort(feedSortRecent),
+              ),
+              const SizedBox(width: 8),
+              _HeaderChip(
+                label: 'FOLLOWING',
+                active: scope == feedScopeFollowing,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  ref.read(feedProvider.notifier).changeScope(
+                        scope == feedScopeFollowing
+                            ? feedScopeGlobal
+                            : feedScopeFollowing,
+                      );
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Reels post host: wires data → ReelsCard ──────────────────────────────────
+/// Active = ink ground with cream type, idle = white with a 2px ink border,
+/// both `r11`. Painted at ~30pt but hit at 44pt.
+class _HeaderChip extends StatelessWidget {
+  const _HeaderChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
-class _ReelsPostHost extends ConsumerWidget {
-  const _ReelsPostHost({super.key, required this.post, required this.isActive});
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
 
-  final dynamic post; // FeedPostModel
-  final bool isActive;
+  @override
+  Widget build(BuildContext context) {
+    const ink = QuestColors.osTextPrimary;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          height: QuestSpacing.minTouchTarget,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: active ? ink : QuestColors.osCard,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: ink, width: 2),
+              ),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osLabelMedium.copyWith(
+                  color: active ? QuestColors.osBg : ink,
+                  fontSize: 11,
+                  letterSpacing: 0.9,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-  String _timeAgo(DateTime dt) => timeAgo(dt);
+// ── Post host: wires providers → card ───────────────────────────────────────
+
+/// Reads the reaction state for one post and hands the card plain values.
+///
+/// The optimistic vote / save logic is untouched — `toggleVote`,
+/// `getEffectiveVoteCounts`, `getEffectiveVoteType` and `getEffectiveSaved`
+/// are called exactly as the reels host called them.
+class _FeedPostHost extends ConsumerWidget {
+  const _FeedPostHost({super.key, required this.post});
+
+  final FeedPostModel post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -231,123 +335,39 @@ class _ReelsPostHost extends ConsumerWidget {
         ? null
         : getEffectiveVoteType(ref, post.id, currentUser.id);
     final counts = getEffectiveVoteCounts(ref, post.id, post);
-    final upvotes = counts[ReactionType.upvote] ?? 0;
-    final downvotes = counts[ReactionType.downvote] ?? 0;
     final isSaved = currentUser == null
         ? false
         : getEffectiveSaved(ref, post.id, currentUser.id);
 
-    final mediaUrls = (post.mediaUrls as List<dynamic>)
-        .map((u) => u as String)
-        .where((u) => u.isNotEmpty)
-        .toList();
-
-    // Only mark as collab if at least 2 members actually joined — a 1-of-N
-    // versus/coop with nobody else is just a solo post.
+    // Only a collab with at least two members who actually joined is a
+    // collab; a 1-of-N versus with nobody else is just a solo post. The DB
+    // stores coop as `'with'`, surfaced as the friendlier "COOP".
     String? modeBadge;
-    if (post.isCollab == true) {
-      final n = (post.collabMemberCount as int?) ?? 0;
-      if (n >= 2) {
-        final mode = (post.collabMode as String?) ?? '';
-        // The DB stores coop as `'with'` — surface it as the friendlier
-        // "COOP · N" label for the badge instead of "WITH · N".
-        final label = switch (mode) {
-          'versus' => 'VERSUS',
-          'with' => 'COOP',
-          '' => 'COLLAB',
-          _ => mode.toUpperCase(),
-        };
-        modeBadge = '$label · $n';
-      }
+    if (post.isCollab && post.collabMemberCount >= 2) {
+      final label = switch (post.collabMode ?? '') {
+        CollabMode.versus => 'VERSUS',
+        // The DB stores coop as `with`; the UI has always called it COOP.
+        CollabMode.with_ => 'COOP',
+        '' => 'COLLAB',
+        final other => other.toUpperCase(),
+      };
+      modeBadge = '$label · ${post.collabMemberCount}';
     }
 
-    return ReelsCard(
-      submissionId: post.id,
-      username: post.username,
-      displayName: post.displayName,
-      avatarUrl: post.avatarUrl,
-      questTitle: post.questTitle,
-      xpReward: post.xpReward,
-      caption: post.caption,
-      mediaUrls: mediaUrls,
-      mediaType: post.mediaType,
-      collabGroupId: post.collabGroupId as String?,
-      collabMode: post.collabMode as String?,
-      collabMembers: (post.collabMembers as List).cast(),
-      expiresAt: post.expiresAt as DateTime?,
-      upvoteCount: upvotes,
-      downvoteCount: downvotes,
-      myVoteType: myVoteType,
-      isSaved: isSaved,
-      timeAgo: _timeAgo(post.submittedAt),
-      isActive: isActive,
-      modeBadge: modeBadge,
-      // Tap on the media surface is a no-op — the feed is consumption-only.
-      // Comments, profile, save and report are reachable via the action
-      // rail / username row. This mirrors IG Reels' single-purpose feed
-      // (tap = pause/play on video; never navigate away).
-      onTap: null,
-      onUserTap: post.userId.isNotEmpty
-          ? () async {
-              ref.read(feedVideosPausedProvider.notifier).state = true;
-              await context.pushNamed(
-                RouteNames.userProfile,
-                pathParameters: {'userId': post.userId},
-              );
-              ref.read(feedVideosPausedProvider.notifier).state = false;
-            }
-          : null,
-      onUpvote: currentUser == null
-          ? null
-          : () => toggleVote(
-                ref: ref,
-                submissionId: post.id,
-                userId: currentUser.id,
-                voteType: ReactionType.upvote,
-                baseCounts: counts,
-              ),
-      // Double-tap = additive only. If the user already upvoted, this is
-      // a no-op so rapid double-taps never accidentally remove the vote.
-      // Removal must be done by tapping the upvote button itself.
-      onDoubleTapUpvote: currentUser == null
-          ? null
-          : () {
-              if (myVoteType == ReactionType.upvote) return;
-              toggleVote(
-                ref: ref,
-                submissionId: post.id,
-                userId: currentUser.id,
-                voteType: ReactionType.upvote,
-                baseCounts: counts,
-              );
-            },
-      onDownvote: currentUser == null
-          ? null
-          : () => toggleVote(
-                ref: ref,
-                submissionId: post.id,
-                userId: currentUser.id,
-                voteType: ReactionType.downvote,
-                baseCounts: counts,
-              ),
-      onSave: currentUser == null
-          ? null
-          : () => showBsheeelDialog(
-                context: context,
-                ref: ref,
-                submissionId: post.id,
-                questId: post.questId,
-                questTitle: post.questTitle,
-                userId: currentUser.id,
-              ),
-      onCommentTap: () {
-        HapticFeedback.lightImpact();
-        // Re-warm in case prefetch missed (cold tap, fast scroll, etc.).
-        ref.read(commentsProvider(post.id).future).ignore();
-        showCommentsSheet(context, submissionId: post.id);
-      },
-      onMoreTap: () {
-        HapticFeedback.lightImpact();
+    void openDetails() {
+      context.pushNamed(
+        RouteNames.feedPostDetails,
+        pathParameters: {'id': post.id},
+      );
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      // Report / block / share live behind a long press here. The render's
+      // card has no overflow button, and the post-detail screen keeps the
+      // same actions on its visible "…" menu one tap away.
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
         showPostActionsSheet(
           context,
           ref: ref,
@@ -355,49 +375,152 @@ class _ReelsPostHost extends ConsumerWidget {
           postUsername: post.username,
         );
       },
+      child: FeedPostCard(
+        post: post,
+        upvotes: counts[ReactionType.upvote] ?? 0,
+        downvotes: counts[ReactionType.downvote] ?? 0,
+        isUpvoted: myVoteType == ReactionType.upvote,
+        isDownvoted: myVoteType == ReactionType.downvote,
+        isSaved: isSaved,
+        timeAgoLabel: timeAgo(post.submittedAt),
+        modeBadge: modeBadge,
+        onOpen: openDetails,
+        onUserTap: post.userId.isEmpty
+            ? null
+            : () => context.pushNamed(
+                  RouteNames.userProfile,
+                  pathParameters: {'userId': post.userId},
+                ),
+        onUpvote: currentUser == null
+            ? null
+            : () => toggleVote(
+                  ref: ref,
+                  submissionId: post.id,
+                  userId: currentUser.id,
+                  voteType: ReactionType.upvote,
+                  baseCounts: counts,
+                ),
+        onDownvote: currentUser == null
+            ? null
+            : () => toggleVote(
+                  ref: ref,
+                  submissionId: post.id,
+                  userId: currentUser.id,
+                  voteType: ReactionType.downvote,
+                  baseCounts: counts,
+                ),
+        onComment: () => openCommentsPage(context, submissionId: post.id),
+        onSave: currentUser == null
+            ? null
+            : () => showBsheeelDialog(
+                  context: context,
+                  ref: ref,
+                  submissionId: post.id,
+                  questId: post.questId,
+                  questTitle: post.questTitle,
+                  userId: currentUser.id,
+                ),
+      ),
     );
   }
 }
 
-// ── Top overlay (FEED title + scope segbar + sort chips) ─────────────────────
+// ── Loading / empty / error ─────────────────────────────────────────────────
 
-class _TopOverlay extends ConsumerWidget {
-  const _TopOverlay();
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scope = ref.watch(feedScopeProvider);
-    final activeSort = ref.watch(feedSortProvider);
-    final filterActive = activeSort != feedSortRecent;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 14),
-      child: Row(
+  Widget build(BuildContext context) {
+    // Card-shaped skeletons, so the structure is already right when the
+    // posts land. In a scroll view because two 300pt blocks do not fit on
+    // a short screen and a Column would overflow.
+    return const SingleChildScrollView(
+      physics: NeverScrollableScrollPhysics(),
+      child: ArcadeSkeletonList(
+        itemCount: 3,
+        itemHeight: 300,
+        spacing: 14,
+        padding: EdgeInsets.fromLTRB(14, 4, 14, 14),
+      ),
+    );
+  }
+}
+
+class _LoadingMoreCard extends StatelessWidget {
+  const _LoadingMoreCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 14),
+      child: ArcadeSkeleton(height: 120, radius: 16),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.title,
+    required this.subtitle,
+    required this.onRefresh,
+  });
+
+  final String title;
+  final String subtitle;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      color: QuestColors.osPrimary,
+      backgroundColor: QuestColors.osCard,
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 40, 14, 40),
         children: [
-          // Tabs anchored to the left edge — the search + filter actions
-          // sit on the right and the remaining space is left empty so the
-          // bar doesn't crowd the active video underneath it.
-          Expanded(
-            child: _FeedScopeTabs(
-              value: scope,
-              onChange: (s) => ref.read(feedProvider.notifier).changeScope(s),
+          _StateCard(
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: QuestColors.osSurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: QuestColors.osTextPrimary,
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_outlined,
+                    size: 30,
+                    color: QuestColors.osTextPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osHeadlineLarge.copyWith(
+                    fontSize: 18,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: QuestTypography.osBodyMedium.copyWith(
+                    color: QuestColors.osTextSecondary,
+                  ),
+                ),
+              ],
             ),
-          ),
-          // Right: filter + search, smaller and translucent.
-          _IconAction(
-            icon: Icons.filter_list_rounded,
-            badge: filterActive,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              showFeedFilterSheet(context, ref: ref);
-            },
-          ),
-          const SizedBox(width: 8),
-          _IconAction(
-            icon: Icons.search,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              context.pushNamed(RouteNames.search);
-            },
           ),
         ],
       ),
@@ -405,275 +528,56 @@ class _TopOverlay extends ConsumerWidget {
   }
 }
 
-/// Centered IG-style segmented tabs — text only, active tab has a short
-/// underline indicator and full-white text; inactive is 60% white.
-class _FeedScopeTabs extends StatelessWidget {
-  const _FeedScopeTabs({required this.value, required this.onChange});
-
-  final String value;
-  final ValueChanged<String> onChange;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Flexible(child: _tab(label: 'Following', key: feedScopeFollowing)),
-        const SizedBox(width: 16),
-        Container(
-            width: 0.5,
-            height: 14,
-            color: QuestColors.textPrimary.withAlpha(120)),
-        const SizedBox(width: 16),
-        Flexible(child: _tab(label: 'For You', key: feedScopeGlobal)),
-      ],
-    );
-  }
-
-  Widget _tab({required String label, required String key}) {
-    final active = value == key;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChange(key);
-      },
-      behavior: HitTestBehavior.opaque,
-      child: BsMinTouch(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: active
-                    ? QuestColors.textPrimary
-                    : QuestColors.textPrimary.withAlpha(160),
-                fontSize: 15,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                shadows: [
-                  Shadow(
-                    color: QuestColors.pureBlack
-                        .withAlpha(QuestColors.alphaInkSoft),
-                    blurRadius: 6,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: active ? 18 : 0,
-              height: 2.5,
-              decoration: BoxDecoration(
-                color: QuestColors.textPrimary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Tiny translucent icon button used for the filter + search corner
-/// actions. Replaces the chunky ink-bordered tiles.
-class _IconAction extends StatelessWidget {
-  const _IconAction({
-    required this.icon,
-    required this.onTap,
-    this.badge = false,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PressableScale(
-      onTap: onTap,
-      child: SizedBox(
-        width: kMinTouchTarget,
-        height: kMinTouchTarget,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            Icon(
-              icon,
-              color: QuestColors.textPrimary,
-              size: 24,
-              shadows: [
-                Shadow(
-                  color:
-                      QuestColors.pureBlack.withAlpha(QuestColors.alphaInkSoft),
-                  blurRadius: 8,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            if (badge)
-              Positioned(
-                top: 9,
-                right: 9,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: QuestColors.osRed,
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: QuestColors.pureWhite, width: 1.2),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Loading / empty / error states ──────────────────────────────────────────
-
-class _LoadingView extends StatelessWidget {
-  const _LoadingView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: QuestColors.pureBlack,
-      child: const Center(
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            valueColor: AlwaysStoppedAnimation<Color>(QuestColors.textPrimary),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.title, required this.subtitle});
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: QuestColors.pureBlack,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: QuestColors.pureWhite, width: 2),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [QuestColors.osPrimary, QuestColors.osRed],
-                  ),
-                ),
-                child: const Icon(Icons.bookmark_border,
-                    size: 36, color: QuestColors.osTextOnPrimary),
-              ),
-              const SizedBox(height: QuestSpacing.lg),
-              Text(
-                title,
-                style: QuestTypography.headlineSmall.copyWith(
-                  color: QuestColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: QuestTypography.bodyMedium.copyWith(
-                  color: QuestColors.textPrimary.withAlpha(170),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.onRetry});
+
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    return Container(
-      color: QuestColors.pureBlack,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(QuestSpacing.lg),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: _StateCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(18),
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   color: QuestColors.osRed,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: QuestColors.pureWhite, width: 2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: 2,
+                  ),
                 ),
-                child: Icon(Icons.error_outline,
-                    color: QuestColors.onAccent(QuestColors.osRed), size: 36),
+                child: Icon(
+                  Icons.wifi_off_rounded,
+                  size: 30,
+                  // Ink on coral, never white: white measures 3.03:1.
+                  color: QuestColors.onAccent(QuestColors.osRed),
+                ),
               ),
-              const SizedBox(height: QuestSpacing.lg),
+              const SizedBox(height: 16),
               Text(
-                l.failedToLoad,
-                style: QuestTypography.headlineSmall.copyWith(
-                  color: QuestColors.textPrimary,
-                  fontWeight: FontWeight.w800,
+                l.failedToLoad.toUpperCase(),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osHeadlineLarge.copyWith(
+                  fontSize: 18,
+                  letterSpacing: 0.4,
                 ),
               ),
-              const SizedBox(height: QuestSpacing.md),
-              GestureDetector(
+              const SizedBox(height: 16),
+              ArcadeButton(
+                label: l.retry,
+                icon: Icons.refresh_rounded,
+                size: ArcadeButtonSize.small,
                 onTap: onRetry,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: kMinTouchTarget),
-                  alignment: Alignment.center,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: QuestColors.accentYellow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: QuestColors.pureBlack, width: 2),
-                  ),
-                  child: Text(
-                    l.retry.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: QuestColors.pureBlack,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -683,36 +587,31 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-// ── Press-scale tap feedback ────────────────────────────────────────────────
+/// A white `r16` panel with a square 3px ink shadow.
+///
+/// Not `ArcadeCard`: that primitive draws its shadow at `Offset(2, 3)`, and
+/// hard shadows in this design are square. Worth fixing in `shared_ui`
+/// itself — every caller inherits the 1px skew — but that file is not this
+/// task's to edit.
+class _StateCard extends StatelessWidget {
+  const _StateCard({required this.child});
 
-class _PressableScale extends StatefulWidget {
-  const _PressableScale({required this.child, this.onTap});
   final Widget child;
-  final VoidCallback? onTap;
-
-  @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> {
-  double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _scale = 0.92),
-      onTapCancel: () => setState(() => _scale = 1.0),
-      onTapUp: (_) {
-        setState(() => _scale = 1.0);
-        widget.onTap?.call();
-      },
-      child: AnimatedScale(
-        scale: _scale,
-        duration: const Duration(milliseconds: 90),
-        curve: Curves.easeOut,
-        child: widget.child,
+    const ink = QuestColors.osTextPrimary;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ink, width: 2),
+        boxShadow: const [
+          BoxShadow(color: ink, offset: Offset(3, 3), blurRadius: 0),
+        ],
       ),
+      child: child,
     );
   }
 }

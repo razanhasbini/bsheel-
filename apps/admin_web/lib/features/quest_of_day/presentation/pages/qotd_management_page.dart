@@ -324,8 +324,7 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
     final fg = BsheelColors.onAccent(ground);
     final stats = <String>[
       if (entry.questCategory.isNotEmpty) entry.questCategory.toUpperCase(),
-      if (entry.questDifficulty.isNotEmpty)
-        entry.questDifficulty.toUpperCase(),
+      if (entry.questDifficulty.isNotEmpty) entry.questDifficulty.toUpperCase(),
       '+${entry.questXp} XP',
       if (entry.bonusXp > 0) 'BONUS +${entry.bonusXp} XP',
       if (entry.ticketNo != null && entry.ticketNo!.isNotEmpty)
@@ -343,7 +342,8 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
         children: [
           BsheelLabel('Today · ${_dayMonth(today)} · Live', color: fg),
           const SizedBox(height: 9),
-          Text(entry.questTitle, style: BsheelType.displaySm.copyWith(color: fg)),
+          Text(entry.questTitle,
+              style: BsheelType.displaySm.copyWith(color: fg)),
           const SizedBox(height: 9),
           Wrap(
             spacing: 16,
@@ -400,9 +400,8 @@ class _QotdManagementPageState extends ConsumerState<QotdManagementPage> {
       depth: 0,
       onTap: _busy
           ? null
-          : () => missing
-              ? _openEditor(forDay: day)
-              : _openEditor(existing: entry),
+          : () =>
+              missing ? _openEditor(forDay: day) : _openEditor(existing: entry),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
@@ -618,7 +617,8 @@ class _QotdEditorDialogState extends State<_QotdEditorDialog> {
                   onChanged: (v) => setState(() => _questId = v),
                 ),
                 const SizedBox(height: 5),
-                const Text('Pick from active quests.', style: BsheelType.bodyXs),
+                const Text('Pick from active quests.',
+                    style: BsheelType.bodyXs),
                 const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

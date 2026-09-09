@@ -5,15 +5,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_ui/shared_ui.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/utils/account_lock_guard.dart';
-import '../../../../design/bs_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../follows/presentation/widgets/follow_button.dart';
+import '../../../profile/domain/player_class.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../providers/search_provider.dart';
+
+/// Search — built to `export/mobile/18-search.jpg`.
+///
+/// A single `r14` white field with a 4px ink shadow and a mono ALL-CAPS
+/// placeholder; PEOPLE / QUESTS / POSTS as three separate outlined chips in a
+/// `Wrap` (not a segmented track); RECENT as stadium chips with a violet
+/// CLEAR; and result cards at `r16` where the **first** result carries a sky
+/// shadow, which is how the frame marks the top hit.
+
+// Avatar tints for people results, in the frame's cycle order.
+const _avatarTints = <Color>[
+  QuestColors.osCool,
+  QuestColors.osRed,
+  QuestColors.osSuccess,
+  QuestColors.osAccent,
+  QuestColors.textSecondary,
+];
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -65,65 +83,99 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    final ink = QuestColors.text(context);
     final query = ref.watch(searchQueryProvider).trim();
     final resultsAsync = ref.watch(searchResultsProvider);
-    // Three result types so the search isn't siloed onto people-only or
-    // quests-only. POSTS surfaces the user's own approved posts plus
-    // other people's posts whose quest matches the query — the closest
-    // signal to "what others did on a quest like the one I'm on".
-    final tabLabels = [l.searchPeople, l.searchQuests, l.searchPosts];
+    final recents = ref.watch(recentSearchesProvider);
 
     return Scaffold(
-      backgroundColor: QuestColors.bg(context),
+      backgroundColor: QuestColors.osBg,
       body: SafeArea(
+        bottom: false,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SearchHeader(
-              controller: _controller,
-              focusNode: _focusNode,
-              hint: l.searchHint,
-              onChanged: (v) =>
-                  ref.read(searchQueryProvider.notifier).state = v,
-              onClear: () {
-                _controller.clear();
-                ref.read(searchQueryProvider.notifier).state = '';
-                _focusNode.requestFocus();
-              },
-              ink: ink,
-            ),
-            // Segmented PEOPLE / QUESTS tab bar — shown once a query is active
-            // so the empty/prompt state can use the full vertical space.
-            if (query.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  QuestSpacing.screenPadding,
-                  4,
-                  QuestSpacing.screenPadding,
-                  10,
-                ),
-                child: BsSegBar(
-                  options: tabLabels,
-                  value: tabLabels[_tabIndex],
-                  onChange: (label) {
-                    setState(() => _tabIndex = tabLabels.indexOf(label));
-                  },
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+              child: Row(
+                children: [
+                  // The frame draws no back button, because SEARCH is one of
+                  // the five nav tabs there. In this build `/search` still
+                  // sits outside the ShellRoute and is pushed, so it needs a
+                  // way out. Gated on canPop, which means this disappears by
+                  // itself the day the route moves into the shell.
+                  if (context.canPop()) ...[
+                    _IconButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () => context.pop(),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: _SearchField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      hint: l.searchHint,
+                      onChanged: (v) =>
+                          ref.read(searchQueryProvider.notifier).state = v,
+                      onClear: () {
+                        _controller.clear();
+                        ref.read(searchQueryProvider.notifier).state = '';
+                        _focusNode.requestFocus();
+                      },
+                    ),
+                  ),
+                ],
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < 3; i++)
+                    _OptionChip(
+                      label: [
+                        l.searchPeople,
+                        l.searchQuests,
+                        l.searchPosts,
+                      ][i],
+                      selected: _tabIndex == i,
+                      onTap: () => setState(() => _tabIndex = i),
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: query.isEmpty
-                  ? _PromptState(ink: ink, onRecentTap: _setQuery)
+                  ? _RecentBlock(
+                      recents: recents,
+                      onTap: _setQuery,
+                      onClear: () =>
+                          ref.read(recentSearchesProvider.notifier).clear(),
+                    )
                   : resultsAsync.when(
-                      loading: () => const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                      loading: () => ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        children: const [
+                          ArcadeSkeletonList(itemCount: 4, itemHeight: 76),
+                        ],
                       ),
-                      error: (e, _) => _ErrorState(
-                        ink: ink,
-                        onRetry: () => ref.invalidate(searchResultsProvider),
+                      error: (e, _) => ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                        children: [
+                          _DashedPanel(
+                            label: 'ERROR',
+                            title: l.searchFailed,
+                            body: 'Check your connection and try again.',
+                          ),
+                          const SizedBox(height: 16),
+                          ArcadeButton(
+                            label: l.retry,
+                            variant: ArcadeButtonVariant.secondary,
+                            onTap: () => ref.invalidate(searchResultsProvider),
+                          ),
+                        ],
                       ),
                       data: (results) {
                         final users = results.users;
@@ -135,34 +187,73 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           _ => posts.length,
                         };
                         if (activeCount == 0) {
-                          return _NoResultsState(ink: ink);
+                          return ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                            children: [
+                              _DashedPanel(
+                                label: 'EMPTY STATE',
+                                title: l.searchNoMatches,
+                                body: l.searchNoMatchesSubtitle,
+                              ),
+                            ],
+                          );
                         }
                         if (_tabIndex == 0) {
-                          return _UserResultsList(
-                            users: users,
-                            onTap: (u) =>
-                                _onResultTapped(() => context.pushNamed(
-                                      RouteNames.userProfile,
-                                      pathParameters: {'userId': u.id},
-                                    )),
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                            itemCount: users.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, i) => _UserResultCard(
+                              profile: users[i],
+                              tint: _avatarTints[i % _avatarTints.length],
+                              // The frame gives the top hit a sky shadow.
+                              highlighted: i == 0,
+                              onTap: () => _onResultTapped(
+                                () => context.pushNamed(
+                                  RouteNames.userProfile,
+                                  pathParameters: {'userId': users[i].id},
+                                ),
+                              ),
+                            ),
                           );
                         }
                         if (_tabIndex == 1) {
-                          return _QuestResultsList(
-                            quests: quests,
-                            onTap: (q) =>
-                                _onResultTapped(() => context.pushNamed(
-                                      RouteNames.questDetails,
-                                      pathParameters: {'id': q.id},
-                                    )),
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                            itemCount: quests.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, i) => _QuestResultCard(
+                              quest: quests[i],
+                              onTap: () => _onResultTapped(
+                                () => context.pushNamed(
+                                  RouteNames.questDetails,
+                                  pathParameters: {'id': quests[i].id},
+                                ),
+                              ),
+                            ),
                           );
                         }
-                        return _PostResultsList(
-                          posts: posts,
-                          onTap: (p) => _onResultTapped(() => context.pushNamed(
+                        return GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 0.78,
+                          ),
+                          itemCount: posts.length,
+                          itemBuilder: (context, i) => _PostResultTile(
+                            post: posts[i],
+                            onTap: () => _onResultTapped(
+                              () => context.pushNamed(
                                 RouteNames.feedPostDetails,
-                                pathParameters: {'id': p.id},
-                              )),
+                                pathParameters: {'id': posts[i].id},
+                              ),
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -174,16 +265,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-// ── Header with back arrow + text field ─────────────────────────────────────
+// ── Field ─────────────────────────────────────────────────────────────────
 
-class _SearchHeader extends StatelessWidget {
-  const _SearchHeader({
+/// White, `r14`, 2px ink, 4px ink shadow, 52 tall. The glyph on the left is
+/// the frame's ring, and the placeholder is mono ALL CAPS in muted ink.
+class _SearchField extends StatelessWidget {
+  const _SearchField({
     required this.controller,
     required this.focusNode,
     required this.hint,
     required this.onChanged,
     required this.onClear,
-    required this.ink,
   });
 
   final TextEditingController controller;
@@ -191,179 +283,295 @@ class _SearchHeader extends StatelessWidget {
   final String hint;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
-  final Color ink;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        QuestSpacing.screenPadding,
-        12,
-        QuestSpacing.screenPadding,
-        12,
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.only(left: 14),
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: QuestColors.osTextPrimary,
+            offset: Offset(4, 4),
+            blurRadius: 0,
+          ),
+        ],
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            behavior: HitTestBehavior.opaque,
-            child: BsMinTouch(
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: QuestColors.cardBg(context),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ink, width: 1.8),
-                  boxShadow: [
-                    BoxShadow(color: ink, offset: const Offset(1.5, 2)),
-                  ],
-                ),
-                child: Icon(Icons.arrow_back, color: ink, size: 20),
-              ),
-            ),
-          ),
+          const _RingGlyph(),
           const SizedBox(width: 10),
           Expanded(
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: QuestColors.cardBg(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ink, width: 1.8),
-                boxShadow: [
-                  BoxShadow(color: ink, offset: const Offset(1.5, 2)),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, color: ink, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    // Center widget lets the single-line TextField shrink
-                    // to its natural line height and sit dead-centre in
-                    // the bar's 44px box, instead of being stretched and
-                    // anchored to the top by Expanded.
-                    child: Center(
-                      child: TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        onChanged: onChanged,
-                        textInputAction: TextInputAction.search,
-                        cursorColor: QuestColors.osPrimary,
-                        // Hide iOS suggestion / autocorrect chrome.
-                        enableSuggestions: false,
-                        autocorrect: false,
-                        style: QuestTypography.bodyMedium.copyWith(
-                          color: ink,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          hintText: hint,
-                          hintStyle: TextStyle(
-                            color: ink.withAlpha(110),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (controller.text.isNotEmpty)
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onClear,
-                      // UX-309: 44x44 hit area around the 18px glyph so
-                      // the tap target matches the iOS minimum.
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: Center(
-                          child: Icon(Icons.close, color: ink, size: 18),
-                        ),
-                      ),
-                    ),
-                ],
+            child: Center(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                onChanged: onChanged,
+                textInputAction: TextInputAction.search,
+                cursorColor: QuestColors.osPrimary,
+                // Hide iOS suggestion / autocorrect chrome.
+                enableSuggestions: false,
+                autocorrect: false,
+                style: QuestTypography.osLabelLarge,
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  hintText: hint.toUpperCase(),
+                  hintStyle: QuestTypography.osLabelLarge
+                      .copyWith(color: QuestColors.osTextMuted),
+                ),
               ),
             ),
           ),
+          if (controller.text.isNotEmpty)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClear,
+              // 44x44 hit area around the 18px glyph.
+              child: const SizedBox(
+                width: QuestSpacing.minTouchTarget,
+                height: QuestSpacing.minTouchTarget,
+                child: Center(
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: QuestColors.osTextPrimary,
+                    size: 18,
+                  ),
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 14),
         ],
       ),
     );
   }
 }
 
-// ── User results list ──────────────────────────────────────────────────────
-
-class _UserResultsList extends ConsumerWidget {
-  const _UserResultsList({required this.users, required this.onTap});
-  final List<ProfileModel> users;
-  final void Function(ProfileModel) onTap;
+/// The frame's search glyph is a plain ring, not a magnifier.
+class _RingGlyph extends StatelessWidget {
+  const _RingGlyph();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentUser = ref.watch(authSessionProvider);
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        QuestSpacing.screenPadding,
-        4,
-        QuestSpacing.screenPadding,
-        32,
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: QuestColors.osTextMuted, width: 2),
       ),
-      itemCount: users.length,
-      itemBuilder: (context, i) {
-        final u = users[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _UserResultTile(
-            profile: u,
-            isSelf: currentUser?.id == u.id,
-            onTap: () => onTap(u),
-          ),
-        );
-      },
     );
   }
 }
 
-class _UserResultTile extends StatelessWidget {
-  const _UserResultTile({
-    required this.profile,
-    required this.isSelf,
+// ── Recent ────────────────────────────────────────────────────────────────
+
+class _RecentBlock extends StatelessWidget {
+  const _RecentBlock({
+    required this.recents,
     required this.onTap,
+    required this.onClear,
   });
-  final ProfileModel profile;
-  final bool isSelf;
+
+  final List<String> recents;
+  final ValueChanged<String> onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      children: [
+        if (recents.isNotEmpty) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l.searchRecent.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osLabelMedium.copyWith(
+                    color: QuestColors.osTextSecondary,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClear,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    l.searchClearRecent.toUpperCase(),
+                    style: QuestTypography.osLabelMedium.copyWith(
+                      color: QuestColors.osPrimary,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final query in recents)
+                _RecentChip(query: query, onTap: () => onTap(query)),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+        _DashedPanel(
+          label: 'EMPTY STATE',
+          title: l.searchPrompt,
+          body: l.searchPromptSubtitle,
+        ),
+      ],
+    );
+  }
+}
+
+/// Stadium chip — white, 2px ink, `r999`, mono ink. Recent queries only;
+/// the scope chips are `r11` because they behave as buttons.
+class _RecentChip extends StatelessWidget {
+  const _RecentChip({required this.query, required this.onTap});
+
+  final String query;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
+            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          ),
+          child: Text(
+            query,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelLarge.copyWith(height: 1),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Selected = ink ground with cream type; the rest are white with a 2px ink
+/// outline. Same chip as the leaderboard scope and the language pair.
+class _OptionChip extends StatelessWidget {
+  const _OptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        // No `alignment:` on this Container. Inside a Wrap the constraints
+        // are bounded, and an Align with no widthFactor stretches the chip
+        // to the full run width — which is what made these read as stacked
+        // full-width bars instead of a row of chips.
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          ),
+          child: Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: selected ? QuestColors.osBg : QuestColors.osTextPrimary,
+              fontSize: 12,
+              letterSpacing: 1,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── People results ────────────────────────────────────────────────────────
+
+class _UserResultCard extends ConsumerWidget {
+  const _UserResultCard({
+    required this.profile,
+    required this.tint,
+    required this.highlighted,
+    required this.onTap,
+  });
+
+  final ProfileModel profile;
+  final Color tint;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(authSessionProvider);
+    final isSelf = currentUser?.id == profile.id;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ink, width: 1.8),
+          color: QuestColors.osCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(1.5, 2)),
+            BoxShadow(
+              color:
+                  highlighted ? QuestColors.osCool : QuestColors.osTextPrimary,
+              offset: const Offset(3, 3),
+              blurRadius: 0,
+            ),
           ],
         ),
         child: Row(
           children: [
-            _Avatar(
-                url: profile.avatarUrl,
-                fallback: profile.displayName,
-                ink: ink),
+            _RoundAvatar(
+              url: profile.avatarUrl,
+              name: profile.username,
+              tint: tint,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -371,46 +579,31 @@ class _UserResultTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    profile.displayName,
+                    profile.username,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.bodyMedium.copyWith(
-                      color: ink,
-                      fontWeight: FontWeight.w800,
+                    style: QuestTypography.osHeadlineLarge.copyWith(
+                      fontSize: 18,
+                      height: 1.1,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '@${profile.username}',
-                    maxLines: 1,
+                    'LVL ${profile.level} · '
+                    '${playerClassForLevel(profile.level)}',
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.bodySmall.copyWith(
-                      color: ink.withAlpha(160),
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: QuestTypography.osLabelSmall.copyWith(height: 1.3),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             if (isSelf)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: QuestColors.accentYellow,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: ink, width: 1.4),
-                ),
-                child: Text(
-                  'LV ${profile.level}',
-                  style: TextStyle(
-                    color: ink,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
+              const ArcadeCategoryTag(
+                label: 'YOU',
+                tint: QuestColors.osAccent,
+                compact: true,
               )
             else
               FollowButton(targetUserId: profile.id, expand: false),
@@ -421,88 +614,75 @@ class _UserResultTile extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.url, required this.fallback, required this.ink});
-  final String? url;
-  final String fallback;
-  final Color ink;
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: QuestColors.osPrimary,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ink, width: 1.8),
-        image: (url != null && url!.isNotEmpty)
-            ? DecorationImage(
-                image: CachedNetworkImageProvider(url!),
-                fit: BoxFit.cover,
-              )
-            : null,
-      ),
-      alignment: Alignment.center,
-      child: (url == null || url!.isEmpty)
-          ? Text(
-              initial,
-              style: const TextStyle(
-                color: QuestColors.osTextOnPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            )
-          : null,
-    );
-  }
-}
-
-// ── Quest results list ─────────────────────────────────────────────────────
-
-class _QuestResultsList extends StatelessWidget {
-  const _QuestResultsList({required this.quests, required this.onTap});
-  final List<QuestModel> quests;
-  final void Function(QuestModel) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        QuestSpacing.screenPadding,
-        4,
-        QuestSpacing.screenPadding,
-        32,
-      ),
-      itemCount: quests.length,
-      itemBuilder: (context, i) {
-        final q = quests[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _QuestResultTile(
-            quest: q,
-            onTap: () => onTap(q),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _QuestResultTile extends ConsumerStatefulWidget {
-  const _QuestResultTile({
-    required this.quest,
-    required this.onTap,
+class _RoundAvatar extends StatelessWidget {
+  const _RoundAvatar({
+    required this.url,
+    required this.name,
+    required this.tint,
   });
+
+  final String? url;
+  final String name;
+  final Color tint;
+
+  static const double _size = 44;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tint,
+        shape: BoxShape.circle,
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+      ),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: QuestTypography.osHeadlineMedium.copyWith(
+          color: QuestColors.onAccent(tint),
+          fontSize: 18,
+          height: 1,
+        ),
+      ),
+    );
+    if (url == null || url!.isEmpty) return placeholder;
+    return Container(
+      width: _size,
+      height: _size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+      ),
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: url!,
+          fit: BoxFit.cover,
+          width: _size,
+          height: _size,
+          memCacheWidth: (_size * 2).round(),
+          placeholder: (_, __) => ColoredBox(color: tint),
+          errorWidget: (_, __, ___) => placeholder,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Quest results ─────────────────────────────────────────────────────────
+
+class _QuestResultCard extends ConsumerStatefulWidget {
+  const _QuestResultCard({required this.quest, required this.onTap});
+
   final QuestModel quest;
   final VoidCallback onTap;
 
   @override
-  ConsumerState<_QuestResultTile> createState() => _QuestResultTileState();
+  ConsumerState<_QuestResultCard> createState() => _QuestResultCardState();
 }
 
-class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
+class _QuestResultCardState extends ConsumerState<_QuestResultCard> {
   bool _busy = false;
 
   Future<void> _toggleSave() async {
@@ -551,8 +731,6 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
   @override
   Widget build(BuildContext context) {
     final quest = widget.quest;
-    final onTap = widget.onTap;
-    final ink = QuestColors.text(context);
     final user = ref.watch(authSessionProvider);
     final saved = user == null
         ? false
@@ -562,16 +740,20 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                 ))
                 .valueOrNull ??
             false);
+    final tint = QuestColors.category(quest.category);
+
     return GestureDetector(
-      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ink, width: 1.8),
+          color: QuestColors.osCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(1.5, 2)),
+            // The category shadow, as on the feed card.
+            BoxShadow(color: tint, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Column(
@@ -580,56 +762,28 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
           children: [
             Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: QuestColors.osRed,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: ink, width: 1.2),
-                  ),
-                  child: Text(
-                    quest.category.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: QuestColors.onAccent(QuestColors.osRed),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
+                Flexible(
+                  child: ArcadeCategoryTag(
+                    label: quest.category,
+                    tint: tint,
+                    compact: true,
                   ),
                 ),
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: QuestColors.accentYellow,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: ink, width: 1.2),
-                  ),
-                  child: Text(
-                    '+${quest.xpReward} XP',
-                    style: TextStyle(
-                      color: ink,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
+                const SizedBox(width: 8),
+                ArcadeCategoryTag(
+                  label: '+${quest.xpReward} XP',
+                  tint: QuestColors.osAccent,
+                  compact: true,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
-              quest.title,
+              quest.title.toUpperCase(),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: QuestTypography.bodyMedium.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w800,
-              ),
+              style: QuestTypography.osHeadlineLarge
+                  .copyWith(fontSize: 18, height: 1.15),
             ),
             if (quest.description.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -637,60 +791,51 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                 quest.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: QuestTypography.bodySmall.copyWith(
-                  color: ink.withAlpha(170),
-                ),
+                style: QuestTypography.osBodySmall.copyWith(fontSize: 13),
               ),
             ],
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
               child: GestureDetector(
-                onTap: _busy ? null : _toggleSave,
                 behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: saved
-                        ? QuestColors.accentYellow
-                        : QuestColors.cardBg(context),
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: ink, width: 1.6),
-                    boxShadow: [
-                      BoxShadow(
-                          color: ink,
-                          offset: const Offset(3, 3),
-                          blurRadius: 0),
-                    ],
+                onTap: _busy ? null : _toggleSave,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: QuestSpacing.minTouchTarget,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        saved
-                            ? Icons.bookmark_rounded
-                            : Icons.bookmark_border_rounded,
-                        size: 16,
-                        color: ink,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          saved ? 'SAVED' : 'BSHEEEL',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: QuestTypography.labelMedium.copyWith(
-                            color: ink,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.4,
+                  child: Center(
+                    child: Container(
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color:
+                            saved ? QuestColors.osAccent : QuestColors.osCard,
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: QuestColors.osTextPrimary,
+                          width: 2,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: QuestColors.osTextPrimary,
+                            offset: Offset(3, 3),
+                            blurRadius: 0,
                           ),
+                        ],
+                      ),
+                      child: Text(
+                        saved ? 'SAVED' : 'BSHEEEL',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: QuestTypography.osHeadlineSmall.copyWith(
+                          fontSize: 13,
+                          letterSpacing: 1.2,
+                          height: 1,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -702,43 +847,15 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
   }
 }
 
-// ── Post results list ──────────────────────────────────────────────────────
-
-class _PostResultsList extends StatelessWidget {
-  const _PostResultsList({required this.posts, required this.onTap});
-  final List<SubmissionModel> posts;
-  final void Function(SubmissionModel) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        QuestSpacing.screenPadding,
-        4,
-        QuestSpacing.screenPadding,
-        32,
-      ),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 0.78,
-      ),
-      itemCount: posts.length,
-      itemBuilder: (context, i) =>
-          _PostResultTile(post: posts[i], onTap: () => onTap(posts[i])),
-    );
-  }
-}
+// ── Post results ──────────────────────────────────────────────────────────
 
 class _PostResultTile extends StatelessWidget {
   const _PostResultTile({required this.post, required this.onTap});
+
   final SubmissionModel post;
   final VoidCallback onTap;
 
   /// First non-empty media URL for the thumbnail, regardless of type.
-  /// We render images via [CachedNetworkImage] and videos via a paused
-  /// [VideoPlayer] showing the first frame.
   String? _firstMediaUrl() {
     final urls = post.mediaUrls.where((u) => u.trim().isNotEmpty).toList();
     return urls.isEmpty ? null : urls.first;
@@ -746,7 +863,6 @@ class _PostResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     final url = _firstMediaUrl();
     final isVideo = url != null && isVideoUrl(url);
 
@@ -755,58 +871,60 @@ class _PostResultTile extends StatelessWidget {
         : (post.authorUsername ?? '');
     final questTitle = post.questTitle ?? '';
 
-    Widget thumbWidget;
+    Widget thumb;
     if (url == null) {
-      thumbWidget = ColoredBox(
-        color: QuestColors.surfaceBg(context),
-        child: Icon(Icons.image_outlined, color: ink.withAlpha(140)),
+      thumb = const ColoredBox(
+        color: QuestColors.osSurface,
+        child: Center(
+          child: Icon(Icons.image_outlined, color: QuestColors.osTextMuted),
+        ),
       );
     } else if (isVideo) {
-      thumbWidget = _PostVideoThumb(url: url);
+      thumb = _PostVideoThumb(url: url);
     } else {
-      thumbWidget = CachedNetworkImage(
+      thumb = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
-        placeholder: (_, __) =>
-            ColoredBox(color: QuestColors.surfaceBg(context)),
-        errorWidget: (_, __, ___) => ColoredBox(
-          color: QuestColors.surfaceBg(context),
-          child: Icon(Icons.image_outlined, color: ink.withAlpha(140)),
+        placeholder: (_, __) => const ColoredBox(color: QuestColors.osSurface),
+        errorWidget: (_, __, ___) => const ColoredBox(
+          color: QuestColors.osSurface,
+          child: Center(
+            child: Icon(Icons.image_outlined, color: QuestColors.osTextMuted),
+          ),
         ),
       );
     }
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ink, width: 1.8),
-          boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(1.5, 2)),
+          color: QuestColors.osCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: QuestColors.osTextPrimary,
+              offset: Offset(3, 3),
+              blurRadius: 0,
+            ),
           ],
         ),
         clipBehavior: Clip.hardEdge,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Media is wrapped in ClipRect because video_player on iOS
-            // can paint outside its layout bounds; without this the
-            // texture bleeds into the footer for tall portrait sources.
+            // ClipRect because video_player on iOS can paint outside its
+            // layout bounds; without it the texture bleeds into the footer.
             Expanded(
-              child: ClipRect(
-                child: SizedBox.expand(child: thumbWidget),
-              ),
+              child: ClipRect(child: SizedBox.expand(child: thumb)),
             ),
-            // Fixed-height footer with its own opaque background, so the
-            // text always sits on a clean cream strip regardless of the
-            // media's aspect ratio.
             Container(
               height: 64,
               width: double.infinity,
-              color: QuestColors.cardBg(context),
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              color: QuestColors.osCard,
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -816,24 +934,15 @@ class _PostResultTile extends StatelessWidget {
                     questTitle.isNotEmpty ? questTitle.toUpperCase() : 'POST',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.labelSmall.copyWith(
-                      color: ink,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                      height: 1.2,
-                    ),
+                    style: QuestTypography.osHeadlineSmall
+                        .copyWith(fontSize: 12, height: 1.2),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    author.isNotEmpty ? 'by $author' : ' ',
+                    author.isNotEmpty ? 'BY ${author.toUpperCase()}' : ' ',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.bodySmall.copyWith(
-                      color: ink.withAlpha(170),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: QuestTypography.osLabelSmall.copyWith(fontSize: 9),
                   ),
                 ],
               ),
@@ -845,227 +954,127 @@ class _PostResultTile extends StatelessWidget {
   }
 }
 
-// ── Empty / prompt / error states ───────────────────────────────────────────
+// ── States ────────────────────────────────────────────────────────────────
 
-class _PromptState extends ConsumerWidget {
-  const _PromptState({required this.ink, required this.onRecentTap});
-  final Color ink;
-  final ValueChanged<String> onRecentTap;
+/// Absent state, as the frame draws it: a dashed 2px outline on the page
+/// cream with a mono kicker, a display title and one sentence.
+class _DashedPanel extends StatelessWidget {
+  const _DashedPanel({
+    required this.label,
+    required this.title,
+    required this.body,
+  });
+
+  final String label;
+  final String title;
+  final String body;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    final recents = ref.watch(recentSearchesProvider);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        QuestSpacing.screenPadding,
-        12,
-        QuestSpacing.screenPadding,
-        32,
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _DashedBorderPainter(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+        child: Column(
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osLabelSmall
+                  .copyWith(color: QuestColors.osTextMuted),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osDisplaySmall.copyWith(
+                color: QuestColors.osTextSecondary,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: QuestTypography.osBodyMedium
+                  .copyWith(color: QuestColors.osTextSecondary),
+            ),
+          ],
+        ),
       ),
-      children: [
-        if (recents.isNotEmpty) ...[
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  l.searchRecent,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => ref.read(recentSearchesProvider.notifier).clear(),
-                child: Text(
-                  l.searchClearRecent,
-                  style: TextStyle(
-                    color: ink.withAlpha(170),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: recents
-                .map((q) => _RecentChip(query: q, onTap: () => onRecentTap(q)))
-                .toList(),
-          ),
-          const SizedBox(height: 28),
-        ],
-        const SizedBox(height: 8),
-        Center(child: Icon(Icons.search, size: 56, color: ink.withAlpha(120))),
-        const SizedBox(height: 12),
-        Text(
-          l.searchPrompt,
-          textAlign: TextAlign.center,
-          style: QuestTypography.headlineSmall.copyWith(
-            color: ink,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          l.searchPromptSubtitle,
-          textAlign: TextAlign.center,
-          style: QuestTypography.bodyMedium.copyWith(color: ink.withAlpha(160)),
-        ),
-      ],
     );
   }
 }
 
-class _RecentChip extends StatelessWidget {
-  const _RecentChip({required this.query, required this.onTap});
-  final String query;
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = QuestColors.osTextMuted
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      const Radius.circular(16),
+    );
+    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + 5;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) => false;
+}
+
+/// 44pt square icon button — white ground, `r11`, 2px ink, 3px ink shadow.
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        width: QuestSpacing.minTouchTarget,
+        height: QuestSpacing.minTouchTarget,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: QuestColors.cardBg(context),
+          color: QuestColors.osCard,
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: ink, width: 2),
-          boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(1, 1.5)),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.history, size: 14, color: ink.withAlpha(170)),
-            const SizedBox(width: 6),
-            Text(
-              query,
-              style: QuestTypography.bodySmall.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w700,
-              ),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: QuestColors.osTextPrimary,
+              offset: Offset(3, 3),
+              blurRadius: 0,
             ),
           ],
         ),
+        child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
       ),
     );
   }
 }
 
-class _NoResultsState extends ConsumerWidget {
-  const _NoResultsState({required this.ink});
-  final Color ink;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(QuestSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 56, color: ink.withAlpha(140)),
-            const SizedBox(height: 12),
-            Text(
-              l.searchNoMatches,
-              style: QuestTypography.headlineSmall.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l.searchNoMatchesSubtitle,
-              textAlign: TextAlign.center,
-              style: QuestTypography.bodyMedium
-                  .copyWith(color: ink.withAlpha(160)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends ConsumerWidget {
-  const _ErrorState({required this.ink, required this.onRetry});
-  final Color ink;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(QuestSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: QuestColors.osRed),
-            const SizedBox(height: 12),
-            Text(
-              l.searchFailed,
-              style: QuestTypography.headlineSmall.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onRetry,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-                decoration: BoxDecoration(
-                  color: QuestColors.accentYellow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ink, width: 2),
-                  boxShadow: [
-                    BoxShadow(color: ink, offset: const Offset(3, 3)),
-                  ],
-                ),
-                child: Text(
-                  l.retry.toUpperCase(),
-                  style: TextStyle(
-                    color: ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Video thumbnail (paused first frame) ─────────────────────────────────────
+// ── Video thumbnail (paused first frame) ─────────────────────────────────
 //
 // Search hits are limited to ~24 results, so spinning up a controller per
 // video tile is acceptable. The controller initializes, seeks to frame 0,
-// and stays paused — VideoPlayer renders that single frame as the
-// thumbnail without ever calling .play().
+// and stays paused — VideoPlayer renders that single frame as the thumbnail
+// without ever calling .play().
 class _PostVideoThumb extends StatefulWidget {
   const _PostVideoThumb({required this.url});
   final String url;
@@ -1112,13 +1121,15 @@ class _PostVideoThumbState extends State<_PostVideoThumb> {
 
   @override
   Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
     if (!_ready || _controller == null) {
-      return ColoredBox(
-        color: QuestColors.surfaceBg(context),
+      return const ColoredBox(
+        color: QuestColors.osSurface,
         child: Center(
-          child: Icon(Icons.play_circle_outline,
-              size: 32, color: ink.withAlpha(150)),
+          child: Icon(
+            Icons.play_circle_outline,
+            size: 32,
+            color: QuestColors.osTextMuted,
+          ),
         ),
       );
     }
@@ -1142,11 +1153,14 @@ class _PostVideoThumbState extends State<_PostVideoThumb> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: QuestColors.pureBlack.withAlpha(110),
+              color: QuestColors.pureBlack.withAlpha(QuestColors.alphaOverlay),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.play_arrow_rounded,
-                color: QuestColors.textPrimary, size: 22),
+            child: const Icon(
+              Icons.play_arrow_rounded,
+              color: QuestColors.pureWhite,
+              size: 22,
+            ),
           ),
         ),
       ],

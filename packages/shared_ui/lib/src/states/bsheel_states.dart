@@ -107,8 +107,7 @@ class BsheelErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline,
-                size: 48, color: QuestColors.softRed),
+            const Icon(Icons.error_outline, size: 48, color: QuestColors.osRed),
             const SizedBox(height: QuestSpacing.md),
             Text(
               mapDbError(error, action: action),
@@ -198,7 +197,7 @@ Future<bool> showBsheelConfirm(
         title: Text(
           title.toUpperCase(),
           style: QuestTypography.headlineSmall.copyWith(
-            color: destructive ? QuestColors.softRed : ink,
+            color: destructive ? QuestColors.osRed : ink,
             letterSpacing: 0.8,
           ),
         ),
@@ -223,8 +222,7 @@ Future<bool> showBsheelConfirm(
             child: Text(
               confirmLabel.toUpperCase(),
               style: QuestTypography.labelSmall.copyWith(
-                color:
-                    destructive ? QuestColors.softRed : QuestColors.osPrimary,
+                color: destructive ? QuestColors.osRed : QuestColors.osPrimary,
               ),
             ),
           ),

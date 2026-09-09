@@ -5,6 +5,7 @@ import 'package:app_contracts/app_contracts.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
+import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -188,33 +189,28 @@ class AutoNotificationsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notificationsAsync = ref.watch(_recentAutoNotificationsProvider);
 
-    return SingleChildScrollView(
+    // A 640px content pane, like every other page that is not a
+    // full-width work surface. The page title is the pane's header bar,
+    // so the old hero card is gone.
+    return AdminPane(
+      title: 'Auto notifications',
+      meta: 'Server triggers · read only',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BsheelCard(
-            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BsheelEyebrow('Community · Auto rules'),
-                const SizedBox(height: 14),
-                BsheelDisplay(
-                  'Know the {triggers.}',
-                  baseStyle: BsheelType.hero(context),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Read-only reference of the server-side notification '
-                  'triggers, plus a live feed of the most recent '
-                  'automatic sends.',
-                  style:
-                      BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
-                ),
-              ],
-            ),
+          // The one trigger a moderator must not switch off: the tap on a
+          // `submission_rejected` notification is the primary route into
+          // the appeal flow, so turning it off makes appealing
+          // unreachable for most users. SPEC.md section 6 raises this as
+          // a product gap; until the trigger is made unswitchable, the
+          // page says it out loud.
+          const BsheelCallout.warning(
+            'These triggers are server-side and cannot be switched off '
+            'here. That is deliberate for one of them: the rejection '
+            'notification is how a user finds the appeal flow, so turning '
+            'it off would leave them no way to appeal.',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
 
           // Section 1: Notification Rules (server-side triggers, read-only)
           const _SectionHeader(label: 'SERVER TRIGGERS · READ-ONLY'),
@@ -252,50 +248,20 @@ class AutoNotificationsPage extends ConsumerWidget {
           const _SectionHeader(label: 'RECENT AUTO NOTIFICATIONS'),
           const SizedBox(height: QuestSpacing.md),
           notificationsAsync.when(
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(QuestSpacing.xxl),
-                child: CircularProgressIndicator(
-                  color: BsheelColors.ink,
-                ),
-              ),
-            ),
-            error: (e, _) => Container(
-              padding: const EdgeInsets.all(QuestSpacing.md),
-              decoration: BoxDecoration(
-                color: BsheelColors.danger.withAlpha(20),
-                border: Border.all(
-                  color: BsheelColors.danger,
-                  width: BsheelBorders.thin,
-                ),
-                borderRadius: BorderRadius.circular(BsheelRadii.md),
-              ),
-              child: Text(
-                'Failed to load notifications: $e',
-                style: BsheelType.bodySm.copyWith(
-                  color: BsheelColors.onCream(BsheelColors.danger),
-                ),
-              ),
+            // Skeletons in the shape of the real rows. No spinner.
+            loading: () => const BsheelLoadingList(rows: 4, rowHeight: 60),
+            error: (e, _) => BsheelErrorState(
+              title: 'The feed didn’t load',
+              message: 'The recent sends didn’t come back. Nothing was sent '
+                  'or unsent — this section only reads. $e',
+              onRetry: () => ref.invalidate(_recentAutoNotificationsProvider),
             ),
             data: (notifications) => notifications.isEmpty
-                ? Container(
-                    padding: const EdgeInsets.all(QuestSpacing.xl),
-                    decoration: BoxDecoration(
-                      color: BsheelColors.paper,
-                      borderRadius: BorderRadius.circular(BsheelRadii.lg),
-                      border: Border.all(
-                        color: BsheelColors.line,
-                        width: BsheelBorders.thin,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'No auto notifications found.',
-                        style: BsheelType.bodySm.copyWith(
-                          color: BsheelColors.inkMuted,
-                        ),
-                      ),
-                    ),
+                ? const BsheelEmptyState(
+                    title: 'Nothing sent yet',
+                    message: 'No automatic notification has fired. They '
+                        'appear here as users trigger them — approving a '
+                        'submission is the quickest way to see one.',
                   )
                 : Column(
                     children: notifications
@@ -410,7 +376,9 @@ class _RuleCard extends StatelessWidget {
               Text(
                 rule.recipient,
                 style: BsheelType.labelSm.copyWith(
-                  color: BsheelColors.inkMuted,
+                  // Who the trigger writes to is the row's point, not a
+                  // placeholder — inkMuted is 2.9:1 and reserved.
+                  color: BsheelColors.inkSoft,
                   fontSize: 10,
                 ),
               ),
@@ -485,7 +453,7 @@ class _NotificationTile extends StatelessWidget {
                     Text(
                       bsheelTimeAgo(createdAt, caps: false, fallback: '?'),
                       style: BsheelType.labelSm.copyWith(
-                        color: BsheelColors.inkMuted,
+                        color: BsheelColors.inkSoft,
                         fontSize: 10,
                       ),
                     ),
@@ -504,7 +472,7 @@ class _NotificationTile extends StatelessWidget {
                   Text(
                     body,
                     style: BsheelType.bodySm.copyWith(
-                      color: BsheelColors.inkMuted,
+                      color: BsheelColors.inkSoft,
                       fontSize: 11,
                     ),
                     maxLines: 2,
@@ -545,7 +513,7 @@ class _NotificationTile extends StatelessWidget {
                       Text(
                         body,
                         style: BsheelType.bodySm.copyWith(
-                          color: BsheelColors.inkMuted,
+                          color: BsheelColors.inkSoft,
                           fontSize: 11,
                         ),
                         maxLines: 2,
@@ -571,7 +539,7 @@ class _NotificationTile extends StatelessWidget {
                   Text(
                     bsheelTimeAgo(createdAt, caps: false, fallback: '?'),
                     style: BsheelType.labelSm.copyWith(
-                      color: BsheelColors.inkMuted,
+                      color: BsheelColors.inkSoft,
                       fontSize: 10,
                     ),
                   ),
