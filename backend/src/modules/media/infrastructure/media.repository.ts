@@ -209,6 +209,16 @@ export class MediaRepository {
                FROM submissions s
                WHERE (
                        s.media_url = candidate.key
+                       -- A multi-file submission stores a JSON array of keys in
+                       -- media_url, so equality never matches any of them. The
+                       -- LIKE guard keeps a non-JSON value from reaching the
+                       -- ::jsonb cast, which would raise rather than return
+                       -- false. Without this branch every image on a
+                       -- multi-file post silently fails to sign, and so does
+                       -- all imported media, which has no
+                       -- media_submission_links rows to fall back on.
+                       OR (s.media_url LIKE '[%'
+                           AND s.media_url::jsonb @> to_jsonb(candidate.key))
                        OR EXISTS (
                             SELECT 1
                             FROM media_submission_links link
