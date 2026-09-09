@@ -29,7 +29,8 @@
     "test:smoke": "node scripts/smoke.mjs",
     "test:auth-confirmation": "node scripts/smoke-auth-confirmation.mjs",
     "test:realtime": "node scripts/smoke-realtime.mjs",
-    "test:telegram": "node scripts/smoke-telegram.mjs"
+    "test:telegram": "node scripts/smoke-telegram.mjs",
+    "import:legacy": "node scripts/legacy-import/import-legacy.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.883.0",
