@@ -200,6 +200,12 @@ export interface Database {
     "reclaim_token": string | null;
     "reclaim_reason": string | null;
     "storage_deleted_at": Timestamp | null;
+    "captured_at": Timestamp | null;
+    "width": number | null;
+    "height": number | null;
+    "perceptual_hash": string | null;
+    "forensics": Json | null;
+    "forensics_at": Timestamp | null;
   };
   "media_submission_links": {
     "media_object_id": string;
@@ -326,6 +332,22 @@ export interface Database {
     "suggested_by_name": string | null;
     "suggested_by_handle": string | null;
   };
+  "quest_verification_contract": {
+    "quest_id": string | null;
+    "category": string | null;
+    "verifiability": "content" | "provenance_only" | "none" | null;
+    "evidence_rubric": string | null;
+    "may_auto_approve": boolean | null;
+    "may_auto_reject": boolean | null;
+  };
+  "quest_verification_defaults": {
+    "category": string;
+    "verifiability": "content" | "provenance_only" | "none";
+    "evidence_rubric": string;
+    "may_auto_approve": Generated<boolean>;
+    "may_auto_reject": Generated<boolean>;
+    "updated_at": Generated<Timestamp>;
+  };
   "quests": {
     "id": Generated<string>;
     "title": string;
@@ -342,6 +364,10 @@ export interface Database {
     "available_until": Timestamp | null;
     "is_hidden": Generated<boolean>;
     "sponsor_name": string | null;
+    "verifiability": "content" | "provenance_only" | "none" | null;
+    "evidence_rubric": string | null;
+    "may_auto_approve": boolean | null;
+    "may_auto_reject": boolean | null;
   };
   "reactions": {
     "id": Generated<string>;
@@ -411,6 +437,9 @@ export interface Database {
     "resolved_at": Timestamp | null;
     "queued_at": Generated<Timestamp>;
     "completed_at": Timestamp | null;
+    "acted": Generated<boolean>;
+    "forensics": Json | null;
+    "stage": string | null;
   };
   "submissions": {
     "id": Generated<string>;
