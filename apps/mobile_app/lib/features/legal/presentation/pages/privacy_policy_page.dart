@@ -12,7 +12,7 @@ class PrivacyPolicyPage extends StatelessWidget {
     // needs a professional translator before it can be served in
     // Lebanese Arabizi. For now, all locales see the English body.
     // TODO(legal): translate the policy body and load per-locale, OR
-    // serve it from a Supabase `legal_documents` table keyed by version.
+    // serve it from a versioned `legal_documents` table on the API.
     return Scaffold(
       backgroundColor: QuestColors.bg(context),
       appBar: AppBar(
@@ -40,7 +40,7 @@ We collect information you provide when creating an account: email, username, di
 - To route submissions to our human moderation team (see §4)
 
 3. DATA STORAGE
-Your data is stored on Supabase (Postgres + Auth + Storage, EU/US region). Media files are uploaded to Cloudflare R2 and served via signed URLs that expire within 15 minutes. Notification tokens are stored in a private database table accessible only by our backend.
+Account, quest, social and notification data are stored in a PostgreSQL database on infrastructure we operate. Photos and videos are stored in S3-compatible object storage and stay private: they are served only through signed URLs that expire within 15 minutes, never from a public bucket. Passwords are hashed with Argon2 and are never stored in a recoverable form. Notification tokens are encrypted at rest in a table only our backend can read.
 
 4. DATA SHARING
 We do not sell your personal data. The following SHARING happens by design:
