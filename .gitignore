@@ -126,3 +126,7 @@ SECRETS_*.txt
 
 # Shared client build config (client-safe keys, but keep it out of git)
 bsheel-app-env.local.json
+
+# Python bytecode from scripts/ (appstore.py, migrate helpers)
+__pycache__/
+*.pyc

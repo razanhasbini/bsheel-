@@ -186,7 +186,7 @@ Only the home hero zone is status-driven:
 | Condition | What renders |
 |---|---|
 | account suspended/banned | locked card; QOTD ticket hidden |
-| any `user_quest.status == submitted` | pending-review card, above whatever follows |
+| any `user_quest.status == submitted` | pending-review card, above whatever follows — the hero below it still renders, so a waiting user can roll again |
 | active quest, `assigned`, before `expires_at` | active-quest hero with live countdown |
 | active quest past `expires_at` | "TIME OVER" card |
 | no active quest | slot machine / GENERATE A QUEST |

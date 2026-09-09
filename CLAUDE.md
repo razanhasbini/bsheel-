@@ -161,7 +161,7 @@ activity → streak card. Only the hero zone is status-driven:
 | Condition | Widget |
 |---|---|
 | account suspended/banned | `_LockedCard` (QOTD ticket hidden entirely) |
-| any `user_quest.status == submitted` | `_PendingReviewCard`, above whatever follows |
+| any `user_quest.status == submitted` | `_PendingReviewCard`, above whatever follows — and the hero below it still renders, so a waiting user can roll again |
 | active quest, `assigned`, before `expires_at` | `_ActiveQuestHero` with live countdown |
 | active quest past `expires_at` | `_TimeOverCard` |
 | no active quest | `_SlotMachineZone` (GENERATE A QUEST) |
@@ -204,7 +204,13 @@ Worth remembering before removing a notification type.
 These are covered by integration tests in `backend/test/`. If you change one,
 change its test deliberately — never to make a failure go away.
 
-- One active or pending quest per user; timing rules are server-enforced.
+- One **active** (`assigned`) quest per user, database-enforced by
+  `user_quests_one_assigned_idx`. Submissions awaiting review do **not**
+  block a new roll — migration 0021 narrowed the old
+  `assigned`-or-`submitted` index deliberately, because review latency is
+  not something a user can clear and it left them with nothing to do. The
+  five-rerolls-per-24h cap is now the real limit on quest intake. Timing
+  rules stay server-enforced.
 - Rerolls are five per rolling 24 hours, server-authoritative.
 - Appeals are one-time and forbidden on a deleted submission.
 - Approval awards XP once; reversal and deletion revoke it correctly; retries
