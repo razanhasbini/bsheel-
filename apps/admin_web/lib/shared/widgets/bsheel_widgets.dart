@@ -1532,6 +1532,7 @@ class BsheelSwitch extends StatelessWidget {
         child: SizedBox(
           height: BsheelLayout.minTarget,
           child: Center(
+            widthFactor: 1,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 130),
               curve: Curves.easeOut,
@@ -1599,7 +1600,11 @@ class BsheelFilterChips extends StatelessWidget {
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 6,
-      runSpacing: 6,
+      // A filter row is one line at any sane width; runSpacing only matters
+      // when it does wrap, and then 4 is enough to separate rows without
+      // reintroducing the vertical bulk this component used to have.
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         for (final f in filters)
           _Chip(
@@ -1649,7 +1654,10 @@ class _Chip extends StatelessWidget {
         // 44px hit target without inflating the chip.
         child: SizedBox(
           height: BsheelLayout.minTarget,
+          // widthFactor, or Center expands to the parent's full width and
+          // each chip takes a whole row — which is exactly what it did.
           child: Center(
+            widthFactor: 1,
             child: filter.dashed && !active
                 ? _DashedBox(
                     radius: BsheelRadii.full,
