@@ -80,7 +80,7 @@ class _AppPromptsListenerState extends ConsumerState<AppPromptsListener> {
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
           decoration: BoxDecoration(
             color: QuestColors.bg(ctx),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),

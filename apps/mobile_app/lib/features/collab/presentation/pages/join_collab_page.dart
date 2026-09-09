@@ -168,7 +168,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                                 vertical: QuestSpacing.md),
                             decoration: BoxDecoration(
                                 color: QuestColors.violet,
-                                borderRadius: BorderRadius.circular(20)),
+                                borderRadius: BorderRadius.circular(18)),
                             child: Text('GO HOME',
                                 style: QuestTypography.labelMedium.copyWith(
                                     color: QuestColors.osTextOnPrimary,
@@ -441,7 +441,7 @@ class _BackButton extends StatelessWidget {
           height: 40,
           decoration: BoxDecoration(
             color: QuestColors.cardBg(context),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(11),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(2, 2), blurRadius: 0),

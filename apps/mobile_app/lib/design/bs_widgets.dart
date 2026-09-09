@@ -461,7 +461,7 @@ class BsToggle extends StatelessWidget {
                   color: QuestColors.osAccent,
                   border:
                       Border.all(color: QuestColors.osTextPrimary, width: 1.5),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
               ),
             ),

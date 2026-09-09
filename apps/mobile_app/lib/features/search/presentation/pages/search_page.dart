@@ -657,7 +657,7 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                     color: saved
                         ? QuestColors.accentYellow
                         : QuestColors.cardBg(context),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                     border: Border.all(color: ink, width: 1.6),
                     boxShadow: [
                       BoxShadow(
@@ -943,7 +943,7 @@ class _RecentChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(11),
           border: Border.all(color: ink, width: 1.5),
           boxShadow: [
             BoxShadow(color: ink, offset: const Offset(1, 1.5)),

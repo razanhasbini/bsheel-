@@ -773,7 +773,7 @@ class _TopBar extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: QuestColors.cardBg(context),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                   border: Border.all(color: ink, width: 2),
                   boxShadow: [
                     BoxShadow(
@@ -799,7 +799,7 @@ class _TopBar extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: collabAccent ?? QuestColors.text(context),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                     border: Border.all(color: ink, width: 2),
                     boxShadow: [
                       BoxShadow(color: ink, offset: const Offset(2, 2)),
@@ -888,7 +888,7 @@ class _TopBar extends StatelessWidget {
               margin: const EdgeInsets.only(left: 6),
               decoration: BoxDecoration(
                 color: QuestColors.cardBg(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: ink, width: 2),
                 boxShadow: [
                   BoxShadow(
@@ -1117,7 +1117,7 @@ class _CommentInputBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color:
                     QuestColors.osPrimary.withAlpha(QuestColors.alphaWhisper),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: QuestColors.osPrimary, width: 1.5),
               ),
               child: Row(
@@ -2396,7 +2396,7 @@ class _ActionPill extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(11),
           border: Border.all(color: ink, width: 1.5),
           boxShadow: [
             BoxShadow(color: ink, offset: const Offset(0, 1.5), blurRadius: 0),

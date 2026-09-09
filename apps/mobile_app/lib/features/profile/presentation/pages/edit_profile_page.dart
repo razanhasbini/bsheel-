@@ -428,15 +428,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     filled: true,
                     fillColor: navyColor.withAlpha(8),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(80)),
                     ),
                   ),
@@ -456,15 +456,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     filled: true,
                     fillColor: navyColor.withAlpha(8),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(80)),
                     ),
                   ),
@@ -486,15 +486,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     filled: true,
                     fillColor: navyColor.withAlpha(8),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(80)),
                     ),
                   ),
@@ -515,15 +515,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     filled: true,
                     fillColor: navyColor.withAlpha(8),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(30)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(color: navyColor.withAlpha(80)),
                     ),
                   ),
@@ -538,7 +538,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
                       color: navyColor,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     child: Center(
                       child: Text(

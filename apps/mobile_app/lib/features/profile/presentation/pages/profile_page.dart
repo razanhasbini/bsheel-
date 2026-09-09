@@ -363,7 +363,7 @@ class ProfilePage extends ConsumerWidget {
                                             color: QuestColors.osTextPrimary,
                                             width:
                                                 QuestSpacing.cardBorderWidth),
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(11),
                                       ),
                                       child: Text('L${profile.level}',
                                           style: const TextStyle(
@@ -757,7 +757,7 @@ void _showBadgeDetail(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
               decoration: BoxDecoration(
                 color: QuestColors.osCard,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                     color: QuestColors.osTextPrimary,
                     width: QuestSpacing.cardBorderWidth),
@@ -776,7 +776,7 @@ void _showBadgeDetail(
                       color: unlocked
                           ? QuestColors.osPrimary.withAlpha(25)
                           : QuestColors.osTextPrimary.withAlpha(15),
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                           color: QuestColors.osTextPrimary,
                           width: QuestSpacing.cardBorderWidth),
@@ -1742,7 +1742,7 @@ class _SavedPostTile extends ConsumerWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: QuestColors.osAccent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                     border: Border.all(
                         color: QuestColors.osTextPrimary,
                         width: QuestSpacing.cardBorderWidth),
@@ -1838,7 +1838,7 @@ class _SavedPostTile extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osCard,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(11),
                             border: Border.all(color: ink, width: 2),
                           ),
                           alignment: Alignment.center,
@@ -1869,7 +1869,7 @@ class _SavedPostTile extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osRed,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(11),
                             border: Border.all(color: ink, width: 2),
                             boxShadow: const [
                               BoxShadow(color: ink, offset: Offset(0, 3)),

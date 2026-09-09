@@ -234,7 +234,7 @@ class ArcadeNotificationBell extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: QuestColors.softRed,
                     border: Border.all(color: ink, width: 2),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
                     unreadCount > 9 ? '9+' : '$unreadCount',

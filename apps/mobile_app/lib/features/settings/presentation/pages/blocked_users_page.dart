@@ -64,7 +64,7 @@ class BlockedUsersPage extends ConsumerWidget {
                         height: 40,
                         decoration: BoxDecoration(
                           color: QuestColors.cardBg(context),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(11),
                           border: Border.all(color: ink, width: 2),
                           boxShadow: [
                             BoxShadow(

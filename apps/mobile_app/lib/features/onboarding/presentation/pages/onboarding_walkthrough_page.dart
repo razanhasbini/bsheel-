@@ -199,7 +199,7 @@ class _OnboardingWalkthroughPageState
                     height: 36,
                     decoration: BoxDecoration(
                       color: QuestColors.softRed,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: ink, width: 2),
                     ),
                     child: Icon(Icons.gavel_rounded,
@@ -375,7 +375,7 @@ class _OnboardingWalkthroughPageState
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: QuestColors.cardBg(context),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: ink, width: 1.5),
                     ),
                     child: Text(

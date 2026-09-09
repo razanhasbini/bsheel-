@@ -189,7 +189,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         // "waiting on you" in this design; spending it on a
                         // tab selection weakens it where it matters.
                         color: active ? ink : QuestColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(11),
                         border: Border.all(color: ink, width: 2),
                         boxShadow: active
                             ? [
@@ -528,7 +528,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         color: tint,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(color: ink, width: 2),
       ),
       child: Icon(icon, color: QuestColors.onAccent(tint), size: 20),

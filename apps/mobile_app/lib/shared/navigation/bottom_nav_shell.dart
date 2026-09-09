@@ -367,7 +367,7 @@ class _FloatingPillNav extends StatelessWidget {
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: pillBg,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: pillBg, width: 2),
           boxShadow: [
             BoxShadow(

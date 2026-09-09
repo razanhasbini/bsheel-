@@ -377,7 +377,7 @@ class _SheetInputBarState extends State<_SheetInputBar> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: ink.withAlpha(10),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
               ),
               child: Row(
                 children: [
@@ -438,7 +438,7 @@ class _SheetInputBarState extends State<_SheetInputBar> {
                     // Soft pill — hairline outline like IG's "Add a
                     // comment…" field, no chunky ink border.
                     color: QuestColors.cardBg(context),
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: ink.withAlpha(35), width: 0.7),
                   ),
                   child: TextField(

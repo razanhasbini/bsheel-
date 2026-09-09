@@ -92,7 +92,7 @@ class _PostActionsSheet extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
           decoration: BoxDecoration(
             color: QuestColors.cardBg(c),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(
@@ -237,7 +237,7 @@ class _PostActionsSheet extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: QuestColors.bg(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
           BoxShadow(color: ink, offset: const Offset(0, 4), blurRadius: 0),
@@ -304,7 +304,7 @@ class _ActionRow extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: tint.withAlpha(40),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: tint.withAlpha(160), width: 1.5),
               ),
               child: Icon(icon, color: tint, size: 18),

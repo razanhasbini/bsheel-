@@ -255,12 +255,12 @@ class SettingsPage extends ConsumerWidget {
                         horizontal: 12, vertical: 12),
                     errorText: confirmError,
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       borderSide: BorderSide(
                           color: QuestColors.osRed.withAlpha(120), width: 1.5),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       borderSide: const BorderSide(
                           color: QuestColors.osRed,
                           width: QuestSpacing.cardBorderWidth),

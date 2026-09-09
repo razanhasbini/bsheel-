@@ -803,7 +803,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                                     color: _showInFeed
                                         ? QuestColors.successGreen
                                         : QuestColors.cardBg(context),
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(11),
                                     border: Border.all(
                                       color: QuestColors.text(context),
                                       width: 1.6,
@@ -1087,7 +1087,7 @@ class _LimitChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(color: ink, width: 1.5),
         boxShadow: [
           BoxShadow(color: ink, offset: const Offset(1, 2), blurRadius: 0),

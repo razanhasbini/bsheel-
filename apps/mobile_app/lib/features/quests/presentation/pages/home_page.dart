@@ -615,7 +615,7 @@ class _PendingReviewCard extends StatelessWidget {
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: QuestColors.softRed,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(11),
                         border: Border.all(color: ink, width: 1.5),
                       ),
                       child: Text(
@@ -1300,7 +1300,7 @@ class _HeroSkeletonState extends State<_HeroSkeleton>
                   height: 44,
                   decoration: BoxDecoration(
                     color: bar(pulse),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1333,7 +1333,7 @@ class _HeroSkeletonState extends State<_HeroSkeleton>
                 height: 38,
                 decoration: BoxDecoration(
                   color: bar(pulse),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
               ),
             ],
@@ -1823,7 +1823,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
           padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
           decoration: BoxDecoration(
             color: _dialogBg,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(
@@ -1928,7 +1928,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: QuestColors.pureWhite.withAlpha(12),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(11),
                           border: Border.all(
                             color: QuestColors.textPrimary.withAlpha(120),
                             width: 1.3,
@@ -1959,7 +1959,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
                             color: QuestColors.softRed,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(11),
                             border: Border.all(color: onCoral, width: 1.5),
                           ),
                           child: _rerolling
@@ -2229,7 +2229,7 @@ class _QuestChoiceCard extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       color: QuestColors.pureWhite.withAlpha(40),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: onTint, width: 1.5),
                     ),
                     alignment: Alignment.center,
@@ -2345,7 +2345,7 @@ class _PendingListDialog extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
           decoration: BoxDecoration(
             color: QuestColors.cardBg(context),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(3, 5), blurRadius: 0),
@@ -2362,7 +2362,7 @@ class _PendingListDialog extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       color: QuestColors.accentYellow,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: ink, width: 2),
                     ),
                     alignment: Alignment.center,
@@ -2595,7 +2595,7 @@ class _RecentQuestsCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: QuestColors.osPrimary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                   border: Border.all(color: ink, width: 1.5),
                   boxShadow: [
                     BoxShadow(

@@ -926,7 +926,7 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
@@ -999,8 +999,8 @@ class _QotdTopHalf extends StatelessWidget {
         decoration: BoxDecoration(
           color: navy,
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(22),
-            topRight: Radius.circular(22),
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
           ),
           border: Border.all(color: ink, width: 2),
         ),
@@ -1166,8 +1166,8 @@ class _QotdBodyFresh extends StatelessWidget {
       decoration: BoxDecoration(
         color: navy,
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(22),
-          bottomRight: Radius.circular(22),
+          bottomLeft: Radius.circular(18),
+          bottomRight: Radius.circular(18),
         ),
         border: Border(
           left: BorderSide(color: ink, width: 2),
@@ -1267,8 +1267,8 @@ class _QotdBodyStub extends StatelessWidget {
       decoration: BoxDecoration(
         color: navy,
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(22),
-          bottomRight: Radius.circular(22),
+          bottomLeft: Radius.circular(18),
+          bottomRight: Radius.circular(18),
         ),
         border: Border(
           left: BorderSide(color: ink, width: 2),
@@ -1311,7 +1311,7 @@ class _QotdBodyStub extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: QuestColors.accentYellow,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                     border: Border.all(color: ink, width: 2),
                     boxShadow: [
                       BoxShadow(
@@ -1412,7 +1412,7 @@ class _StatusStamp extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: s.bg,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(
             color: QuestColors.osTextPrimary.withAlpha(160), width: 1.5),
       ),
@@ -1815,13 +1815,13 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -1833,7 +1833,7 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
               colors: [QuestColors.softRed, _deepCoral],
             ),
             border: Border.all(color: ink, width: 2),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Stack(
             children: [

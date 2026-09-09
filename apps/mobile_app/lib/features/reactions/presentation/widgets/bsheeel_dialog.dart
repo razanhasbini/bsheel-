@@ -292,7 +292,7 @@ class _BsheeelTakeOnDialog extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
         decoration: BoxDecoration(
           color: QuestColors.cardBg(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
             BoxShadow(
