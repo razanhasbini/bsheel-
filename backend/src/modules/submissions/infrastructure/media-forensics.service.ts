@@ -58,7 +58,23 @@ export class MediaForensicsService {
     // Video needs a bigger read budget than a still, because the whole file
     // must be decoded before any frame exists.
     const videoCap = this.config.get('AI_VERIFICATION_MAX_VIDEO_BYTES', { infer: true });
-    const object = await this.storage.read(objectKey, Math.max(maxBytes, videoCap));
+
+    // The read is guarded separately from the decode below, because it
+    // throws rather than returning null when the object is gone — a
+    // reclaimed upload, or a storage outage. That is not a fraud signal and
+    // not a retryable analysis failure: it is one file this stage cannot
+    // examine, and letting it escape here would abandon provenance for the
+    // whole submission and leave the row to be retried forever.
+    let object: Awaited<ReturnType<ObjectStorageService['read']>>;
+    try {
+      object = await this.storage.read(objectKey, Math.max(maxBytes, videoCap));
+    } catch (error) {
+      this.logger.debug(
+        { objectKey, err: error instanceof Error ? error.message : String(error) },
+        'Object could not be read from storage',
+      );
+      return null;
+    }
     if (!object) return null;
 
     if (object.contentType.startsWith('video/')) {
