@@ -135,8 +135,8 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                                     'WITH ${quest.sponsorName!.toUpperCase()}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: QuestTypography.osLabelSmall
-                                        .copyWith(
+                                    style:
+                                        QuestTypography.osLabelSmall.copyWith(
                                       color: QuestColors.osTextSecondary,
                                     ),
                                   ),
