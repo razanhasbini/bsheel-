@@ -433,43 +433,77 @@ class ProfilePage extends ConsumerWidget {
                         ],
                         const SizedBox(height: 16),
 
-                        // ── XP bar ────────────────────────────────
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        // ── XP · level panel ──────────────────────
+                        // The render draws this as a violet panel with
+                        // white type and a gold meter, not as bare text on
+                        // the cream page. It is the one block on the profile
+                        // that states progress, so it gets the emphasis.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: QuestColors.osPrimary,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: QuestColors.osTextPrimary,
+                              width: 2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: QuestColors.osTextPrimary,
+                                offset: Offset(4, 4),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Flexible(
-                                child: Text('XP · LEVEL ${profile.level}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontFamily: 'DMSans',
-                                        fontVariations: [
-                                          FontVariation('wght', 500)
-                                        ],
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: QuestColors.osTextSecondary,
-                                        letterSpacing: 0.4)),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text('$xpInLevel / $xpForNextLevel',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.right,
-                                    style: const TextStyle(
-                                        fontFamily: 'Syne',
-                                        fontVariations: [
-                                          FontVariation('wght', 800)
-                                        ],
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: QuestColors.osTextPrimary)),
-                              ),
-                            ]),
-                        const SizedBox(height: 6),
-                        ArcadeMeter(
-                            progress: xpProgress, fill: QuestColors.osPrimary),
+                              Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: Text('XP · LEVEL ${profile.level}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontFamily: 'DMSans',
+                                              fontVariations: [
+                                                FontVariation('wght', 500)
+                                              ],
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color:
+                                                  QuestColors.osTextSecondary,
+                                              letterSpacing: 0.4)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                          '$xpInLevel / $xpForNextLevel',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                              fontFamily: 'Syne',
+                                              fontVariations: [
+                                                FontVariation('wght', 800)
+                                              ],
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: QuestColors.pureWhite)),
+                                    ),
+                                  ]),
+                              const SizedBox(height: 6),
+                              ArcadeMeter(
+                                  progress: xpProgress,
+                                  fill: QuestColors.osAccent),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 16),
 
                         // ── Stat pills ────────────────────────────
