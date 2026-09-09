@@ -396,7 +396,7 @@ class _ArcadeTextFieldState extends State<ArcadeTextField> {
             boxShadow: [
               BoxShadow(
                 color: ink,
-                offset: const Offset(2, 3),
+                offset: const Offset(3, 3),
                 blurRadius: 0,
               ),
             ],
@@ -547,7 +547,7 @@ class ArcadeBackButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Icon(Icons.arrow_back_rounded, color: ink, size: 22),
@@ -634,7 +634,7 @@ class ArcadeErrorState extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: ink,
-                  offset: const Offset(3, 4),
+                  offset: const Offset(4, 4),
                   blurRadius: 0,
                 ),
               ],
