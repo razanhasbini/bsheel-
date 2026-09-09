@@ -337,7 +337,7 @@ class _NoQuestState extends StatelessWidget {
                   colors: [QuestColors.osPrimary, QuestColors.softRed],
                 ),
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: ink, width: 2.5),
+                border: Border.all(color: ink, width: 2),
                 boxShadow: [
                   BoxShadow(
                     color: ink,

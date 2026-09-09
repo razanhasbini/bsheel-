@@ -1483,7 +1483,7 @@ class _LockedCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: QuestColors.softRed, width: 2.5),
+        border: Border.all(color: QuestColors.softRed, width: 2),
         boxShadow: [
           BoxShadow(
             color: ink,
@@ -1824,7 +1824,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
           decoration: BoxDecoration(
             color: _dialogBg,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: ink, width: 2.5),
+            border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(
                 color: ink,
@@ -2346,7 +2346,7 @@ class _PendingListDialog extends StatelessWidget {
           decoration: BoxDecoration(
             color: QuestColors.cardBg(context),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ink, width: 2.5),
+            border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(3, 5), blurRadius: 0),
             ],
@@ -2803,7 +2803,7 @@ class _QuestPreviewSheet extends StatelessWidget {
           decoration: BoxDecoration(
             color: QuestColors.bg(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(color: ink, width: 2.5),
+            border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(0, -3), blurRadius: 0),
             ],

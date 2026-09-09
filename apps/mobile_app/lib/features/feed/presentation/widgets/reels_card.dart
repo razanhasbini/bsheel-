@@ -1456,7 +1456,7 @@ class _WaitingForMember extends StatelessWidget {
                     color: hasExpired
                         ? QuestColors.softRed
                         : QuestColors.pureWhite,
-                    width: 2.5,
+                    width: 2,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,

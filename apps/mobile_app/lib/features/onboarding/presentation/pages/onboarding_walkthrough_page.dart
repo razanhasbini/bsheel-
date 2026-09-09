@@ -178,7 +178,7 @@ class _OnboardingWalkthroughPageState
           decoration: BoxDecoration(
             color: QuestColors.cardBg(ctx),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: ink, width: 2.5),
+            border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(
                 color: ink,
@@ -438,7 +438,7 @@ class _OnboardingWalkthroughPageState
                   decoration: BoxDecoration(
                     color: ctaGround,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: ink, width: 2.5),
+                    border: Border.all(color: ink, width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: ink,

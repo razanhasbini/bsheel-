@@ -352,7 +352,7 @@ class _HeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ink, width: 2.5),
+        border: Border.all(color: ink, width: 2),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -907,7 +907,7 @@ class _BottomActionBar extends StatelessWidget {
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ink, width: 2.5),
+          border: Border.all(color: ink, width: 2),
           boxShadow: [
             BoxShadow(
               color: ink,

@@ -633,7 +633,7 @@ class _EmptyState extends StatelessWidget {
             height: 76,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: ink, width: 2.5),
+              border: Border.all(color: ink, width: 2),
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -694,7 +694,7 @@ class _ErrorState extends StatelessWidget {
             decoration: BoxDecoration(
               color: QuestColors.softRed,
               shape: BoxShape.circle,
-              border: Border.all(color: ink, width: 2.5),
+              border: Border.all(color: ink, width: 2),
               boxShadow: [
                 BoxShadow(
                   color: ink,

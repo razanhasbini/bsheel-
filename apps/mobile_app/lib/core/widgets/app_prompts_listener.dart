@@ -81,7 +81,7 @@ class _AppPromptsListenerState extends ConsumerState<AppPromptsListener> {
           decoration: BoxDecoration(
             color: QuestColors.bg(ctx),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ink, width: 2.5),
+            border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
             ],
@@ -226,8 +226,8 @@ class _UpdateRequiredOverlay extends StatelessWidget {
                       colors: [QuestColors.osPrimary, QuestColors.softRed],
                     ),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                        color: QuestColors.osTextPrimary, width: 2.5),
+                    border:
+                        Border.all(color: QuestColors.osTextPrimary, width: 2),
                     boxShadow: const [
                       BoxShadow(
                           color: QuestColors.osTextPrimary,

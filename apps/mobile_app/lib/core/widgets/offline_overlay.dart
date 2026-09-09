@@ -133,7 +133,7 @@ class _RetryButtonState extends State<_RetryButton> {
         decoration: BoxDecoration(
           color: QuestColors.accentYellow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: ink, width: 2.5),
+          border: Border.all(color: ink, width: 2),
           boxShadow: [
             BoxShadow(color: ink, offset: const Offset(2, 3)),
           ],

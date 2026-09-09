@@ -148,7 +148,7 @@ class _MaintenancePanel extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: _gold,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _ink, width: 2.5),
+                        border: Border.all(color: _ink, width: 2),
                         boxShadow: const [
                           BoxShadow(color: _ink, offset: Offset(2, 3)),
                         ],
