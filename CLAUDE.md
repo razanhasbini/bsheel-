@@ -177,17 +177,23 @@ EXPIRED / IN REVIEW), whose rows open the **quest detail** page.
 
 ### Reaching the appeal flow
 
-`submission_status_page.dart` owns the whole rejection/appeal UX. Exactly three
-things route to it:
+`submission_status_page.dart` owns the whole rejection/appeal UX. Four things
+route to it:
 
-1. Tapping a notification (`submission_approved`, `submission_rejected`,
-   `new_submission`, `appeal_submitted`) — the primary path.
-2. The Quest-of-the-Day ticket stub, when that attempt was a first-time
+1. The APPEAL button on a rejected row in `quest_history_page.dart` — the
+   **durable** route, and the one to protect. It is server-gated on
+   `appealAvailable`, so the button is a promise the API will keep.
+2. Tapping a notification (`submission_approved`, `submission_rejected`,
+   `new_submission`, `appeal_submitted`).
+3. The Quest-of-the-Day ticket stub, when that attempt was a first-time
    rejection (`home_extras.dart` — `canAppeal`).
-3. Immediately after submitting proof (`submit_proof_page.dart`).
+4. Immediately after submitting proof (`submit_proof_page.dart`).
 
-**If push delivery breaks, users effectively cannot find the appeal flow.**
-Worth remembering before removing a notification type.
+Routes 2-4 are all transient: a notification can be missed, and the stub and
+the redirect are gone once the screen changes. History is the one place a
+rejected user can go back and find. So **breaking push delivery no longer
+hides the appeal flow** — an earlier version of this file said it did, which
+is no longer true. Removing the APPEAL button from history would.
 
 ### Files to change together
 
