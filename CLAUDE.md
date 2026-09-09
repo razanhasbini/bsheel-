@@ -205,6 +205,67 @@ is no longer true. Removing the APPEAL button from history would.
 - `statuses.dart` — status constants
 - **this file + README.md**
 
+## AI proof verification (#47)
+
+A cascade, not a single call. Provenance before content, cheap models
+before expensive ones, and one place that decides what the agent may
+conclude.
+
+| Stage | What runs | When |
+|---|---|---|
+| 0 forensics | EXIF window, exact-byte dup, dHash near-dup, screen dimensions, generated-content markers | every submission, no model, ~free |
+| 1 triage | cheapest model, `detail: low` | only if the quest's contract says content can decide |
+| 2 deep | better model, `detail: high` | only where triage could not tell |
+| 3 reject_review | most capable model | **required before any rejection** |
+
+The rungs differ ~50x in price, so the cascade is the dominant cost
+decision. The asymmetry is deliberate: the cheapest model may clear a
+clean submission, but only the most capable one may conclude that proof
+is fake. `decide()` refuses to reject on a triage or deep verdict
+however confident it is.
+
+**Not every quest can be judged from a photograph**, and this is the
+thing to understand before changing anything here. "Spend an hour with
+no phone" cannot be verified — the phone took the photograph. Roughly a
+third of the catalogue is like that. So a quest carries a *verification
+contract* (`quest_verification_defaults` + nullable overrides on
+`quests`, resolved by the `quest_verification_contract` view):
+
+- `content` — the image can show the task; content decides.
+- `provenance_only` — it cannot; judge authenticity, never fail for
+  lacking proof a photograph cannot carry.
+- `none` — nothing about the image bears on the task; trust unless
+  provenance actively contradicts.
+
+For `provenance_only` and `none`, **no vision call is made at all**.
+
+**Shadow mode is the default** (`AI_VERIFICATION_SHADOW_MODE=true`): the
+agent decides and acts on nothing, and `acted = false` marks those rows
+as the honest eval slice. `npm run proof:eval` scores them against the
+human decisions that followed. `may_auto_reject` is seeded false for
+every category — authority is earned from a precision number, not
+asserted in a migration.
+
+When it does act, it calls the *same* `approve`/`reject` a moderator's
+click uses with a null actor, so the XP-awarded-once invariant, the
+notification, the audit row and the collab fan-out cannot drift between
+a human decision and an automated one.
+
+Escalations surface at `/moderation/unclear` with a sidebar badge, and
+deciding there clears the escalation in the same transaction.
+
+Two traps worth knowing. EXIF `DateTimeOriginal` is local wall-clock
+with **no timezone**, so the capture-window check is widened by the
+maximum UTC offset unless EXIF carries one — without that it accuses
+honest players in other timezones. And `etag` is not a usable content
+hash: it is a hash of part hashes for multipart uploads, which is why
+`media_objects.content_md5` exists.
+
+Location-verified quests and the hidden-quest geofence unlock stay
+blocked on the CAMARA adapter (#53). `map_location_evidence` has readers
+and no writer, which is correct fail-closed behaviour, not a gap to
+work around.
+
 ## High-risk invariants
 
 These are covered by integration tests in `backend/test/`. If you change one,

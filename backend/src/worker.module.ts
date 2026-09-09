@@ -19,6 +19,9 @@ import { MediaReclaimScheduler } from './modules/media/application/media-reclaim
 import { StreakReminderProcessor } from './modules/profiles/application/streak-reminder.processor.js';
 import { StreakReminderScheduler } from './modules/profiles/application/streak-reminder.scheduler.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
+import { SubmissionsModule } from './modules/submissions/submissions.module.js';
+import { ProofVerificationProcessor } from './modules/submissions/application/proof-verification.processor.js';
+import { ProofVerificationScheduler } from './modules/submissions/application/proof-verification.scheduler.js';
 
 @Module({
   imports: [
@@ -28,6 +31,9 @@ import { ProfilesModule } from './modules/profiles/profiles.module.js';
     MessagingModule,
     MediaModule,
     ProfilesModule,
+    // AI proof verification (#47): the submission.created consumer and the
+    // catch-up sweep both run here, never in an API replica.
+    SubmissionsModule,
     RedisModule,
     TelegramModule,
   ],
@@ -43,6 +49,8 @@ import { ProfilesModule } from './modules/profiles/profiles.module.js';
     MediaReclaimScheduler,
     StreakReminderProcessor,
     StreakReminderScheduler,
+    ProofVerificationProcessor,
+    ProofVerificationScheduler,
   ],
 })
 export class WorkerModule {}

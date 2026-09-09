@@ -3,6 +3,7 @@ abstract final class AdminRouteNames {
   static const String confirmEmail = 'confirmEmail';
   static const String dashboard = 'dashboard';
   static const String pendingSubmissions = 'pendingSubmissions';
+  static const String unclearQueue = 'unclearQueue';
   static const String submissionReview = 'submissionReview';
   static const String submissionHistory = 'submissionHistory';
   static const String feedManagement = 'feedManagement';
@@ -29,6 +30,7 @@ abstract final class AdminRoutePaths {
   static const String deleteAccount = '/delete-account';
   static const String dashboard = '/';
   static const String pendingSubmissions = '/moderation';
+  static const String unclearQueue = '/moderation/unclear';
   static const String submissionReview = '/moderation/review/:id';
   static const String submissionHistory = '/moderation/history';
   static const String feedManagement = '/feed';

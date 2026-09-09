@@ -12,8 +12,8 @@ import 'bsheel_widgets.dart';
 /// destinations, ordered by how often a moderator touches them.
 ///
 /// The active row is a violet fill with a 2px cream border and a white
-/// label. Badge counts appear on Moderation, Appeals and Reports only:
-/// the three queues that represent work waiting on a person. A badge is
+/// label. Badge counts appear on Moderation, Unclear, Appeals and Reports
+/// only: the queues that represent work waiting on a person. A badge is
 /// coral when its row is inactive and gold when it is active, so it stays
 /// legible against the violet fill.
 class AdminSidebar extends ConsumerWidget {
@@ -37,6 +37,12 @@ class AdminSidebar extends ConsumerWidget {
       AdminRouteNames.appeals,
       '/appeals',
       badge: _Badge.appeals,
+    ),
+    _Destination(
+      'UNCLEAR',
+      AdminRouteNames.unclearQueue,
+      '/moderation/unclear',
+      badge: _Badge.unclear,
     ),
     _Destination(
       'HISTORY',
@@ -107,6 +113,7 @@ class AdminSidebar extends ConsumerWidget {
         _Badge.pending => counts.pending,
         _Badge.appeals => counts.appeals,
         _Badge.reports => counts.reports,
+        _Badge.unclear => counts.unclear,
         null => 0,
       };
       return value > 0 ? _fmt(value) : null;
@@ -199,7 +206,7 @@ class AdminSidebar extends ConsumerWidget {
   }
 }
 
-enum _Badge { pending, appeals, reports }
+enum _Badge { pending, appeals, reports, unclear }
 
 class _Destination {
   final String label;

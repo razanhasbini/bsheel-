@@ -11,6 +11,7 @@ import '../../features/admin_auth/presentation/pages/admin_access_denied_page.da
 import '../../features/admin_auth/presentation/pages/confirm_email_page.dart';
 import '../../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../../features/moderation/presentation/pages/pending_submissions_page.dart';
+import '../../features/moderation/presentation/pages/unclear_queue_page.dart';
 import '../../features/moderation/presentation/pages/submission_review_page.dart';
 import '../../features/moderation/presentation/pages/submission_history_page.dart';
 import '../../features/feed_management/presentation/pages/feed_management_page.dart';
@@ -143,6 +144,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.submissionHistory,
             name: AdminRouteNames.submissionHistory,
             builder: (context, state) => const SubmissionHistoryPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.unclearQueue,
+            name: AdminRouteNames.unclearQueue,
+            builder: (context, state) => const UnclearQueuePage(),
           ),
           GoRoute(
             path: AdminRoutePaths.feedManagement,

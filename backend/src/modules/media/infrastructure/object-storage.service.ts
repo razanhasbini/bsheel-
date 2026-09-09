@@ -63,6 +63,26 @@ export class ObjectStorageService implements OnModuleDestroy {
     };
   }
 
+  /// Reads a whole object into memory, refusing anything over `maxBytes`.
+  ///
+  /// The size is checked with a HEAD before any body is fetched, because the
+  /// caller (AI proof verification, #47) runs on a queue: streaming a 50 MB
+  /// video into a worker that only wanted a 3 MB image is how one oversized
+  /// submission takes the whole worker down.
+  async read(key: string, maxBytes: number): Promise<{ body: Buffer; contentType: string } | null> {
+    const client = this.requiredClient();
+    const bucket = this.requiredBucket();
+    const options = { abortSignal: AbortSignal.timeout(15_000) };
+    const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), options);
+    if (Number(head.ContentLength ?? 0) > maxBytes) return null;
+    const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }), options);
+    if (!object.Body) return null;
+    return {
+      body: Buffer.from(await object.Body.transformToByteArray()),
+      contentType: head.ContentType ?? '',
+    };
+  }
+
   async delete(key: string): Promise<void> {
     await this.requiredClient().send(
       new DeleteObjectCommand({ Bucket: this.requiredBucket(), Key: key }),
