@@ -222,7 +222,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                             boxShadow: const [
                               BoxShadow(
                                 color: _inkShadow20,
-                                offset: Offset(2, 3),
+                                offset: Offset(3, 3),
                                 blurRadius: 0,
                               ),
                             ],
@@ -265,7 +265,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                             boxShadow: const [
                               BoxShadow(
                                 color: _inkShadow20,
-                                offset: Offset(2, 3),
+                                offset: Offset(3, 3),
                                 blurRadius: 0,
                               ),
                             ],
@@ -373,7 +373,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                               boxShadow: const [
                                 BoxShadow(
                                   color: _inkShadow20,
-                                  offset: Offset(2, 3),
+                                  offset: Offset(3, 3),
                                   blurRadius: 0,
                                 ),
                               ],

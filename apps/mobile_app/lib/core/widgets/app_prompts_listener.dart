@@ -83,7 +83,7 @@ class _AppPromptsListenerState extends ConsumerState<AppPromptsListener> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
-              BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+              BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
             ],
           ),
           child: Column(
@@ -231,7 +231,7 @@ class _UpdateRequiredOverlay extends StatelessWidget {
                     boxShadow: const [
                       BoxShadow(
                           color: QuestColors.osTextPrimary,
-                          offset: Offset(3, 4),
+                          offset: Offset(4, 4),
                           blurRadius: 0),
                     ],
                   ),
@@ -325,7 +325,7 @@ class _DialogButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Text(

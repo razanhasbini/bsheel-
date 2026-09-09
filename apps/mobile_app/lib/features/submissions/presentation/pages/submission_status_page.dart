@@ -285,7 +285,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
                                     boxShadow: const [
                                       BoxShadow(
                                         color: _inkShadow,
-                                        offset: Offset(2, 3),
+                                        offset: Offset(3, 3),
                                         blurRadius: 0,
                                       ),
                                     ],
@@ -565,7 +565,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
       boxShadow: const [
         BoxShadow(
           color: _inkShadow,
-          offset: Offset(2, 3),
+          offset: Offset(3, 3),
           blurRadius: 0,
         ),
       ],
@@ -735,7 +735,7 @@ class _RevalidationSheetContentState extends State<_RevalidationSheetContent> {
               boxShadow: const [
                 BoxShadow(
                   color: _inkShadow,
-                  offset: Offset(2, 3),
+                  offset: Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -769,7 +769,7 @@ class _RevalidationSheetContentState extends State<_RevalidationSheetContent> {
               boxShadow: const [
                 BoxShadow(
                   color: _inkShadowSoft,
-                  offset: Offset(2, 3),
+                  offset: Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -842,7 +842,7 @@ class _RevalidationSheetContentState extends State<_RevalidationSheetContent> {
                     ? const [
                         BoxShadow(
                           color: _inkShadow,
-                          offset: Offset(2, 3),
+                          offset: Offset(3, 3),
                           blurRadius: 0,
                         ),
                       ]
@@ -1069,7 +1069,7 @@ class _ChunkyButtonState extends State<_ChunkyButton> {
             boxShadow: const [
               BoxShadow(
                 color: _inkShadow,
-                offset: Offset(2, 3),
+                offset: Offset(3, 3),
                 blurRadius: 0,
               ),
             ],

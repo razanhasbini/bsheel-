@@ -105,7 +105,7 @@ class MentionSuggestionsPanel extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: ink,
-            offset: const Offset(2, 3),
+            offset: const Offset(3, 3),
             blurRadius: 0,
           ),
         ],

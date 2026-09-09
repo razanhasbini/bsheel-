@@ -721,7 +721,7 @@ class _SlotMachineZone extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: ink,
-                    offset: const Offset(2, 3),
+                    offset: const Offset(3, 3),
                     blurRadius: 0,
                   ),
                 ],
@@ -1223,7 +1223,7 @@ class _TimeOverCard extends StatelessWidget {
                 border: Border.all(color: ink, width: 2),
                 boxShadow: [
                   BoxShadow(
-                      color: ink, offset: const Offset(2, 3), blurRadius: 0),
+                      color: ink, offset: const Offset(3, 3), blurRadius: 0),
                 ],
               ),
               child: Row(
@@ -1487,7 +1487,7 @@ class _LockedCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: ink,
-            offset: const Offset(3, 4),
+            offset: const Offset(4, 4),
             blurRadius: 0,
           ),
         ],
@@ -2213,7 +2213,7 @@ class _QuestChoiceCard extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: ink,
-                offset: const Offset(2, 3),
+                offset: const Offset(3, 3),
                 blurRadius: 0,
               ),
             ],
@@ -2551,7 +2551,7 @@ class _RecentQuestsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -2838,7 +2838,7 @@ class _QuestPreviewSheet extends StatelessWidget {
                           boxShadow: [
                             BoxShadow(
                                 color: ink,
-                                offset: const Offset(3, 4),
+                                offset: const Offset(4, 4),
                                 blurRadius: 0),
                           ],
                         ),
@@ -2971,7 +2971,7 @@ class _QuestPreviewSheet extends StatelessWidget {
                           boxShadow: [
                             BoxShadow(
                                 color: ink,
-                                offset: const Offset(2, 3),
+                                offset: const Offset(3, 3),
                                 blurRadius: 0),
                           ],
                         ),
@@ -3002,7 +3002,7 @@ class _QuestPreviewSheet extends StatelessWidget {
                           boxShadow: [
                             BoxShadow(
                                 color: ink,
-                                offset: const Offset(2, 3),
+                                offset: const Offset(3, 3),
                                 blurRadius: 0),
                           ],
                         ),
@@ -3064,7 +3064,7 @@ class _PreviewStat extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Column(

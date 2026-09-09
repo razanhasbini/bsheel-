@@ -662,7 +662,7 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                     boxShadow: [
                       BoxShadow(
                           color: ink,
-                          offset: const Offset(2, 3),
+                          offset: const Offset(3, 3),
                           blurRadius: 0),
                     ],
                   ),
@@ -1040,7 +1040,7 @@ class _ErrorState extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: ink, width: 2),
                   boxShadow: [
-                    BoxShadow(color: ink, offset: const Offset(2, 3)),
+                    BoxShadow(color: ink, offset: const Offset(3, 3)),
                   ],
                 ),
                 child: Text(

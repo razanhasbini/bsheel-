@@ -183,7 +183,7 @@ class BsMoodOfDayCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Row(children: [
@@ -210,7 +210,7 @@ class BsMoodOfDayCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -289,7 +289,7 @@ class BsWeeklyXpMeter extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -556,7 +556,7 @@ class _ActiveChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: QuestColors.osPrimary, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+            BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
           ],
         ),
         child: Column(
@@ -928,7 +928,7 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: Stack(
@@ -1316,7 +1316,7 @@ class _QotdBodyStub extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                           color: ink,
-                          offset: const Offset(2, 3),
+                          offset: const Offset(3, 3),
                           blurRadius: 0),
                     ],
                   ),
@@ -1817,7 +1817,7 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: ClipRRect(

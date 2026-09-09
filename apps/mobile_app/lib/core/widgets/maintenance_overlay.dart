@@ -150,7 +150,7 @@ class _MaintenancePanel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: _ink, width: 2),
                         boxShadow: const [
-                          BoxShadow(color: _ink, offset: Offset(2, 3)),
+                          BoxShadow(color: _ink, offset: Offset(3, 3)),
                         ],
                       ),
                       child: const Text(
@@ -311,7 +311,7 @@ class _Shape extends StatelessWidget {
               boxShadow: const [
                 BoxShadow(
                   color: QuestColors.osBorderStrong,
-                  offset: Offset(2, 3),
+                  offset: Offset(3, 3),
                 ),
               ],
             ),

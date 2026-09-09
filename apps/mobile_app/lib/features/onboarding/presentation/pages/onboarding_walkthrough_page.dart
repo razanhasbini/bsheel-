@@ -182,7 +182,7 @@ class _OnboardingWalkthroughPageState
             boxShadow: [
               BoxShadow(
                 color: ink,
-                offset: const Offset(3, 4),
+                offset: const Offset(4, 4),
                 blurRadius: 0,
               ),
             ],
@@ -442,7 +442,7 @@ class _OnboardingWalkthroughPageState
                     boxShadow: [
                       BoxShadow(
                         color: ink,
-                        offset: const Offset(3, 4),
+                        offset: const Offset(4, 4),
                         blurRadius: 0,
                       ),
                     ],
@@ -668,7 +668,7 @@ class _DialogButton extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: ink,
-                    offset: const Offset(2, 3),
+                    offset: const Offset(3, 3),
                     blurRadius: 0,
                   ),
                 ]

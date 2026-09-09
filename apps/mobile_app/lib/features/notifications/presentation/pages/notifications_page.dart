@@ -124,7 +124,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         boxShadow: [
                           BoxShadow(
                             color: ink,
-                            offset: const Offset(2, 3),
+                            offset: const Offset(3, 3),
                             blurRadius: 0,
                           ),
                         ],
@@ -415,7 +415,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
               : [
                   BoxShadow(
                     color: ink,
-                    offset: const Offset(2, 3),
+                    offset: const Offset(3, 3),
                     blurRadius: 0,
                   ),
                 ],
@@ -642,7 +642,7 @@ class _EmptyState extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: ink,
-                  offset: const Offset(2, 3),
+                  offset: const Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -698,7 +698,7 @@ class _ErrorState extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: ink,
-                  offset: const Offset(2, 3),
+                  offset: const Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -726,7 +726,7 @@ class _ErrorState extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: ink,
-                    offset: const Offset(2, 3),
+                    offset: const Offset(3, 3),
                     blurRadius: 0,
                   ),
                 ],

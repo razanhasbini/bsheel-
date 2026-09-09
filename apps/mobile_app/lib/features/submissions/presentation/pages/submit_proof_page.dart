@@ -546,7 +546,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                               boxShadow: [
                                 BoxShadow(
                                   color: QuestColors.text(context),
-                                  offset: const Offset(2, 3),
+                                  offset: const Offset(3, 3),
                                   blurRadius: 0,
                                 ),
                               ],
@@ -789,7 +789,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                               boxShadow: [
                                 BoxShadow(
                                   color: QuestColors.text(context),
-                                  offset: const Offset(2, 3),
+                                  offset: const Offset(3, 3),
                                   blurRadius: 0,
                                 ),
                               ],
@@ -959,7 +959,7 @@ class _RetroPickerButton extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                      color: ink, offset: const Offset(2, 3), blurRadius: 0),
+                      color: ink, offset: const Offset(3, 3), blurRadius: 0),
                 ],
         ),
         child: Row(
@@ -1007,7 +1007,7 @@ class _RetroEmptyMediaBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -1693,7 +1693,7 @@ class _RetroSubmitBar extends StatelessWidget {
                 : [
                     BoxShadow(
                       color: ink,
-                      offset: const Offset(2, 3),
+                      offset: const Offset(3, 3),
                       blurRadius: 0,
                     ),
                   ],
@@ -1773,7 +1773,7 @@ class _SheetAction extends StatelessWidget {
           border: Border.all(color: ink, width: 2),
           boxShadow: fillColor == Colors.transparent
               ? null
-              : [BoxShadow(color: ink, offset: const Offset(2, 3))],
+              : [BoxShadow(color: ink, offset: const Offset(3, 3))],
         ),
         child: Row(
           children: [

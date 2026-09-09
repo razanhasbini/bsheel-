@@ -50,7 +50,7 @@ class QuestHistoryPage extends ConsumerWidget {
                           boxShadow: [
                             BoxShadow(
                               color: ink,
-                              offset: const Offset(2, 3),
+                              offset: const Offset(3, 3),
                               blurRadius: 0,
                             ),
                           ],
@@ -255,7 +255,7 @@ class _ArcadeCountTileState extends State<_ArcadeCountTile>
         boxShadow: [
           BoxShadow(
             color: ink,
-            offset: const Offset(2, 3),
+            offset: const Offset(3, 3),
             blurRadius: 0,
           ),
         ],
@@ -340,7 +340,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: ink,
-              offset: const Offset(2, 3),
+              offset: const Offset(3, 3),
               blurRadius: 0,
             ),
           ],
@@ -537,7 +537,7 @@ class _EmptyState extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: ink,
-                  offset: const Offset(2, 3),
+                  offset: const Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -598,7 +598,7 @@ class _ErrorState extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: ink,
-                  offset: const Offset(2, 3),
+                  offset: const Offset(3, 3),
                   blurRadius: 0,
                 ),
               ],
@@ -630,7 +630,7 @@ class _ErrorState extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: ink,
-                    offset: const Offset(2, 3),
+                    offset: const Offset(3, 3),
                     blurRadius: 0,
                   ),
                 ],

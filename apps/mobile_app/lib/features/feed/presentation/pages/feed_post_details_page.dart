@@ -1157,7 +1157,7 @@ class _CommentInputBar extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                         color: ink,
-                        offset: const Offset(2, 3),
+                        offset: const Offset(3, 3),
                         blurRadius: 0,
                       ),
                     ],
@@ -1207,7 +1207,7 @@ class _CommentInputBar extends StatelessWidget {
                       boxShadow: [
                         BoxShadow(
                           color: ink,
-                          offset: const Offset(2, 3),
+                          offset: const Offset(3, 3),
                           blurRadius: 0,
                         ),
                       ],
@@ -1235,7 +1235,7 @@ class _CommentInputBar extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                         color: ink,
-                        offset: const Offset(2, 3),
+                        offset: const Offset(3, 3),
                         blurRadius: 0,
                       ),
                     ],
@@ -2262,7 +2262,7 @@ class _PostMediaCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(3, 4), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(4, 4), blurRadius: 0),
         ],
       ),
       child: ClipRRect(
@@ -2470,7 +2470,7 @@ class _PostInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ink, width: 2),
         boxShadow: [
-          BoxShadow(color: ink, offset: const Offset(2, 3), blurRadius: 0),
+          BoxShadow(color: ink, offset: const Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(

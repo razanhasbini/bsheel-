@@ -135,7 +135,7 @@ class _RetryButtonState extends State<_RetryButton> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: ink, width: 2),
           boxShadow: [
-            BoxShadow(color: ink, offset: const Offset(2, 3)),
+            BoxShadow(color: ink, offset: const Offset(3, 3)),
           ],
         ),
         child: Row(
