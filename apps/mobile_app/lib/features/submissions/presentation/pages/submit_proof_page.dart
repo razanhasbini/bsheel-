@@ -122,8 +122,8 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                       ? Icons.videocam_rounded
                       : Icons.photo_camera_rounded,
                   label: isVideo ? 'RECORD LIVE' : 'TAKE LIVE PHOTO',
-                  fillColor: QuestColors.softRed,
-                  textColor: QuestColors.onAccent(QuestColors.softRed),
+                  fillColor: QuestColors.osRed,
+                  textColor: QuestColors.onAccent(QuestColors.osRed),
                   onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
                 ),
                 const SizedBox(height: QuestSpacing.sm),
@@ -485,7 +485,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
             title: Text(
               'DISCARD UPLOAD?',
               style: QuestTypography.headlineSmall
-                  .copyWith(color: QuestColors.softRed),
+                  .copyWith(color: QuestColors.osRed),
             ),
             content: Text(
               'Your media is still uploading. Leaving now will cancel the upload.',
@@ -503,7 +503,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                 onPressed: () => Navigator.pop(ctx, true),
                 child: Text('DISCARD',
                     style: QuestTypography.labelSmall
-                        .copyWith(color: QuestColors.softRed)),
+                        .copyWith(color: QuestColors.osRed)),
               ),
             ],
           ),
@@ -583,7 +583,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                               height: 4,
                               margin: const EdgeInsets.only(bottom: 3),
                               decoration: BoxDecoration(
-                                color: QuestColors.softRed,
+                                color: QuestColors.osRed,
                                 borderRadius: BorderRadius.circular(2),
                                 border: Border.all(
                                   color: QuestColors.text(context),
@@ -1059,7 +1059,7 @@ class _RetroEmptyMediaBox extends StatelessWidget {
               _LimitChip(
                 type: 'VID',
                 limit: '${maxVideoMb.toInt()} MB',
-                fill: QuestColors.softRed,
+                fill: QuestColors.osRed,
               ),
             ],
           ),
@@ -1204,10 +1204,10 @@ class _RetroMediaThumbnail extends StatelessWidget {
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: QuestColors.softRed.withAlpha(204),
+                      color: QuestColors.osRed.withAlpha(204),
                       borderRadius:
                           BorderRadius.circular(QuestSpacing.radiusSm - 2),
-                      border: Border.all(color: QuestColors.softRed, width: 1),
+                      border: Border.all(color: QuestColors.osRed, width: 1),
                     ),
                     child: Icon(
                       Icons.close,
@@ -1466,7 +1466,7 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
               child: _PreviewIconButton(
                 icon: Icons.delete_outline_rounded,
                 onTap: _removeAndClose,
-                tint: QuestColors.softRed,
+                tint: QuestColors.osRed,
               ),
             ),
         ],

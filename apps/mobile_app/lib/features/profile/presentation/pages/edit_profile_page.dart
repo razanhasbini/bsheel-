@@ -276,7 +276,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
           backgroundColor: QuestColors.cardBg(ctx),
           title: Text('DISCARD CHANGES?',
               style: QuestTypography.headlineSmall
-                  .copyWith(color: QuestColors.softRed)),
+                  .copyWith(color: QuestColors.osRed)),
           content: Text(
             "You have unsaved edits. Leave without saving?",
             style: QuestTypography.bodyMedium.copyWith(color: navyColor),
@@ -289,7 +289,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('DISCARD',
-                  style: TextStyle(color: QuestColors.softRed)),
+                  style: TextStyle(color: QuestColors.osRed)),
             ),
           ],
         ),

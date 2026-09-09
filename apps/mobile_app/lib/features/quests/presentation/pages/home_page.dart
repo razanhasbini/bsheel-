@@ -215,7 +215,7 @@ class _HomePageState extends ConsumerState<HomePage>
           Positioned.fill(
             child: SafeArea(
               child: RefreshIndicator(
-                color: QuestColors.softRed,
+                color: QuestColors.osRed,
                 backgroundColor: QuestColors.cardBg(context),
                 onRefresh: () async {
                   ref.invalidate(activeQuestProvider);
@@ -523,7 +523,7 @@ class _Headline extends StatelessWidget {
               width: 44,
               height: 6,
               decoration: BoxDecoration(
-                color: QuestColors.softRed,
+                color: QuestColors.osRed,
                 borderRadius: BorderRadius.circular(2),
                 border: Border.all(color: ink, width: 1.4),
               ),
@@ -614,14 +614,14 @@ class _PendingReviewCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: QuestColors.softRed,
+                        color: QuestColors.osRed,
                         borderRadius: BorderRadius.circular(11),
                         border: Border.all(color: ink, width: 1.5),
                       ),
                       child: Text(
                         '$count',
                         style: QuestTypography.labelSmall.copyWith(
-                          color: QuestColors.onAccent(QuestColors.softRed),
+                          color: QuestColors.onAccent(QuestColors.osRed),
                           fontSize: 10,
                           height: 1,
                           letterSpacing: 0.2,
@@ -1013,7 +1013,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
                     width: 9,
                     height: 9,
                     decoration: BoxDecoration(
-                      color: QuestColors.softRed,
+                      color: QuestColors.osRed,
                       shape: BoxShape.circle,
                       border: Border.all(
                           color: QuestColors.textPrimary, width: 1.2),
@@ -1044,7 +1044,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
               letterSpacing: 2,
               height: 1,
               color: _left.inMinutes < 30
-                  ? QuestColors.softRed
+                  ? QuestColors.osRed
                   : QuestColors.textPrimary,
             ),
           ),
@@ -1205,7 +1205,7 @@ class _TimeOverCard extends StatelessWidget {
           Text(
             "You didn't submit before the timer ended. Roll a new quest to keep going.",
             style: QuestTypography.bodyMedium.copyWith(
-              color: QuestColors.onAccentSoft(QuestColors.softRed),
+              color: QuestColors.onAccentSoft(QuestColors.osRed),
               fontSize: 12.5,
               height: 1.35,
             ),
@@ -1483,7 +1483,7 @@ class _LockedCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: QuestColors.softRed, width: 2),
+        border: Border.all(color: QuestColors.osRed, width: 2),
         boxShadow: [
           BoxShadow(
             color: ink,
@@ -1498,12 +1498,12 @@ class _LockedCard extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: ink, width: 2),
             ),
             child: Icon(Icons.lock_rounded,
-                color: QuestColors.onAccent(QuestColors.softRed), size: 26),
+                color: QuestColors.onAccent(QuestColors.osRed), size: 26),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1810,7 +1810,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final ink = QuestColors.text(context);
-    final onCoral = QuestColors.onAccent(QuestColors.softRed);
+    final onCoral = QuestColors.onAccent(QuestColors.osRed);
     final showPicker = _spinDone && _options != null;
     final pickerReady = showPicker && _options!.isNotEmpty;
 
@@ -1852,7 +1852,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                     _error!.toUpperCase(),
                     textAlign: TextAlign.center,
                     style: QuestTypography.labelMedium.copyWith(
-                      color: QuestColors.softRed,
+                      color: QuestColors.osRed,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -1958,7 +1958,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                           alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
-                            color: QuestColors.softRed,
+                            color: QuestColors.osRed,
                             borderRadius: BorderRadius.circular(11),
                             border: Border.all(color: onCoral, width: 1.5),
                           ),
@@ -2156,7 +2156,7 @@ class _QuestChoiceCard extends StatelessWidget {
   Color _tint() {
     switch (index % 3) {
       case 0:
-        return QuestColors.softRed;
+        return QuestColors.osRed;
       case 1:
         return QuestColors.accentYellow;
       default:
@@ -2170,7 +2170,7 @@ class _QuestChoiceCard extends StatelessWidget {
       case 'easy':
         return (QuestColors.successGreen, 'EASY');
       case 'hard':
-        return (QuestColors.softRed, 'HARD');
+        return (QuestColors.osRed, 'HARD');
       case 'medium':
       default:
         return (QuestColors.accentYellow, 'MEDIUM');
@@ -2639,7 +2639,7 @@ class _RecentQuestRow extends StatelessWidget {
       case UserQuestStatus.approved:
         return ('ACCEPTED', QuestColors.successGreen);
       case UserQuestStatus.rejected:
-        return ('REJECTED', QuestColors.softRed);
+        return ('REJECTED', QuestColors.osRed);
       case UserQuestStatus.expired:
         return ('TIMED OUT', QuestColors.osTextMuted);
       case UserQuestStatus.submitted:
@@ -2770,7 +2770,7 @@ class _QuestPreviewSheet extends StatelessWidget {
       case 'easy':
         return (QuestColors.successGreen, 'EASY');
       case 'hard':
-        return (QuestColors.softRed, 'HARD');
+        return (QuestColors.osRed, 'HARD');
       case 'medium':
       default:
         return (QuestColors.accentYellow, 'MEDIUM');

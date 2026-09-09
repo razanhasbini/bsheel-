@@ -122,7 +122,7 @@ class BlockedUsersPage extends ConsumerWidget {
                       mapDbError(e, action: 'load blocked users'),
                       textAlign: TextAlign.center,
                       style: QuestTypography.bodyMedium
-                          .copyWith(color: QuestColors.softRed),
+                          .copyWith(color: QuestColors.osRed),
                     ),
                   ),
                 ),

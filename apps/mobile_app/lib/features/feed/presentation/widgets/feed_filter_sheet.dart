@@ -112,10 +112,10 @@ class _FeedFilterSheet extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: QuestColors.softRed.withAlpha(40),
+                        color: QuestColors.osRed.withAlpha(40),
                         borderRadius: BorderRadius.circular(8),
                         border:
-                            Border.all(color: QuestColors.softRed, width: 1.4),
+                            Border.all(color: QuestColors.osRed, width: 1.4),
                       ),
                       child: Text(
                         'CLEAR',

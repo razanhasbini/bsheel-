@@ -58,7 +58,7 @@ class _OfflinePanel extends StatelessWidget {
                   height: 96,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: ink, width: 3),
                     boxShadow: [
@@ -68,7 +68,7 @@ class _OfflinePanel extends StatelessWidget {
                   child: Icon(
                     Icons.wifi_off_rounded,
                     size: 48,
-                    color: QuestColors.onAccent(QuestColors.softRed),
+                    color: QuestColors.onAccent(QuestColors.osRed),
                   ),
                 ),
                 const SizedBox(height: 28),

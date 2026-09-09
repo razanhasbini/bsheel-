@@ -140,11 +140,11 @@ class _AdminPageState extends ConsumerState<AdminPage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.lock_outline,
-                        size: 48, color: QuestColors.softRed),
+                        size: 48, color: QuestColors.osRed),
                     const SizedBox(height: QuestSpacing.md),
                     Text('ACCESS DENIED',
                         style: QuestTypography.headlineSmall
-                            .copyWith(color: QuestColors.softRed)),
+                            .copyWith(color: QuestColors.osRed)),
                     const SizedBox(height: QuestSpacing.sm),
                     Text(AppLocalizations.of(context)!.notAuthorized,
                         style: QuestTypography.bodyMedium
@@ -258,11 +258,11 @@ class _SuperAdminGate extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.shield_outlined,
-                size: 48, color: QuestColors.softRed),
+                size: 48, color: QuestColors.osRed),
             const SizedBox(height: QuestSpacing.md),
             Text('SUPER-ADMIN ONLY',
                 style: QuestTypography.headlineSmall
-                    .copyWith(color: QuestColors.softRed)),
+                    .copyWith(color: QuestColors.osRed)),
             const SizedBox(height: QuestSpacing.sm),
             Text('$label is restricted to super-admins.',
                 textAlign: TextAlign.center,
@@ -313,7 +313,7 @@ class _ModerationTab extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text('Error: $e',
                   style: QuestTypography.bodyMedium
-                      .copyWith(color: QuestColors.softRed)),
+                      .copyWith(color: QuestColors.osRed)),
             ),
             data: (submissions) {
               if (submissions.isEmpty) {
@@ -417,7 +417,7 @@ class _ModerationTab extends ConsumerWidget {
         backgroundColor: QuestColors.cardBg(context),
         title: Text(AppLocalizations.of(context)!.rejectSubmission,
             style: QuestTypography.headlineSmall
-                .copyWith(color: QuestColors.softRed)),
+                .copyWith(color: QuestColors.osRed)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -435,10 +435,10 @@ class _ModerationTab extends ConsumerWidget {
                     .copyWith(color: QuestColors.textMuted.withAlpha(80)),
                 enabledBorder: OutlineInputBorder(
                   borderSide:
-                      BorderSide(color: QuestColors.softRed.withAlpha(80)),
+                      BorderSide(color: QuestColors.osRed.withAlpha(80)),
                 ),
                 focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: QuestColors.softRed),
+                  borderSide: BorderSide(color: QuestColors.osRed),
                 ),
               ),
             ),
@@ -455,7 +455,7 @@ class _ModerationTab extends ConsumerWidget {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('REJECT',
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.softRed)),
+                    .copyWith(color: QuestColors.osRed)),
           ),
         ],
       ),
@@ -571,7 +571,7 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('SEND',
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.softRed)),
+                    .copyWith(color: QuestColors.osRed)),
           ),
         ],
       ),
@@ -867,7 +867,7 @@ class _DeletedPostsTab extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text('Error: $e',
                   style: QuestTypography.bodyMedium
-                      .copyWith(color: QuestColors.softRed)),
+                      .copyWith(color: QuestColors.osRed)),
             ),
             data: (submissions) {
               if (submissions.isEmpty) {
@@ -913,7 +913,7 @@ class _DeletedPostsTab extends ConsumerWidget {
                         border: Border.all(
                           color: isHiddenFromFeed
                               ? QuestColors.accentYellow.withAlpha(60)
-                              : QuestColors.softRed.withAlpha(60),
+                              : QuestColors.osRed.withAlpha(60),
                           width: 1,
                         ),
                       ),
@@ -933,14 +933,14 @@ class _DeletedPostsTab extends ConsumerWidget {
                                   decoration: BoxDecoration(
                                     color: isHiddenFromFeed
                                         ? QuestColors.accentYellow.withAlpha(26)
-                                        : QuestColors.softRed.withAlpha(26),
+                                        : QuestColors.osRed.withAlpha(26),
                                     borderRadius: BorderRadius.circular(
                                         QuestSpacing.radiusSm),
                                     border: Border.all(
                                       color: isHiddenFromFeed
                                           ? QuestColors.accentYellow
                                               .withAlpha(77)
-                                          : QuestColors.softRed.withAlpha(77),
+                                          : QuestColors.osRed.withAlpha(77),
                                     ),
                                   ),
                                   child: Text(
@@ -952,7 +952,7 @@ class _DeletedPostsTab extends ConsumerWidget {
                                     style: QuestTypography.labelSmall.copyWith(
                                       color: isHiddenFromFeed
                                           ? QuestColors.accentYellow
-                                          : QuestColors.softRed,
+                                          : QuestColors.osRed,
                                       fontSize: 9,
                                     ),
                                   ),
@@ -1142,11 +1142,11 @@ class _SubmissionCard extends StatelessWidget {
                     onTap: onReject,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: QuestColors.softRed.withAlpha(20),
+                        color: QuestColors.osRed.withAlpha(20),
                         borderRadius:
                             BorderRadius.circular(QuestSpacing.radiusSm),
                         border:
-                            Border.all(color: QuestColors.softRed, width: 1.5),
+                            Border.all(color: QuestColors.osRed, width: 1.5),
                       ),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),

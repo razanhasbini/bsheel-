@@ -71,8 +71,8 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
           error: (e, _) => Center(
             child: Text(
               'Failed to load quest: $e',
-              style: QuestTypography.bodyMedium
-                  .copyWith(color: QuestColors.softRed),
+              style:
+                  QuestTypography.bodyMedium.copyWith(color: QuestColors.osRed),
             ),
           ),
           data: (quest) {
@@ -357,8 +357,8 @@ class _HeroCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isActive
-              ? [QuestColors.softRed, QuestColors.osPrimary]
-              : [QuestColors.osPrimary, QuestColors.softRed.withAlpha(204)],
+              ? [QuestColors.osRed, QuestColors.osPrimary]
+              : [QuestColors.osPrimary, QuestColors.osRed.withAlpha(204)],
         ),
         boxShadow: [
           BoxShadow(
@@ -582,7 +582,7 @@ class _BriefingCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: ink, width: 1.2),
             ),
@@ -590,14 +590,14 @@ class _BriefingCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.terminal_rounded,
-                    color: QuestColors.onAccent(QuestColors.softRed), size: 11),
+                    color: QuestColors.onAccent(QuestColors.osRed), size: 11),
                 const SizedBox(width: 5),
                 Text(
                   '> DECRYPTED INTEL',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: QuestTypography.labelSmall.copyWith(
-                    color: QuestColors.onAccent(QuestColors.softRed),
+                    color: QuestColors.onAccent(QuestColors.osRed),
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1,
@@ -644,12 +644,12 @@ class _CriteriaItem extends StatelessWidget {
             width: 24,
             height: 24,
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 1.5),
             ),
             child: Icon(Icons.check_rounded,
-                color: QuestColors.onAccent(QuestColors.softRed), size: 15),
+                color: QuestColors.onAccent(QuestColors.osRed), size: 15),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -831,7 +831,7 @@ class _RewardsCard extends StatelessWidget {
               widthFactor: 0.7,
               child: Container(
                 decoration: BoxDecoration(
-                  color: QuestColors.softRed,
+                  color: QuestColors.osRed,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -881,7 +881,7 @@ class _BottomActionBar extends StatelessWidget {
       label = 'SUBMIT PROOF';
       icon = Icons.camera_alt_rounded;
       enabled = true;
-      fill = QuestColors.softRed;
+      fill = QuestColors.osRed;
       fg = QuestColors.osTextOnPrimary;
       onTap = () => context.pushNamed(
             RouteNames.submitProof,

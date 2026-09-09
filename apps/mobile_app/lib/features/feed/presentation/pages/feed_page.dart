@@ -146,7 +146,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                   );
                 }
                 return RefreshIndicator(
-                  color: QuestColors.softRed,
+                  color: QuestColors.osRed,
                   backgroundColor: QuestColors.osCard,
                   onRefresh: () async {
                     await ref
@@ -523,7 +523,7 @@ class _IconAction extends StatelessWidget {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     shape: BoxShape.circle,
                     border:
                         Border.all(color: QuestColors.pureWhite, width: 1.2),
@@ -584,7 +584,7 @@ class _EmptyState extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [QuestColors.osPrimary, QuestColors.softRed],
+                    colors: [QuestColors.osPrimary, QuestColors.osRed],
                   ),
                 ),
                 child: const Icon(Icons.bookmark_border,
@@ -633,12 +633,12 @@ class _ErrorState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: QuestColors.softRed,
+                  color: QuestColors.osRed,
                   shape: BoxShape.circle,
                   border: Border.all(color: QuestColors.pureWhite, width: 2),
                 ),
                 child: Icon(Icons.error_outline,
-                    color: QuestColors.onAccent(QuestColors.softRed), size: 36),
+                    color: QuestColors.onAccent(QuestColors.osRed), size: 36),
               ),
               const SizedBox(height: QuestSpacing.lg),
               Text(

@@ -65,7 +65,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
           ),
           title: Text('UNFOLLOW?',
               style: QuestTypography.headlineSmall
-                  .copyWith(color: QuestColors.softRed)),
+                  .copyWith(color: QuestColors.osRed)),
           content: Text(
             'You won\'t see their posts in your feed and they won\'t be notified.',
             style: QuestTypography.bodyMedium
@@ -82,7 +82,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
               onPressed: () => Navigator.pop(ctx, true),
               child: Text('UNFOLLOW',
                   style: QuestTypography.labelSmall
-                      .copyWith(color: QuestColors.softRed)),
+                      .copyWith(color: QuestColors.osRed)),
             ),
           ],
         ),

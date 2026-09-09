@@ -146,7 +146,7 @@ class _OnboardingWalkthroughPageState
         ),
         title: Text('TERMS DECLINED',
             style: QuestTypography.headlineSmall
-                .copyWith(color: QuestColors.softRed)),
+                .copyWith(color: QuestColors.osRed)),
         content: Text(
           "You can't use Bsheel without accepting the Terms. "
           'Sign out for now and come back when you\'re ready.',
@@ -198,12 +198,12 @@ class _OnboardingWalkthroughPageState
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: QuestColors.softRed,
+                      color: QuestColors.osRed,
                       borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: ink, width: 2),
                     ),
                     child: Icon(Icons.gavel_rounded,
-                        color: QuestColors.onAccent(QuestColors.softRed),
+                        color: QuestColors.onAccent(QuestColors.osRed),
                         size: 20),
                   ),
                   const SizedBox(width: 10),
@@ -328,7 +328,7 @@ class _OnboardingWalkthroughPageState
     final isLast = _currentPage == _totalPages - 1;
     // Both CTA grounds are accent fills, so the label/icon colour comes
     // from the helper rather than being chosen by eye.
-    final ctaGround = isLast ? QuestColors.softRed : QuestColors.accentYellow;
+    final ctaGround = isLast ? QuestColors.osRed : QuestColors.accentYellow;
     final onCta = QuestColors.onAccent(ctaGround);
 
     final steps = [
@@ -340,7 +340,7 @@ class _OnboardingWalkthroughPageState
       ),
       _StepData(
         icon: Icons.explore_rounded,
-        tint: QuestColors.softRed,
+        tint: QuestColors.osRed,
         title: l.onboarding2Title,
         subtitle: l.onboarding2Subtitle,
       ),
@@ -417,7 +417,7 @@ class _OnboardingWalkthroughPageState
                     height: 10,
                     decoration: BoxDecoration(
                       color: active
-                          ? QuestColors.softRed
+                          ? QuestColors.osRed
                           : QuestColors.cardBg(context),
                       borderRadius: BorderRadius.circular(5),
                       border: Border.all(color: ink, width: 1.5),
@@ -617,7 +617,7 @@ class _TermsBullet extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 1),
             ),

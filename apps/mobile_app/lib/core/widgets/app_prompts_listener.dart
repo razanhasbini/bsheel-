@@ -223,7 +223,7 @@ class _UpdateRequiredOverlay extends StatelessWidget {
                   height: 96,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [QuestColors.osPrimary, QuestColors.softRed],
+                      colors: [QuestColors.osPrimary, QuestColors.osRed],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     border:

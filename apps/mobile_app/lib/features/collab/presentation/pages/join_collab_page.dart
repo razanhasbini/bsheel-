@@ -149,7 +149,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.error_outline,
-                            size: 48, color: QuestColors.softRed),
+                            size: 48, color: QuestColors.osRed),
                         const SizedBox(height: QuestSpacing.md),
                         Text('GROUP NOT FOUND',
                             style: QuestTypography.headlineSmall
@@ -184,7 +184,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                   // Versus = competitive red, coop = collaborative green (mirrors
                   // the reels-card collab badge + post detail page).
                   final accentColor =
-                      isVersus ? QuestColors.softRed : QuestColors.successGreen;
+                      isVersus ? QuestColors.osRed : QuestColors.successGreen;
                   final isBusy = _joining || _abandoning;
 
                   return SingleChildScrollView(

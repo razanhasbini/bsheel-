@@ -96,10 +96,10 @@ class _BsStreakFlameState extends State<BsStreakFlame>
                     Icons.local_fire_department_rounded,
                     size: widget.size * (1 + tier * 0.06),
                     color: tier >= 4
-                        ? QuestColors.softRed
+                        ? QuestColors.osRed
                         : tier >= 2
                             ? QuestColors.accentYellow
-                            : QuestColors.softRed.withAlpha(180),
+                            : QuestColors.osRed.withAlpha(180),
                   ),
                   // Inner hot core appears only at higher tiers
                   if (tier >= 2)
@@ -343,7 +343,7 @@ class BsWeeklyXpMeter extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: hitGoal
                         ? [QuestColors.successGreen, QuestColors.successGreen]
-                        : [QuestColors.osPrimary, QuestColors.softRed],
+                        : [QuestColors.osPrimary, QuestColors.osRed],
                   ),
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(color: ink, width: 1.5),
@@ -609,7 +609,7 @@ class _ActiveChip extends StatelessWidget {
             const SizedBox(height: 6),
             // Live indicator + status text.
             Row(children: [
-              const _PulseDot(color: QuestColors.softRed),
+              const _PulseDot(color: QuestColors.osRed),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
@@ -1376,15 +1376,15 @@ class _StatusStamp extends StatelessWidget {
       case _QotdStatus.rejected:
         return (
           label: 'DAILY QUEST · REJECTED',
-          bg: QuestColors.softRed,
-          fg: QuestColors.onAccent(QuestColors.softRed),
+          bg: QuestColors.osRed,
+          fg: QuestColors.onAccent(QuestColors.osRed),
           icon: Icons.cancel_rounded,
         );
       case _QotdStatus.reRejected:
         return (
           label: 'DAILY QUEST · REJECTED ×2  · FINAL',
-          bg: QuestColors.softRed,
-          fg: QuestColors.onAccent(QuestColors.softRed),
+          bg: QuestColors.osRed,
+          fg: QuestColors.onAccent(QuestColors.osRed),
           icon: Icons.block_rounded,
         );
       case _QotdStatus.expired:
@@ -1830,7 +1830,7 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [QuestColors.softRed, _deepCoral],
+              colors: [QuestColors.osRed, _deepCoral],
             ),
             border: Border.all(color: ink, width: 2),
             borderRadius: BorderRadius.circular(18),
@@ -1876,7 +1876,7 @@ class _BsSlotReelsGeneratorState extends State<BsSlotReelsGenerator>
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontFamily: 'JetBrainsMono',
-                            color: QuestColors.onAccent(QuestColors.softRed),
+                            color: QuestColors.onAccent(QuestColors.osRed),
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.4,

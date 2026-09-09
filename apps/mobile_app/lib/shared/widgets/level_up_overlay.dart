@@ -170,7 +170,7 @@ class _PixelConfettiPainter extends CustomPainter {
       QuestColors.xpGold,
       QuestColors.successGreen,
       QuestColors.violet,
-      QuestColors.softRed,
+      QuestColors.osRed,
       QuestColors.accentYellow,
       QuestColors.successGreen,
       QuestColors.pureWhite,

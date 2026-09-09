@@ -110,7 +110,7 @@ class ArcadeAvatarLevel extends StatelessWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [QuestColors.osPrimary, QuestColors.softRed],
+                  colors: [QuestColors.osPrimary, QuestColors.osRed],
                 ),
                 border: Border.all(color: ink, width: 2),
                 borderRadius: BorderRadius.circular(14),
@@ -161,11 +161,11 @@ class ArcadeStreakPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = _ink(context);
-    final onCoral = QuestColors.onAccent(QuestColors.softRed);
+    final onCoral = QuestColors.onAccent(QuestColors.osRed);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: QuestColors.softRed,
+        color: QuestColors.osRed,
         border: Border.all(color: ink, width: 2),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [_hardShadow(context, offset: 3)],
@@ -232,7 +232,7 @@ class ArcadeNotificationBell extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   constraints: const BoxConstraints(minWidth: 20),
                   decoration: BoxDecoration(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     border: Border.all(color: ink, width: 2),
                     borderRadius: BorderRadius.circular(11),
                   ),
@@ -241,7 +241,7 @@ class ArcadeNotificationBell extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     style: QuestTypography.headlineSmall.copyWith(
-                      color: QuestColors.onAccent(QuestColors.softRed),
+                      color: QuestColors.onAccent(QuestColors.osRed),
                       fontSize: 10,
                       height: 1,
                     ),
@@ -597,7 +597,7 @@ class ArcadeStreakCard extends StatelessWidget {
                           color: isFuture
                               ? _surfaceAlt(context).withAlpha(120)
                               : on
-                                  ? QuestColors.softRed
+                                  ? QuestColors.osRed
                                   : _surfaceAlt(context),
                           border: Border.all(
                             color: isToday
@@ -1036,7 +1036,7 @@ class ArcadeQuestOption extends StatelessWidget {
       case 0:
         return QuestColors.osPrimary; // violet
       case 1:
-        return QuestColors.softRed; // coral
+        return QuestColors.osRed; // coral
       default:
         return QuestColors.osCool; // sky
     }

@@ -80,7 +80,7 @@ class QuestHistoryPage extends ConsumerWidget {
                     width: 36,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: QuestColors.softRed,
+                      color: QuestColors.osRed,
                       borderRadius: BorderRadius.circular(2),
                       border: Border.all(color: ink, width: 1.5),
                     ),
@@ -91,7 +91,7 @@ class QuestHistoryPage extends ConsumerWidget {
 
             Expanded(
               child: RefreshIndicator(
-                color: QuestColors.softRed,
+                color: QuestColors.osRed,
                 backgroundColor: QuestColors.cardBg(context),
                 onRefresh: () async => ref.invalidate(questHistoryProvider),
                 child: historyAsync.when(
@@ -142,7 +142,7 @@ class QuestHistoryPage extends ConsumerWidget {
                                 child: _ArcadeCountTile(
                                   label: 'REJECTED',
                                   value: rejected,
-                                  tint: QuestColors.softRed,
+                                  tint: QuestColors.osRed,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -499,7 +499,7 @@ class _ArcadeHistoryCard extends StatelessWidget {
       case UserQuestStatus.approved:
         return ('COMPLETED', QuestColors.successGreen);
       case UserQuestStatus.rejected:
-        return ('REJECTED', QuestColors.softRed);
+        return ('REJECTED', QuestColors.osRed);
       case UserQuestStatus.expired:
         return ('EXPIRED', QuestColors.osTextMuted);
       case UserQuestStatus.submitted:
@@ -532,7 +532,7 @@ class _EmptyState extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [QuestColors.osPrimary, QuestColors.softRed],
+                colors: [QuestColors.osPrimary, QuestColors.osRed],
               ),
               boxShadow: [
                 BoxShadow(
@@ -592,7 +592,7 @@ class _ErrorState extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 2),
               boxShadow: [
@@ -604,7 +604,7 @@ class _ErrorState extends StatelessWidget {
               ],
             ),
             child: Icon(Icons.error_outline,
-                color: QuestColors.onAccent(QuestColors.softRed), size: 36),
+                color: QuestColors.onAccent(QuestColors.osRed), size: 36),
           ),
         ),
         const SizedBox(height: 16),

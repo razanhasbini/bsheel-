@@ -109,10 +109,10 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: QuestColors.softRed.withAlpha(30),
+        color: QuestColors.osRed.withAlpha(30),
         border: Border(
           bottom: BorderSide(
-            color: QuestColors.softRed.withAlpha(80),
+            color: QuestColors.osRed.withAlpha(80),
             width: 1,
           ),
         ),

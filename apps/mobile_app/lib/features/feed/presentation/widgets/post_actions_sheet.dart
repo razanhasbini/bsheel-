@@ -112,13 +112,13 @@ class _PostActionsSheet extends StatelessWidget {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: QuestColors.softRed,
+                      color: QuestColors.osRed,
                       borderRadius: BorderRadius.circular(11),
                       border: Border.all(color: ink, width: 2),
                     ),
                     alignment: Alignment.center,
                     child: Icon(Icons.flag_rounded,
-                        color: QuestColors.onAccent(QuestColors.softRed),
+                        color: QuestColors.onAccent(QuestColors.osRed),
                         size: 20),
                   ),
                   const SizedBox(width: 12),
@@ -145,7 +145,7 @@ class _PostActionsSheet extends StatelessWidget {
                   maxLines: 3,
                   minLines: 3,
                   style: QuestTypography.bodyMedium.copyWith(color: ink),
-                  cursorColor: QuestColors.softRed,
+                  cursorColor: QuestColors.osRed,
                   decoration: InputDecoration(
                     hintText: 'Why are you reporting this?',
                     hintStyle: QuestTypography.bodyMedium.copyWith(
@@ -194,7 +194,7 @@ class _PostActionsSheet extends StatelessWidget {
                             const BoxConstraints(minHeight: kMinTouchTarget),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: QuestColors.softRed,
+                          color: QuestColors.osRed,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: ink, width: 2),
                           boxShadow: [
@@ -211,7 +211,7 @@ class _PostActionsSheet extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: QuestTypography.labelMedium.copyWith(
-                            color: QuestColors.onAccent(QuestColors.softRed),
+                            color: QuestColors.onAccent(QuestColors.osRed),
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.2,
@@ -267,7 +267,7 @@ class _PostActionsSheet extends StatelessWidget {
           _ActionRow(
             icon: Icons.flag_rounded,
             label: 'REPORT',
-            tint: QuestColors.softRed,
+            tint: QuestColors.osRed,
             onTap: () => _report(context),
           ),
         ],

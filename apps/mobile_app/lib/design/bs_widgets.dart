@@ -55,7 +55,7 @@ class BsMinTouch extends StatelessWidget {
 /// 2.2:1, gold 1.6:1). Violet and sky have no darkened twin in the palette,
 /// so violet passes as-is and sky falls back to ink.
 Color accentAsTextOnCream(Color accent) {
-  if (accent == QuestColors.osRed || accent == QuestColors.softRed) {
+  if (accent == QuestColors.osRed || accent == QuestColors.osRed) {
     return QuestColors.osRedText;
   }
   if (accent == QuestColors.osSuccess || accent == QuestColors.successGreen) {

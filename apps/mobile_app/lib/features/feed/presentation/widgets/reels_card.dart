@@ -589,7 +589,7 @@ class _ReelsMediaItemState extends ConsumerState<_ReelsMediaItem> {
                             scale: scale,
                             child: Icon(
                               Icons.arrow_upward_rounded,
-                              color: QuestColors.softRed,
+                              color: QuestColors.osRed,
                               size: 120,
                               shadows: [
                                 Shadow(
@@ -927,7 +927,7 @@ class _ActionRail extends StatelessWidget {
       _RailButton(
         icon: Icons.arrow_upward_rounded,
         label: _formatCount(upvoteCount),
-        activeColor: QuestColors.softRed,
+        activeColor: QuestColors.osRed,
         isActive: upActive,
         onTap: onUpvote,
       ),
@@ -958,7 +958,7 @@ class _ActionRail extends StatelessWidget {
           key: ValueKey('reels-vote-${m.userId}'),
           member: m,
           groupId: collabGroupId!,
-          accentColor: QuestColors.softRed,
+          accentColor: QuestColors.osRed,
           isLeader: m.voteCount == topVotes && topVotes > 0,
           avatarSize: 38,
           tapBoxWidth: 56,
@@ -1203,8 +1203,8 @@ class _BottomMeta extends StatelessWidget {
   /// Coop badges go green to match the rest of the coop chrome, versus
   /// stays coral. Anything else falls back to coral too.
   Color get _modeBadgeGround => _isVersus
-      ? QuestColors.softRed
-      : (collabMode == 'with' ? QuestColors.successGreen : QuestColors.softRed);
+      ? QuestColors.osRed
+      : (collabMode == 'with' ? QuestColors.successGreen : QuestColors.osRed);
 
   @override
   Widget build(BuildContext context) {
@@ -1285,7 +1285,7 @@ class _BottomMeta extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: _isVersus
-                              ? QuestColors.softRed
+                              ? QuestColors.osRed
                               : QuestColors.successGreen,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -1453,9 +1453,8 @@ class _WaitingForMember extends StatelessWidget {
                   borderRadius:
                       BorderRadius.circular(QuestSpacing.radiusSm + 6),
                   border: Border.all(
-                    color: hasExpired
-                        ? QuestColors.softRed
-                        : QuestColors.pureWhite,
+                    color:
+                        hasExpired ? QuestColors.osRed : QuestColors.pureWhite,
                     width: 2,
                   ),
                 ),
@@ -1487,7 +1486,7 @@ class _WaitingForMember extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: hasExpired
-                      ? QuestColors.softRed
+                      ? QuestColors.osRed
                       : QuestColors.textPrimary.withAlpha(150),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,

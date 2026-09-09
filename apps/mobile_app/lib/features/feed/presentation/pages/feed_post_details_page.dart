@@ -207,7 +207,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
         backgroundColor: QuestColors.cardBg(ctx),
         title: Text(AppLocalizations.of(ctx)!.deleteFromProfile,
             style: QuestTypography.headlineSmall
-                .copyWith(color: QuestColors.softRed)),
+                .copyWith(color: QuestColors.osRed)),
         content: Text(
           AppLocalizations.of(ctx)!.deleteFromProfileDesc,
           style: QuestTypography.bodyMedium
@@ -224,7 +224,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
             onPressed: () => Navigator.pop(c, true),
             child: Text(AppLocalizations.of(ctx)!.delete,
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.softRed)),
+                    .copyWith(color: QuestColors.osRed)),
           ),
         ],
       ),
@@ -341,7 +341,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
         backgroundColor: QuestColors.cardBg(ctx),
         title: Text('BLOCK @$username',
             style: QuestTypography.headlineSmall
-                .copyWith(color: QuestColors.softRed)),
+                .copyWith(color: QuestColors.osRed)),
         content: Text(
           'Blocking will:\n'
           '- Hide their posts from your feed\n'
@@ -362,7 +362,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
             onPressed: () => Navigator.pop(c, true),
             child: Text('BLOCK',
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.softRed)),
+                    .copyWith(color: QuestColors.osRed)),
           ),
         ],
       ),
@@ -481,7 +481,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                       : null,
                   collabAccent: post.isCollab
                       ? (post.collabMode == CollabMode.versus
-                          ? QuestColors.softRed
+                          ? QuestColors.osRed
                           : QuestColors.successGreen)
                       : null,
                   // Deep-link cold-start: there's nothing to pop, so fall
@@ -514,7 +514,7 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                 // ── Scrollable body ──────────────────────────────────────
                 Expanded(
                   child: RefreshIndicator(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     onRefresh: () async {
                       // Pull to refresh: force-reload the post + its comments.
                       ref.invalidate(feedPostDetailsProvider(widget.postId));
@@ -809,7 +809,7 @@ class _TopBar extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        (collabAccent == QuestColors.softRed)
+                        (collabAccent == QuestColors.osRed)
                             ? Icons.bolt_rounded
                             : Icons.handshake_rounded,
                         size: 16,
@@ -973,7 +973,7 @@ class _TopBar extends StatelessWidget {
                         child: Row(
                           children: [
                             const Icon(Icons.delete_forever_outlined,
-                                size: 16, color: QuestColors.softRed),
+                                size: 16, color: QuestColors.osRed),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -1018,7 +1018,7 @@ class _TopBar extends StatelessWidget {
                         child: Row(
                           children: [
                             const Icon(Icons.block,
-                                size: 16, color: QuestColors.softRed),
+                                size: 16, color: QuestColors.osRed),
                             const SizedBox(width: 8),
                             Text(
                               'BLOCK USER',
@@ -1806,7 +1806,7 @@ class _CollabParticipantsHeaderState
   Widget build(BuildContext context) {
     final navyColor = QuestColors.text(context);
     final isVersus = widget.mode == CollabMode.versus;
-    final accent = isVersus ? QuestColors.softRed : QuestColors.successGreen;
+    final accent = isVersus ? QuestColors.osRed : QuestColors.successGreen;
 
     int maxVotes = 0;
     if (isVersus) {
@@ -2321,8 +2321,8 @@ class _PostActionBar extends StatelessWidget {
             icon: Icons.arrow_upward_rounded,
             label: '$upvotes',
             active: upActive,
-            activeFill: QuestColors.softRed,
-            activeFg: QuestColors.onAccent(QuestColors.softRed),
+            activeFill: QuestColors.osRed,
+            activeFg: QuestColors.onAccent(QuestColors.osRed),
             onTap: onUpvote,
           ),
           const SizedBox(width: 8),
@@ -2609,13 +2609,13 @@ class _WaitingForMemberPanel extends StatelessWidget {
                 username: member.username,
                 imageUrl: member.avatarUrl,
                 size: 64,
-                borderColor: hasExpired ? QuestColors.softRed : null,
+                borderColor: hasExpired ? QuestColors.osRed : null,
               ),
               const SizedBox(height: 14),
               Text(
                 headline,
                 style: QuestTypography.labelSmall.copyWith(
-                  color: hasExpired ? QuestColors.softRed : ink.withAlpha(140),
+                  color: hasExpired ? QuestColors.osRed : ink.withAlpha(140),
                   fontSize: 11,
                   letterSpacing: 2,
                   fontWeight: FontWeight.w800,

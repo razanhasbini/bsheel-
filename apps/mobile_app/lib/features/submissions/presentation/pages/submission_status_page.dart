@@ -108,7 +108,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
           SnackBar(
             content: Text(friendly),
             backgroundColor:
-                approved ? QuestColors.successGreen : QuestColors.softRed,
+                approved ? QuestColors.successGreen : QuestColors.osRed,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -440,7 +440,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
                               width: double.infinity,
                               padding: const EdgeInsets.all(QuestSpacing.md),
                               decoration: _chunkyDecoration(
-                                accent: QuestColors.softRed,
+                                accent: QuestColors.osRed,
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,7 +460,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
                                         children: [
                                           const Icon(Icons.block,
                                               size: 16,
-                                              color: QuestColors.softRed),
+                                              color: QuestColors.osRed),
                                           const SizedBox(
                                               width: QuestSpacing.sm),
                                           Expanded(
@@ -575,7 +575,7 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
   Color _statusColor(String status) => switch (status) {
         SubmissionStatus.pending => QuestColors.accentYellow,
         SubmissionStatus.approved => QuestColors.successGreen,
-        SubmissionStatus.rejected => QuestColors.softRed,
+        SubmissionStatus.rejected => QuestColors.osRed,
         _ => QuestColors.osTextMuted,
       };
 

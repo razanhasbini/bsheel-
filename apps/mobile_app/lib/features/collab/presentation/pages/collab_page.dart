@@ -37,7 +37,7 @@ class _CollabPageState extends ConsumerState<CollabPage> {
   bool _creating = false;
 
   Color get _withColor => QuestColors.successGreen;
-  Color get _versusColor => QuestColors.softRed;
+  Color get _versusColor => QuestColors.osRed;
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ class _CollabPageState extends ConsumerState<CollabPage> {
                   const SizedBox(height: 6),
                   Text(error!,
                       style: QuestTypography.bodySmall
-                          .copyWith(color: QuestColors.softRed)),
+                          .copyWith(color: QuestColors.osRed)),
                 ],
                 const SizedBox(height: 16),
                 Row(
@@ -300,7 +300,7 @@ class _Header extends StatelessWidget {
             height: 6,
             margin: const EdgeInsets.only(bottom: 4),
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               borderRadius: BorderRadius.circular(2),
               border: Border.all(color: ink, width: 1.5),
             ),
@@ -334,7 +334,7 @@ class _NoQuestState extends StatelessWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [QuestColors.osPrimary, QuestColors.softRed],
+                  colors: [QuestColors.osPrimary, QuestColors.osRed],
                 ),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: ink, width: 2),
@@ -741,8 +741,7 @@ class _GroupCard extends StatelessWidget {
     final ink = QuestColors.text(context);
     final questTitle = activeQuest.quest?.title ?? 'QUEST';
     final isVersus = group.mode == CollabMode.versus;
-    final accentColor =
-        isVersus ? QuestColors.softRed : QuestColors.successGreen;
+    final accentColor = isVersus ? QuestColors.osRed : QuestColors.successGreen;
 
     int maxVotes = 0;
     int leadersCount = 0;
@@ -903,7 +902,7 @@ class _MemberTile extends StatelessWidget {
       return (label, QuestColors.accentYellow);
     }
     if (member.submissionStatus == 'rejected') {
-      return (label, QuestColors.softRed);
+      return (label, QuestColors.osRed);
     }
     if (member.questStatus == 'expired') {
       return (label, QuestColors.osTextMuted);

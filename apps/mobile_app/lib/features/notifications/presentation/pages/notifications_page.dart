@@ -154,7 +154,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   width: 40,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     borderRadius: BorderRadius.circular(2),
                     border: Border.all(color: ink, width: 1.5),
                   ),
@@ -238,7 +238,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 }
 
                 return RefreshIndicator(
-                  color: QuestColors.softRed,
+                  color: QuestColors.osRed,
                   backgroundColor: QuestColors.cardBg(context),
                   onRefresh: () async => ref.invalidate(notificationsProvider),
                   child: ListView.separated(
@@ -451,7 +451,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
                           height: 9,
                           margin: const EdgeInsets.only(left: 6, top: 2),
                           decoration: BoxDecoration(
-                            color: QuestColors.softRed,
+                            color: QuestColors.osRed,
                             shape: BoxShape.circle,
                             border: Border.all(color: ink, width: 1.5),
                           ),
@@ -540,7 +540,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
       case NotificationType.submissionApproved:
         return (Icons.check_circle_rounded, QuestColors.successGreen);
       case NotificationType.submissionRejected:
-        return (Icons.cancel_rounded, QuestColors.softRed);
+        return (Icons.cancel_rounded, QuestColors.osRed);
       case NotificationType.levelUp:
         return (Icons.trending_up_rounded, QuestColors.osPrimary);
       case NotificationType.questAssigned:
@@ -548,10 +548,10 @@ class _ArcadeNotificationTile extends StatelessWidget {
       case NotificationType.questExpired:
         return (Icons.hourglass_empty_rounded, QuestColors.osTextMuted);
       case NotificationType.questTimerWarning:
-        return (Icons.alarm_rounded, QuestColors.softRed);
+        return (Icons.alarm_rounded, QuestColors.osRed);
       case NotificationType.reactionReceived:
       case NotificationType.reactionMilestone:
-        return (Icons.favorite_rounded, QuestColors.softRed);
+        return (Icons.favorite_rounded, QuestColors.osRed);
       case NotificationType.newFollower:
         return (Icons.person_add_rounded, QuestColors.osPrimary);
       case NotificationType.newComment:
@@ -560,7 +560,7 @@ class _ArcadeNotificationTile extends StatelessWidget {
       case NotificationType.followQuestCompleted:
         return (Icons.emoji_events_rounded, QuestColors.accentYellow);
       case NotificationType.leaderboardOvertaken:
-        return (Icons.bolt_rounded, QuestColors.softRed);
+        return (Icons.bolt_rounded, QuestColors.osRed);
       case NotificationType.top10Entry:
         return (Icons.military_tech_rounded, QuestColors.accentYellow);
       case NotificationType.announcement:
@@ -637,7 +637,7 @@ class _EmptyState extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [QuestColors.osPrimary, QuestColors.softRed],
+                colors: [QuestColors.osPrimary, QuestColors.osRed],
               ),
               boxShadow: [
                 BoxShadow(
@@ -692,7 +692,7 @@ class _ErrorState extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: QuestColors.softRed,
+              color: QuestColors.osRed,
               shape: BoxShape.circle,
               border: Border.all(color: ink, width: 2),
               boxShadow: [
@@ -704,7 +704,7 @@ class _ErrorState extends StatelessWidget {
               ],
             ),
             child: Icon(Icons.error_outline,
-                color: QuestColors.onAccent(QuestColors.softRed), size: 36),
+                color: QuestColors.onAccent(QuestColors.osRed), size: 36),
           ),
           const SizedBox(height: 20),
           Text(

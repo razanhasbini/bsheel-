@@ -584,7 +584,7 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: QuestColors.softRed,
+                    color: QuestColors.osRed,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: ink, width: 1.2),
                   ),
@@ -593,7 +593,7 @@ class _QuestResultTileState extends ConsumerState<_QuestResultTile> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: QuestColors.onAccent(QuestColors.softRed),
+                      color: QuestColors.onAccent(QuestColors.osRed),
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
@@ -1019,8 +1019,7 @@ class _ErrorState extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline,
-                size: 48, color: QuestColors.softRed),
+            const Icon(Icons.error_outline, size: 48, color: QuestColors.osRed),
             const SizedBox(height: 12),
             Text(
               l.searchFailed,
