@@ -117,7 +117,10 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
                                 icon: Icons.whatshot_rounded,
                                 label: l.difficulty,
                                 value: quest.difficulty.toUpperCase(),
-                                tint: QuestColors.accentYellow,
+                                // White in the render: the three chips run
+                                // white / violet / gold left to right, so
+                                // difficulty is the quiet one.
+                                tint: QuestColors.osCard,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -135,8 +138,12 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage>
                                 icon: Icons.timer_rounded,
                                 label: l.timeLeft,
                                 value: timeLeft,
+                                // Gold while a quest is live - the design
+                                // uses gold for "waiting on you". Coral is
+                                // the under-five-minutes state and belongs to
+                                // ArcadeTimer, not to the chip's ground.
                                 tint: isActiveQuest
-                                    ? QuestColors.softRed
+                                    ? QuestColors.osAccent
                                     : QuestColors.osTextMuted,
                               ),
                             ),
@@ -456,7 +463,7 @@ class _StatTile extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: ink,
-            offset: const Offset(2, 3),
+            offset: const Offset(3, 3),
             blurRadius: 0,
           ),
         ],
