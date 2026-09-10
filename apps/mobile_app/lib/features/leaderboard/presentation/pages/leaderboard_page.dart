@@ -267,7 +267,7 @@ class _OptionChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: ground,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
             border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           ),
           child: Text(

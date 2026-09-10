@@ -217,7 +217,8 @@ class _OnboardingWalkthroughPageState
                     height: 36,
                     decoration: BoxDecoration(
                       color: QuestColors.osRed,
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusButton),
                       border: Border.all(color: ink, width: 2),
                     ),
                     child: Icon(Icons.gavel_rounded,
@@ -664,7 +665,7 @@ class _ProgressBars extends StatelessWidget {
                   : (onInk ? QuestColors.border : QuestColors.osBg),
               // The frame's literal value for a 6px pip; the role radius
               // scale starts above this size.
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
               border: onInk
                   ? null
                   : Border.all(color: QuestColors.osTextPrimary, width: 2),
@@ -871,7 +872,7 @@ class _DialogButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: ink, width: 2),
           boxShadow: raised ? QuestSpacing.shadowSm : null,
         ),

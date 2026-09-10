@@ -47,7 +47,7 @@ class ArcadeIconTile extends StatelessWidget {
               height: 42,
               decoration: BoxDecoration(
                 color: QuestColors.osCard,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(color: ink, width: 2),
                 boxShadow: QuestSpacing.shadowSm,
               ),

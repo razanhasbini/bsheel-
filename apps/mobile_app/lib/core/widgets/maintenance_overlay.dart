@@ -99,7 +99,11 @@ class _MaintenancePanel extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: _coral,
-                        borderRadius: BorderRadius.circular(26),
+                        // Was 26 — the same chunky icon tile the splash and
+                        // offline screens draw at 24, measured 2px off on a
+                        // tile 12pt larger. No 26 anywhere in the frames.
+                        borderRadius:
+                            BorderRadius.circular(QuestSpacing.radiusTile),
                         border: Border.all(color: _ink, width: 3),
                         boxShadow: const [
                           BoxShadow(color: _ink, offset: Offset(5, 6)),
@@ -147,7 +151,8 @@ class _MaintenancePanel extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: _gold,
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius:
+                            BorderRadius.circular(QuestSpacing.radiusButton),
                         border: Border.all(color: _ink, width: 2),
                         boxShadow: const [
                           BoxShadow(color: _ink, offset: Offset(3, 3)),

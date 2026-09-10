@@ -150,7 +150,8 @@ class _CommentComposerState extends State<CommentComposer> {
                   ),
                   decoration: BoxDecoration(
                     color: QuestColors.osCard,
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusPanel),
                     border: Border.all(color: ink, width: 2),
                   ),
                   child: TextField(
@@ -202,7 +203,8 @@ class _CommentComposerState extends State<CommentComposer> {
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(
                       color: QuestColors.osPrimary,
-                      borderRadius: BorderRadius.all(Radius.circular(13)),
+                      borderRadius: BorderRadius.all(
+                          Radius.circular(QuestSpacing.radiusPanel)),
                       border: Border.fromBorderSide(
                         BorderSide(color: ink, width: 2),
                       ),

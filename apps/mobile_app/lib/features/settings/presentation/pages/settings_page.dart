@@ -290,12 +290,14 @@ void _showDeleteDialog(BuildContext context, WidgetRef ref) {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   errorText: confirmError,
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusButton),
                     borderSide: BorderSide(
                         color: QuestColors.osRed.withAlpha(120), width: 2),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusButton),
                     borderSide: const BorderSide(
                         color: QuestColors.osRed,
                         width: QuestSpacing.cardBorderWidth),
@@ -401,7 +403,7 @@ class _IconButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(

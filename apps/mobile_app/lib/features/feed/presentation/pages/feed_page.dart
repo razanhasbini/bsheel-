@@ -320,7 +320,7 @@ class _HeaderChip extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
               decoration: BoxDecoration(
                 color: active ? ink : QuestColors.osCard,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(color: ink, width: 2),
               ),
               child: Text(
@@ -381,7 +381,7 @@ class _SortBar extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(10, 0, filtered ? 0 : 10, 0),
           decoration: BoxDecoration(
             color: QuestColors.osCard,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
             border: Border.all(color: ink, width: 2),
           ),
           child: Row(
@@ -631,7 +631,8 @@ class _EmptyState extends StatelessWidget {
                   height: 64,
                   decoration: BoxDecoration(
                     color: QuestColors.osSurface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusCard),
                     border: Border.all(
                       color: QuestColors.osTextPrimary,
                       width: 2,
@@ -691,7 +692,7 @@ class _ErrorState extends StatelessWidget {
                 height: 64,
                 decoration: BoxDecoration(
                   color: QuestColors.osRed,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(QuestSpacing.radiusCard),
                   border: Border.all(
                     color: QuestColors.osTextPrimary,
                     width: 2,
@@ -748,7 +749,7 @@ class _StateCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusCard),
         border: Border.all(color: ink, width: 2),
         boxShadow: const [
           BoxShadow(color: ink, offset: Offset(3, 3), blurRadius: 0),

@@ -98,7 +98,7 @@ class _FeedFilterSheet extends ConsumerWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: ink.withAlpha(80),
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
               ),
             ),
           ),
@@ -197,7 +197,7 @@ class _FilterRow extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: isActive ? QuestColors.osPrimary : ink.withAlpha(20),
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(
                     color: isActive ? ink : ink.withAlpha(80), width: 2),
               ),

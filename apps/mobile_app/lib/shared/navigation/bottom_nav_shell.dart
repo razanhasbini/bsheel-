@@ -439,7 +439,9 @@ class _NavGlyph extends StatelessWidget {
           height: _size,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            // Was a bare 2, which is not a step the design uses anywhere;
+            // the pip token is the nearest one and 1px on a 13pt glyph.
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
           ),
         );
       case _NavGlyphShape.circle:

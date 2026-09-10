@@ -611,7 +611,11 @@ class _ArcadeSlotMachineState extends State<ArcadeSlotMachine>
         boxShadow: [_hardShadow(context, offset: 6)],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusXl - 2),
+        // Clips inside the 2px border above, so the corner stays concentric.
+        borderRadius: BorderRadius.circular(
+          QuestSpacing.inner(
+              QuestSpacing.radiusXl, QuestSpacing.cardBorderWidth),
+        ),
         child: Stack(
           children: [
             // Scanlines

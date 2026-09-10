@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:app_core/app_core.dart';
 
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/config/deep_link_config.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/backend/app_backend.dart';
@@ -157,7 +156,8 @@ class _PostActionsSheet extends StatelessWidget {
                     height: 38,
                     decoration: BoxDecoration(
                       color: QuestColors.osRed,
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusButton),
                       border: Border.all(color: ink, width: 2),
                     ),
                     alignment: Alignment.center,
@@ -234,8 +234,9 @@ class _PostActionsSheet extends StatelessWidget {
                       onTap: () => Navigator.pop(c, controller.text.trim()),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
-                        constraints:
-                            const BoxConstraints(minHeight: kMinTouchTarget),
+                        constraints: const BoxConstraints(
+                          minHeight: QuestSpacing.minTouchTarget,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: QuestColors.osRed,
@@ -297,7 +298,7 @@ class _PostActionsSheet extends StatelessWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: ink.withAlpha(80),
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
               ),
             ),
           ),
@@ -356,7 +357,7 @@ class _ActionRow extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: tint.withAlpha(40),
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(color: tint.withAlpha(160), width: 2),
               ),
               child: Icon(icon, color: tint, size: 18),

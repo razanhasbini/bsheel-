@@ -479,7 +479,7 @@ class _CheckRow extends StatelessWidget {
             height: 18,
             decoration: BoxDecoration(
               color: met ? QuestColors.osSuccess : QuestColors.osSurface,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
               border: Border.all(color: ink, width: 2),
             ),
           ),

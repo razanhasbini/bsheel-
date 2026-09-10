@@ -98,4 +98,113 @@ abstract final class QuestSpacing {
   static const double radiusControl = 12.0; // inputs, buttons
   static const double radiusCard = 16.0; // cards
   static const double radiusHero = 18.0; // hero panels
+
+  // ──────────────────────────────────────────────
+  // RADIUS SCALE — the rest of it
+  // ──────────────────────────────────────────────
+  // The t-shirt scale above samples every *other* rung of an even ladder
+  // (10 · 14 · 18 · 22) and the role names cover 8 · 12 · 16 · 18. The
+  // design uses the odd rungs too, and heavily: counted across
+  // `docs/design/mobile/Bsheel Mobile App.dc.html`, 13px appears 55 times
+  // and 11px 39 times, against 2 uses of 10px. They were measured off the
+  // frames, not guessed, so they are steps in the scale and not drift —
+  // which is why 47 call sites had them written out as literals.
+  //
+  // Snapping them onto the nearest named token would have changed the
+  // rendered design. Naming them changes nothing and finishes the scale.
+  // Each token below records where its value comes from.
+
+  /// 3px — tiny bars and pips: the 44×5 sheet grabber, carousel dots,
+  /// onboarding step pips. The most-used small radius in the frames (40).
+  static const double radiusPip = 3.0;
+
+  /// 4px — password-strength segments and other standalone bar fills.
+  /// A fill *nested inside* a bordered track is [inner] instead, not this.
+  static const double radiusSegment = 4.0;
+
+  /// 5px — 10pt status dots, the 18pt requirement checkbox, reroll segment
+  /// cells, square heat cells (25 in the frames).
+  static const double radiusDot = 5.0;
+
+  /// 6px — micro badges carrying 2-3px of vertical padding, and the 36pt
+  /// skeleton block (7 in the frames).
+  static const double radiusBadge = 6.0;
+
+  /// 7px — the 12pt meter track and the small pills set beside it
+  /// (8 in the frames).
+  static const double radiusMeterTrack = 7.0;
+
+  /// 9px — 34pt glyph tiles and 38pt chips (12 in the frames). The lower
+  /// bound of "9-14px controls" in `docs/design/mobile/SPEC.md`.
+  static const double radiusGlyph = 9.0;
+
+  /// 11px — 42-44pt square icon buttons, list rows, dialog inputs. The
+  /// `r11` the widget doc comments throughout `mobile_app` already name
+  /// (39 in the frames).
+  static const double radiusButton = 11.0;
+
+  /// 13px — 50-54pt buttons, the comment composer, and bordered content
+  /// panels. The single most-used radius in the frames (55).
+  static const double radiusPanel = 13.0;
+
+  /// 15px — quest option cards and 60pt avatar tiles (5 in the frames).
+  static const double radiusOption = 15.0;
+
+  /// 24px — the 96-108pt chunky icon tile on the splash, offline and
+  /// maintenance screens.
+  static const double radiusTile = 24.0;
+
+  /// 28px — the quest-history bottom sheet's top corners.
+  ///
+  /// The odd one out: the app's other three sheets use 22 (twice) and 18,
+  /// and the frames draw no 28px sheet. Kept at its rendered value rather
+  /// than snapped, because 28 → 22 is a 6px change nobody asked for.
+  /// Worth settling with the designer, then collapsing to [radiusXl].
+  static const double radiusSheet = 28.0;
+
+  /// Every radius the design uses, in one set.
+  ///
+  /// `radius_scale_test.dart` asserts that no `BorderRadius.circular(N)` or
+  /// `Radius.circular(N)` literal anywhere in `app_core`, `shared_ui` or
+  /// `mobile_app` sits outside this set — so a new off-scale value fails a
+  /// test instead of quietly becoming the 80th one.
+  /// Not `const`: Dart forbids a constant set of `double`, which overrides
+  /// `==`. `final` is fine — every element is a compile-time constant.
+  static final Set<double> radiusScale = {
+    radiusPip,
+    radiusSegment,
+    radiusDot,
+    radiusBadge,
+    radiusMeterTrack,
+    radiusChip,
+    radiusGlyph,
+    radiusSm,
+    radiusButton,
+    radiusControl,
+    radiusPanel,
+    radiusMd,
+    radiusOption,
+    radiusCard,
+    radiusLg,
+    radiusXl,
+    radiusTile,
+    radiusSheet,
+    radiusFull,
+  };
+
+  /// The radius the *inside* edge of a bordered box wants, given the box's
+  /// [outer] radius and how far the child sits in from it ([inset] — the
+  /// border width plus any padding between the two).
+  ///
+  /// Two concentric rounded boxes only look concentric when their radii
+  /// differ by the gap between them; reuse [outer] and the inner corner
+  /// reads too round. Use this rather than a second literal, so the pair
+  /// stays correct when [outer] is retuned.
+  ///
+  /// Clamped at 0, since a large border on a small radius would otherwise
+  /// go negative and throw.
+  static double inner(double outer, double inset) {
+    final r = outer - inset;
+    return r < 0 ? 0 : r;
+  }
 }
