@@ -295,7 +295,7 @@ class _HeaderChip extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
               decoration: BoxDecoration(
                 color: active ? ink : QuestColors.osCard,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(color: ink, width: 2),
               ),
               child: Text(

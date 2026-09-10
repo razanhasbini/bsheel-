@@ -342,7 +342,7 @@ class _StrengthMeter extends StatelessWidget {
               decoration: BoxDecoration(
                 color:
                     i < filled ? QuestColors.osSuccess : QuestColors.osSurface,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusSegment),
                 border: Border.all(
                   color: QuestColors.osTextPrimary,
                   width: 2,

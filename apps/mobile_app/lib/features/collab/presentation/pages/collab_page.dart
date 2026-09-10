@@ -446,7 +446,7 @@ class _DarkMeter extends StatelessWidget {
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: QuestColors.darkSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusChip),
         border: Border.all(color: QuestColors.osBg, width: 2),
       ),
       child: Align(
@@ -456,7 +456,10 @@ class _DarkMeter extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: QuestColors.osAccent,
-              borderRadius: BorderRadius.circular(4),
+              // Concentric with the track: 2px border + 2px padding in.
+              borderRadius: BorderRadius.circular(
+                QuestSpacing.inner(QuestSpacing.radiusChip, 4),
+              ),
             ),
           ),
         ),
@@ -833,7 +836,7 @@ class _OptionChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
             border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           ),
           child: Text(
@@ -870,7 +873,7 @@ class _IconButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(

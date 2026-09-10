@@ -10,6 +10,14 @@ import 'arcade_primitives.dart' show kArcadeMinTouchTarget;
 /// These live here, in `shared_ui`, because the app previously carried a
 /// second private set in `lib/design/bs_widgets.dart`. Two component sets
 /// means the look drifts and no single edit changes it.
+///
+/// That file is now gone. Nothing had ever imported one of its widgets —
+/// its only two consumers took `kMinTouchTarget`, an alias for
+/// `QuestSpacing.minTouchTarget` — so it was 473 lines of unused second
+/// opinion, including a `ChunkyButton` that restated
+/// `QuestColors.onAccent`'s rule as a hand-written switch and an
+/// `accentAsTextOnCream` that restated `QuestColors.onCream`'s and got sky
+/// wrong. This is the only component set.
 
 // ── Toggle ────────────────────────────────────────────────────────────────
 // 52 x 30, 16px radius, 22px knob inset 2, jade when on, lavender when off.
@@ -57,7 +65,8 @@ class ArcadeToggle extends StatelessWidget {
                       height: 22,
                       decoration: BoxDecoration(
                         color: QuestColors.osBg,
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius:
+                            BorderRadius.circular(QuestSpacing.radiusButton),
                         border: Border.all(
                           color: QuestColors.osTextPrimary,
                           width: 2,
@@ -153,7 +162,7 @@ class ArcadeSegments extends StatelessWidget {
                     : (i == filled
                         ? QuestColors.textSecondary
                         : QuestColors.osSurface),
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
                 border: Border.all(color: QuestColors.osTextPrimary, width: 2),
               ),
             ),

@@ -225,7 +225,8 @@ class _UpdateRequiredOverlay extends StatelessWidget {
                     gradient: const LinearGradient(
                       colors: [QuestColors.osPrimary, QuestColors.osRed],
                     ),
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusTile),
                     border:
                         Border.all(color: QuestColors.osTextPrimary, width: 2),
                     boxShadow: const [

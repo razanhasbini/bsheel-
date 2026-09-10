@@ -135,7 +135,7 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                   height: 5,
                   decoration: BoxDecoration(
                     color: QuestColors.osTextPrimary,
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
                   ),
                 ),
               ),
@@ -780,7 +780,7 @@ class _QuestReminder extends StatelessWidget {
             height: 10,
             decoration: BoxDecoration(
               color: QuestColors.osRed,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
               border: Border.all(color: ink, width: 2),
             ),
           ),
@@ -901,7 +901,8 @@ class _ProofTile extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: QuestColors.osBg,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusBadge),
                     border: Border.all(color: ink, width: 2),
                   ),
                   child: Text(
@@ -1036,7 +1037,7 @@ class _CaptionBox extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
         border: Border.all(color: ink, width: 2),
         boxShadow: QuestSpacing.shadowSm,
       ),
@@ -1092,7 +1093,7 @@ class _ShowInFeedCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
           border: Border.all(color: ink, width: 2),
           boxShadow: QuestSpacing.hardShadow(3, color: QuestColors.osCool),
         ),
@@ -1243,7 +1244,7 @@ class _VideoTileState extends State<_VideoTile> {
             height: 44,
             decoration: BoxDecoration(
               color: QuestColors.osBg,
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
               border: Border.all(color: QuestColors.osTextPrimary, width: 2),
             ),
             child: const Icon(

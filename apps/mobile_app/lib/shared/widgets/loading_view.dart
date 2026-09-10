@@ -57,7 +57,8 @@ class _ShimmerCard extends StatelessWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     color: QuestColors.pureWhite,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusBadge),
                   ),
                 ),
                 const SizedBox(width: QuestSpacing.sm),

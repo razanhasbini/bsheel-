@@ -757,7 +757,7 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: QuestColors.osBg,
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusGlyph),
               border: Border.all(color: ink, width: 2),
             ),
             child: Icon(
@@ -858,7 +858,7 @@ class _TicketAction extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: actionable ? ink : QuestColors.osBg,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusGlyph),
         border: Border.all(color: ink, width: 2),
       ),
       child: Text(

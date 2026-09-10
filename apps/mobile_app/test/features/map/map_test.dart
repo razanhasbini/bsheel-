@@ -30,7 +30,8 @@ class _MapRepo extends Fake implements MapRepository {
           {String? country,
           String? category,
           String search = '',
-      int offset = 0,bool savedOnly=false}) async =>
+          int offset = 0,
+          bool savedOnly = false}) async =>
       category == 'hidden' ||
               (search.isNotEmpty &&
                   !'Test landmark'.toLowerCase().contains(search.toLowerCase()))
@@ -136,10 +137,10 @@ void main() {
   });
   testWidgets('progress uses real zero and separates confirmed from pending',
       (tester) async {
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
             body: DiscoveryProgress(countries: [
-      const MapCountry(
+      MapCountry(
           code: 'LB',
           name: 'Lebanon',
           geometryId: '422',

@@ -1021,7 +1021,8 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
               height: 12,
               padding: const EdgeInsets.all(1),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius:
+                    BorderRadius.circular(QuestSpacing.radiusMeterTrack),
                 border: Border.all(color: QuestColors.osBg, width: 2),
               ),
               child: Align(
@@ -1031,7 +1032,11 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: QuestColors.osAccent,
-                      borderRadius: BorderRadius.circular(4),
+                      // Concentric with the track above: 2px border + 1px
+                      // padding in, so 3px off the track's radius.
+                      borderRadius: BorderRadius.circular(
+                        QuestSpacing.inner(QuestSpacing.radiusMeterTrack, 3),
+                      ),
                     ),
                   ),
                 ),
@@ -1101,7 +1106,7 @@ class _PanelTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: tint,
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusMeterTrack),
         border: Border.all(color: QuestColors.osBg, width: 2),
       ),
       child: Text(
@@ -1151,7 +1156,7 @@ class _PanelButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
           border: Border.all(color: QuestColors.osBg, width: 2),
         ),
         child: Text(
@@ -1238,7 +1243,7 @@ class _TimeOverCard extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: QuestColors.osBg,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(color: ink, width: 2),
               ),
               child: Text(
@@ -1553,7 +1558,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                 height: 5,
                 decoration: BoxDecoration(
                   color: QuestColors.osTextPrimary,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
                 ),
               ),
             ),
@@ -1579,7 +1584,8 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                         const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
                       color: QuestColors.osAccent,
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusMeterTrack),
                       border: Border.all(
                         color: QuestColors.osTextPrimary,
                         width: 2,
@@ -1741,7 +1747,7 @@ class _SheetButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: fill,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
             border: Border.all(color: ink, width: 2),
             boxShadow: enabled ? QuestSpacing.shadowMd : const [],
           ),
@@ -1809,7 +1815,7 @@ class _QuestChoiceCard extends StatelessWidget {
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
               color: ground,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusOption),
               border: Border.all(color: ink, width: 2),
               boxShadow: QuestSpacing.hardShadow(
                 5,
@@ -1893,7 +1899,7 @@ class _ChoiceTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusBadge),
         border: Border.all(color: QuestColors.osTextPrimary, width: 2),
       ),
       child: Text(
@@ -1946,7 +1952,8 @@ class _PendingListDialog extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       color: QuestColors.accentYellow,
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusButton),
                       border: Border.all(color: ink, width: 2),
                     ),
                     alignment: Alignment.center,
@@ -2052,7 +2059,7 @@ class _PendingRow extends StatelessWidget {
               height: 34,
               decoration: BoxDecoration(
                 color: QuestColors.accentYellow.withAlpha(60),
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusGlyph),
                 border: Border.all(color: QuestColors.accentYellow, width: 1.4),
               ),
               alignment: Alignment.center,
@@ -2221,7 +2228,7 @@ class _RecentQuestRow extends StatelessWidget {
             height: 10,
             decoration: BoxDecoration(
               color: statusColor,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
               border: Border.all(color: ink, width: 2),
             ),
           ),
@@ -2332,7 +2339,8 @@ class _QuestPreviewSheet extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: QuestColors.bg(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(QuestSpacing.radiusSheet)),
             border: Border.all(color: ink, width: 2),
             boxShadow: [
               BoxShadow(color: ink, offset: const Offset(0, -3), blurRadius: 0),
@@ -2347,7 +2355,7 @@ class _QuestPreviewSheet extends StatelessWidget {
                   height: 5,
                   decoration: BoxDecoration(
                     color: ink.withAlpha(60),
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
                   ),
                 ),
               ),

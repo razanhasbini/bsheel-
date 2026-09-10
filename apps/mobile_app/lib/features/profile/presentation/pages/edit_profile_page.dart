@@ -534,7 +534,7 @@ class _FieldState extends State<_Field> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: QuestColors.osBg,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
             border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           ),
           child: Center(
@@ -571,8 +571,7 @@ class _FieldState extends State<_Field> {
                           size: 20,
                           color: QuestColors.osTextSecondary,
                         ),
-                        onPressed: () =>
-                            setState(() => _revealed = !_revealed),
+                        onPressed: () => setState(() => _revealed = !_revealed),
                       ),
               ),
             ),
@@ -696,7 +695,7 @@ class _IconButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(
