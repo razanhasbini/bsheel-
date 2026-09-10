@@ -38,6 +38,7 @@ export class QuestsService {
     return this.repository.assignSpecific(userId, questId, true);
   }
   expire(userId: string, userQuestId: string): Promise<void> { return this.repository.expire(userId, userQuestId); }
+  abandon(userId: string, userQuestId: string): Promise<void> { return this.repository.abandon(userId, userQuestId); }
   picker(userId: string, count: number): Promise<readonly QuestRecord[]> { return this.repository.pickerOptions(userId, count); }
   qotd(): Promise<Record<string, unknown> | null> { return this.repository.questOfTheDay(); }
   followingActive(userId: string, limit: number): Promise<readonly Record<string, unknown>[]> { return this.repository.followingActive(userId, limit); }

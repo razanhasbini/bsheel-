@@ -1,3 +1,4 @@
+import 'package:app_repositories/app_repositories.dart' show ApiException;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -844,11 +845,16 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
 
     setState(() => _canceling = true);
     try {
+      // abandonQuest, not markQuestExpired: the server only accepts the
+      // expiry route once the timer has run out, and this button only shows
+      // while the quest is still running — so it always failed with
+      // QUEST_NOT_EXPIRABLE.
       await ref
           .read(questsRepositoryProvider)
-          .markQuestExpired(widget.activeQuest.id);
+          .abandonQuest(widget.activeQuest.id);
       ref.invalidate(activeQuestProvider);
       ref.invalidate(questHistoryProvider);
+      ref.invalidate(rerollBudgetProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Quest canceled')),
@@ -857,7 +863,7 @@ class _ActiveQuestHeroState extends ConsumerState<_ActiveQuestHero>
       if (!mounted) return;
       setState(() => _canceling = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not cancel quest: $e')),
+        SnackBar(content: Text(mapDbError(e, action: 'cancel quest'))),
       );
     }
   }
@@ -1438,10 +1444,11 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
       _error = null;
     });
     try {
+      // The picker itself now spends the reroll, server-side, because gating
+      // only the bookkeeping route left the cap bypassable by skipping it.
+      // Recording one here as well would cost two per spin.
       final picks =
           await ref.read(questsRepositoryProvider).getQuestPickerOptions();
-      final user = ref.read(authSessionProvider);
-      if (user != null) await recordReroll(user.id);
       ref.invalidate(rerollBudgetProvider);
       if (!mounted) return;
       setState(() {
@@ -1452,10 +1459,17 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _rerolling = false;
-        _error = 'No quests available right now';
-      });
+      setState(() => _rerolling = false);
+      // A spent budget is not an empty catalogue. This branch reported
+      // "No quests available right now" for both, and left ACCEPT armed over
+      // options that had been replaced by the error panel.
+      if (e is ApiException && e.code == 'REROLL_LIMIT_REACHED') {
+        final budget = ref.read(rerollBudgetProvider).valueOrNull;
+        if (budget != null) await _showRerollLimitDialog(budget);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _error = mapDbError(e, action: 'reroll'));
     }
   }
 

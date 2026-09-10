@@ -145,27 +145,58 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
       expect(response.body.data.remaining).toBe(5);
     });
 
-    it('counts down one per reroll and reports the same number on the read route', async () => {
-      for (const expected of [4, 3, 2, 1, 0]) {
-        const reroll = await harness.post('/quests/rerolls', user).send().expect(201);
-        expect(reroll.body.data.remaining).toBe(expected);
+    // The budget is spent by GET /quests/picker, because that is the call
+    // that hands out options. It used to be spent only by POST
+    // /quests/rerolls — a bookkeeping route the client called voluntarily —
+    // so a caller who simply never called it could spin the picker forever
+    // and take any result. These exercise the path intake actually uses.
+    it('the first spin of a cycle is free', async () => {
+      await harness.get('/quests/picker?count=3', user).expect(200);
+      expect(
+        (await harness.get('/quests/rerolls/remaining', user).expect(200)).body.data.remaining,
+      ).toBe(5);
+      expect(
+        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1 AND charged', [user.id]),
+      ).toBe(0);
+      // The free spin is still recorded, as the marker that says the cycle
+      // has started — without it the second spin cannot tell itself apart
+      // from the first, and the cap never engages.
+      expect(
+        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1 AND NOT charged', [user.id]),
+      ).toBe(1);
+    });
 
+    it('counts down one per re-spin and reports the same number on the read route', async () => {
+      for (const expected of [4, 3, 2, 1, 0]) {
+        await harness.get('/quests/picker?count=3', user).expect(200);
         const remaining = await harness.get('/quests/rerolls/remaining', user).expect(200);
         expect(remaining.body.data.remaining).toBe(expected);
       }
 
       expect(
-        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1', [user.id]),
+        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1 AND charged', [user.id]),
       ).toBe(5);
     });
 
-    it('refuses the sixth reroll inside the window', async () => {
-      const response = await harness.post('/quests/rerolls', user).send().expect(409);
+    it('refuses the sixth spin inside the window — the hole this closes', async () => {
+      // Before the gate moved, this returned a fresh set of options at zero
+      // remaining, and every one of them was assignable.
+      const response = await harness.get('/quests/picker?count=3', user).expect(409);
       expect(response.body.error.code).toBe('REROLL_LIMIT_REACHED');
 
-      // A refused reroll must not be logged, or the window would never clear.
+      // A refused spin must not be logged, or the window would never clear.
       expect(
-        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1', [user.id]),
+        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1 AND charged', [user.id]),
+      ).toBe(5);
+    });
+
+    it('the read route reports the cap but no longer spends it', async () => {
+      // Kept as a read for the build already in TestFlight, which calls it
+      // right after the picker. If it still charged, every spin would cost
+      // two rerolls.
+      await harness.post('/quests/rerolls', user).send().expect(409);
+      expect(
+        await harness.countRows('SELECT count(*) FROM quest_reroll_log WHERE user_id = $1 AND charged', [user.id]),
       ).toBe(5);
     });
 
@@ -173,17 +204,21 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
       // Ageing the log rows is the only way to move the window without
       // waiting a day; the cap is computed from rerolled_at on every call.
       await harness.database.query(
+        // Age the oldest CHARGED row: the cap counts only those, and the
+        // oldest row overall is now the cycle's uncharged free-spin marker.
         `UPDATE quest_reroll_log SET rerolled_at = now() - interval '25 hours'
          WHERE id = (
-           SELECT id FROM quest_reroll_log WHERE user_id = $1 ORDER BY rerolled_at LIMIT 1
+           SELECT id FROM quest_reroll_log
+           WHERE user_id = $1 AND charged ORDER BY rerolled_at LIMIT 1
          )`,
         [user.id],
       );
 
       expect((await harness.get('/quests/rerolls/remaining', user).expect(200)).body.data.remaining).toBe(1);
-      const reroll = await harness.post('/quests/rerolls', user).send().expect(201);
-      expect(reroll.body.data.remaining).toBe(0);
-      await harness.post('/quests/rerolls', user).send().expect(409);
+      // One spin left, spent by the picker; the next is refused.
+      await harness.get('/quests/picker?count=3', user).expect(200);
+      expect((await harness.get('/quests/rerolls/remaining', user).expect(200)).body.data.remaining).toBe(0);
+      await harness.get('/quests/picker?count=3', user).expect(409);
     });
 
     it('keeps the cap per user', async () => {
@@ -194,7 +229,32 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
     it('requires a token', async () => {
       await harness.get('/quests/rerolls/remaining').expect(401);
       await harness.post('/quests/rerolls').send().expect(401);
+      await harness.get('/quests/picker?count=3').expect(401);
     });
+
+    it('taking a quest starts a new cycle, so the next spin is free again', async () => {
+      const fresh = await harness.createUser({ prefix: 'q4b' });
+
+      // Spin twice: the first is free, the second costs one.
+      await harness.get('/quests/picker?count=3', fresh).expect(200);
+      const options = await harness.get('/quests/picker?count=3', fresh).expect(200);
+      expect(
+        (await harness.get('/quests/rerolls/remaining', fresh).expect(200)).body.data.remaining,
+      ).toBe(4);
+
+      // Take one, which ends the cycle.
+      const quest = options.body.data[0];
+      await harness.post('/quests/assign', fresh).send({ questId: quest.id }).expect(201);
+      await harness.post('/quests/abandon', fresh).send({ userQuestId: (
+        await harness.get('/quests/active', fresh).expect(200)
+      ).body.data.id }).expect(204);
+
+      // The first spin of the new cycle is free.
+      await harness.get('/quests/picker?count=3', fresh).expect(200);
+      expect(
+        (await harness.get('/quests/rerolls/remaining', fresh).expect(200)).body.data.remaining,
+      ).toBe(4);
+    }, 300_000);
   });
 
   describe('POST /quests/admin/assign', () => {

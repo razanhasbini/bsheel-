@@ -840,6 +840,9 @@ class _FakeQuestsRepository implements QuestsRepository {
   Future<void> markQuestExpired(String userQuestId) async {}
 
   @override
+  Future<void> abandonQuest(String userQuestId) async {}
+
+  @override
   Future<List<UserQuestModel>> getUserQuestHistory(String userId) async =>
       _questHistory;
 }

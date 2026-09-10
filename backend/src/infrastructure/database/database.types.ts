@@ -320,6 +320,7 @@ export interface Database {
     "user_id": string;
     "user_quest_id": string | null;
     "rerolled_at": Generated<Timestamp>;
+    "charged": Generated<boolean>;
   };
   "quest_suggestions": {
     "id": Generated<string>;

@@ -60,6 +60,13 @@ export class QuestsController {
   @Post('expire')
   expire(@CurrentUser() user: AuthUser, @Body() body: UserQuestIdDto) { return this.service.expire(user.id, body.userQuestId); }
 
+  /// Cancels a live quest. `expire` refuses one whose timer has not run out,
+  /// which is deliberate — so CANCEL QUEST needs its own route rather than a
+  /// relaxed guard on that one.
+  @HttpCode(204)
+  @Post('abandon')
+  abandon(@CurrentUser() user: AuthUser, @Body() body: UserQuestIdDto) { return this.service.abandon(user.id, body.userQuestId); }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param() param: QuestIdParam) { return this.service.getQuest(param.id, user.id); }
 
