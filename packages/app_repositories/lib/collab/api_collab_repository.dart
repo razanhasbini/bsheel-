@@ -33,8 +33,19 @@ class ApiCollabRepository implements CollabRepository {
       );
 
   @override
-  Future<Map<String, dynamic>> joinGroup(String code) async =>
-      apiObject(await _client.post('collab/groups/join', body: {'code': code}));
+  Future<Map<String, dynamic>> joinGroup(
+    String code, {
+    bool abandonActiveQuest = false,
+  }) async =>
+      apiObject(
+        await _client.post(
+          'collab/groups/join',
+          body: {
+            'code': code,
+            if (abandonActiveQuest) 'abandonActiveQuest': true,
+          },
+        ),
+      );
 
   @override
   Future<CollabGroupStatusModel> getGroupStatus(String userQuestId) async =>
@@ -47,6 +58,11 @@ class ApiCollabRepository implements CollabRepository {
   @override
   Future<void> abandonQuest(String userQuestId) async {
     await _client.post('collab/assignments/$userQuestId/abandon');
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) async {
+    await _client.delete('collab/groups/$groupId/members/me');
   }
 
   @override

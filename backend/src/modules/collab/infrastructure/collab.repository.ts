@@ -80,15 +80,20 @@ export class CollabRepository {
     return result.rows[0];
   }
 
-  async join(userId: string, code: string) {
+  async join(userId: string, code: string, abandonActiveQuest = false) {
     return this.database.transaction(async (transaction) => {
+      // Any status, so a group that filled up can say so. Closing on the
+      // last join means `status = 'open'` never holds for a full group, and
+      // COLLAB_GROUP_FULL below was therefore unreachable: someone arriving
+      // one second late was told the code did not exist.
       const groupResult = await transaction.query<GroupRow>(
-        `SELECT * FROM collab_groups
-         WHERE code = upper($1) AND status = 'open' AND expires_at > now() FOR UPDATE`,
+        `SELECT * FROM collab_groups WHERE code = upper($1) FOR UPDATE`,
         [code],
       );
       const group = groupResult.rows[0];
-      if (!group) throw new NotFoundException({ code: 'COLLAB_GROUP_NOT_FOUND', message: 'Group not found or expired' });
+      if (!group || group.expires_at <= new Date()) {
+        throw new NotFoundException({ code: 'COLLAB_GROUP_NOT_FOUND', message: 'Group not found or expired' });
+      }
       const members = await transaction.query<{ user_id: string }>(
         'SELECT user_id FROM collab_group_members WHERE group_id = $1 ORDER BY joined_at FOR UPDATE',
         [group.id],
@@ -99,6 +104,10 @@ export class CollabRepository {
       if (members.rows.length >= group.max_members) {
         throw new ConflictException({ code: 'COLLAB_GROUP_FULL', message: `Group is full (${members.rows.length}/${group.max_members} members)` });
       }
+      // Closed with room left means the creator ended intake deliberately.
+      if (group.status !== 'open') {
+        throw new ConflictException({ code: 'COLLAB_GROUP_CLOSED', message: 'This group is no longer accepting members' });
+      }
       const blocked = await transaction.query(
         `SELECT 1 FROM blocked_users b
          WHERE (b.blocker_id = $1 AND b.blocked_id = ANY($2::uuid[]))
@@ -106,9 +115,20 @@ export class CollabRepository {
         [userId, members.rows.map((member) => member.user_id)],
       );
       if (blocked.rowCount) throw new ForbiddenException({ code: 'COLLAB_BLOCKED', message: 'This group is unavailable' });
-      const active = await transaction.query("SELECT 1 FROM user_quests WHERE user_id = $1 AND status = 'assigned' LIMIT 1", [userId]);
+      const active = await transaction.query<{ id: string }>(
+        "SELECT id FROM user_quests WHERE user_id = $1 AND status = 'assigned' FOR UPDATE",
+        [userId],
+      );
       if (active.rowCount) {
-        throw new ConflictException({ code: 'ACTIVE_QUEST_EXISTS', message: 'You already have an active quest. Abandon it first.' });
+        if (!abandonActiveQuest) {
+          throw new ConflictException({ code: 'ACTIVE_QUEST_EXISTS', message: 'You already have an active quest. Abandon it first.' });
+        }
+        // The swap the client used to make as a separate call before this
+        // one. Here it shares the join's transaction, so a group that turns
+        // out to be full, blocked or expired leaves the quest untouched.
+        for (const row of active.rows) {
+          await this.releaseAssignment(userId, row.id, transaction);
+        }
       }
       const assignment = await transaction.query<{ id: string }>(
         `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
@@ -179,25 +199,117 @@ export class CollabRepository {
   }
 
   async abandon(userId: string, userQuestId: string): Promise<void> {
-    const result = await this.database.query(
+    await this.database.transaction(async (transaction) => {
+      const released = await this.releaseAssignment(userId, userQuestId, transaction);
+      if (!released) {
+        throw new ConflictException({ code: 'QUEST_NOT_ABANDONABLE', message: 'Cannot abandon: quest not found or not in assigned status' });
+      }
+    });
+  }
+
+  /**
+   * Lets a member walk away from a group without abandoning the quest first.
+   *
+   * There was no way to do this: `abandon` was the only exit and it took the
+   * quest with it, so a member who wanted out of the group had to give up
+   * their progress. Leaving keeps the quest — it becomes an ordinary solo
+   * assignment — and frees the slot for someone else.
+   */
+  async leave(userId: string, groupId: string): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      const group = await transaction.query<GroupRow>(
+        'SELECT * FROM collab_groups WHERE id = $1 FOR UPDATE',
+        [groupId],
+      );
+      if (!group.rows[0]) throw new NotFoundException({ code: 'COLLAB_GROUP_NOT_FOUND', message: 'Group not found' });
+      const removed = await transaction.query(
+        'DELETE FROM collab_group_members WHERE group_id = $1 AND user_id = $2',
+        [groupId, userId],
+      );
+      if (!removed.rowCount) {
+        throw new ConflictException({ code: 'NOT_COLLAB_MEMBER', message: 'You are not in this group' });
+      }
+      // The creator leaving ends intake: the code would otherwise stay live
+      // for a group with no owner.
+      if (group.rows[0].creator_id === userId) {
+        await transaction.query("UPDATE collab_groups SET status = 'closed' WHERE id = $1", [groupId]);
+      } else {
+        await this.reopenIfRoom(groupId, transaction);
+      }
+    });
+  }
+
+  /**
+   * Expires one assignment and takes the member out of any group it belongs
+   * to, as a single unit.
+   *
+   * Abandoning used to touch `user_quests` only, leaving the
+   * `collab_group_members` row behind. The departed member still counted
+   * against `max_members`, still appeared on the roster, and still received
+   * the group's notifications — while their quest was expired — and the slot
+   * they vacated stayed shut, because the group had been closed when it
+   * filled and nothing ever reopened it.
+   */
+  private async releaseAssignment(
+    userId: string,
+    userQuestId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<boolean> {
+    const result = await transaction.query(
       `UPDATE user_quests SET status = 'expired', completed_at = now(), version = version + 1
        WHERE id = $1 AND user_id = $2 AND status = 'assigned'`,
       [userQuestId, userId],
     );
-    if (!result.rowCount) throw new ConflictException({ code: 'QUEST_NOT_ABANDONABLE', message: 'Cannot abandon: quest not found or not in assigned status' });
+    if (!result.rowCount) return false;
+    const membership = await transaction.query<{ group_id: string }>(
+      'DELETE FROM collab_group_members WHERE user_quest_id = $1 AND user_id = $2 RETURNING group_id',
+      [userQuestId, userId],
+    );
+    for (const row of membership.rows) {
+      await this.reopenIfRoom(row.group_id, transaction);
+    }
+    return true;
+  }
+
+  /** Reopens a group that was closed only because it had filled. */
+  private async reopenIfRoom(groupId: string, transaction: DatabaseTransaction): Promise<void> {
+    await transaction.query(
+      `UPDATE collab_groups g SET status = 'open'
+       WHERE g.id = $1 AND g.status = 'closed' AND g.expires_at > now()
+         AND (SELECT count(*) FROM collab_group_members m WHERE m.group_id = g.id) < g.max_members`,
+      [groupId],
+    );
   }
 
   async vote(userId: string, groupId: string, submissionId: string): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 2))', [userId]);
-      const group = await transaction.query('SELECT 1 FROM collab_groups WHERE id = $1', [groupId]);
+      // Voting is open to anyone who can see the group in the feed — that is
+      // the design, and the vote button lives on the feed card. What was
+      // missing is when it stops and who cannot cast one.
+      const group = await transaction.query<{ expires_at: Date }>(
+        'SELECT expires_at FROM collab_groups WHERE id = $1',
+        [groupId],
+      );
       if (!group.rowCount) throw new NotFoundException({ code: 'COLLAB_GROUP_NOT_FOUND', message: 'Group not found' });
-      const eligible = await transaction.query(
-        `SELECT 1 FROM collab_group_members m JOIN submissions s ON s.user_quest_id = m.user_quest_id
+      // The ballot never closed. Votes could keep arriving long after the
+      // group ended, so a settled VERSUS result could still be overturned
+      // days later by anyone who kept the post open.
+      if (group.rows[0].expires_at <= new Date()) {
+        throw new ConflictException({ code: 'COLLAB_VOTING_CLOSED', message: 'Voting on this group has closed' });
+      }
+      const eligible = await transaction.query<{ author_id: string }>(
+        `SELECT s.user_id AS author_id
+         FROM collab_group_members m JOIN submissions s ON s.user_quest_id = m.user_quest_id
          WHERE m.group_id = $1 AND s.id = $2 AND s.status = 'approved'`,
         [groupId, submissionId],
       );
       if (!eligible.rowCount) throw new ConflictException({ code: 'COLLAB_VOTE_INELIGIBLE', message: 'Submission is not eligible for voting' });
+      // In VERSUS mode the members are competing with each other, and
+      // nothing stopped one from voting for their own entry.
+      if (eligible.rows[0].author_id === userId) {
+        throw new ConflictException({ code: 'COLLAB_SELF_VOTE', message: 'You cannot vote for your own entry' });
+      }
       const recent = await transaction.query<{ count: number }>(
         `SELECT count(*)::integer AS count FROM collab_votes
          WHERE voter_id = $1 AND created_at > now() - interval '1 hour'`,

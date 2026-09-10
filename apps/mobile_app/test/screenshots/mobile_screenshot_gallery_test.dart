@@ -942,7 +942,10 @@ class _FakeCollabRepository implements CollabRepository {
       _collabPreview;
 
   @override
-  Future<Map<String, dynamic>> joinGroup(String code) async {
+  Future<Map<String, dynamic>> joinGroup(
+    String code, {
+    bool abandonActiveQuest = false,
+  }) async {
     return {'ok': true};
   }
 
@@ -958,6 +961,9 @@ class _FakeCollabRepository implements CollabRepository {
 
   @override
   Future<void> unvoteCollab(String groupId, String submissionId) async {}
+
+  @override
+  Future<void> leaveGroup(String groupId) async {}
 }
 
 class _FakeReactionsRepository implements ReactionsRepository {
