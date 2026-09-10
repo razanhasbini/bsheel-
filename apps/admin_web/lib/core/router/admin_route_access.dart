@@ -35,6 +35,10 @@ abstract final class AdminRouteAccess {
     AdminRoutePaths.xpManagement,
     AdminRoutePaths.settings,
     AdminRoutePaths.injection,
+    // Added when the deletion queue landed: both its endpoints are
+    // `@Roles('super_admin')` (admin.controller.ts:30,36), and every row in
+    // it is the email address of someone asking to be erased.
+    AdminRoutePaths.deletionRequests,
   };
 
   /// True when [path] — or anything nested under it — needs `super_admin`.

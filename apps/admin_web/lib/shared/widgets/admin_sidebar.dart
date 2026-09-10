@@ -14,7 +14,7 @@ import 'bsheel_widgets.dart';
 /// signed-in admin's role can actually use, ordered by how often a
 /// moderator touches them.
 ///
-/// A moderator sees fourteen of the seventeen rows: the five listed in
+/// A moderator sees fourteen of the nineteen rows. The six in
 /// [AdminRouteAccess.superAdminOnly] are dropped, because every read
 /// behind them is `@Roles('super_admin')` and a moderator following the
 /// link only got as far as a 403. The router refuses those paths as well,
@@ -80,6 +80,11 @@ class AdminSidebar extends ConsumerWidget {
       'QUEST SUGGESTIONS',
       AdminRouteNames.webQuestSuggestions,
       '/web-quest-suggestions',
+    ),
+    _Destination(
+      'DELETION REQUESTS',
+      AdminRouteNames.deletionRequests,
+      '/deletion-requests',
     ),
     _Destination('SETTINGS', AdminRouteNames.settings, '/settings'),
   ];

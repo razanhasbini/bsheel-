@@ -7,6 +7,7 @@ import { ApiExceptionFilter } from './common/http/api-exception.filter.js';
 import { ApiResponseInterceptor } from './common/http/api-response.interceptor.js';
 import { AccessTokenGuard } from './common/auth/access-token.guard.js';
 import { RolesGuard } from './common/auth/roles.guard.js';
+import { MaintenanceGuard } from './common/maintenance/maintenance.guard.js';
 import { type Environment, validateEnvironment } from './config/environment.js';
 import { DatabaseModule } from './infrastructure/database/database.module.js';
 import { RedisModule } from './infrastructure/redis/redis.module.js';
@@ -103,6 +104,10 @@ import { TelegramModule } from './integrations/telegram/telegram.module.js';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AccessTokenGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Last, and the order matters: the maintenance gate exempts admins so an
+    // operator cannot lock themselves out, and it can only see the caller's
+    // role because AccessTokenGuard has already run.
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
   ],
