@@ -162,7 +162,7 @@ class _ConnectivityBanner extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
         border: Border.all(color: QuestColors.osTextPrimary, width: 2),
       ),
       child: Row(
@@ -208,7 +208,7 @@ class _ErrorCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
         border: Border.all(color: QuestColors.osRed, width: 2),
       ),
       child: Text(
@@ -274,7 +274,7 @@ class _ReportView extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: QuestColors.cardBg(context),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
             border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           ),
           child: Column(
@@ -353,7 +353,7 @@ class _StepCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
         border: Border.all(color: _tint(context), width: 2),
       ),
       child: Column(
@@ -375,7 +375,7 @@ class _StepCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: _tint(context),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(QuestSpacing.radiusBadge),
                 ),
                 child: Text(
                   step['outcome']?.toString() ?? '',
@@ -510,7 +510,7 @@ class _MatrixRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
         border: Border.all(color: tint, width: 2),
       ),
       child: Column(
