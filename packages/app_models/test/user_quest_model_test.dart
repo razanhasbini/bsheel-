@@ -176,6 +176,11 @@ void main() {
         // appeal is still available, so quest history can offer the button
         // without a second request.
         UserQuestColumns.appealAvailable,
+        // And which submission to open. Quest history rows route into
+        // `submission_status_page`, which is the primary way into the appeal
+        // flow, so the id has to survive a `toJson` round trip — a cached
+        // row without it lands on a page that cannot find its submission.
+        UserQuestColumns.submissionId,
       });
       expect(json[UserQuestColumns.assignedAt], '2026-05-03T12:00:00.000Z');
       expect(json[UserQuestColumns.completedAt], isNull);

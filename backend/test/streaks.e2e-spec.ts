@@ -82,6 +82,71 @@ describe('streaks (e2e)', { timeout: 180_000 }, () => {
     expect(streak.atRisk).toBe(true);
   });
 
+  // These two pin real Beirut wall-clock times rather than reading the
+  // configured zone, so they fail if the streak ever goes back to bucketing
+  // by UTC. 23:00 and 01:00 in Beirut are one UTC day whether the offset is
+  // +2 or +3, so neither test depends on the season.
+  const BEIRUT = 'Asia/Beirut';
+
+  it('counts two late-night Beirut days as two days, not one (#63)', async () => {
+    const user = await harness.createUser({ prefix: 'sttz' });
+    const first = await approvedDay(user, 0);
+    const second = await approvedDay(user, 0);
+
+    await harness.database.query(
+      `UPDATE submissions
+          SET submitted_at = (((now() AT TIME ZONE $2)::date - 1) + time '23:00') AT TIME ZONE $2
+        WHERE id = $1`,
+      [first, BEIRUT],
+    );
+    await harness.database.query(
+      `UPDATE submissions
+          SET submitted_at = ((now() AT TIME ZONE $2)::date + time '01:00') AT TIME ZONE $2
+        WHERE id = $1`,
+      [second, BEIRUT],
+    );
+
+    // The premise, asserted rather than assumed: to a UTC bucket these two
+    // are the same day, which is why the streak used to stay at 1.
+    const utcDays = await harness.database.query<{ days: number }>(
+      `SELECT count(DISTINCT (submitted_at AT TIME ZONE 'UTC')::date)::int AS days
+         FROM submissions WHERE id = ANY($1::uuid[])`,
+      [[first, second]],
+    );
+    expect(utcDays.rows[0].days).toBe(1);
+
+    const streak = await streakOf(user);
+    expect(streak.current).toBe(2);
+    expect(streak.longest).toBe(2);
+  });
+
+  it('does not call a streak submitted-to today at risk just after midnight', async () => {
+    const user = await harness.createUser({ prefix: 'stat' });
+    const today = await approvedDay(user, 0);
+
+    // 00:30 Beirut, which is still yesterday in UTC. `atRisk` compared the
+    // run's last day against the host's UTC date, so for the hours after
+    // local midnight a streak the user had just extended was reported as
+    // expiring tonight — and the reminder job agreed, so they got warned
+    // about a streak that was alive.
+    await harness.database.query(
+      `UPDATE submissions
+          SET submitted_at = ((now() AT TIME ZONE $2)::date + time '00:30') AT TIME ZONE $2
+        WHERE id = $1`,
+      [today, BEIRUT],
+    );
+    const utcDay = await harness.database.query<{ same: boolean }>(
+      `SELECT (submitted_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date AS same
+         FROM submissions WHERE id = $1`,
+      [today],
+    );
+    expect(utcDay.rows[0].same).toBe(true);
+
+    const streak = await streakOf(user);
+    expect(streak.current).toBe(1);
+    expect(streak.atRisk).toBe(false);
+  });
+
   it('breaks the current run on a missed day but keeps the longest', async () => {
     const user = await harness.createUser({ prefix: 'stGap' });
     // A 3-day run a week ago, then nothing until today.

@@ -254,7 +254,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             final n = notifications[index];
                             return _NotificationCard(
                               type: n.type,
+                              title: n.title,
                               body: n.body,
+                              actorUsername: n.actorUsername,
+                              actorAvatarUrl: n.actorAvatarUrl,
                               isRead: n.isRead,
                               timeAgo: timeAgo(n.createdAt),
                               onTap: () => _handleTap(n),
@@ -362,14 +365,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.type,
+    required this.title,
     required this.body,
+    required this.actorUsername,
+    required this.actorAvatarUrl,
     required this.isRead,
     required this.timeAgo,
     required this.onTap,
   });
 
   final String type;
+  final String title;
   final String body;
+  final String? actorUsername;
+  final String? actorAvatarUrl;
   final bool isRead;
   final String timeAgo;
   final VoidCallback onTap;
@@ -423,12 +432,26 @@ class _NotificationCard extends StatelessWidget {
         _ => QuestColors.osCard,
       };
 
-  /// The mono label above the body — the type, ALL CAPS, spaces for
-  /// underscores, exactly as the render prints it ("SUBMISSION REJECTED",
-  /// "SUBMISSION APPROVED", "MENTION"). Every type yields four words or
-  /// fewer, so the caps rule holds without a per-type table.
+  /// The mono label — the type, ALL CAPS, spaces for underscores, exactly
+  /// as the render prints it ("SUBMISSION REJECTED", "SUBMISSION APPROVED",
+  /// "MENTION"). Every type yields four words or fewer, so the caps rule
+  /// holds without a per-type table.
+  ///
+  /// Used as the headline only when the notification carries no title of
+  /// its own, which is the case for rows written before titles existed.
   static String _label(String type) =>
       type.replaceAll('_', ' ').trim().toUpperCase();
+
+  /// The headline the server wrote, or the type label when there is none.
+  ///
+  /// This line was missing entirely: the card drew [_label] and the body,
+  /// and dropped `title`. For every social type the actor's name lives in
+  /// the title and the body is generic — `followed` is
+  /// `["<actor> followed you. 👋", "Your party just got one person
+  /// bigger."]` — so a notification never said *who* had followed,
+  /// commented, replied, reacted or mentioned you. The actor's username and
+  /// avatar were fetched and used only to route the tap.
+  String get _headline => title.trim().isNotEmpty ? title.trim() : _label(type);
 
   @override
   Widget build(BuildContext context) {
@@ -455,15 +478,20 @@ class _NotificationCard extends StatelessWidget {
         ? QuestColors.onAccentSoft(ground)
         : QuestColors.onAccent(ground);
 
-    final content = Column(
+    final lines = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _label(type),
-          maxLines: 1,
+          _headline,
+          // Two lines: a display name plus the copy around it runs past one
+          // at 320dp, and truncating to "sami dropped a…" loses the point.
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: QuestTypography.osLabelSmall.copyWith(color: labelColor),
+          // The display face at 14 against the body face at 14: same size,
+          // different voice, so the headline leads without a size jump.
+          // `osHeadlineSmall` is already w800 — no weight override needed.
+          style: QuestTypography.osHeadlineSmall.copyWith(color: bodyColor),
         ),
         const SizedBox(height: 4),
         Text(
@@ -490,6 +518,25 @@ class _NotificationCard extends StatelessWidget {
         ),
       ],
     );
+
+    // The actor's face, when the notification is about a person. Bordered in
+    // the same on-accent ink as the type, so it holds on every ground.
+    final actor = actorUsername;
+    final content = actor == null
+        ? lines
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PixelAvatar(
+                imageUrl: actorAvatarUrl,
+                username: actor,
+                size: 40,
+                borderColor: labelColor,
+              ),
+              const SizedBox(width: 11),
+              Expanded(child: lines),
+            ],
+          );
 
     final decorated = expired
         ? _DashedCard(

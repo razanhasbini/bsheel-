@@ -174,8 +174,19 @@ class ProfilePage extends ConsumerWidget {
             .toList(growable: false);
         // Server-derived (#46). The old client calculation read whatever
         // history page was loaded, counted rejected attempts, and bucketed by
-        // local date while the reminder job uses UTC.
-        final streak = ref.watch(streakProvider).valueOrNull?.current ?? 0;
+        // a different day boundary than the reminder job.
+        //
+        // Per profile, not per viewer. This read `streakProvider` — the
+        // signed-in user's own streak — unconditionally, so opening someone
+        // else's profile showed *your* streak on *their* card. The
+        // `userStreakProvider` family already existed for exactly this and
+        // had no callers.
+        final streak = (isViewingOther
+                    ? ref.watch(userStreakProvider(profile.id))
+                    : ref.watch(streakProvider))
+                .valueOrNull
+                ?.current ??
+            0;
 
         final socialQuestCount = questHistory
             .where((q) =>

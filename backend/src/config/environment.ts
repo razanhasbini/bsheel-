@@ -133,6 +133,22 @@ const environmentSchema = z
     // while that is true. Runs hourly by default rather than once a day
     // because "today" differs per reader and a single fixed hour would reach
     // half the users after their streak had already lapsed.
+    /**
+     * The timezone whose calendar days a streak is counted in.
+     *
+     * This was UTC, and the app's users are in UTC+3, so the day boundary
+     * fell at 03:00 local. Two submissions at 23:00 and 01:00 local are two
+     * consecutive days to the person who made them and one single day to a
+     * UTC bucket, so a late-night post did not advance the streak — issue
+     * #63, reproduced. Every local midnight-to-03:00 submission was being
+     * credited to the previous day.
+     *
+     * A single zone rather than one per user: the audience is one country,
+     * and a per-user zone needs a column, a client that reports it, and a
+     * decision about what happens when someone travels. Configurable so
+     * that decision can change without a code change.
+     */
+    STREAK_TIMEZONE: z.string().min(1).default('Asia/Beirut'),
     STREAK_REMINDER_ENABLED: z
       .enum(['true', 'false'])
       .default('true')
@@ -177,6 +193,19 @@ const environmentSchema = z
         code: 'custom',
         path: ['DATABASE_POOL_MIN'],
         message: 'DATABASE_POOL_MIN cannot exceed DATABASE_POOL_MAX',
+      });
+    }
+
+    // Caught at startup rather than on the first streak query. An unknown
+    // zone name makes Postgres raise on every one of them, which would look
+    // like the streak feature being broken rather than a typo in the config.
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: environment.STREAK_TIMEZONE });
+    } catch {
+      context.addIssue({
+        code: 'custom',
+        path: ['STREAK_TIMEZONE'],
+        message: `STREAK_TIMEZONE must be an IANA timezone name (got "${environment.STREAK_TIMEZONE}")`,
       });
     }
 

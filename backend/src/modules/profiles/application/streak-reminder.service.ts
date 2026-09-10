@@ -27,16 +27,22 @@ export class StreakReminderService {
 
   async sweep(): Promise<StreakReminderOutcome> {
     const batchSize = this.config.get('STREAK_REMINDER_BATCH_SIZE', { infer: true });
+    // The same zone the streak itself is counted in. When this was UTC and
+    // the reader was at UTC+3, the job's idea of "yesterday" and the number
+    // on the user's screen could disagree for three hours every night, so a
+    // live streak was warned about and a dead one was not. Parameterised,
+    // never interpolated.
+    const timezone = this.config.get('STREAK_TIMEZONE', { infer: true });
 
     // One statement so the claim and the notification cannot diverge: a
     // crash between "sent" and "notified" would silently cost a user their
     // only warning, and there is no way to detect that afterwards.
     const result = await this.database.query<{ user_id: string; streak: number }>(
       `WITH days AS (
-         SELECT s.user_id, (s.submitted_at AT TIME ZONE 'UTC')::date AS d
+         SELECT s.user_id, (s.submitted_at AT TIME ZONE $2)::date AS d
          FROM submissions s
          WHERE s.status = 'approved' AND s.visibility <> 'deleted'
-         GROUP BY s.user_id, (s.submitted_at AT TIME ZONE 'UTC')::date
+         GROUP BY s.user_id, (s.submitted_at AT TIME ZONE $2)::date
        ),
        grouped AS (
          SELECT user_id, d,
@@ -52,8 +58,8 @@ export class StreakReminderService {
          FROM runs r
          JOIN profiles p ON p.id = r.user_id
          -- Alive, but its last day is yesterday: it expires tonight.
-         WHERE r.last_day = (now() AT TIME ZONE 'UTC')::date - 1
-           AND (p.streak_reminder_sent_on IS DISTINCT FROM (now() AT TIME ZONE 'UTC')::date)
+         WHERE r.last_day = (now() AT TIME ZONE $2)::date - 1
+           AND (p.streak_reminder_sent_on IS DISTINCT FROM (now() AT TIME ZONE $2)::date)
            -- A suspended or banned account cannot act on the reminder, and
            -- the app hides the quest surfaces from them entirely.
            AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.id AND u.status = 'active')
@@ -61,7 +67,7 @@ export class StreakReminderService {
        ),
        claimed AS (
          UPDATE profiles p
-            SET streak_reminder_sent_on = (now() AT TIME ZONE 'UTC')::date
+            SET streak_reminder_sent_on = (now() AT TIME ZONE $2)::date
            FROM at_risk a
           WHERE p.id = a.user_id
          RETURNING p.id AS user_id, a.streak
@@ -76,7 +82,7 @@ export class StreakReminderService {
               NULL
        FROM claimed c
        RETURNING user_id, 0 AS streak`,
-      [batchSize],
+      [batchSize, timezone],
     );
 
     const reminded = result.rowCount ?? 0;
