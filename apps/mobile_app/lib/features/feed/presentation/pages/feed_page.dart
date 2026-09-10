@@ -16,11 +16,11 @@ import '../../../reactions/presentation/providers/reaction_controller.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../providers/feed_provider.dart';
 import '../providers/post_realtime_provider.dart';
-// Imported for the sort keys. The render's header carries HOT / NEW /
-// FOLLOWING and no filter button, so the sheet's own three extra sorts
-// (most-upvoted, least-upvoted, graveyard) have no affordance here any
-// more — see the audit note; the sheet itself is left intact.
-import '../widgets/feed_filter_sheet.dart' show feedSortHot, feedSortRecent;
+// The header carries HOT / NEW / FOLLOWING plus the sort bar that opens the
+// sheet, which is the only way to reach the remaining three sorts
+// (most-upvoted, least-upvoted, graveyard).
+import '../widgets/feed_filter_sheet.dart'
+    show feedSortHot, feedSortRecent, feedSortLabel, showFeedFilterSheet;
 import '../widgets/feed_post_card.dart';
 import '../widgets/post_actions_sheet.dart';
 
@@ -192,7 +192,13 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 
 // ── Header: wordmark + sort / scope chips ───────────────────────────────────
 
-/// `FEED` plus the `HOT` / `NEW` / `FOLLOWING` chips from the render.
+/// `FEED` plus the `HOT` / `NEW` / `FOLLOWING` chips from the render, over a
+/// bar that names the sort currently applied and opens the filter sheet.
+///
+/// The bar is a second row because the chip group already fills the width of
+/// a 320dp screen — a fourth chip beside FOLLOWING overflows the row by 38px
+/// and squeezes the wordmark to nothing. It is always visible, since it is
+/// the only route to the sorts the chips cannot express.
 ///
 /// This is an ordinary inline header now, not an overlay: the list scrolls
 /// under nothing, so there is nothing to float above.
@@ -209,57 +215,76 @@ class _FeedHeader extends ConsumerWidget {
       ref.read(feedProvider.notifier).changeSort(next);
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-      child: Row(
-        children: [
-          // The chip group always gets its natural width; the wordmark takes
-          // what is left and shrinks into it. That keeps all three chips on
-          // the row at 320dp instead of scrolling HOT off the left edge,
-          // and nothing here can overflow.
-          Expanded(
-            child: FitText(
-              'FEED',
-              minFontSize: 18,
-              style: QuestTypography.osDisplaySmall.copyWith(
-                fontSize: 28,
-                height: 1,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+    void openFilterSheet() {
+      HapticFeedback.selectionClick();
+      showFeedFilterSheet(context, ref: ref);
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+          child: Row(
             children: [
-              _HeaderChip(
-                label: 'HOT',
-                active: sort == feedSortHot,
-                onTap: () => setSort(feedSortHot),
+              // The chip group always gets its natural width; the wordmark
+              // takes what is left and shrinks into it. That keeps every
+              // chip on the row at 320dp instead of scrolling HOT off the
+              // left edge, and nothing here can overflow.
+              Expanded(
+                child: FitText(
+                  'FEED',
+                  minFontSize: 18,
+                  style: QuestTypography.osDisplaySmall.copyWith(
+                    fontSize: 28,
+                    height: 1,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              _HeaderChip(
-                label: 'NEW',
-                active: sort == feedSortRecent,
-                onTap: () => setSort(feedSortRecent),
-              ),
-              const SizedBox(width: 8),
-              _HeaderChip(
-                label: 'FOLLOWING',
-                active: scope == feedScopeFollowing,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  ref.read(feedProvider.notifier).changeScope(
-                        scope == feedScopeFollowing
-                            ? feedScopeGlobal
-                            : feedScopeFollowing,
-                      );
-                },
+              const SizedBox(width: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _HeaderChip(
+                    label: 'HOT',
+                    active: sort == feedSortHot,
+                    onTap: () => setSort(feedSortHot),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderChip(
+                    label: 'NEW',
+                    active: sort == feedSortRecent,
+                    onTap: () => setSort(feedSortRecent),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderChip(
+                    label: 'FOLLOWING',
+                    active: scope == feedScopeFollowing,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      ref.read(feedProvider.notifier).changeScope(
+                            scope == feedScopeFollowing
+                                ? feedScopeGlobal
+                                : feedScopeFollowing,
+                          );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: _SortBar(
+            label: feedSortLabel(sort),
+            // CLEAR only means something when there is something to clear.
+            onClear:
+                sort == feedSortRecent ? null : () => setSort(feedSortRecent),
+            onTap: openFilterSheet,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -308,6 +333,114 @@ class _HeaderChip extends StatelessWidget {
                   letterSpacing: 0.9,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The feed's sort control: names the ordering on screen, opens the filter
+/// sheet on tap, and offers CLEAR once the sort is off the default.
+///
+/// It carries both jobs on purpose. The sheet holds MOST UPVOTED, LEAST
+/// UPVOTED and GRAVEYARD, none of which the HOT / NEW chips can express, so
+/// without a permanent affordance those three sorts are unreachable — and a
+/// user who picks one has nothing on screen telling them why the feed looks
+/// re-ordered.
+class _SortBar extends StatelessWidget {
+  const _SortBar({
+    required this.label,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  /// Null on the default sort, when there is nothing to clear.
+  final VoidCallback? onClear;
+
+  static const double _height = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    const ink = QuestColors.osTextPrimary;
+    final filtered = onClear != null;
+    final tint = filtered ? QuestColors.osPrimary : ink;
+
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: _height,
+          clipBehavior: Clip.antiAlias,
+          padding: EdgeInsets.fromLTRB(10, 0, filtered ? 0 : 10, 0),
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: ink, width: 2),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.filter_list_rounded, size: 16, color: tint),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'SORTED BY $label',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osLabelMedium.copyWith(
+                    color: tint,
+                    fontSize: 11,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+              ),
+              if (onClear != null) _ClearSortButton(onTap: onClear!),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Drops back to the default sort. Fills the bar's height so the target is
+/// as tall as the control it sits in.
+class _ClearSortButton extends StatelessWidget {
+  const _ClearSortButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: _SortBar._height,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: QuestColors.osRed.withAlpha(40),
+            border: const Border(
+              left: BorderSide(color: QuestColors.osTextPrimary, width: 2),
+            ),
+          ),
+          child: Text(
+            'CLEAR',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelMedium.copyWith(
+              color: QuestColors.osRedText,
+              fontSize: 10,
+              letterSpacing: 1,
             ),
           ),
         ),
