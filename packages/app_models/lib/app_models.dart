@@ -20,3 +20,4 @@ export 'quest_of_the_day_model.dart';
 export 'map_models.dart';
 
 export 'discovery/discovery_module.dart';
+export 'discovery/quest_journey.dart';

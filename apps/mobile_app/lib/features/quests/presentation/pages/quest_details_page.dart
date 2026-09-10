@@ -14,6 +14,7 @@ import '../../data/quest_providers.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../widgets/arcade_page_chrome.dart';
+import '../widgets/journey_timeline.dart';
 
 /// Quest details, drawn to `export/mobile/06-quest-detail.jpg`.
 ///
@@ -258,6 +259,11 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                           ),
                         ),
                         const SizedBox(height: 14),
+
+                        // ── The route, when this quest is part of one ──
+                        // Renders nothing for an ordinary quest, so it costs
+                        // a network call and no layout on the common case.
+                        JourneyTimeline(questId: quest.id),
 
                         // ── Acceptance criteria ────────────────────
                         _BlockLabel(l.acceptanceCriteria),

@@ -15,4 +15,21 @@ abstract class DiscoveryRepository {
 
   /// Destination quests in one country. Presence is not required to browse.
   Future<List<DiscoveryQuestCard>> byCountry(String countryCode, {int limit});
+
+  /// Countries the catalogue has quests for, for the EXPLORE picker.
+  Future<List<DiscoveryCountry>> countries();
+
+  /// One more quest from a shelf's pool, past what is already on screen.
+  ///
+  /// [exclude] is what the shelf is showing. Without it a small catalogue
+  /// hands back a card the player is already looking at, which reads as
+  /// broken rather than as a small catalogue.
+  Future<DiscoveryQuestCard?> generate({
+    required String channel,
+    String? countryCode,
+    List<String> exclude,
+  });
+
+  /// The milestone line for a multi-step quest, or null when it is not one.
+  Future<QuestJourney?> journey(String questId);
 }
