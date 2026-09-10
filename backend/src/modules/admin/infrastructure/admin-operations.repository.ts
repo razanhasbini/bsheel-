@@ -188,6 +188,66 @@ export class AdminOperationsRepository extends AdminRepositoryBase {
     ).rows;
   }
 
+  /**
+   * The public deletion-request queue.
+   *
+   * These arrive from the signed-out compliance page, which cannot erase
+   * anything itself. Without a read endpoint the rows would be invisible and
+   * the requests would sit unactioned — the same failure as an audit log
+   * nothing can read.
+   */
+  async deletionRequests(limit: number, offset: number) {
+    return (
+      await this.database.query(
+        `SELECT r.id, r.email::text, r.note, r.created_at, r.handled_at,
+                r.matched_user_id,
+                p.username::text AS matched_username,
+                handler.email::text AS handled_by_email
+         FROM public_deletion_requests r
+         LEFT JOIN profiles p ON p.id = r.matched_user_id
+         LEFT JOIN users handler ON handler.id = r.handled_by
+         ORDER BY (r.handled_at IS NULL) DESC, r.created_at ASC
+         LIMIT $1 OFFSET $2`,
+        [Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)],
+      )
+    ).rows;
+  }
+
+  /**
+   * Marks a deletion request handled, with an audit row naming the operator.
+   *
+   * Marking it handled is a record that a human verified the requester; the
+   * erasure itself still runs through the authenticated account flow.
+   */
+  async markDeletionRequestHandled(actorId: string, requestId: string) {
+    return this.database.transaction(async (transaction) => {
+      const before = await transaction.query<{ email: string; handled_at: Date | null }>(
+        'SELECT email::text, handled_at FROM public_deletion_requests WHERE id = $1 FOR UPDATE',
+        [requestId],
+      );
+      const row = before.rows[0];
+      if (!row) {
+        throw new NotFoundException({
+          code: 'DELETION_REQUEST_NOT_FOUND',
+          message: 'Deletion request not found',
+        });
+      }
+      await transaction.query(
+        'UPDATE public_deletion_requests SET handled_at = now(), handled_by = $2 WHERE id = $1',
+        [requestId, actorId],
+      );
+      await this.audit(
+        actorId,
+        'deletion_request.handled',
+        'public_deletion_requests',
+        requestId,
+        { handled_at: row.handled_at },
+        { email: row.email },
+        transaction,
+      );
+    });
+  }
+
   async setConfig(
     actorId: string,
     key: string,

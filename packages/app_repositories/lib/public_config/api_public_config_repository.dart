@@ -9,6 +9,32 @@ class ApiPublicConfigRepository {
 
   final ApiClient _client;
 
+  /// Queues an account-deletion request from the public, signed-out page.
+  ///
+  /// Unauthenticated by necessity — the store-compliance page is reachable
+  /// without a session. The server records the request for an operator rather
+  /// than erasing anything, because an endpoint that acted on an email address
+  /// alone would let anyone delete anyone's account.
+  ///
+  /// Returns nothing and reveals nothing: the response is the same whether or
+  /// not the address has an account, so it cannot be used to enumerate users.
+  /// Throws [ApiException] on failure, which the caller must surface rather
+  /// than swallow — the page used to claim success unconditionally.
+  Future<void> requestAccountDeletion({
+    required String email,
+    String? note,
+  }) async {
+    await _client.post(
+      'public/deletion-requests',
+      authenticated: false,
+      body: {
+        'email': email.trim().toLowerCase(),
+        'confirmation': 'DELETE',
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+  }
+
   Future<Map<String, String>> getConfig() async {
     final rows = apiObjectList(
       await _client.get('config', authenticated: false),

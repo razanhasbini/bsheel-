@@ -1,5 +1,7 @@
+import 'package:app_repositories/app_repositories.dart' show ApiException;
 import 'package:flutter/material.dart';
 
+import '../../core/backend/app_backend.dart';
 import '../../core/theme/bsheel_design.dart';
 import '../../shared/widgets/bsheel_widgets.dart';
 
@@ -32,10 +34,48 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
 
   bool get _armed => _confirmController.text.trim() == _confirmWord;
 
-  void _requestDeletion() {
-    if (!_armed) return;
-    if (_formKey.currentState!.validate()) {
-      setState(() => _submitted = true);
+  bool _submitting = false;
+  String? _error;
+
+  /// Sends the request, and only claims success when the server accepted it.
+  ///
+  /// This used to flip `_submitted` and nothing else — no repository, no
+  /// network call at all — so a visitor typed their email, typed DELETE, and
+  /// got "Your account deletion request has been received." while the request
+  /// never left the browser. On the page Apple and Google review, that is a
+  /// GDPR/CCPA erasure request dropped behind a false receipt.
+  Future<void> _requestDeletion() async {
+    if (!_armed || _submitting) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await AppBackend.repositories.publicConfig.requestAccountDeletion(
+        email: _emailController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _submitted = true;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = error.statusCode == 429
+            ? 'Too many requests. Wait a few minutes and try again.'
+            : "We couldn't submit that request. Please try again, or email "
+                'support if it keeps failing.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'No connection. Check your network and try again.';
+      });
     }
   }
 
@@ -105,7 +145,8 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         ),
         const SizedBox(height: 15),
         const BsheelCallout(
-          'It can take up to 48 hours to delete your account.',
+          'We will confirm by email once your identity is verified, then '
+          'erase your account and its media.',
         ),
         const SizedBox(height: 15),
         Text.rich(
@@ -113,7 +154,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
             children: [
               TextSpan(text: 'If you have any questions, contact us at '),
               TextSpan(
-                text: 'laztayseer@gmail.com',
+                text: 'support@bsheel.app',
                 style: BsheelType.monoLg,
               ),
             ],
@@ -122,7 +163,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
         ),
         const SizedBox(height: 22),
-        const _Footnote('© 2025 BSHEEL. ALL RIGHTS RESERVED'),
+        const _Footnote('© 2026 BSHEEL. ALL RIGHTS RESERVED'),
       ],
     );
   }
@@ -143,7 +184,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           Text(
             'This will permanently delete your account and all data. This '
             'cannot be undone. Completed quests, posts, comments and XP are '
-            'removed; deletion completes within 48 hours.',
+            'removed once your request is verified.',
             style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
           ),
           const SizedBox(height: 15),
@@ -176,12 +217,22 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           ),
           const SizedBox(height: 15),
           BsheelButton.coral(
-            label: 'DELETE ACCOUNT',
+            label: _submitting ? 'SENDING…' : 'DELETE ACCOUNT',
             height: 48,
-            onPressed: _armed ? _requestDeletion : null,
+            onPressed: _armed && !_submitting ? _requestDeletion : null,
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: BsheelType.bodySm.copyWith(color: BsheelColors.dangerText),
+            ),
+          ],
           const SizedBox(height: 12),
-          const _Footnote('DATA REMOVED WITHIN 48 HOURS'),
+          // Says what actually happens: the request is queued and a person
+          // verifies it. The old copy promised removal within 48 hours, which
+          // nothing was doing.
+          const _Footnote('WE REVIEW EACH REQUEST AND CONFIRM BY EMAIL'),
           const SizedBox(height: 26),
           const _Section(
             title: 'HOW TO DELETE',
@@ -213,7 +264,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                 'Anonymised aggregated statistics (e.g. total quest completions) may remain '
                 'but cannot be linked back to you.',
           ),
-          const _Footnote('© 2025 BSHEEL. ALL RIGHTS RESERVED'),
+          const _Footnote('© 2026 BSHEEL. ALL RIGHTS RESERVED'),
         ],
       ),
     );

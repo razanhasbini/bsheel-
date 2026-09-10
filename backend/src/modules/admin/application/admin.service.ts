@@ -82,4 +82,12 @@ export class AdminService {
   waitlist(limit: number, offset: number) { return this.repository.waitlist(limit, offset); }
   suggestions(status: string, limit: number, offset: number) { return this.repository.suggestions(status, limit, offset); }
   reviewSuggestion(actorId: string, id: string, status: 'approved' | 'rejected', xpReward: number, durationHours: number) { return this.repository.reviewSuggestion(actorId, id, status, xpReward, durationHours); }
+  deletionRequests(limit: number, offset: number) {
+    return this.repository.deletionRequests(limit, offset);
+  }
+
+  markDeletionRequestHandled(actorId: string, requestId: string) {
+    return this.repository.markDeletionRequestHandled(actorId, requestId);
+  }
+
 }

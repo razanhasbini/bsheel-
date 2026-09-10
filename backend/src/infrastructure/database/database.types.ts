@@ -259,6 +259,45 @@ export interface Database {
     "accepted_terms_at": Timestamp | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "streak_reminder_sent_on": Timestamp | null;
+  };
+  "public_deletion_requests": {
+    "id": Generated<string>;
+    "email": string;
+    "note": string | null;
+    "handled_at": Timestamp | null;
+    "handled_by": string | null;
+    "matched_user_id": string | null;
+    "created_at": Generated<Timestamp>;
+  };
+  "quest_chain_steps": {
+    "chain_id": string;
+    "quest_id": string;
+    "step_order": number;
+  };
+  "quest_chains": {
+    "id": Generated<string>;
+    "name": string;
+    "description": Generated<string>;
+    "mode": Generated<string>;
+    "is_active": Generated<boolean>;
+    "created_by": string | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+  };
+  "quest_collection_items": {
+    "collection_id": string;
+    "quest_id": string;
+  };
+  "quest_collections": {
+    "id": Generated<string>;
+    "name": string;
+    "description": Generated<string>;
+    "country_code": string | null;
+    "is_published": Generated<boolean>;
+    "created_by": string | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
   };
   "quest_destinations": {
     "quest_id": string;
@@ -308,6 +347,10 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "available_from": Timestamp | null;
+    "available_until": Timestamp | null;
+    "is_hidden": Generated<boolean>;
+    "sponsor_name": string | null;
   };
   "reactions": {
     "id": Generated<string>;
