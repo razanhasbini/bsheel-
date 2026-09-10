@@ -64,12 +64,30 @@ describe('map destinations and discovery', {timeout:120000}, () => {
     const country=(await h.get('/map/countries',user).expect(200)).body.data.find((c:{code:string})=>c.code==='LB');
     expect(country.discovered).toBe(0);expect(country.confirmed).toBe(0);expect(country.saved).toBe(1);
   });
-  it('requires all three trusted signals and blocks raw assignment bypass',async()=>{
+  // Migration 0035 deliberately narrowed the database guard. The original
+  // version required all three location signals BEFORE an assignment could
+  // exist, which the real lifecycle cannot satisfy: the geofence
+  // subscription is created *by* the assignment, so the evidence it produces
+  // cannot predate it. Verification moved to submission time, in the agent
+  // pipeline. What the trigger still guarantees is the part that has no such
+  // ordering problem — an unpublished destination is never assignable.
+  //
+  // So this asserts the guard that exists rather than the one that was
+  // removed. Hidden-place *visibility* is still gated on all three signals,
+  // which is what the rest of this case covers.
+  it('blocks assignment of an unpublished destination, and gates hidden place detail on all three signals',async()=>{
     const quest=await h.createQuest();
     await h.post(`/map/admin/places/${hiddenId}/quests`,admin).send({questId:quest.id,requiresVerification:true}).expect(201);
     await h.get(`/quests/${quest.id}`,user).expect(404);
     await h.post('/quests/assign',user).send({questId:quest.id}).expect(404);
-    await expect(h.database.query("INSERT INTO user_quests(user_id,quest_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",[user.id,quest.id])).rejects.toMatchObject({code:'23514'});
+
+    // Unpublished is still refused at the database, on every path.
+    const draft=await h.post('/map/admin/places',admin).send({...input(),isPublished:false}).expect(201);
+    places.push(draft.body.data.id);
+    const draftQuest=await h.createQuest();
+    await h.post(`/map/admin/places/${draft.body.data.id}/quests`,admin).send({questId:draftQuest.id,requiresVerification:false}).expect(201);
+    await expect(h.database.query("INSERT INTO user_quests(user_id,quest_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",[user.id,draftQuest.id])).rejects.toMatchObject({code:'23514'});
+
     const reference=randomUUID();
     await h.database.query(`INSERT INTO map_location_evidence(user_id,place_id,provider_reference,location_verified,location_retrieved,geofence_verified,verified_at,expires_at)
       VALUES($1,$2,$3,true,true,false,now(),now()+interval '5 minutes')`,[user.id,hiddenId,reference]);
