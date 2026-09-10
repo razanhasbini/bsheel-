@@ -87,6 +87,24 @@ Future<void> _persistSplashShown() async {
   }
 }
 
+/// The callback route to open when this page load *is* a phone-sign-in
+/// return, or null when it is an ordinary start.
+///
+/// Web only in practice: on mobile the link is delivered to the running app
+/// and `Uri.base` is not a browser URL.
+String? _phoneHandoffLocation() {
+  final handoff = Uri.base.queryParameters['handoff'];
+  if (handoff == null || handoff.isEmpty) return null;
+  final intent = Uri.base.queryParameters['intent'];
+  return Uri(
+    path: RoutePaths.phoneSigninCallback,
+    queryParameters: {
+      'handoff': handoff,
+      if (intent != null && intent.isNotEmpty) 'intent': intent,
+    },
+  ).toString();
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // IMPORTANT: read these providers, do NOT watch them.
   //
@@ -119,8 +137,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     // Splash is the cold-start entry; on warm router rebuilds (auth state
     // change, theme change, etc.) jump straight to /home so users don't
     // see the splash again.
-    initialLocation:
-        _splashShownThisProcess ? RoutePaths.home : RoutePaths.splash,
+    // A phone sign-in that came back through the browser wins over both.
+    //
+    // On iOS/Android the operator's redirect re-enters the running app as a
+    // Universal Link and the callback route is pushed. On web it is a fresh
+    // page load, so the handoff arrives as a query string on whatever URL
+    // the backend was told to send the browser to — it never reaches the
+    // hash route by itself. Reading Uri.base here is what turns that page
+    // load back into the callback route.
+    initialLocation: _phoneHandoffLocation() ??
+        (_splashShownThisProcess ? RoutePaths.home : RoutePaths.splash),
     refreshListenable: routerRefresh,
     redirect: (context, state) {
       final currentUser = ref.read(authSessionProvider);
@@ -213,8 +239,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.phoneSigninCallback,
         builder: (context, state) => Consumer(
           builder: (context, cref, _) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              cref.read(authRepositoryProvider).handlePhoneCallback(state.uri);
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              // Awaited, because on web this call is the one that actually
+              // exchanges the handoff code for a session — navigating first
+              // would bounce off the auth gate before the tokens land. On
+              // mobile it just wakes the waiting sign-in call and returns
+              // immediately, so the await costs nothing there.
+              await cref
+                  .read(authRepositoryProvider)
+                  .handlePhoneCallback(state.uri);
               if (context.mounted) context.go(RoutePaths.home);
             });
             return const SizedBox.shrink();

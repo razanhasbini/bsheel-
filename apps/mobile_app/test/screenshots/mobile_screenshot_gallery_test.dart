@@ -785,14 +785,15 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthResult> signInWithGoogle() async => const AuthResult();
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) async =>
+  Future<AuthResult> signInWithPhone(String phoneNumber,
+          {String? email}) async =>
       const AuthResult();
 
   @override
   Future<AuthResult> linkPhone(String phoneNumber) async => const AuthResult();
 
   @override
-  void handlePhoneCallback(Uri uri) {}
+  Future<void> handlePhoneCallback(Uri uri) async {}
 }
 
 class _FakeQuestsRepository implements QuestsRepository {

@@ -66,5 +66,5 @@ abstract class AuthRepository {
   /// `https://admin.bsheel.app/phone-signin-callback` deep link lands,
   /// resolving whichever [signInWithPhone] or [linkPhone] call is waiting
   /// for it. A no-op if nothing is waiting.
-  void handlePhoneCallback(Uri uri);
+  Future<void> handlePhoneCallback(Uri uri);
 }

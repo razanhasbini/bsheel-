@@ -63,7 +63,7 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  void handlePhoneCallback(Uri uri) {}
+  Future<void> handlePhoneCallback(Uri uri) async {}
 }
 
 void main() {

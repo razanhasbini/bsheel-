@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:crypto/crypto.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -220,7 +222,8 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) async {
+  Future<AuthResult> signInWithPhone(String phoneNumber,
+      {String? email}) async {
     final start = apiObject(
       await _client.post(
         'auth/phone/start',
@@ -282,15 +285,49 @@ class ApiAuthRepository implements AuthRepository {
   Completer<Uri>? _pendingPhoneCallback;
 
   /// Called by the router the moment the verified callback link lands.
-  /// A no-op if nothing is waiting (a stray or replayed link) — the
-  /// backend's one-time handoff code is what actually secures the
-  /// exchange; this only wakes up whichever call is waiting for it.
-  void handlePhoneCallback(Uri uri) {
-    _pendingPhoneCallback?.complete(uri);
-    _pendingPhoneCallback = null;
+  ///
+  /// On iOS and Android the link re-enters the still-running app, so a
+  /// [signInWithPhone] call is sitting on [_pendingPhoneCallback] and all
+  /// this has to do is wake it.
+  ///
+  /// On web there is no such call to wake: the redirect is a fresh page
+  /// load, and the Completer died with the previous one. So when nothing is
+  /// waiting we finish the exchange here instead of dropping the link. That
+  /// is safe because the handoff code is single-use and server-issued — it,
+  /// not the Completer, is what secures this step.
+  Future<void> handlePhoneCallback(Uri uri) async {
+    final pending = _pendingPhoneCallback;
+    if (pending != null) {
+      _pendingPhoneCallback = null;
+      pending.complete(uri);
+      return;
+    }
+    final handoff = uri.queryParameters['handoff'];
+    if (handoff == null || handoff.isEmpty) return;
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    await _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
   }
 
   Future<String> _completePhoneRedirect(String authorizationUrl) async {
+    if (kIsWeb) {
+      // Same tab, deliberately. A second tab would run a second copy of the
+      // app with its own Completer, and the copy that asked for the sign-in
+      // would wait five minutes and time out. Navigating away ends this
+      // page; the redirect comes back into a fresh load, where
+      // handlePhoneCallback finishes the exchange. This future never
+      // completes because the page it belongs to is gone.
+      await launchUrl(
+        Uri.parse(authorizationUrl),
+        webOnlyWindowName: '_self',
+      );
+      return Completer<String>().future;
+    }
     final completer = Completer<Uri>();
     _pendingPhoneCallback = completer;
     final launched = await launchUrl(
