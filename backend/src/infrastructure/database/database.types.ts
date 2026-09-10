@@ -41,6 +41,24 @@ export interface Database {
     "role": Generated<"moderator" | "super_admin">;
     "created_at": Generated<Timestamp>;
   };
+  "agent_runs": {
+    "id": Generated<string>;
+    "kind": string;
+    "subject_type": string;
+    "subject_id": string;
+    "idempotency_key": string;
+    "status": Generated<string>;
+    "model": string;
+    "prompt_version": string;
+    "policy_version": string;
+    "input_snapshot": Json;
+    "output": Json | null;
+    "error_code": string | null;
+    "error_message": string | null;
+    "started_at": Timestamp | null;
+    "completed_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+  };
   "app_config": {
     "key": string;
     "value": Json;
@@ -108,6 +126,17 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
   };
+  "cv_evidence": {
+    "id": Generated<string>;
+    "agent_run_id": string;
+    "submission_id": string;
+    "provider": string;
+    "model_version": string;
+    "status": string;
+    "result": Generated<Json>;
+    "analyzed_at": Timestamp;
+    "created_at": Generated<Timestamp>;
+  };
   "device_tokens": {
     "id": Generated<string>;
     "user_id": string;
@@ -138,6 +167,26 @@ export interface Database {
     "completed_at": Timestamp | null;
     "object_key": string | null;
     "expires_at": Timestamp | null;
+  };
+  "geofencing_events": {
+    "id": Generated<string>;
+    "subscription_id": string;
+    "event_type": string;
+    "occurred_at": Timestamp;
+    "received_at": Generated<Timestamp>;
+    "provider_event_id": string | null;
+  };
+  "geofencing_subscriptions": {
+    "id": Generated<string>;
+    "user_quest_id": string;
+    "place_id": string;
+    "provider_subscription_id": string | null;
+    "status": Generated<string>;
+    "callback_secret": string;
+    "failure_reason": string | null;
+    "starts_at": Timestamp;
+    "expires_at": Timestamp;
+    "created_at": Generated<Timestamp>;
   };
   "idempotency_keys": {
     "scope": string;
@@ -205,6 +254,20 @@ export interface Database {
     "media_object_id": string;
     "submission_id": string;
   };
+  "network_evidence": {
+    "id": Generated<string>;
+    "agent_run_id": string;
+    "user_quest_id": string;
+    "submission_id": string;
+    "capability": string;
+    "provider": string;
+    "provider_reference": string;
+    "outcome": string;
+    "result": Generated<Json>;
+    "observed_at": Timestamp;
+    "valid_until": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+  };
   "notification_deliveries": {
     "notification_id": string;
     "device_token_id": string;
@@ -239,6 +302,24 @@ export interface Database {
     "processed_at": Timestamp | null;
     "last_error": string | null;
   };
+  "phone_signin_states": {
+    "id": Generated<string>;
+    "state": string;
+    "intent": string;
+    "user_id": string | null;
+    "age_verified": Generated<boolean>;
+    "redirect_uri": string;
+    "status": Generated<string>;
+    "handoff_code": string | null;
+    "result_user_id": string | null;
+    "expires_at": Timestamp;
+    "handoff_expires_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+    "nonce": string | null;
+    "claimed_phone_number": string | null;
+    "oauth_flow": string | null;
+    "claimed_email": string | null;
+  };
   "processed_messages": {
     "consumer": string;
     "message_id": string;
@@ -257,6 +338,36 @@ export interface Database {
     "age_verified": Generated<boolean>;
     "analytics_consent_at": Timestamp | null;
     "accepted_terms_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+    "streak_reminder_sent_on": Timestamp | null;
+  };
+  "quest_chain_steps": {
+    "chain_id": string;
+    "quest_id": string;
+    "step_order": number;
+  };
+  "quest_chains": {
+    "id": Generated<string>;
+    "name": string;
+    "description": Generated<string>;
+    "mode": Generated<string>;
+    "is_active": Generated<boolean>;
+    "created_by": string | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+  };
+  "quest_collection_items": {
+    "collection_id": string;
+    "quest_id": string;
+  };
+  "quest_collections": {
+    "id": Generated<string>;
+    "name": string;
+    "description": Generated<string>;
+    "country_code": string | null;
+    "is_published": Generated<boolean>;
+    "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
   };
@@ -308,6 +419,11 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "available_from": Timestamp | null;
+    "available_until": Timestamp | null;
+    "is_hidden": Generated<boolean>;
+    "sponsor_name": string | null;
+    "verification_requirements": Json | null;
   };
   "reactions": {
     "id": Generated<string>;
@@ -380,6 +496,7 @@ export interface Database {
     "version": Generated<number>;
     "net_score": Generated<string>;
     "moderation_removed_at": Timestamp | null;
+    "recommended_xp": number | null;
   };
   "telegram_command_state": {
     "chat_id": string;
@@ -407,10 +524,11 @@ export interface Database {
     "completed_at": Timestamp | null;
     "expires_at": Timestamp;
     "version": Generated<number>;
+    "assignment_distance_meters": number | null;
   };
   "users": {
     "id": Generated<string>;
-    "email": string;
+    "email": string | null;
     "password_hash": string | null;
     "email_verified_at": Timestamp | null;
     "status": Generated<"active" | "suspended" | "banned" | "deletion_pending">;
@@ -419,6 +537,8 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
     "deleted_at": Timestamp | null;
+    "phone_number": string | null;
+    "phone_verified_at": Timestamp | null;
   };
   "waitlist": {
     "id": Generated<string>;

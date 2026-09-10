@@ -48,6 +48,42 @@ export class OAuthSignInDto {
   @Equals(true) ageVerified!: true;
 }
 
+/**
+ * E.164: a leading '+', a non-zero country code, then digits. Number
+ * Verification V1 requires this exact shape, and Nokia's simulator
+ * identities (+99999991000 / +99999991001) are E.164 too, so there is no
+ * separate test-number carve-out to maintain.
+ *
+ * Validating here keeps a malformed number from ever reaching Nokia, but it
+ * proves nothing about ownership — that is entirely the network's answer.
+ */
+const E164 = /^\+[1-9]\d{6,14}$/;
+
+export class StartPhoneSignInDto {
+  @Matches(E164, { message: 'phoneNumber must be in international format, e.g. +96170123456' })
+  phoneNumber!: string;
+
+  /// Optional. Phone is the credential; an email is only a contact and
+  /// recovery address, and the account is created without one if omitted.
+  @IsOptional() @IsEmail() email?: string;
+
+  @Equals(true) ageVerified!: true;
+}
+
+export class StartPhoneLinkDto {
+  @Matches(E164, { message: 'phoneNumber must be in international format, e.g. +96170123456' })
+  phoneNumber!: string;
+}
+
+export class PhoneCallbackDto {
+  @IsString() @MinLength(1) code!: string;
+  @IsString() @MinLength(1) state!: string;
+}
+
+export class CompletePhoneHandoffDto {
+  @IsString() @MinLength(1) handoffCode!: string;
+}
+
 export class UpdatePasswordDto {
   // Re-authentication is required. Without it, anyone holding an access token
   // — a briefly unlocked phone, a token from a log line — took the account

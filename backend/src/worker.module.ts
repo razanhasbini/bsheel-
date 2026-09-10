@@ -19,6 +19,13 @@ import { MediaReclaimScheduler } from './modules/media/application/media-reclaim
 import { StreakReminderProcessor } from './modules/profiles/application/streak-reminder.processor.js';
 import { StreakReminderScheduler } from './modules/profiles/application/streak-reminder.scheduler.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
+import { QuestsModule } from './modules/quests/quests.module.js';
+import { QuestMaintenanceProcessor } from './modules/quests/application/quest-maintenance.processor.js';
+import { QuestMaintenanceScheduler } from './modules/quests/application/quest-maintenance.scheduler.js';
+import { AgentModule } from './modules/agent/agent.module.js';
+import { SubmissionVerificationProcessor } from './modules/agent/infrastructure/submission-verification.processor.js';
+import { QuestAssignmentAgentProcessor } from './modules/agent/infrastructure/quest-assignment-agent.processor.js';
+import { SubmissionsModule } from './modules/submissions/submissions.module.js';
 
 @Module({
   imports: [
@@ -28,8 +35,11 @@ import { ProfilesModule } from './modules/profiles/profiles.module.js';
     MessagingModule,
     MediaModule,
     ProfilesModule,
+    QuestsModule,
     RedisModule,
     TelegramModule,
+    AgentModule,
+    SubmissionsModule,
   ],
   providers: [
     DomainEventsProcessor,
@@ -43,6 +53,10 @@ import { ProfilesModule } from './modules/profiles/profiles.module.js';
     MediaReclaimScheduler,
     StreakReminderProcessor,
     StreakReminderScheduler,
+    QuestMaintenanceProcessor,
+    QuestMaintenanceScheduler,
+    SubmissionVerificationProcessor,
+    QuestAssignmentAgentProcessor,
   ],
 })
 export class WorkerModule {}

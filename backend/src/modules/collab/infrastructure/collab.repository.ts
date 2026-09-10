@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
+import { QuestAssignmentPolicyRepository } from '../../quests/infrastructure/quest-assignment-policy.repository.js';
 
 interface GroupRow {
   readonly id: string;
@@ -14,7 +15,7 @@ interface GroupRow {
 
 @Injectable()
 export class CollabRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly database: DatabaseService, private readonly assignmentPolicy: QuestAssignmentPolicyRepository) {}
 
   async create(userId: string, userQuestId: string, mode: 'with' | 'versus') {
     return this.database.transaction(async (transaction) => {
@@ -82,6 +83,7 @@ export class CollabRepository {
 
   async join(userId: string, code: string) {
     return this.database.transaction(async (transaction) => {
+      await this.assignmentPolicy.lockUser(userId, transaction);
       const groupResult = await transaction.query<GroupRow>(
         `SELECT * FROM collab_groups
          WHERE code = upper($1) AND status = 'open' AND expires_at > now() FOR UPDATE`,
@@ -110,6 +112,7 @@ export class CollabRepository {
       if (active.rowCount) {
         throw new ConflictException({ code: 'ACTIVE_QUEST_EXISTS', message: 'You already have an active quest. Abandon it first.' });
       }
+      await this.assignmentPolicy.assertCooldownElapsed(userId, transaction);
       const assignment = await transaction.query<{ id: string }>(
         `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
          VALUES ($1, $2, 'assigned', now(), $3) RETURNING id`,

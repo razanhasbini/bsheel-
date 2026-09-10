@@ -72,6 +72,14 @@ done < <(git ls-files)
 while IFS= read -r hit; do
   file="${hit%%:*}"
   uri=$(printf '%s' "$hit" | grep -ohE 'postgres(ql)?://[^[:space:]"'"'"']+' | head -1)
+  credentials="${uri#*://}"; credentials="${credentials%%@*}"
+  password="${credentials#*:}"
+  # Documentation may use an unmistakable, non-credential placeholder.
+  # Keep real inline passwords detectable while avoiding a permanent false
+  # positive in the legacy-import access template.
+  case "$password" in
+    PASSWORD|'<'*'>'|__*__|REPLACE_ME*) continue ;;
+  esac
   host=$(printf '%s' "$uri" | sed -E 's#^postgres(ql)?://[^@]*@##; s#[:/].*$##')
   case "$host" in
     127.0.0.1|localhost|::1|'[::1]'|'') continue ;;

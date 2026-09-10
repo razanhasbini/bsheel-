@@ -42,8 +42,13 @@ services:
   api:
     build:
       context: backend
-    env_file: backend/.env.example
+    env_file:
+      - path: backend/.env.example
+        required: true
+      - path: backend/.env
+        required: false
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
       REDIS_URL: redis://redis:6379
     depends_on:
@@ -58,8 +63,13 @@ services:
     build:
       context: backend
     command: ["node", "--enable-source-maps", "dist/main.worker.js"]
-    env_file: backend/.env.example
+    env_file:
+      - path: backend/.env.example
+        required: true
+      - path: backend/.env
+        required: false
     environment:
+      NODE_ENV: development
       APP_NAME: bsheel-worker
       DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
       REDIS_URL: redis://redis:6379

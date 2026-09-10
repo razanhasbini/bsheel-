@@ -783,6 +783,16 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResult> signInWithGoogle() async => const AuthResult();
+
+  @override
+  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) async =>
+      const AuthResult();
+
+  @override
+  Future<AuthResult> linkPhone(String phoneNumber) async => const AuthResult();
+
+  @override
+  void handlePhoneCallback(Uri uri) {}
 }
 
 class _FakeQuestsRepository implements QuestsRepository {

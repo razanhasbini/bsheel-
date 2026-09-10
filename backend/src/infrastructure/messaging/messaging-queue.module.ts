@@ -16,6 +16,9 @@ import type { Environment } from '../../config/environment.js';
     BullModule.registerQueue({ name: 'domain-events' }),
     BullModule.registerQueue({ name: 'media-reclaim' }),
     BullModule.registerQueue({ name: 'streak-reminders' }),
+    BullModule.registerQueue({ name: 'quest-maintenance' }),
+    BullModule.registerQueue({ name: 'submission-verification' }),
+    BullModule.registerQueue({ name: 'quest-assignment-agent' }),
   ],
   exports: [BullModule],
 })

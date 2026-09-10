@@ -29,6 +29,7 @@ import { PublicIntakeModule } from './modules/public-intake/public-intake.module
 import { AccountModule } from './modules/account/account.module.js';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
+import { GeofencingModule } from './modules/agent/geofencing.module.js';
 
 @Module({
   imports: [
@@ -98,6 +99,9 @@ import { TelegramModule } from './integrations/telegram/telegram.module.js';
     TelegramModule,
     HealthModule,
     MapModule,
+    // Only the CAMARA geofence callback endpoint — the rest of the agent
+    // stack lives in the worker.
+    GeofencingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

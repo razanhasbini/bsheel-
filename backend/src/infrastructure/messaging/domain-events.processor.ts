@@ -1,6 +1,8 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import { ConfigService } from '@nestjs/config';
+import type { Job, Queue } from 'bullmq';
+import type { Environment } from '../../config/environment.js';
 import { AuthActionTokenCipher } from '../../modules/auth/infrastructure/auth-action-token-cipher.js';
 import { TransactionalEmailService } from '../../modules/auth/infrastructure/transactional-email.service.js';
 import { DeviceTokenCipher } from '../../modules/notifications/infrastructure/device-token-cipher.js';
@@ -29,6 +31,9 @@ export class DomainEventsProcessor extends WorkerHost {
     private readonly email: TransactionalEmailService,
     private readonly realtime: RealtimeEventPublisher,
     private readonly telegram: TelegramEventService,
+    private readonly config: ConfigService<Environment, true>,
+    @InjectQueue('submission-verification') private readonly submissionVerificationQueue: Queue,
+    @InjectQueue('quest-assignment-agent') private readonly questAssignmentQueue: Queue,
   ) {
     super();
   }
@@ -58,6 +63,17 @@ export class DomainEventsProcessor extends WorkerHost {
       await this.deliverPasswordRecovery(this.actionTokenPayload(job.data));
     } else if (job.name === 'auth.email_confirmation.requested') {
       await this.deliverEmailConfirmation(this.actionTokenPayload(job.data));
+    } else if (job.name === 'submission.created') {
+      // Only enqueues the dedicated job — CV/CAMARA/OpenAI calls never run
+      // inline in this shared processor. submission.appealed is a distinct
+      // event type and never reaches this branch, so an appeal can never be
+      // auto re-decided by the agent; appeals stay human-only.
+      await this.enqueueSubmissionVerification(job.data);
+    } else if (job.name === 'quest.assigned') {
+      // Same rule: enqueue only. The post-assignment work measures the
+      // user's distance over CAMARA and opens a geofence, neither of which
+      // belongs in a processor shared with notification delivery.
+      await this.enqueueQuestAssignmentAgent(job.data);
     } else {
       this.logger.debug(
         { eventType: job.name, messageId },
@@ -176,6 +192,49 @@ export class DomainEventsProcessor extends WorkerHost {
         throw error;
       }
     }
+  }
+
+  private async enqueueSubmissionVerification(data: Record<string, unknown>): Promise<void> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return;
+    const payload = this.submissionCreatedPayload(data);
+    await this.submissionVerificationQueue.add(
+      'submission.verify',
+      { submissionId: payload.submissionId },
+      {
+        // Deterministic id: a retried outbox publish of the same
+        // submission.created event can never enqueue a second run.
+        jobId: `submission:${payload.submissionId}:verification:v1`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: { age: 86_400, count: 10_000 },
+        removeOnFail: { age: 604_800, count: 50_000 },
+      },
+    );
+  }
+
+  private submissionCreatedPayload(data: Record<string, unknown>): { submissionId: string } {
+    if (typeof data.submissionId !== 'string') {
+      throw new Error('submission.created payload is malformed');
+    }
+    return { submissionId: data.submissionId };
+  }
+
+  private async enqueueQuestAssignmentAgent(data: Record<string, unknown>): Promise<void> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return;
+    if (typeof data.userQuestId !== 'string') {
+      throw new Error('quest.assigned payload is malformed');
+    }
+    await this.questAssignmentQueue.add(
+      'quest.assignment-agent',
+      { userQuestId: data.userQuestId },
+      {
+        jobId: `user-quest:${data.userQuestId}:assignment-agent:v1`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: { age: 86_400, count: 10_000 },
+        removeOnFail: { age: 604_800, count: 50_000 },
+      },
+    );
   }
 
   private notificationPayload(

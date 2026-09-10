@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import 'auth_models.dart';
 import 'auth_repository.dart';
@@ -217,6 +218,103 @@ class ApiAuthRepository implements AuthRepository {
     return _oauth('google', idToken, displayName: account.displayName ?? '');
   }
 
+  @override
+  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) async {
+    final start = apiObject(
+      await _client.post(
+        'auth/phone/start',
+        authenticated: false,
+        body: {
+          'phoneNumber': phoneNumber,
+          'ageVerified': true,
+          if (email != null && email.isNotEmpty) 'email': email,
+        },
+      ),
+    );
+    final handoff = await _completePhoneRedirect(
+      start['authorizationUrl'] as String,
+    );
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    return _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
+  }
+
+  @override
+  Future<AuthResult> linkPhone(String phoneNumber) async {
+    final start = apiObject(
+      await _client.post(
+        'auth/link/phone/start',
+        body: {'phoneNumber': phoneNumber},
+      ),
+    );
+    final handoff = await _completePhoneRedirect(
+      start['authorizationUrl'] as String,
+    );
+    // The backend always re-issues a fresh token pair here, even though the
+    // caller was already signed in: the OLD access token still carries
+    // `phoneVerified: false`, and that claim is what the router's mandatory
+    // verification gate reads. Accepting the new pair is what makes the
+    // gate clear immediately instead of waiting for the next natural
+    // refresh.
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    return _acceptTokens(
+        ApiTokenPair.fromJson(data), AuthChangeEvent.userUpdated);
+  }
+
+  /// Set only while a phone-sign-in redirect is in flight, resolved by
+  /// [handlePhoneCallback] once the OS delivers the verified
+  /// `https://admin.bsheel.app/phone-signin-callback` App Link/Universal
+  /// Link back into the app (see RoutePaths.phoneSigninCallback). No custom
+  /// URL scheme is used for this — those are not OS-verified and another
+  /// app could register the same one to intercept an auth callback.
+  Completer<Uri>? _pendingPhoneCallback;
+
+  /// Called by the router the moment the verified callback link lands.
+  /// A no-op if nothing is waiting (a stray or replayed link) — the
+  /// backend's one-time handoff code is what actually secures the
+  /// exchange; this only wakes up whichever call is waiting for it.
+  void handlePhoneCallback(Uri uri) {
+    _pendingPhoneCallback?.complete(uri);
+    _pendingPhoneCallback = null;
+  }
+
+  Future<String> _completePhoneRedirect(String authorizationUrl) async {
+    final completer = Completer<Uri>();
+    _pendingPhoneCallback = completer;
+    final launched = await launchUrl(
+      Uri.parse(authorizationUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      _pendingPhoneCallback = null;
+      throw const AuthException('Could not open the phone verification page.');
+    }
+    final Uri result;
+    try {
+      // Matches the backend's own 5-minute state TTL (phone_signin_states).
+      result = await completer.future.timeout(const Duration(minutes: 5));
+    } on TimeoutException {
+      _pendingPhoneCallback = null;
+      throw const AuthException('Phone sign-in timed out.');
+    }
+    final handoff = result.queryParameters['handoff'];
+    if (handoff == null || handoff.isEmpty) {
+      throw const AuthException('Phone sign-in did not complete.');
+    }
+    return handoff;
+  }
+
   Future<AuthResult> _oauth(
     String provider,
     String idToken, {
@@ -276,6 +374,8 @@ class ApiAuthRepository implements AuthRepository {
       userMetadata: {
         if (payload['role'] != null) 'role': payload['role'],
         if (payload['username'] != null) 'username': payload['username'],
+        if (payload['phoneVerified'] != null)
+          'phoneVerified': payload['phoneVerified'],
       },
     );
   }

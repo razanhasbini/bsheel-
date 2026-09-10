@@ -1,10 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pending_deep_link.dart';
 import 'route_names.dart';
 import 'route_guards.dart';
+import '../providers/auth_repository_provider.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/auth_session_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
@@ -12,6 +13,7 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/signup_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
+import '../../features/auth/presentation/pages/verify_phone_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_walkthrough_page.dart';
 import '../../features/quests/presentation/pages/home_page.dart';
 import '../../features/quests/presentation/pages/quest_details_page.dart';
@@ -110,6 +112,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     if (prev?.valueOrNull != next.valueOrNull) onboardingTicker.value++;
   });
   ref.onDispose(onboardingTicker.dispose);
+
   final routerRefresh = Listenable.merge([authNotifier, onboardingTicker]);
 
   return GoRouter(
@@ -126,6 +129,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         location: state.matchedLocation,
         isLoggedIn: currentUser != null,
         isOnboardingComplete: onboardingAsync.valueOrNull,
+        isPhoneVerified: ref.read(phoneVerifiedProvider),
       );
       // UX-002: remember where a logged-out user was trying to go so we
       // can land them there after sign-in.
@@ -196,6 +200,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ResetPasswordPage(
           recoveryToken: state.uri.queryParameters['token'],
         ),
+      ),
+      // Landing spot for the verified https://admin.bsheel.app/phone-signin-
+      // callback App Link/Universal Link Nokia's browser redirects back to
+      // after CAMARA Number Verification consent. Never rendered as a real
+      // page — it hands the URL to whichever signInWithPhone()/linkPhone()
+      // call is waiting, then leaves immediately. Deliberately not a custom
+      // URL scheme: those aren't OS-verified, so another app could register
+      // the same one and intercept an auth callback.
+      GoRoute(
+        path: RoutePaths.phoneSigninCallback,
+        name: RouteNames.phoneSigninCallback,
+        builder: (context, state) => Consumer(
+          builder: (context, cref, _) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              cref.read(authRepositoryProvider).handlePhoneCallback(state.uri);
+              if (context.mounted) context.go(RoutePaths.home);
+            });
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.verifyPhone,
+        name: RouteNames.verifyPhone,
+        builder: (context, state) => const VerifyPhonePage(),
       ),
       GoRoute(
         path: RoutePaths.onboardingWalkthrough,

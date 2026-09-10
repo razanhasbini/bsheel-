@@ -1,4 +1,5 @@
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
+import type { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
 import { DomainEventsProcessor } from '../src/infrastructure/messaging/domain-events.processor.js';
 import type { DomainEventsRepository } from '../src/infrastructure/messaging/domain-events.repository.js';
@@ -9,6 +10,7 @@ import type { AuthActionTokenCipher } from '../src/modules/auth/infrastructure/a
 import type { TransactionalEmailService } from '../src/modules/auth/infrastructure/transactional-email.service.js';
 import type { RealtimeEventPublisher } from '../src/infrastructure/realtime/realtime-event.publisher.js';
 import type { TelegramEventService } from '../src/integrations/telegram/telegram-event.service.js';
+import type { Environment } from '../src/config/environment.js';
 
 function notificationJob(data: Record<string, unknown>) {
   return {
@@ -16,6 +18,16 @@ function notificationJob(data: Record<string, unknown>) {
     name: 'notification.created',
     data,
   } as Job<Record<string, unknown>, unknown, string>;
+}
+
+/** submission-verification is disabled by default so existing event-routing tests stay unaffected by it. */
+function fakeConfig(overrides: Partial<Environment> = {}) {
+  const values: Partial<Environment> = { AGENT_SUBMISSION_VERIFICATION_ENABLED: false, ...overrides };
+  return { get: vi.fn((key: keyof Environment) => values[key]) } as unknown as ConfigService<Environment, true>;
+}
+
+function fakeQueue() {
+  return { add: vi.fn().mockResolvedValue(undefined) } as unknown as Queue;
 }
 
 function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
@@ -38,6 +50,7 @@ function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
   const cipher = { unprotect: vi.fn().mockReturnValue('fcm-token') };
   const push = { send: vi.fn().mockResolvedValue(pushResult) };
   const realtime = { publish: vi.fn().mockResolvedValue(undefined) };
+  const submissionVerificationQueue = fakeQueue();
   const processor = new DomainEventsProcessor(
     repository as unknown as DomainEventsRepository,
     cipher as unknown as DeviceTokenCipher,
@@ -49,8 +62,11 @@ function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
     {
       handle: vi.fn().mockResolvedValue(undefined),
     } as unknown as TelegramEventService,
+    fakeConfig(),
+    submissionVerificationQueue,
+    fakeQueue(),
   );
-  return { processor, repository, cipher, push, realtime };
+  return { processor, repository, cipher, push, realtime, submissionVerificationQueue };
 }
 
 describe('DomainEventsProcessor notification delivery', () => {
@@ -186,6 +202,9 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      fakeConfig(),
+      fakeQueue(),
+      fakeQueue(),
     );
 
     await processor.process({
@@ -232,6 +251,9 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      fakeConfig(),
+      fakeQueue(),
+      fakeQueue(),
     );
 
     await expect(
@@ -273,6 +295,9 @@ describe('DomainEventsProcessor email confirmation delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      fakeConfig(),
+      fakeQueue(),
+      fakeQueue(),
     );
 
     await processor.process({
@@ -285,6 +310,114 @@ describe('DomainEventsProcessor email confirmation delivery', () => {
       'confirm@example.test',
       'raw-confirmation-token',
     );
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+});
+
+describe('DomainEventsProcessor submission verification enqueue', () => {
+  it('does nothing when AGENT_SUBMISSION_VERIFICATION_ENABLED is false', async () => {
+    const { processor, repository, submissionVerificationQueue } = setup({ invalidToken: false });
+
+    await processor.process({
+      id: 'a1a1a1a1-0000-0000-0000-000000000001',
+      name: 'submission.created',
+      data: { submissionId: 'submission-id', userId: 'user-id' },
+    } as Job<Record<string, unknown>, unknown, string>);
+
+    expect(submissionVerificationQueue.add).not.toHaveBeenCalled();
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  it('enqueues a deterministic job when the flag is enabled', async () => {
+    const repository = {
+      wasProcessed: vi.fn().mockResolvedValue(false),
+      markProcessed: vi.fn().mockResolvedValue(undefined),
+    };
+    const submissionVerificationQueue = fakeQueue();
+    const processor = new DomainEventsProcessor(
+      repository as unknown as DomainEventsRepository,
+      {} as DeviceTokenCipher,
+      {} as FirebasePushService,
+      {} as ObjectStorageService,
+      {} as AuthActionTokenCipher,
+      {} as TransactionalEmailService,
+      { publish: vi.fn().mockResolvedValue(undefined) } as unknown as RealtimeEventPublisher,
+      { handle: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramEventService,
+      fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
+      submissionVerificationQueue,
+      fakeQueue(),
+    );
+
+    await processor.process({
+      id: 'a1a1a1a1-0000-0000-0000-000000000002',
+      name: 'submission.created',
+      data: { submissionId: 'submission-id', userId: 'user-id' },
+    } as Job<Record<string, unknown>, unknown, string>);
+
+    expect(submissionVerificationQueue.add).toHaveBeenCalledWith(
+      'submission.verify',
+      { submissionId: 'submission-id' },
+      expect.objectContaining({ jobId: 'submission:submission-id:verification:v1' }),
+    );
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  it('enqueues the post-assignment agent job on quest.assigned when enabled', async () => {
+    const repository = {
+      wasProcessed: vi.fn().mockResolvedValue(false),
+      markProcessed: vi.fn().mockResolvedValue(undefined),
+    };
+    const questAssignmentQueue = fakeQueue();
+    const processor = new DomainEventsProcessor(
+      repository as unknown as DomainEventsRepository,
+      {} as DeviceTokenCipher,
+      {} as FirebasePushService,
+      {} as ObjectStorageService,
+      {} as AuthActionTokenCipher,
+      {} as TransactionalEmailService,
+      { publish: vi.fn().mockResolvedValue(undefined) } as unknown as RealtimeEventPublisher,
+      { handle: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramEventService,
+      fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
+      fakeQueue(),
+      questAssignmentQueue,
+    );
+
+    await processor.process({
+      id: 'b2b2b2b2-0000-0000-0000-000000000001',
+      name: 'quest.assigned',
+      data: { userId: 'user-id', userQuestId: 'assignment-id', questId: 'quest-id' },
+    } as Job<Record<string, unknown>, unknown, string>);
+
+    expect(questAssignmentQueue.add).toHaveBeenCalledWith(
+      'quest.assignment-agent',
+      { userQuestId: 'assignment-id' },
+      expect.objectContaining({ jobId: 'user-quest:assignment-id:assignment-agent:v1' }),
+    );
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  it('does not enqueue post-assignment work while the agent is disabled', async () => {
+    const { processor, repository } = setup({ invalidToken: false });
+
+    await processor.process({
+      id: 'b2b2b2b2-0000-0000-0000-000000000002',
+      name: 'quest.assigned',
+      data: { userId: 'user-id', userQuestId: 'assignment-id', questId: 'quest-id' },
+    } as Job<Record<string, unknown>, unknown, string>);
+
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  it('never enqueues verification for a submission.appealed event', async () => {
+    const { processor, repository, submissionVerificationQueue } = setup({ invalidToken: false });
+
+    await processor.process({
+      id: 'a1a1a1a1-0000-0000-0000-000000000003',
+      name: 'submission.appealed',
+      data: { submissionId: 'submission-id', userId: 'user-id' },
+    } as Job<Record<string, unknown>, unknown, string>);
+
+    expect(submissionVerificationQueue.add).not.toHaveBeenCalled();
     expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
 });

@@ -1,6 +1,6 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { Public } from '../../../common/auth/public.decorator.js';
@@ -9,13 +9,17 @@ import type { RegistrationPendingConfirmation, TokenPair } from '../domain/auth.
 import {
   CompleteEmailConfirmationDto,
   CompletePasswordRecoveryDto,
+  CompletePhoneHandoffDto,
   LoginDto,
   LogoutDto,
   OAuthSignInDto,
+  PhoneCallbackDto,
   RefreshTokenDto,
   RegisterDto,
   RequestEmailConfirmationDto,
   RequestPasswordRecoveryDto,
+  StartPhoneLinkDto,
+  StartPhoneSignInDto,
   UpdatePasswordDto,
 } from './auth.dto.js';
 
@@ -48,6 +52,47 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify a Google or Apple ID token and create a session' })
   oauth(@Body() body: OAuthSignInDto, @Req() request: Request): Promise<TokenPair> {
     return this.service.oauth(body, request);
+  }
+
+  @HttpCode(204)
+  @Post('link/oauth')
+  @ApiOperation({ summary: 'Link a verified Google or Apple identity to the signed-in account' })
+  async linkOAuth(@CurrentUser() user: AuthUser, @Body() body: OAuthSignInDto): Promise<void> {
+    await this.service.linkOAuth(user.id, body);
+  }
+
+  @Public()
+  @HttpCode(200)
+  @Post('phone/start')
+  @ApiOperation({ summary: 'Start CAMARA Number Verification for a brand-new phone sign-in' })
+  startPhone(@Body() body: StartPhoneSignInDto): Promise<{ authorizationUrl: string }> {
+    return this.service.startPhoneSignIn(body.phoneNumber, body.ageVerified, body.email);
+  }
+
+  @HttpCode(200)
+  @Post('link/phone/start')
+  @ApiOperation({ summary: 'Start CAMARA Number Verification to attach a phone number to the signed-in account' })
+  startPhoneLink(
+    @CurrentUser() user: AuthUser,
+    @Body() body: StartPhoneLinkDto,
+  ): Promise<{ authorizationUrl: string }> {
+    return this.service.startPhoneLink(user.id, body.phoneNumber);
+  }
+
+  @Public()
+  @Get('phone/callback')
+  @ApiOperation({ summary: "Nokia's redirect target after the user consents; hands off to the mobile app via deep link" })
+  async phoneCallback(@Query() query: PhoneCallbackDto, @Res() response: Response): Promise<void> {
+    const { redirectUrl } = await this.service.completePhoneCallback(query.code, query.state);
+    response.redirect(302, redirectUrl);
+  }
+
+  @Public()
+  @HttpCode(200)
+  @Post('phone/complete')
+  @ApiOperation({ summary: 'Exchange the deep-link handoff code for a fresh session' })
+  completePhone(@Body() body: CompletePhoneHandoffDto, @Req() request: Request): Promise<TokenPair> {
+    return this.service.completePhoneHandoff(body.handoffCode, request);
   }
 
   @HttpCode(200)

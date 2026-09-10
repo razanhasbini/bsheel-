@@ -71,6 +71,23 @@ describe('validateEnvironment', () => {
     ).toThrow(/EMAIL_DELIVERY_WEBHOOK_SECRET/);
   });
 
+  it('requires the CAMARA phone-verification config in production', () => {
+    // Phone verification has no off switch, so a production deployment
+    // without these would send every user to an unpassable verify-phone
+    // wall. Fail at boot instead.
+    expect(() => validateEnvironment({ NODE_ENV: 'production' })).toThrow(
+      /CAMARA_API_KEY/,
+    );
+  });
+
+  it('does not require CAMARA config to boot a dev or test machine', () => {
+    // The gate is still enforced in the app; only the credentials that
+    // make it *pass* are absent, and nobody should need a Nokia account to
+    // run the suite.
+    expect(() => validateEnvironment({ NODE_ENV: 'test' })).not.toThrow();
+    expect(() => validateEnvironment({ NODE_ENV: 'development' })).not.toThrow();
+  });
+
   it('still requires Telegram credentials when the integration is enabled', () => {
     expect(() =>
       validateEnvironment({

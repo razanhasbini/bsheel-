@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart' show AuthException;
 import 'package:shared_ui/shared_ui.dart';
 
 import '../../../../core/router/route_names.dart';
@@ -12,20 +11,21 @@ import '../../../../core/security/secure_screen.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
 import '../login_credentials.dart';
-import '../password_policy.dart';
 import '../widgets/auth_field.dart';
+import '../widgets/social_sign_in_buttons.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Create account, drawn from `export/mobile/17-signup.jpg`.
+/// Create account — phone first.
 ///
-/// A 46pt back button, `CREATE ACCOUNT` in Syne 800/36, three labelled
-/// fields on a 14pt rhythm — username with a jade validity tick and a helper
-/// line, email, password with a four-segment strength meter — then the jade
-/// positive button and a centred legal line with violet links.
+/// A 46pt back button, `CREATE ACCOUNT` in Syne 800/36, then two fields on
+/// the 14pt rhythm: phone number (starred) and email (not), the age
+/// checkbox, the jade positive button, Apple/Google, and the legal line.
 ///
-/// There is no card, no subtitle, no social block and no "already have an
-/// account" footer; the frame has none of them, and the back button already
-/// returns to login.
+/// The number is the account. It is the credential CAMARA verifies and the
+/// device identifier location quests are checked against, so it is the only
+/// required field; the email is a contact and recovery address the user may
+/// skip. That distinction is carried by the asterisk on the label — the
+/// screen does not explain itself in prose.
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});
 
@@ -33,26 +33,20 @@ class SignupPage extends ConsumerStatefulWidget {
   ConsumerState<SignupPage> createState() => _SignupPageState();
 }
 
-// H9 (2026-05-17): block screenshots while a password is being typed.
-class _SignupPageState extends ConsumerState<SignupPage>
-    with SecureScreenMixin {
-  final _usernameController = TextEditingController();
+class _SignupPageState extends ConsumerState<SignupPage> with SecureScreenMixin {
+  final _phoneController = TextEditingController(text: '+');
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _usernameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
   final _emailFocus = FocusNode();
-  final _passwordFocus = FocusNode();
   final _termsTap = TapGestureRecognizer();
   final _privacyTap = TapGestureRecognizer();
 
   bool _isLoading = false;
-  // Low/Info (2026-05-17): age confirmation. Required true before submit
-  // so we have a contemporaneous record that the user attested to being
-  // 13+. Stored as profiles.age_verified via the signup metadata.
+  // Low/Info (2026-05-17): age confirmation. Required true before submit so
+  // we have a contemporaneous record that the user attested to being 13+.
   bool _ageConfirmed = false;
-  String? _usernameError;
+  String? _phoneError;
   String? _emailError;
-  String? _passwordError;
   String? _ageError;
 
   @override
@@ -64,118 +58,57 @@ class _SignupPageState extends ConsumerState<SignupPage>
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _phoneController.dispose();
     _emailController.dispose();
-    _passwordController.dispose();
-    _usernameFocus.dispose();
+    _phoneFocus.dispose();
     _emailFocus.dispose();
-    _passwordFocus.dispose();
     _termsTap.dispose();
     _privacyTap.dispose();
     super.dispose();
   }
 
-  String? _validateUsername(String v) {
-    final l = AppLocalizations.of(context)!;
-    if (v.isEmpty) return l.usernameRequired;
-    if (v.length < 3 || v.length > 30) return l.usernameLengthError;
-    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v)) {
-      return l.usernameFormatError;
-    }
-    return null;
-  }
-
-  String? _validateEmail(String v) {
-    final l = AppLocalizations.of(context)!;
-    if (v.isEmpty) return l.emailRequired;
-    if (!emailPattern.hasMatch(v)) return l.emailInvalid;
-    return null;
-  }
-
-  Future<void> _signup() async {
-    final username = _usernameController.text.trim();
-    // Lower-case the email so `Foo@Bar.com` and `foo@bar.com` don't
-    // resolve to two separate Supabase auth accounts.
+  Future<void> _createAccount() async {
+    // Strip the spaces and dashes people naturally type; anything left that
+    // breaks E.164 is a real mistake worth surfacing.
+    final phone = _phoneController.text.replaceAll(RegExp(r'[\s\-()]'), '');
     final email = _emailController.text.trim().toLowerCase();
-    final password = _passwordController.text;
 
     setState(() {
-      _usernameError = _validateUsername(username);
-      _emailError = _validateEmail(email);
-      _passwordError = validatePassword(
-        password,
-        username: username,
-        emailLocalPart: email.contains('@') ? email.split('@').first : email,
-      );
+      _phoneError = e164Pattern.hasMatch(phone)
+          ? null
+          : 'Use international format, e.g. +96170123456';
+      _emailError = email.isEmpty || emailPattern.hasMatch(email)
+          ? null
+          : 'That email does not look right';
       _ageError = _ageConfirmed ? null : 'You must be 13 or older to sign up.';
     });
-    if (_usernameError != null ||
-        _emailError != null ||
-        _passwordError != null ||
-        _ageError != null) {
-      return;
-    }
+    if (_phoneError != null || _emailError != null || _ageError != null) return;
 
     setState(() => _isLoading = true);
     try {
-      final response = await ref.read(authRepositoryProvider).signUpWithEmail(
-        email,
-        password,
-        data: {
-          'username': username,
-          'display_name': username,
-          // Low/Info (2026-05-17): mirror the checkbox value into
-          // raw_user_meta_data so the handle_new_user trigger can copy
-          // it onto profiles.age_verified.
-          'age_verified': true,
-        },
-      );
+      final response = await ref
+          .read(authRepositoryProvider)
+          .signInWithPhone(phone, email: email.isEmpty ? null : email);
       if (!mounted) return;
-
       ref.read(analyticsProvider).signup();
-      if (response.session == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Account created — check your email to confirm, then log in.'),
-          ),
-        );
-        if (!mounted) return;
-        context.goNamed(RouteNames.login);
+      final user = response.user;
+      if (user != null) {
+        ref.read(analyticsProvider).identify(
+              user.id,
+              username: user.userMetadata['username'] as String?,
+            );
       }
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      // The API distinguishes which value collided so the message
-      // lands on the field the user has to change.
-      setState(() {
-        switch (e.code) {
-          case 'EMAIL_TAKEN':
-            _emailError = 'That email is already registered. Log in '
-                'instead — or use FORGOT PASSWORD.';
-          case 'USERNAME_TAKEN':
-            _usernameError = 'That username is already taken.';
-          default:
-            _emailError = mapAuthError(e.toString());
-        }
-      });
+      // Router redirect handles navigation once the session lands.
     } catch (e) {
-      AppLogger.error('[Signup] Signup failed', e);
+      AppLogger.error('[Signup] Phone signup failed', e);
       if (!mounted) return;
       final friendly = mapAuthError(e.toString());
-      // Route the error to the right field when we can tell, otherwise
-      // surface it as a snackbar so we don't mislead the user into
-      // editing the password when the real problem was e.g. a duplicate
-      // email or rate limit.
-      final lower = friendly.toLowerCase();
-      if (lower.contains('password') &&
-          (lower.contains('weak') || lower.contains('characters'))) {
-        setState(() => _passwordError = friendly);
-      } else if (lower.contains('email')) {
-        setState(() => _emailError = friendly);
-      } else if (lower.contains('username') ||
-          lower.contains('already taken')) {
-        // "username or email is already taken" — most likely username here.
-        setState(() => _usernameError = friendly);
+      // The number is the only thing the user can act on here, so a
+      // verification failure belongs on that field rather than in a
+      // transient snackbar.
+      if (friendly.toLowerCase().contains('verif') ||
+          friendly.toLowerCase().contains('number')) {
+        setState(() => _phoneError = friendly);
       } else {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
@@ -186,16 +119,6 @@ class _SignupPageState extends ConsumerState<SignupPage>
     }
   }
 
-  /// The frame's username field carries a jade tick once the handle is
-  /// legal. It is a live signal, so it tracks the controller rather than
-  /// the last submit.
-  bool get _usernameLooksValid {
-    final v = _usernameController.text.trim();
-    return v.length >= 3 &&
-        v.length <= 30 &&
-        RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v);
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
@@ -204,154 +127,101 @@ class _SignupPageState extends ConsumerState<SignupPage>
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(
-              child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ArcadeBackButton(
-                      onTap: () => context.canPop()
-                          ? context.pop()
-                          : context.goNamed(RouteNames.login),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ArcadeBackButton(
+                        onTap: () => context.canPop()
+                            ? context.pop()
+                            : context.goNamed(RouteNames.login),
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        l.createAccount.toUpperCase(),
-                        style: QuestTypography.osDisplayLarge.copyWith(
-                          fontSize: 36,
-                          height: 0.95,
-                          // -0.04em at 36px.
-                          letterSpacing: -1.44,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          l.createAccount.toUpperCase(),
+                          style: QuestTypography.osDisplayLarge.copyWith(
+                            fontSize: 36,
+                            height: 0.95,
+                            // -0.04em at 36px.
+                            letterSpacing: -1.44,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      AuthField(
-                        controller: _usernameController,
-                        focusNode: _usernameFocus,
-                        label: l.username,
-                        hint: l.chooseUsername,
-                        textInputAction: TextInputAction.next,
-                        autocorrect: false,
-                        errorText: _usernameError,
-                        helperText: 'Letters, numbers, and underscores only.',
-                        trailing:
-                            _usernameLooksValid ? const AuthFieldTick() : null,
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: (_) => _emailFocus.requestFocus(),
-                      ),
-                      const SizedBox(height: 14),
-                      AuthField(
-                        controller: _emailController,
-                        focusNode: _emailFocus,
-                        label: l.email,
-                        hint: l.enterEmail,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        autocorrect: false,
-                        autofillHints: const [AutofillHints.email],
-                        errorText: _emailError,
-                        onSubmitted: (_) => _passwordFocus.requestFocus(),
-                      ),
-                      const SizedBox(height: 14),
-                      AuthField(
-                        controller: _passwordController,
-                        focusNode: _passwordFocus,
-                        label: l.password,
-                        hint: l.createPassword,
-                        obscureText: true,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.newPassword],
-                        errorText: _passwordError,
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: (_) => _signup(),
-                      ),
-                      const SizedBox(height: 6),
-                      _StrengthMeter(
-                        filled: passwordStrength(_passwordController.text),
-                      ),
-                      const SizedBox(height: 14),
-                      // Low/Info (2026-05-17): age confirmation. Not in the
-                      // frame, but it is the contemporaneous 13+ record that
-                      // `profiles.age_verified` is written from — it cannot
-                      // be dropped for fidelity.
-                      _AgeConfirm(
-                        value: _ageConfirmed,
-                        errorText: _ageError,
-                        onChanged: (v) => setState(() {
-                          _ageConfirmed = v;
-                          if (v) _ageError = null;
-                        }),
-                      ),
-                      const SizedBox(height: 14),
-                      ArcadeButton(
-                        // The frame's positive: jade ground, ink label,
-                        // 56pt, r14, 5px shadow.
-                        label: _isLoading ? l.loading : l.signup,
-                        isLoading: _isLoading,
-                        variant: ArcadeButtonVariant.positive,
-                        onTap: _isLoading ? null : _signup,
-                      ),
-                      const SizedBox(height: 14),
-                      _LegalLine(
-                        termsTap: _termsTap,
-                        privacyTap: _privacyTap,
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        AuthField(
+                          controller: _phoneController,
+                          focusNode: _phoneFocus,
+                          label: 'PHONE NUMBER',
+                          hint: '+96170123456',
+                          required: true,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                          errorText: _phoneError,
+                          onChanged: (_) {
+                            if (_phoneError != null) {
+                              setState(() => _phoneError = null);
+                            }
+                          },
+                          onSubmitted: (_) => _emailFocus.requestFocus(),
+                        ),
+                        const SizedBox(height: 14),
+                        AuthField(
+                          controller: _emailController,
+                          focusNode: _emailFocus,
+                          label: 'EMAIL',
+                          hint: l.enterEmail,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.email],
+                          errorText: _emailError,
+                          onSubmitted: (_) => _createAccount(),
+                        ),
+                        const SizedBox(height: 14),
+                        _AgeConfirm(
+                          value: _ageConfirmed,
+                          errorText: _ageError,
+                          onChanged: (v) => setState(() {
+                            _ageConfirmed = v;
+                            if (v) _ageError = null;
+                          }),
+                        ),
+                        const SizedBox(height: 14),
+                        ArcadeButton(
+                          label: _isLoading ? l.loading : l.signup,
+                          isLoading: _isLoading,
+                          variant: ArcadeButtonVariant.positive,
+                          onTap: _isLoading ? null : _createAccount,
+                        ),
+                        // Apple / Google. The phone button is not repeated
+                        // here — the form above is the phone path.
+                        const SocialSignInButtons(includePhone: false),
+                        const SizedBox(height: 14),
+                        _LegalLine(
+                          termsTap: _termsTap,
+                          privacyTap: _privacyTap,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          )),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Strength meter ───────────────────────────────────────────────────────────
-
-/// Four segments, 4 apart: 8 of content inside a 2px ink stroke at r4, jade
-/// when earned and warm surface when not.
-class _StrengthMeter extends StatelessWidget {
-  const _StrengthMeter({required this.filled});
-
-  final int filled;
-
-  static const _segments = 4;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < _segments; i++) ...[
-          if (i > 0) const SizedBox(width: 4),
-          Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              height: 12,
-              decoration: BoxDecoration(
-                color:
-                    i < filled ? QuestColors.osSuccess : QuestColors.osSurface,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: QuestColors.osTextPrimary,
-                  width: 2,
-                ),
+                ],
               ),
             ),
           ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 }
@@ -459,17 +329,9 @@ class _LegalLine extends StatelessWidget {
         style: base,
         children: [
           const TextSpan(text: 'By signing up you agree to the '),
-          TextSpan(
-            text: 'Terms of Service',
-            style: link,
-            recognizer: termsTap,
-          ),
+          TextSpan(text: 'Terms of Service', style: link, recognizer: termsTap),
           const TextSpan(text: ' and '),
-          TextSpan(
-            text: 'Privacy Policy',
-            style: link,
-            recognizer: privacyTap,
-          ),
+          TextSpan(text: 'Privacy Policy', style: link, recognizer: privacyTap),
           const TextSpan(text: '.'),
         ],
       ),

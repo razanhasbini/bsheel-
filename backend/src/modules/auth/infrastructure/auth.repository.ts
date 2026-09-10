@@ -7,9 +7,11 @@ import type { OAuthIdentity } from './oauth-identity-verifier.js';
 
 interface AccountRow {
   id: string;
-  email: string;
+  /** Null for a phone-only account — see users.email nullability, migration 0027. */
+  email: string | null;
   password_hash: string | null;
   email_verified_at: Date | null;
+  phone_verified_at: Date | null;
   status: string;
   token_version: number;
   role: 'moderator' | 'super_admin' | null;
@@ -54,7 +56,7 @@ export class AuthRepository {
         const users = await transaction.query<AccountRow>(
           `INSERT INTO users (email, password_hash, email_verified_at)
            VALUES ($1, $2, CASE WHEN $3::boolean THEN NULL ELSE now() END)
-           RETURNING id, email::text, password_hash, email_verified_at,
+           RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
                      status, token_version, NULL::text AS role`,
           [input.email.trim().toLowerCase(), input.passwordHash, Boolean(input.confirmation)],
         );
@@ -117,7 +119,7 @@ export class AuthRepository {
 
   async findAccountByEmail(email: string): Promise<AccountCredentials | null> {
     const result = await this.database.query<AccountRow>(
-      `SELECT u.id, u.email::text, u.password_hash, u.email_verified_at,
+      `SELECT u.id, u.email::text, u.password_hash, u.email_verified_at, u.phone_verified_at,
               u.status, u.token_version, a.role::text
        FROM users u
        LEFT JOIN admins a ON a.user_id = u.id
@@ -129,7 +131,7 @@ export class AuthRepository {
 
   async findActiveAccountById(id: string): Promise<AccountCredentials | null> {
     const result = await this.database.query<AccountRow>(
-      `SELECT u.id, u.email::text, u.password_hash, u.email_verified_at,
+      `SELECT u.id, u.email::text, u.password_hash, u.email_verified_at, u.phone_verified_at,
               u.status, u.token_version, a.role::text
        FROM users u
        LEFT JOIN admins a ON a.user_id = u.id
@@ -145,7 +147,8 @@ export class AuthRepository {
         `${identity.provider}:${identity.subject}`,
       ]);
       const existingIdentity = await transaction.query<AccountRow>(
-        `SELECT users.id, users.email::text, users.password_hash, users.email_verified_at, users.status,
+        `SELECT users.id, users.email::text, users.password_hash, users.email_verified_at,
+                users.phone_verified_at, users.status,
                 users.token_version, admins.role::text
          FROM auth_identities identity
          JOIN users ON users.id = identity.user_id
@@ -164,7 +167,8 @@ export class AuthRepository {
 
       await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 12))', [identity.email]);
       const existingEmail = await transaction.query<AccountRow>(
-        `SELECT users.id, users.email::text, users.password_hash, users.email_verified_at, users.status,
+        `SELECT users.id, users.email::text, users.password_hash, users.email_verified_at,
+                users.phone_verified_at, users.status,
                 users.token_version, admins.role::text
          FROM users LEFT JOIN admins ON admins.user_id = users.id
          WHERE users.email = $1 FOR UPDATE OF users`,
@@ -176,7 +180,7 @@ export class AuthRepository {
         const created = await transaction.query<AccountRow>(
           `INSERT INTO users (email, email_verified_at)
            VALUES ($1, now())
-           RETURNING id, email::text, password_hash, email_verified_at,
+           RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
                      status, token_version, NULL::text AS role`,
           [identity.email],
         );
@@ -189,6 +193,12 @@ export class AuthRepository {
           [account.id, username, identity.displayName ?? 'New User', ageVerified],
         );
       } else {
+        if (account.email_verified_at === null) {
+          throw new ConflictException({
+            code: 'ACCOUNT_LINK_CONFIRMATION_REQUIRED',
+            message: 'Sign in with your password first, then link this provider from your account',
+          });
+        }
         await transaction.query(
           `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
            WHERE id = $1`,
@@ -217,8 +227,185 @@ export class AuthRepository {
     });
   }
 
-  async passwordIdentity(userId: string): Promise<{ email: string; username: string } | null> {
-    const result = await this.database.query<{ email: string; username: string }>(
+  async linkOAuthIdentity(userId: string, identity: OAuthIdentity, ageVerified: boolean): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 11))', [
+        `${identity.provider}:${identity.subject}`,
+      ]);
+      const account = await transaction.query<{ email: string | null; status: string }>(
+        `SELECT email::text, status::text FROM users
+         WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [userId],
+      );
+      if (!account.rows[0] || account.rows[0].status !== 'active') {
+        throw new ConflictException({ code: 'ACCOUNT_RESTRICTED', message: 'This account cannot be linked' });
+      }
+      if (account.rows[0].email && account.rows[0].email.toLowerCase() !== identity.email) {
+        throw new ConflictException({
+          code: 'OAUTH_EMAIL_MISMATCH',
+          message: 'The provider email must match your Bsheel account email',
+        });
+      }
+      if (!account.rows[0].email) {
+        await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 12))', [identity.email]);
+        const emailOwner = await transaction.query<{ id: string }>(
+          'SELECT id FROM users WHERE email = $1 AND id <> $2',
+          [identity.email, userId],
+        );
+        if (emailOwner.rows[0]) {
+          throw new ConflictException({
+            code: 'EMAIL_TAKEN',
+            message: 'That provider email is already registered to another account',
+          });
+        }
+      }
+      const existing = await transaction.query<{ user_id: string }>(
+        `SELECT user_id FROM auth_identities
+         WHERE provider = $1 AND provider_subject = $2 FOR UPDATE`,
+        [identity.provider, identity.subject],
+      );
+      if (existing.rows[0]?.user_id && existing.rows[0].user_id !== userId) {
+        throw new ConflictException({
+          code: 'OAUTH_IDENTITY_ALREADY_LINKED',
+          message: 'This provider identity is already linked to another account',
+        });
+      }
+      await transaction.query(
+        `INSERT INTO auth_identities (user_id, provider, provider_subject, provider_email)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (provider, provider_subject) DO NOTHING`,
+        [userId, identity.provider, identity.subject, identity.email],
+      );
+      await transaction.query(
+        `UPDATE users SET email = COALESCE(email, $2),
+           email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+         WHERE id = $1`,
+        [userId, identity.email],
+      );
+      await transaction.query(
+        `UPDATE profiles SET age_verified = age_verified OR $2, updated_at = now()
+         WHERE id = $1`,
+        [userId, ageVerified],
+      );
+    });
+  }
+
+  /// Sign-in via a CAMARA-verified phone number (issue #1). No email
+  /// counterpart exists for a brand-new phone account, so unlike
+  /// findOrCreateOAuthAccount there is nothing to match against beyond the
+  /// auth_identities row itself.
+  async findOrCreateByPhone(phoneNumber: string, ageVerified: boolean, email?: string | null): Promise<AccountCredentials> {
+    return this.database.transaction(async (transaction) => {
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 15))', [`phone:${phoneNumber}`]);
+      const normalizedEmail = email?.trim().toLowerCase() || null;
+      if (normalizedEmail) {
+        // Serialize optional-email ownership with every other auth path. The
+        // email is still best-effort: a collision means "create without it",
+        // not "fail an otherwise verified phone sign-in".
+        await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 12))', [normalizedEmail]);
+      }
+      const existingIdentity = await transaction.query<AccountRow>(
+        `SELECT users.id, users.email::text, users.password_hash, users.email_verified_at,
+                users.phone_verified_at, users.status, users.token_version, admins.role::text
+         FROM auth_identities identity
+         JOIN users ON users.id = identity.user_id
+         LEFT JOIN admins ON admins.user_id = users.id
+         WHERE identity.provider = 'phone' AND identity.provider_subject = $1`,
+        [phoneNumber],
+      );
+      if (existingIdentity.rows[0]) {
+        await transaction.query(
+          `UPDATE profiles SET age_verified = age_verified OR $2, updated_at = now() WHERE id = $1`,
+          [existingIdentity.rows[0].id, ageVerified],
+        );
+        return this.mapAccount(existingIdentity.rows[0]);
+      }
+
+      // The optional email is best-effort: if another account already holds
+      // it, we create the account without one rather than fail a phone
+      // sign-in that is otherwise valid. The user can set it later from
+      // edit-profile, where a collision can be reported properly.
+      const emailIsFree = normalizedEmail
+        ? (await transaction.query('SELECT 1 FROM users WHERE email = $1', [normalizedEmail])).rows.length === 0
+        : false;
+      const created = await transaction.query<AccountRow>(
+        `INSERT INTO users (email, phone_number, phone_verified_at)
+         VALUES ($2, $1, now())
+         RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
+                   status, token_version, NULL::text AS role`,
+        [phoneNumber, emailIsFree ? normalizedEmail : null],
+      );
+      const account = created.rows[0];
+      const username = `user_${createStableSuffix('phone', phoneNumber)}`;
+      await transaction.query(
+        `INSERT INTO profiles (id, username, display_name, age_verified, profile_completed)
+         VALUES ($1, $2, $3, $4, false)`,
+        [account.id, username, 'New User', ageVerified],
+      );
+      await transaction.query(
+        `INSERT INTO auth_identities (user_id, provider, provider_subject, provider_email)
+         VALUES ($1, 'phone', $2, NULL)`,
+        [account.id, phoneNumber],
+      );
+      await transaction.query(
+        `INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+         VALUES ('user', $1, 'user.created', jsonb_build_object('userId', $1::uuid))`,
+        [account.id],
+      );
+      return this.mapAccount(account);
+    });
+  }
+
+  /// Link a CAMARA-verified phone number to the already-signed-in caller's
+  /// account. One verified phone per account — an account that already has
+  /// one must unlink before replacing it (not built yet; no flow needs it).
+  /// Returns the updated account so the caller can issue a fresh token pair
+  /// carrying `phoneVerified: true` immediately, rather than making the
+  /// client wait for its next natural token refresh.
+  async linkPhoneIdentity(userId: string, phoneNumber: string): Promise<AccountCredentials> {
+    return this.database.transaction(async (transaction) => {
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 15))', [`phone:${phoneNumber}`]);
+      const account = await transaction.query<{ phone_number: string | null; status: string }>(
+        `SELECT phone_number, status::text FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [userId],
+      );
+      if (!account.rows[0] || account.rows[0].status !== 'active') {
+        throw new ConflictException({ code: 'ACCOUNT_RESTRICTED', message: 'This account cannot be linked' });
+      }
+      if (account.rows[0].phone_number) {
+        throw new ConflictException({ code: 'PHONE_ALREADY_LINKED', message: 'This account already has a verified phone number' });
+      }
+      const existing = await transaction.query<{ user_id: string }>(
+        `SELECT user_id FROM auth_identities WHERE provider = 'phone' AND provider_subject = $1 FOR UPDATE`,
+        [phoneNumber],
+      );
+      if (existing.rows[0]?.user_id && existing.rows[0].user_id !== userId) {
+        throw new ConflictException({
+          code: 'PHONE_ALREADY_LINKED_ELSEWHERE',
+          message: 'This phone number is already linked to another account',
+        });
+      }
+      await transaction.query(
+        `INSERT INTO auth_identities (user_id, provider, provider_subject, provider_email)
+         VALUES ($1, 'phone', $2, NULL) ON CONFLICT (provider, provider_subject) DO NOTHING`,
+        [userId, phoneNumber],
+      );
+      const updated = await transaction.query<AccountRow>(
+        `UPDATE users SET phone_number = $2, phone_verified_at = now(), updated_at = now()
+         WHERE id = $1
+         RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
+                   status, token_version, NULL::text AS role`,
+        [userId, phoneNumber],
+      );
+      const admin = await transaction.query<{ role: 'moderator' | 'super_admin' }>(
+        'SELECT role::text FROM admins WHERE user_id = $1',
+        [userId],
+      );
+      return this.mapAccount({ ...updated.rows[0], role: admin.rows[0]?.role ?? null });
+    });
+  }
+
+  async passwordIdentity(userId: string): Promise<{ email: string | null; username: string } | null> {
+    const result = await this.database.query<{ email: string | null; username: string }>(
       `SELECT users.email::text, profiles.username::text
        FROM users JOIN profiles ON profiles.id = users.id WHERE users.id = $1`,
       [userId],
@@ -240,7 +427,7 @@ export class AuthRepository {
       const result = await transaction.query<AccountRow>(
         `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = now()
          WHERE id = $1 AND status = 'active'
-         RETURNING id, email::text, password_hash, email_verified_at,
+         RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
                    status, token_version, NULL::text AS role`,
         [userId, passwordHash],
       );
@@ -498,6 +685,7 @@ export class AuthRepository {
       email: row.email,
       passwordHash: row.password_hash,
       emailVerified: row.email_verified_at !== null,
+      phoneVerified: row.phone_verified_at !== null,
       status: row.status,
       tokenVersion: row.token_version,
       role: row.role ?? 'user',

@@ -36,6 +36,14 @@ void main() {
       expect(
           authRedirect(location: RoutePaths.splash, isLoggedIn: false), isNull);
     });
+
+    test('phone sign-in callback is exempt while signed out', () {
+      expect(
+        authRedirect(
+            location: RoutePaths.phoneSigninCallback, isLoggedIn: false),
+        isNull,
+      );
+    });
   });
 
   group('authRedirect — signed IN', () {
@@ -58,6 +66,16 @@ void main() {
       expect(
         authRedirect(
             location: RoutePaths.resetPassword,
+            isLoggedIn: true,
+            isOnboardingComplete: true),
+        isNull,
+      );
+    });
+
+    test('phone sign-in callback is exempt while signed in (link flow)', () {
+      expect(
+        authRedirect(
+            location: RoutePaths.phoneSigninCallback,
             isLoggedIn: true,
             isOnboardingComplete: true),
         isNull,
@@ -114,6 +132,107 @@ void main() {
             location: RoutePaths.resetPassword,
             isLoggedIn: true,
             isOnboardingComplete: false),
+        isNull,
+      );
+    });
+  });
+
+  // The gate is unconditional — there is no flag that turns it off. Every
+  // account is anchored to a CAMARA-verified number, so `isPhoneVerified`
+  // is the only input, and its `true` default exists purely so the older
+  // tests above keep exercising the paths they were written for.
+  group('authRedirect — mandatory phone verification gate', () {
+    test('unverified → forced to verify-phone', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.home,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: false,
+        ),
+        RoutePaths.verifyPhone,
+      );
+    });
+
+    test('verified → passes through', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.home,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('already on verify-phone, still unverified → no redirect loop', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.verifyPhone,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('verified while sitting on verify-phone → escorted home', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.verifyPhone,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: true,
+        ),
+        RoutePaths.home,
+      );
+    });
+
+    test('not logged in → still goes to login, not verify-phone', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.home,
+          isLoggedIn: false,
+          isPhoneVerified: false,
+        ),
+        RoutePaths.login,
+      );
+    });
+
+    test('recovery link wins over the phone-verification gate', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.resetPassword,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('incomplete onboarding is enforced before the phone gate', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.home,
+          isLoggedIn: true,
+          isOnboardingComplete: false,
+          isPhoneVerified: false,
+        ),
+        RoutePaths.onboardingWalkthrough,
+      );
+    });
+
+    test('the phone-signin callback is reachable while unverified', () {
+      expect(
+        authRedirect(
+          location: RoutePaths.phoneSigninCallback,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: false,
+        ),
         isNull,
       );
     });

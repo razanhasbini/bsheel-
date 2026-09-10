@@ -69,6 +69,12 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
         .expect(201);
       harness.track(submission.body.data.id);
 
+      await harness.database.query(
+        `UPDATE user_quests SET assigned_at = now() - interval '31 seconds'
+         WHERE id = $1`,
+        [submission.body.data.user_quest_id],
+      );
+
       // The submitted quest stays submitted — it is not displaced or expired,
       // because that would discard proof no moderator has judged yet.
       const assigned = await harness
@@ -84,6 +90,44 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
         .send({ questId: questA.id })
         .expect(409);
       expect(third.body.error.code).toBe('ACTIVE_QUEST_EXISTS');
+    });
+  });
+
+  describe('30-second assignment cooldown and collab parity', () => {
+    it('blocks a new personal assignment for 30 seconds after a submitted quest', async () => {
+      const user = await harness.createUser({ prefix: 'qc1' });
+      const submitted = await harness.createSubmission(user);
+      const next = await harness.createQuest();
+      const coolingDown = await harness.post('/quests/assign', user).send({ questId: next.id }).expect(409);
+      expect(coolingDown.body.error.code).toBe('QUEST_ASSIGNMENT_COOLDOWN');
+      await harness.database.query(
+        `UPDATE user_quests SET assigned_at = now() - interval '31 seconds' WHERE id = $1`,
+        [submitted.user_quest_id],
+      );
+      const assigned = await harness.post('/quests/assign', user).send({ questId: next.id }).expect(201);
+      harness.track(assigned.body.data.id);
+    });
+
+    it('applies the cooldown to collab joins, then allows joining while personal proof is submitted', async () => {
+      const host = await harness.createUser({ prefix: 'qc2' });
+      const joiner = await harness.createUser({ prefix: 'qc3' });
+      const collabQuest = await harness.createQuest();
+      const hostAssignment = await harness.assignQuest(host, collabQuest.id);
+      const group = await harness.post('/collab/groups', host)
+        .send({ userQuestId: hostAssignment.id, mode: 'with' }).expect(201);
+      const submitted = await harness.createSubmission(joiner);
+      const coolingDown = await harness.post('/collab/groups/join', joiner)
+        .send({ code: group.body.data.code }).expect(409);
+      expect(coolingDown.body.error.code).toBe('QUEST_ASSIGNMENT_COOLDOWN');
+      await harness.database.query(
+        `UPDATE user_quests SET assigned_at = now() - interval '31 seconds' WHERE id = $1`,
+        [submitted.user_quest_id],
+      );
+      const joined = await harness.post('/collab/groups/join', joiner)
+        .send({ code: group.body.data.code }).expect(201);
+      harness.track(joined.body.data.user_quest_id);
+      expect(await harness.userQuestStatus(submitted.user_quest_id)).toBe('submitted');
+      expect(await harness.userQuestStatus(joined.body.data.user_quest_id)).toBe('assigned');
     });
   });
 
