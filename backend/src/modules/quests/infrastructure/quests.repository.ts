@@ -13,6 +13,7 @@ import type {
   UpdateQuestDto,
 } from '../presentation/quest.dto.js';
 import { QuestAssignmentPolicyRepository } from './quest-assignment-policy.repository.js';
+import { eligibilityFor } from '../domain/quest-eligibility.js';
 
 @Injectable()
 export class QuestsRepository {
@@ -29,9 +30,20 @@ export class QuestsRepository {
     if (!destination.is_published || (destination.category === 'hidden' && !destination.verified)) {
       throw new NotFoundException({code:'QUEST_NOT_FOUND',message:'Quest not found'});
     }
-    if (assignment && destination.requires_verification && !destination.verified) {
-      throw new ConflictException({code:'LOCATION_VERIFICATION_REQUIRED',message:'Network location verification is required; this quest remains locked.'});
-    }
+    // Deliberately no verification gate at assignment.
+    //
+    // Presence is proven where it is claimed — at SUBMISSION, by the CAMARA
+    // pipeline — not before a user is allowed to take a challenge on. The
+    // proposal's central journey is a user in Lebanon watching a Lusail
+    // Stadium completion, pressing Do This Quest, and saving it for a trip
+    // they have not taken yet. Demanding verified presence here made
+    // discovery unable to motivate travel, which is the product; and since
+    // nothing wrote map_location_evidence, it also made every
+    // `requires_verification` quest permanently unassignable.
+    //
+    // `assignment` is kept in the signature: callers distinguish the two
+    // reads, and the hidden-place check above is the part that still differs.
+    void assignment;
   }
 
   async findQuest(id: string): Promise<QuestRecord | null> {
@@ -292,19 +304,34 @@ export class QuestsRepository {
       // APPROVED proof for this user. The roll never offers one, but this
       // endpoint takes a questId from the client, so the rule has to be
       // enforced here too or the chain is bypassable by id.
+      // Whose approval counts depends on the chain's mode, and until now
+      // this only ever asked about the caller — so in a group chain, where
+      // the previous step belongs to somebody else by definition, step 2
+      // could never open for anyone and `mode = 'group'` was unreachable.
+      // Nothing failed loudly; relays just stopped after step 1.
       const locked = await transaction.query<{ step_order: number }>(
         `SELECT cs.step_order
          FROM quest_chain_steps cs
+         JOIN quest_chains ch ON ch.id = cs.chain_id
          WHERE cs.quest_id = $2
            AND cs.step_order > 1
+           -- A cross-country challenge has no reason to make one country
+           -- wait for another, so only sequential chains gate on order.
+           AND ch.completion_rule = 'sequential'
            AND NOT EXISTS (
              SELECT 1
              FROM quest_chain_steps prev
              JOIN user_quests uq ON uq.quest_id = prev.quest_id
              WHERE prev.chain_id = cs.chain_id
                AND prev.step_order = cs.step_order - 1
-               AND uq.user_id = $1
                AND uq.status = 'approved'
+               AND (
+                 ch.mode = 'solo' AND uq.user_id = $1
+                 OR ch.mode = 'group' AND EXISTS (
+                   SELECT 1 FROM collab_group_members m
+                   WHERE m.group_id = ch.collab_group_id AND m.user_id = uq.user_id
+                 )
+               )
            )
          LIMIT 1`,
         [userId, questId],
@@ -437,14 +464,11 @@ export class QuestsRepository {
   ///
   /// Takes the quest alias so callers can apply it to `q`, `quests`, etc.
   private static offerable(alias: string): string {
-    return `${alias}.is_active
-      AND NOT ${alias}.is_hidden
-      AND (${alias}.available_from IS NULL OR ${alias}.available_from <= now())
-      AND (${alias}.available_until IS NULL OR ${alias}.available_until > now())
-      AND NOT EXISTS (
-        SELECT 1 FROM quest_chain_steps cs
-        WHERE cs.quest_id = ${alias}.id AND cs.step_order > 1
-      )`;
+    // Delegates to the shared eligibility engine so the roll, Home, the map
+    // and search cannot drift apart. The ROLL channel is the narrowest: it
+    // adds the location-independent and not-already-settled clauses on top
+    // of the visibility rules every surface shares.
+    return eligibilityFor('ROLL', { alias, userParam: '$1' });
   }
 
   async pickerOptions(
@@ -478,13 +502,8 @@ export class QuestsRepository {
         `WITH eligible AS (
            SELECT q.* FROM quests q
            WHERE ${QuestsRepository.offerable('q')}
-             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)
              AND ($2::uuid IS NULL OR q.id <> $2)
              AND NOT EXISTS (SELECT 1 FROM admin_quest_injections i WHERE i.quest_id = q.id)
-             AND NOT EXISTS (
-               SELECT 1 FROM user_quests uq WHERE uq.user_id = $1 AND uq.quest_id = q.id
-               AND uq.status IN ('submitted', 'approved')
-             )
          ), preferred AS (
            SELECT * FROM eligible WHERE created_by IS NOT NULL ORDER BY created_at DESC, random() LIMIT $3
          ), filler AS (
@@ -505,8 +524,7 @@ export class QuestsRepository {
               q.xp_reward AS quest_xp_reward, q.duration_hours AS quest_duration_hours
        FROM quest_of_the_day d JOIN quests q ON q.id = d.quest_id
        WHERE d.display_date = (now() AT TIME ZONE 'UTC')::date
-         AND ${QuestsRepository.offerable('q')}
-         AND NOT EXISTS (SELECT 1 FROM quest_destinations dest WHERE dest.quest_id=q.id) LIMIT 1`,
+         AND ${eligibilityFor('QUEST_OF_DAY', { alias: 'q' })} LIMIT 1`,
     );
     return result.rows[0] ?? null;
   }
