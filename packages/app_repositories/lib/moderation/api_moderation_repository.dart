@@ -60,14 +60,39 @@ class ApiModerationRepository implements ModerationRepository {
   Future<List<Map<String, dynamic>>> reviewQueue({
     int limit = 100,
     int offset = 0,
+    String? cursor,
   }) async {
     final rows = apiObjectList(
       await _client.get(
         'submissions/admin/review-queue',
+        query: {
+          'limit': limit,
+          if (cursor == null) 'offset': offset,
+          if (cursor != null) 'cursor': cursor,
+        },
+      ),
+    );
+    return Future.wait(rows.map(_withSignedMedia));
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> unclearQueue({
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final rows = apiObjectList(
+      await _client.get(
+        'submissions/admin/unclear',
         query: {'limit': limit, 'offset': offset},
       ),
     );
     return Future.wait(rows.map(_withSignedMedia));
+  }
+
+  @override
+  Future<int> unclearCount() async {
+    final value = await _client.get('submissions/admin/unclear/count');
+    return (value as num?)?.toInt() ?? 0;
   }
 
   @override
@@ -78,6 +103,7 @@ class ApiModerationRepository implements ModerationRepository {
     String order = 'asc',
     int limit = 100,
     int offset = 0,
+    String? cursor,
   }) async {
     final rows = apiObjectList(
       await _client.get(
@@ -88,7 +114,10 @@ class ApiModerationRepository implements ModerationRepository {
           if (visibility != null) 'visibility': visibility,
           'order': order,
           'limit': limit,
-          'offset': offset,
+          // Mutually exclusive: the server ignores an offset once a cursor
+          // is present, and sending both would only invite confusion.
+          if (cursor == null) 'offset': offset,
+          if (cursor != null) 'cursor': cursor,
         },
       ),
     );

@@ -12,10 +12,12 @@ import '../../features/admin_auth/presentation/pages/admin_access_denied_page.da
 import '../../features/admin_auth/presentation/pages/confirm_email_page.dart';
 import '../../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../../features/moderation/presentation/pages/pending_submissions_page.dart';
+import '../../features/moderation/presentation/pages/unclear_queue_page.dart';
 import '../../features/moderation/presentation/pages/submission_review_page.dart';
 import '../../features/moderation/presentation/pages/submission_history_page.dart';
 import '../../features/feed_management/presentation/pages/feed_management_page.dart';
 import '../../features/quest_management/presentation/pages/quest_management_page.dart';
+import '../../features/quest_campaigns/presentation/pages/quest_campaigns_page.dart';
 import '../../features/quest_of_day/presentation/pages/qotd_management_page.dart';
 import '../../features/map_places/presentation/pages/map_places_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -159,6 +161,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const SubmissionHistoryPage(),
           ),
           GoRoute(
+            path: AdminRoutePaths.unclearQueue,
+            name: AdminRouteNames.unclearQueue,
+            builder: (context, state) => const UnclearQueuePage(),
+          ),
+          GoRoute(
             path: AdminRoutePaths.feedManagement,
             name: AdminRouteNames.feedManagement,
             builder: (context, state) => const FeedManagementPage(),
@@ -172,6 +179,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.questOfTheDay,
             name: AdminRouteNames.questOfTheDay,
             builder: (context, state) => const QotdManagementPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.questCampaigns,
+            name: AdminRouteNames.questCampaigns,
+            builder: (context, state) => const QuestCampaignsPage(),
           ),
           GoRoute(
             path: AdminRoutePaths.mapPlaces,

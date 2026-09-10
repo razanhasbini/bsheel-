@@ -12,14 +12,103 @@ import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
-/// Every submission, newest first. Media keys are signed by the adapter.
-final _allSubmissionsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  return AppBackend.repositories.moderation.listSubmissionsForAdmin(
-    status: 'all',
-    order: 'desc',
-  );
-});
+/// Every submission, newest first, accumulated a page at a time (#59).
+///
+/// Previously this fetched one API page and the table paged *within* it, so
+/// the ledger silently became "the newest 100 rows" as submissions grew —
+/// with nothing on screen to say so. It now keeps a keyset cursor and appends,
+/// so `LOAD MORE` reaches the whole history.
+///
+/// Cursors rather than offsets: the offset path degrades to 153.9 ms at
+/// offset 39,000 with a disk-spilling sort (`PERFORMANCE.md` §5.2), which is
+/// precisely the depth a "load more" button invites someone to reach.
+class SubmissionHistoryFeed
+    extends AutoDisposeAsyncNotifier<SubmissionHistoryState> {
+  /// Rows per request. Larger than the table's page size so a click on
+  /// `NEXT` usually costs no round-trip.
+  static const int _fetchSize = 100;
+
+  @override
+  Future<SubmissionHistoryState> build() async {
+    final rows = await _fetch(null);
+    return SubmissionHistoryState(
+      rows: rows,
+      cursor: _cursorOf(rows),
+      exhausted: _cursorOf(rows) == null,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetch(String? cursor) =>
+      AppBackend.repositories.moderation.listSubmissionsForAdmin(
+        status: 'all',
+        order: 'desc',
+        limit: _fetchSize,
+        cursor: cursor,
+      );
+
+  /// The cursor lives on the last row, matching how the feed returns one.
+  String? _cursorOf(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) return null;
+    final value = rows.last['next_cursor'];
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null || current.exhausted || current.loadingMore) return;
+
+    // Kept as data rather than flipping to loading: replacing the state with
+    // AsyncLoading would blank the table the moderator is reading.
+    state = AsyncData(current.copyWith(loadingMore: true));
+    try {
+      final next = await _fetch(current.cursor);
+      final cursor = _cursorOf(next);
+      state = AsyncData(current.copyWith(
+        rows: [...current.rows, ...next],
+        cursor: cursor,
+        exhausted: cursor == null,
+        loadingMore: false,
+      ));
+    } catch (error, stack) {
+      // The rows already loaded are still good; surface the failure without
+      // discarding them.
+      state = AsyncData(current.copyWith(loadingMore: false));
+      Error.throwWithStackTrace(error, stack);
+    }
+  }
+}
+
+class SubmissionHistoryState {
+  final List<Map<String, dynamic>> rows;
+  final String? cursor;
+  final bool exhausted;
+  final bool loadingMore;
+
+  const SubmissionHistoryState({
+    required this.rows,
+    required this.cursor,
+    required this.exhausted,
+    this.loadingMore = false,
+  });
+
+  SubmissionHistoryState copyWith({
+    List<Map<String, dynamic>>? rows,
+    String? cursor,
+    bool? exhausted,
+    bool? loadingMore,
+  }) =>
+      SubmissionHistoryState(
+        rows: rows ?? this.rows,
+        cursor: cursor ?? this.cursor,
+        exhausted: exhausted ?? this.exhausted,
+        loadingMore: loadingMore ?? this.loadingMore,
+      );
+}
+
+final _allSubmissionsProvider = AsyncNotifierProvider.autoDispose<
+    SubmissionHistoryFeed, SubmissionHistoryState>(
+  SubmissionHistoryFeed.new,
+);
 
 /// The decided-submission ledger: one table, five filters, one page at a
 /// time, and a CSV of whatever the moderator is currently looking at.
@@ -63,7 +152,7 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
   Widget build(BuildContext context) {
     final subsAsync = ref.watch(_allSubmissionsProvider);
     final loaded = subsAsync.valueOrNull;
-    final visible = loaded == null ? null : _visible(loaded);
+    final visible = loaded == null ? null : _visible(loaded.rows);
 
     return AdminPage(
       title: 'Submission history',
@@ -111,7 +200,8 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
               '$e',
           onRetry: () => ref.invalidate(_allSubmissionsProvider),
         ),
-        data: (subs) {
+        data: (feed) {
+          final subs = feed.rows;
           if (subs.isEmpty) {
             return BsheelEmptyState(
               title: 'Nothing decided yet',
@@ -194,10 +284,27 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      '${start + 1}–$end OF ${_grouped(rows.length)}',
+                      // Says "of 240 loaded" rather than "of 240" while more
+                      // remain, because the old wording claimed a total the
+                      // page did not have and quietly hid the rest.
+                      '${start + 1}–$end OF ${_grouped(rows.length)}'
+                      '${feed.exhausted ? '' : ' LOADED'}',
                       style: BsheelType.monoSm,
                     ),
                   ),
+                  if (!feed.exhausted) ...[
+                    BsheelButton.secondary(
+                      label: feed.loadingMore ? 'Loading…' : 'Load more',
+                      small: true,
+                      loading: feed.loadingMore,
+                      onPressed: feed.loadingMore
+                          ? null
+                          : () => ref
+                              .read(_allSubmissionsProvider.notifier)
+                              .loadMore(),
+                    ),
+                    const SizedBox(width: 7),
+                  ],
                   // White on the cream page ground, same reason as the
                   // export button above.
                   BsheelButton.secondary(
@@ -211,8 +318,18 @@ class _SubmissionHistoryPageState extends ConsumerState<SubmissionHistoryPage> {
                   BsheelButton.secondary(
                     label: 'Next',
                     small: true,
+                    // At the last loaded page with more on the server, Next
+                    // fetches instead of dead-ending — the moderator should
+                    // not have to know which button grows the list.
                     onPressed: page >= pageCount - 1
-                        ? null
+                        ? (feed.exhausted || feed.loadingMore
+                            ? null
+                            : () async {
+                                await ref
+                                    .read(_allSubmissionsProvider.notifier)
+                                    .loadMore();
+                                if (mounted) setState(() => _page = page + 1);
+                              })
                         : () => setState(() => _page = page + 1),
                   ),
                 ],

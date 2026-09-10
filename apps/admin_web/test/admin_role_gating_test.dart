@@ -39,7 +39,13 @@ Future<ProviderContainer> _pumpConsole(
   WidgetTester tester,
   AdminRoleEnum role,
 ) async {
-  tester.view.physicalSize = const Size(1600, 1000);
+  // Tall enough to build every destination row. The sidebar's list is a
+  // lazy `ListView`, so at 1000px the last few were never constructed —
+  // which broke the super-admin assertion for SETTINGS and, worse, made the
+  // moderator's `findsNothing` for SETTINGS and INJECTION pass because they
+  // were off-screen rather than because they were filtered out. Presence and
+  // absence only mean anything when every row is realised.
+  tester.view.physicalSize = const Size(1600, 2400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 

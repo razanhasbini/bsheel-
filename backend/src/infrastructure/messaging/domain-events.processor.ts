@@ -9,6 +9,7 @@ import { ObjectStorageService } from '../../modules/media/infrastructure/object-
 import { DomainEventsRepository } from './domain-events.repository.js';
 import { RealtimeEventPublisher } from '../realtime/realtime-event.publisher.js';
 import { TelegramEventService } from '../../integrations/telegram/telegram-event.service.js';
+import { ProofVerificationService } from '../../modules/submissions/application/proof-verification.service.js';
 
 interface NotificationCreatedPayload {
   readonly notificationId: string;
@@ -29,6 +30,7 @@ export class DomainEventsProcessor extends WorkerHost {
     private readonly email: TransactionalEmailService,
     private readonly realtime: RealtimeEventPublisher,
     private readonly telegram: TelegramEventService,
+    private readonly proofVerification: ProofVerificationService,
   ) {
     super();
   }
@@ -72,6 +74,17 @@ export class DomainEventsProcessor extends WorkerHost {
       await this.deliverPasswordRecovery(this.actionTokenPayload(payload));
     } else if (job.name === 'auth.email_confirmation.requested') {
       await this.deliverEmailConfirmation(this.actionTokenPayload(payload));
+    } else if (job.name === 'submission.created') {
+      // AI proof verification (#47). Advisory: it records a verdict and
+      // escalates what it cannot judge, and never touches review state or
+      // XP. A throw here would fail the whole job and retry the notification
+      // side effects with it, so the service swallows its own errors and
+      // leaves the row retryable for the sweep instead.
+      //
+      // Reads `payload`, not `job.data`: the outbox now carries aggregate
+      // identity in an `__aggregate` envelope that is stripped off above,
+      // and handlers must see the payload without it.
+      await this.proofVerification.verify(this.submissionPayload(payload).submissionId);
     } else {
       this.logger.debug(
         { eventType: job.name, messageId },
@@ -79,6 +92,14 @@ export class DomainEventsProcessor extends WorkerHost {
       );
     }
     await this.repository.markProcessed(this.consumer, messageId);
+  }
+
+  private submissionPayload(data: Record<string, unknown>): { submissionId: string } {
+    const submissionId = data.submissionId;
+    if (typeof submissionId !== 'string') {
+      throw new Error('submission.created payload is missing submissionId');
+    }
+    return { submissionId };
   }
 
   private async deliverPasswordRecovery(payload: {

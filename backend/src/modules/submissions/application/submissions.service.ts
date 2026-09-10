@@ -21,7 +21,9 @@ export class SubmissionsService {
     return submission;
   }
 
-  reviewQueue(limit: number, offset: number) { return this.repository.reviewQueue(limit, offset); }
+  reviewQueue(limit: number, offset: number, cursor?: string) {
+    return this.repository.reviewQueue(limit, offset, cursor);
+  }
 
   listForAdmin(filter: {
     status?: 'pending' | 'approved' | 'rejected' | 'all';
@@ -30,6 +32,7 @@ export class SubmissionsService {
     order?: 'asc' | 'desc';
     limit?: number;
     offset?: number;
+    cursor?: string;
   }) {
     return this.repository.listForAdmin(filter);
   }

@@ -9,6 +9,7 @@ import type { AuthActionTokenCipher } from '../src/modules/auth/infrastructure/a
 import type { TransactionalEmailService } from '../src/modules/auth/infrastructure/transactional-email.service.js';
 import type { RealtimeEventPublisher } from '../src/infrastructure/realtime/realtime-event.publisher.js';
 import type { TelegramEventService } from '../src/integrations/telegram/telegram-event.service.js';
+import type { ProofVerificationService } from '../src/modules/submissions/application/proof-verification.service.js';
 
 function notificationJob(data: Record<string, unknown>) {
   return {
@@ -49,6 +50,9 @@ function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
     {
       handle: vi.fn().mockResolvedValue(undefined),
     } as unknown as TelegramEventService,
+    // AI proof verification (#47) runs off submission.created; stubbed
+    // because these cases exercise the other side effects.
+    { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
   );
   return { processor, repository, cipher, push, realtime };
 }
@@ -232,6 +236,9 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({
@@ -278,6 +285,9 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await expect(
@@ -319,6 +329,9 @@ describe('DomainEventsProcessor email confirmation delivery', () => {
       {
         handle: vi.fn().mockResolvedValue(undefined),
       } as unknown as TelegramEventService,
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({

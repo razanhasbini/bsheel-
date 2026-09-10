@@ -26,7 +26,11 @@ try {
     if (['timestamp', 'timestamptz', 'date'].includes(name)) return 'Timestamp';
     if (['json', 'jsonb'].includes(name)) return 'Json';
     if (name === 'bytea') return 'Buffer';
-    if (['uuid', 'text', 'varchar', 'bpchar', 'citext', 'inet', 'int8', 'numeric', 'time', 'timetz'].includes(name)) return 'string';
+    // `bit`/`varbit` come back from the pg driver as a string of '0'/'1'
+    // characters, one per bit — verified against a bit(64) round-trip, not
+    // assumed. Used by the perceptual hash in migration 0026, where Hamming
+    // distance is computed in SQL rather than in JavaScript.
+    if (['uuid', 'text', 'varchar', 'bpchar', 'citext', 'inet', 'int8', 'numeric', 'time', 'timetz', 'bit', 'varbit'].includes(name)) return 'string';
     throw new Error(`Unmapped PostgreSQL type ${name}; add its actual pg driver representation.`);
   };
   const lines = [

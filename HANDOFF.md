@@ -6,9 +6,15 @@ assumes no memory of previous sessions. Read this before touching anything.
 Everything below is either **verified** (I ran it and saw the result) or
 explicitly marked **unverified**. Do not treat an unverified claim as done.
 
+**Amended 2026-09-09.** Test and migration counts have been replaced with the
+commands that produce them, because the numbers went stale within a day. The
+timing warnings below were measured on the Mac this was written on and do not
+hold on other hardware — they are marked as such rather than removed, since
+they are still true there.
+
 **Status as of the last session.** Backend is green and its runtime paths are
-verified live: lint clean, 51 unit, all 20 migrations replaying from empty,
-the type-drift gate, and **139/139 e2e**. API and worker start clean; every
+verified live: lint clean, the unit suite, every migration replaying from empty,
+the type-drift gate, and the full e2e suite. API and worker start clean; every
 reachable route returns 200; media presigning, the outbox, the hourly media
 reclaim and the realtime gateway were each exercised against the running
 stack. Both clients are at zero analyze issues and conform to the two design
@@ -17,9 +23,11 @@ specs. R3.5 (keyset pagination beyond the feed), a human render pass, and R6
 
 **Two traps that cost earlier sessions real time**, both now understood:
 
-- `nest build` takes **~2m45s** and `NestFactory.create` takes **~52s** on
-  this machine. Neither is hung. Sessions repeatedly killed them early and
-  reported a stall.
+- `nest build` and `NestFactory.create` were both very slow **on the Mac this
+  was written on** — ~2m45s and ~52s — and sessions repeatedly killed them
+  early and reported a stall. They are seconds-to-milliseconds on other
+  hardware, so treat the numbers as that machine's, not the project's, and
+  measure before concluding anything is hung.
 - A failed `git status` prints nothing and exits non-zero, so piping it to
   `wc -l` reports `0` — a false clean tree. See R7.
 
@@ -61,10 +69,10 @@ Four processes. All commands from the repo root unless stated.
 | Node 24 | `export PATH="/opt/homebrew/opt/node@24/bin:$PATH"` — **required**, system node is 20 and the backend will not run on it |
 | Flutter 3.38.5 | `/Users/tayseerlaz/development/flutter/bin` — matches CI exactly |
 | melos | `~/.pub-cache/bin` |
-| PostgreSQL 16 | already running on `127.0.0.1:5432`, user `bsheel`, password `bsheel` |
+| PostgreSQL 16+ | on that machine, `127.0.0.1:5432`, user `bsheel`, password `bsheel`. `docker compose up -d postgres` exposes 54329 instead |
 | Redis | running on `127.0.0.1:63799`, **no auth**. Do NOT use 6379 — it is password-protected |
 | MinIO | installed via brew, stands in for R2 locally |
-| Docker | **not running on this machine.** `docker compose up` will not work. Run the pieces natively as below |
+| Docker | was not running on the machine this was written on, hence the native instructions below. Where Docker *is* available, `docker compose up -d postgres redis` is the shorter path |
 
 ### 2.2 Start object storage (MinIO)
 
@@ -95,16 +103,16 @@ new S3Client({endpoint:'http://127.0.0.1:9000',region:'us-east-1',forcePathStyle
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
 cd backend
 set -a && . ./.env && set +a
-npm run db:migrate          # replays 0001..0016 from empty
+npm run db:migrate          # replays every migration from empty
 npm run build
 node dist/main.js &
 ```
 
-> **The API takes ~60 seconds to become ready.** `NestFactory.create` alone
-> takes ~52s on this machine. Do **not** conclude it is hung before 2 minutes.
-> `nest start --watch` is even slower and appeared to hang for 10+ minutes —
-> use the compiled `node dist/main.js` instead. Reducing this startup time is
-> an open task.
+> **On the Mac this was written on, the API took ~60 seconds to become ready**
+> (`NestFactory.create` alone ~52s), and `nest start --watch` appeared to hang
+> for 10+ minutes. That is a property of that machine, not of the project —
+> elsewhere it is near-instant. Prefer the compiled `node dist/main.js`, and
+> wait on the health endpoint below rather than on a stopwatch.
 
 Wait for it properly:
 
@@ -278,7 +286,7 @@ dart format --set-exit-if-changed .   # exit 0
 | mobile_app | 33 (+1 skipped: screenshot gallery, opt-in via `--dart-define=SCREENSHOTS=true`) |
 | app_repositories | 24 — the wire-contract suite |
 | app_core | 18 |
-| admin_web | 2 |
+| admin_web | 10 |
 | shared_ui | 1 |
 
 ### 4.2 Backend — verified
@@ -286,12 +294,12 @@ dart format --set-exit-if-changed .   # exit 0
 ```bash
 cd backend && set -a && . ./.env && set +a
 npm run lint             # clean (verified)
-npm test                 # 51 unit tests (verified)
-npm run db:migrate       # applies through 0020 (verified from empty)
+npm test                 # unit suite (verified)
+npm run db:migrate       # replays every migration from empty (verified)
 npm run db:migrate:check # passes (verified)
 npm run db:types:check   # types match the schema (verified)
-npm run test:e2e         # 139 passed, 0 skipped (verified repeatedly)
-npm run build            # exit 0 in ~2m45s on this machine (verified)
+npm run test:e2e         # full integration suite (verified repeatedly)
+npm run build            # exit 0 (verified; timing is machine-specific)
 ```
 
 > The E2E suite is now verified. All ten spec files pass twice consecutively:

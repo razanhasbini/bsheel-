@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { decodeCursor, encodeCursor } from '../../../common/pagination/keyset-cursor.js';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
 import type { CreateSubmissionDto } from '../presentation/submission.dto.js';
 
@@ -22,6 +23,42 @@ export interface SubmissionRecord {
   readonly moderation_removed_at: Date | null;
   readonly xp_awarded: boolean;
   readonly xp_awarded_amount: number;
+}
+
+/// Cursor contexts. Distinct per list so a cursor cannot be replayed on a
+/// list with a different ordering — `decodeCursor` rejects a mismatch.
+const listForAdminCursorContext = 'submissions.admin.list';
+const reviewQueueCursorContext = 'submissions.admin.review-queue';
+
+/// Attaches `next_cursor` to the last row of a full page, and strips the
+/// internal `pagination_at` column the cursor is built from.
+///
+/// `pagination_at` exists because the `pg` driver decodes `timestamptz` into
+/// a JS `Date`, which holds milliseconds — Postgres stores microseconds. A
+/// cursor derived from that Date lands *before* the row it came from, so
+/// `(submitted_at, id) > (cursor)` re-returns that row and every other row
+/// inside the same millisecond. That is a silent duplicate-rows bug, and it
+/// is what the first version of this did; the e2e walk caught it. The query
+/// therefore emits the timestamp as microsecond-precision text and the
+/// cursor carries that verbatim. The feed does the same thing for the same
+/// reason.
+///
+/// A short page is the end-of-list signal, so no cursor is offered there. A
+/// full page might still be the last one, in which case the next request
+/// simply returns nothing — cheaper than a count, and it never claims there
+/// are more rows than there are.
+function withNextCursor(
+  rows: readonly Record<string, unknown>[],
+  limit: number,
+  context: string,
+): readonly Record<string, unknown>[] {
+  const exhausted = rows.length < limit;
+  return rows.map(({ pagination_at, ...row }, index) => ({
+    ...row,
+    next_cursor: exhausted || index !== rows.length - 1
+      ? null
+      : encodeCursor({ context, at: pagination_at as string, id: row.id as string }),
+  }));
 }
 
 interface ReviewRow extends SubmissionRecord {
@@ -90,6 +127,15 @@ export class SubmissionsRepository {
            floor(EXTRACT(EPOCH FROM ($2::timestamptz - uq.assigned_at)))::integer)
          FROM user_quests uq WHERE m.user_quest_id = $1 AND uq.id = m.user_quest_id`,
         [input.userQuestId, result.rows[0].submitted_at],
+      );
+      // AI proof verification (#47): the queue row is created here, in the
+      // same transaction as the submission, rather than by the worker that
+      // consumes submission.created. That makes the catch-up sweep a real
+      // safety net — it can find work even if the event was never delivered —
+      // instead of one that only sees submissions the outbox already reached.
+      await transaction.query(
+        'INSERT INTO submission_verifications (submission_id) VALUES ($1) ON CONFLICT DO NOTHING',
+        [result.rows[0].id],
       );
       await this.notifyAdmins(result.rows[0], false, transaction);
       await this.emit('submission', result.rows[0].id, 'submission.created', {
@@ -236,10 +282,16 @@ export class SubmissionsRepository {
     return result.rows[0] ?? null;
   }
 
-  async reviewQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
+  async reviewQueue(limit: number, offset: number, cursor?: string): Promise<readonly Record<string, unknown>[]> {
+    // The cursor filters inside the CTE, alongside the LIMIT it belongs to.
+    // Applied outside it, the enrichment below would be computed for a page
+    // that was then discarded.
+    const decoded = decodeCursor(cursor, reviewQueueCursorContext);
+    const capped = Math.min(Math.max(limit, 1), 100);
     const result = await this.database.query(
       `WITH queue AS (
-         SELECT s.*, p.username::text, p.display_name, q.title AS quest_title
+         SELECT s.*, p.username::text, p.display_name, q.title AS quest_title,
+                to_char(s.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.USZ') AS pagination_at
          FROM submissions s
          JOIN profiles p ON p.id = s.user_id
          JOIN user_quests uq ON uq.id = s.user_quest_id
@@ -249,6 +301,8 @@ export class SubmissionsRepository {
          -- would otherwise open it, read it, and get a 409 on decide.
          WHERE s.status = 'pending'
            AND s.visibility <> 'deleted' AND s.deleted_at IS NULL
+           AND ($3::timestamptz IS NULL
+                OR (s.submitted_at, s.id) > ($3::timestamptz, $4::uuid))
          ORDER BY s.submitted_at ASC, s.id
          LIMIT $1 OFFSET $2
        ),
@@ -268,6 +322,12 @@ export class SubmissionsRepository {
        SELECT queue.*,
               coalesce(stats.approved_count, 0)::int AS user_approved_count,
               coalesce(stats.rejected_count, 0)::int AS user_rejected_count,
+              -- AI proof verification (#47). Null for anything the agent has
+              -- not finished; advisory, so a moderator can ignore it.
+              verification.verdict::text AS ai_verdict,
+              verification.confidence AS ai_confidence,
+              verification.rationale AS ai_rationale,
+              verification.escalation_reason AS ai_escalation_reason,
               EXISTS (
                 SELECT 1 FROM rejected r
                 WHERE r.user_id = queue.user_id
@@ -279,12 +339,37 @@ export class SubmissionsRepository {
               ) AS is_duplicate
        FROM queue
        LEFT JOIN stats ON stats.user_id = queue.user_id
+       LEFT JOIN submission_verifications verification
+              ON verification.submission_id = queue.id
+             AND verification.state = 'complete'
        ORDER BY queue.submitted_at ASC, queue.id`,
-      [Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)],
+      [
+        capped,
+        // Ignored once a cursor is in play: combining the two would skip rows.
+        decoded ? 0 : Math.max(offset, 0),
+        decoded?.at ?? null,
+        decoded?.id ?? null,
+      ],
     );
-    return result.rows;
+    return withNextCursor(result.rows, capped, reviewQueueCursorContext);
   }
 
+  /// The admin submission lists, paginated by keyset.
+  ///
+  /// `PERFORMANCE.md` §5.2 measured the offset path degrading 0.93 ms at
+  /// offset 0 to 153.9 ms at offset 39,000, where the plan becomes an
+  /// external merge sort spilling 5.9 MB to disk — it sorts 40,000 rows of
+  /// `s.*` (304 bytes wide) past `work_mem`. A keyset seek is constant cost
+  /// at any depth: no sort, no spill.
+  ///
+  /// `offset` is still accepted, because two clients pass it today and the
+  /// point of this change is to make paging possible rather than to break
+  /// what already works. A supplied `cursor` wins; without one the behaviour
+  /// is exactly as before.
+  ///
+  /// Every row carries `next_cursor`, matching how the feed already returns
+  /// one. That keeps the response an array, so a client that does not paginate
+  /// needs no change at all.
   async listForAdmin(filter: {
     status?: 'pending' | 'approved' | 'rejected' | 'all';
     appealed?: boolean;
@@ -292,6 +377,7 @@ export class SubmissionsRepository {
     order?: 'asc' | 'desc';
     limit?: number;
     offset?: number;
+    cursor?: string;
   }): Promise<readonly Record<string, unknown>[]> {
     const conditions: string[] = [];
     const parameters: unknown[] = [];
@@ -316,17 +402,35 @@ export class SubmissionsRepository {
 
     // Interpolated only from a closed set the DTO already validated; never
     // from raw input.
-    const direction = filter.order === 'desc' ? 'DESC' : 'ASC';
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const descending = filter.order === 'desc';
+    const direction = descending ? 'DESC' : 'ASC';
 
-    parameters.push(Math.min(Math.max(filter.limit ?? 50, 1), 100));
+    // The cursor is context-bound to this list, so one taken from the feed —
+    // or from the review queue — is rejected rather than silently paging
+    // through the wrong ordering.
+    const cursor = decodeCursor(filter.cursor, listForAdminCursorContext);
+    if (cursor) {
+      parameters.push(cursor.at, cursor.id);
+      // The comparison follows the sort: reversing one without the other
+      // returns the page already seen.
+      const comparison = descending ? '<' : '>';
+      conditions.push(
+        `(s.submitted_at, s.id) ${comparison} ($${parameters.length - 1}::timestamptz, $${parameters.length}::uuid)`,
+      );
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 100);
+    parameters.push(limit);
     const limitPlaceholder = `$${parameters.length}`;
-    parameters.push(Math.max(filter.offset ?? 0, 0));
+    // Ignored once a cursor is in play: mixing the two would skip rows.
+    parameters.push(cursor ? 0 : Math.max(filter.offset ?? 0, 0));
     const offsetPlaceholder = `$${parameters.length}`;
 
     const result = await this.database.query(
       `SELECT s.*, p.username::text, p.display_name, p.avatar_url,
-              q.title AS quest_title, q.description AS quest_description, q.category AS quest_category
+              q.title AS quest_title, q.description AS quest_description, q.category AS quest_category,
+              to_char(s.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.USZ') AS pagination_at
        FROM submissions s JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
        ${where}
@@ -334,7 +438,7 @@ export class SubmissionsRepository {
        LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
       parameters,
     );
-    return result.rows;
+    return withNextCursor(result.rows, limit, listForAdminCursorContext);
   }
 
   async appeal(userId: string, id: string, appealNote: string): Promise<void> {
@@ -405,6 +509,15 @@ export class SubmissionsRepository {
           'level_up', null, transaction,
         );
       }
+      // AI proof verification (#47): a human has now decided, so the
+      // escalation leaves the "unclear" queue in the same transaction that
+      // recorded the decision. A reviewed submission must never still be
+      // listed as waiting on a human.
+      await transaction.query(
+        `UPDATE submission_verifications SET resolved_by = $2, resolved_at = now()
+         WHERE submission_id = $1 AND resolved_at IS NULL`,
+        [id, actorId],
+      );
       await this.audit(actorId, 'submission.approve', id, {
         previous_status: 'pending', note_chars: reviewNote?.trim().length ?? 0, ...source,
       }, transaction);
@@ -438,6 +551,15 @@ export class SubmissionsRepository {
           ? 'Mods pulled the post and rolled back the XP. No drama. The quest is yours again whenever you want it.'
           : reviewNote.trim() || "The judges weren't convinced this round. Take another swing. Same quest, fresh shot.",
         'submission_rejected', id, transaction,
+      );
+      // AI proof verification (#47): a human has now decided, so the
+      // escalation leaves the "unclear" queue in the same transaction that
+      // recorded the decision. A reviewed submission must never still be
+      // listed as waiting on a human.
+      await transaction.query(
+        `UPDATE submission_verifications SET resolved_by = $2, resolved_at = now()
+         WHERE submission_id = $1 AND resolved_at IS NULL`,
+        [id, actorId],
       );
       await this.audit(actorId, 'submission.reject', id, {
         previous_status: 'pending', note_chars: reviewNote.trim().length, ...source,

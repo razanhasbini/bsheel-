@@ -81,6 +81,11 @@ abstract final class NotificationType {
   /// Another user commented on the same submission (reply-in-thread).
   static const String commentReply = 'comment_reply';
 
+  /// AI proof verification (#47) could not decide on a submission, so the
+  /// committee must. Sent to admins only, and cleared from the "unclear"
+  /// queue as soon as a moderator approves or rejects it.
+  static const String proofUnclear = 'proof_unclear';
+
   /// Another user mentioned this user in a comment.
   static const String mention = 'mention';
 

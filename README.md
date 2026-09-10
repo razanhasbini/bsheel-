@@ -192,10 +192,10 @@ Only the home hero zone is status-driven:
 | no active quest | slot machine / GENERATE A QUEST |
 
 The rejection and appeal UI lives on the submission status page, reachable from
-exactly three places: a notification tap (the primary path), the QOTD ticket
-stub after a first-time rejection, and the redirect straight after submitting.
-Because the notification is the main route in, breaking push delivery
-effectively hides the appeal flow.
+four places: the APPEAL button on a rejected row in quest history, a
+notification tap, the QOTD ticket stub after a first-time rejection, and the
+redirect straight after submitting. The last three are transient; history is
+the durable one, so it is the route to protect.
 
 ## Verification
 

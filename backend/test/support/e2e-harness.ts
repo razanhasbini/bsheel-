@@ -227,7 +227,20 @@ export class E2eHarness {
     /// eight fixture rows outside the legal set in the shared development
     /// database. A test that wants to prove the constraint bites passes an
     /// illegal value here and expects the insert to throw.
+    ///
+    /// Note for #47: 'e2e' also used to matter because it matched no row in
+    /// `quest_verification_defaults`, so a fixture quest resolved to the
+    /// fail-closed contract and no test could accidentally hand the
+    /// verification agent authority. Every one of the five legal categories
+    /// IS seeded, so that trick is no longer available — the fail-closed
+    /// default is now written per quest instead, see `verificationAuthority`.
     category?: string;
+    /// Whether a fixture quest may be auto-decided by the verification agent
+    /// (#47). Defaults to `false`, written as a per-quest override on
+    /// `quests.may_auto_approve` / `may_auto_reject`, which
+    /// `quest_verification_contract` resolves above the category default.
+    /// Pass 'inherit' to fall through to the seeded category default.
+    verificationAuthority?: 'fail_closed' | 'inherit';
     /// #51 quest-type columns. Null windows mean "always available", which
     /// is what every pre-existing quest has.
     isHidden?: boolean;
@@ -237,8 +250,9 @@ export class E2eHarness {
   } = {}): Promise<TestQuest> {
     const result = await this.database.query<TestQuest>(
       `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active,
-                           is_hidden, available_from, available_until, sponsor_name)
-       VALUES ($1, $2, $10, 'easy', $3, $4, $5, $6, $7, $8, $9)
+                           is_hidden, available_from, available_until, sponsor_name,
+                           may_auto_approve, may_auto_reject)
+       VALUES ($1, $2, $10, 'easy', $3, $4, $5, $6, $7, $8, $9, $11, $11)
        RETURNING id, title, xp_reward, duration_hours`,
       [
         options.title ?? `Quest ${this.uniqueName('q')}`,
@@ -251,6 +265,12 @@ export class E2eHarness {
         options.availableUntil ?? null,
         options.sponsorName ?? null,
         options.category ?? 'learning',
+        // Fail closed unless a test opts in. Every legal category is seeded
+        // in `quest_verification_defaults`, so without this override a
+        // fixture quest would inherit auto-approve authority — 'learning'
+        // resolves to `provenance_only` with `may_auto_approve = true`. Null
+        // inherits the category default, which is what 'inherit' asks for.
+        options.verificationAuthority === 'inherit' ? null : false,
       ],
     );
     this.questIds.push(result.rows[0].id);
