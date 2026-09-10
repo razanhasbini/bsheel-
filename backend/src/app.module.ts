@@ -31,6 +31,22 @@ import { AccountModule } from './modules/account/account.module.js';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
 import { GeofencingModule } from './modules/agent/geofencing.module.js';
+import { createRequire } from 'node:module';
+
+/**
+ * True only when `pino-pretty` can actually be loaded from this install.
+ *
+ * It ships as a devDependency, so a production image built with
+ * `npm ci --omit=dev` does not have it even when NODE_ENV says development.
+ */
+function prettyLoggingAvailable(): boolean {
+  try {
+    createRequire(import.meta.url).resolve('pino-pretty');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 @Module({
   imports: [
@@ -62,7 +78,15 @@ import { GeofencingModule } from './modules/agent/geofencing.module.js';
             ],
             censor: '[REDACTED]',
           },
-          ...(config.get('NODE_ENV', { infer: true }) === 'development'
+          // Pretty logs are a convenience for a developer reading a
+          // terminal, so they must never be the reason a process refuses to
+          // boot. NODE_ENV alone is not enough to decide: the container
+          // image is built with `npm ci --omit=dev` while compose passes it
+          // NODE_ENV=development from backend/.env, and pino-pretty is a
+          // devDependency — that combination crashed the API on startup
+          // with "unable to determine transport target". Ask whether the
+          // module is actually there instead of inferring it.
+          ...(config.get('NODE_ENV', { infer: true }) === 'development' && prettyLoggingAvailable()
             ? { transport: { target: 'pino-pretty', options: { singleLine: true } } }
             : {}),
         },

@@ -239,7 +239,14 @@ export class DomainEventsProcessor extends WorkerHost {
       {
         // Deterministic id: a retried outbox publish of the same
         // submission.created event can never enqueue a second run.
-        jobId: `submission:${payload.submissionId}:verification:v1`,
+        // BullMQ rejects a custom job id containing ':' — it reserves the
+        // colon for its own Redis key namespacing and throws "Custom Id
+        // cannot contain :". The throw happens inside the shared
+        // domain-events processor, so it took the whole job down with it
+        // and the event was retried instead of acknowledged: the agent
+        // pipeline never ran and nothing said why. Keep the id stable (it
+        // is what makes the enqueue idempotent) but separator-safe.
+        jobId: `submission-${payload.submissionId}-verification-v1`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
         removeOnComplete: { age: 86_400, count: 10_000 },
@@ -264,7 +271,7 @@ export class DomainEventsProcessor extends WorkerHost {
       'quest.assignment-agent',
       { userQuestId: data.userQuestId },
       {
-        jobId: `user-quest:${data.userQuestId}:assignment-agent:v1`,
+        jobId: `user-quest-${data.userQuestId}-assignment-agent-v1`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
         removeOnComplete: { age: 86_400, count: 10_000 },

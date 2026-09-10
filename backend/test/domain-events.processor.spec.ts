@@ -419,7 +419,7 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
     expect(submissionVerificationQueue.add).toHaveBeenCalledWith(
       'submission.verify',
       { submissionId: 'submission-id' },
-      expect.objectContaining({ jobId: 'submission:submission-id:verification:v1' }),
+      expect.objectContaining({ jobId: 'submission-submission-id-verification-v1' }),
     );
     expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
@@ -453,7 +453,7 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
     expect(questAssignmentQueue.add).toHaveBeenCalledWith(
       'quest.assignment-agent',
       { userQuestId: 'assignment-id' },
-      expect.objectContaining({ jobId: 'user-quest:assignment-id:assignment-agent:v1' }),
+      expect.objectContaining({ jobId: 'user-quest-assignment-id-assignment-agent-v1' }),
     );
     expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
@@ -482,4 +482,49 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
     expect(submissionVerificationQueue.add).not.toHaveBeenCalled();
     expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
+
+  // Regression guard. BullMQ throws "Custom Id cannot contain :" and the
+  // throw happens inside this shared processor, so a colon here does not
+  // just skip the agent — it fails the whole domain event and retries the
+  // notification side effects with it. The previous assertions pinned the
+  // colon form, so the suite stayed green while nothing ran.
+  it('never builds a job id BullMQ will reject', async () => {
+    for (const [event, data, queueIndex] of [
+      ['submission.created', { submissionId: 'submission-id', userId: 'user-id' }, 0],
+      ['quest.assigned', { userId: 'user-id', userQuestId: 'assignment-id', questId: 'quest-id' }, 1],
+    ] as const) {
+      const repository = {
+        wasProcessed: vi.fn().mockResolvedValue(false),
+        markProcessed: vi.fn().mockResolvedValue(undefined),
+      };
+      const queues = [fakeQueue(), fakeQueue()];
+      const processor = new DomainEventsProcessor(
+        repository as unknown as DomainEventsRepository,
+        {} as DeviceTokenCipher,
+        {} as FirebasePushService,
+        {} as ObjectStorageService,
+        {} as AuthActionTokenCipher,
+        {} as TransactionalEmailService,
+        { publish: vi.fn().mockResolvedValue(undefined) } as unknown as RealtimeEventPublisher,
+        { handle: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramEventService,
+        fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
+        queues[0],
+        queues[1],
+        { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      );
+
+      await processor.process({
+        id: 'b2b2b2b2-0000-0000-0000-000000000001',
+        name: event,
+        data,
+      } as unknown as Job<Record<string, unknown>, unknown, string>);
+
+      const call = (queues[queueIndex].add as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call, `${event} did not enqueue`).toBeDefined();
+      expect(call[2].jobId).not.toContain(':');
+      // Still stable, so a duplicated event cannot double-enqueue.
+      expect(call[2].jobId).toMatch(/^[A-Za-z0-9._-]+$/);
+    }
+  });
+
 });
