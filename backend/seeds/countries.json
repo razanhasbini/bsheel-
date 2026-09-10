@@ -1,0 +1,12 @@
+[
+  { "code": "LB", "name": "Lebanon",              "geometryId": "422" },
+  { "code": "QA", "name": "Qatar",                "geometryId": "634" },
+  { "code": "PS", "name": "Palestine",            "geometryId": "275" },
+  { "code": "JO", "name": "Jordan",               "geometryId": "400" },
+  { "code": "EG", "name": "Egypt",                "geometryId": "818" },
+  { "code": "SA", "name": "Saudi Arabia",         "geometryId": "682" },
+  { "code": "AE", "name": "United Arab Emirates", "geometryId": "784" },
+  { "code": "TR", "name": "Turkey",               "geometryId": "792" },
+  { "code": "ES", "name": "Spain",                "geometryId": "724" },
+  { "code": "IT", "name": "Italy",                "geometryId": "380" }
+]

@@ -1,0 +1,106 @@
+[
+  { "seedKey": "bsheel:place:qa-lusail-stadium", "countryCode": "QA", "name": "Lusail Stadium", "city": "Lusail",
+    "category": "landmark", "latitude": 25.4219, "longitude": 51.4847, "radiusM": 600,
+    "description": "The stadium that hosted the 2022 World Cup final." },
+
+  { "seedKey": "bsheel:place:qa-souq-waqif", "countryCode": "QA", "name": "Souq Waqif", "city": "Doha",
+    "category": "culture", "latitude": 25.2875, "longitude": 51.5333, "radiusM": 400,
+    "description": "Doha's restored market: spice sellers, falcon souq, coffee houses." },
+
+  { "seedKey": "bsheel:place:qa-inland-sea", "countryCode": "QA", "name": "Khor Al Adaid (Inland Sea)", "city": "Al Wakrah",
+    "category": "landmark", "latitude": null, "longitude": null, "radiusM": 3000,
+    "needsLocationReview": true,
+    "description": "A UNESCO-recognised inland sea reached across the dunes." },
+
+  { "seedKey": "bsheel:place:lb-baalbek", "countryCode": "LB", "name": "Baalbek", "city": "Baalbek",
+    "category": "heritage", "latitude": 34.0069, "longitude": 36.2039, "radiusM": 500,
+    "description": "Roman temple complex — the six standing columns of Jupiter." },
+
+  { "seedKey": "bsheel:place:lb-byblos", "countryCode": "LB", "name": "Byblos Old Souk", "city": "Jbeil",
+    "category": "heritage", "latitude": 34.1230, "longitude": 35.6510, "radiusM": 400,
+    "description": "One of the oldest continuously inhabited cities on earth." },
+
+  { "seedKey": "bsheel:place:lb-byblos-castle", "countryCode": "LB", "name": "Byblos Crusader Castle", "city": "Jbeil",
+    "category": "heritage", "latitude": 34.1214, "longitude": 35.6469, "radiusM": 250,
+    "description": "Twelfth-century keep above the archaeological site." },
+
+  { "seedKey": "bsheel:place:lb-byblos-port", "countryCode": "LB", "name": "Byblos Fishing Port", "city": "Jbeil",
+    "category": "culture", "latitude": 34.1215, "longitude": 35.6444, "radiusM": 250,
+    "description": "The old harbour the Phoenicians sailed cedar from." },
+
+  { "seedKey": "bsheel:place:lb-cedars", "countryCode": "LB", "name": "Cedars of God", "city": "Bsharri",
+    "category": "heritage", "latitude": 34.2436, "longitude": 36.0489, "radiusM": 800,
+    "description": "The surviving grove of the cedars on the Lebanese flag." },
+
+  { "seedKey": "bsheel:place:lb-tripoli-souk", "countryCode": "LB", "name": "Tripoli Old Souks", "city": "Tripoli",
+    "category": "culture", "latitude": 34.4367, "longitude": 35.8497, "radiusM": 500,
+    "description": "Mamluk-era souks: soap, sweets, copper." },
+
+  { "seedKey": "bsheel:place:ps-nativity", "countryCode": "PS", "name": "Church of the Nativity", "city": "Bethlehem",
+    "category": "pilgrimage", "latitude": 31.7042, "longitude": 35.2075, "radiusM": 300,
+    "description": "One of the oldest churches in continuous use." },
+
+  { "seedKey": "bsheel:place:ps-sebastia", "countryCode": "PS", "name": "Sebastia", "city": "Nablus",
+    "category": "heritage", "latitude": 32.2764, "longitude": 35.1936, "radiusM": 500,
+    "description": "Layered Roman, Byzantine and Ottoman ruins above the olive terraces." },
+
+  { "seedKey": "bsheel:place:ps-nablus-old-city", "countryCode": "PS", "name": "Nablus Old City", "city": "Nablus",
+    "category": "culture", "latitude": 32.2211, "longitude": 35.2544, "radiusM": 400,
+    "description": "Soap factories, kunafa ovens and Ottoman courtyards." },
+
+  { "seedKey": "bsheel:place:jo-petra", "countryCode": "JO", "name": "Petra", "city": "Wadi Musa",
+    "category": "heritage", "latitude": 30.3285, "longitude": 35.4444, "radiusM": 1500,
+    "description": "The Nabataean city carved into rose rock." },
+
+  { "seedKey": "bsheel:place:jo-wadi-rum", "countryCode": "JO", "name": "Wadi Rum", "city": "Aqaba Governorate",
+    "category": "landmark", "latitude": 29.5765, "longitude": 35.4200, "radiusM": 3000,
+    "description": "Sandstone valleys and Bedouin camps under a very dark sky." },
+
+  { "seedKey": "bsheel:place:eg-giza", "countryCode": "EG", "name": "Pyramids of Giza", "city": "Giza",
+    "category": "heritage", "latitude": 29.9792, "longitude": 31.1342, "radiusM": 1200,
+    "description": "The last standing wonder of the ancient world." },
+
+  { "seedKey": "bsheel:place:eg-khan-el-khalili", "countryCode": "EG", "name": "Khan el-Khalili", "city": "Cairo",
+    "category": "culture", "latitude": 30.0477, "longitude": 31.2622, "radiusM": 400,
+    "description": "Fatimid-era bazaar and the coffee houses around it." },
+
+  { "seedKey": "bsheel:place:sa-hegra", "countryCode": "SA", "name": "Hegra (Mada'in Salih)", "city": "AlUla",
+    "category": "heritage", "latitude": 26.7917, "longitude": 37.9542, "radiusM": 2000,
+    "description": "Saudi Arabia's first UNESCO site — Nabataean tombs in open desert." },
+
+  { "seedKey": "bsheel:place:sa-medina-quba", "countryCode": "SA", "name": "Quba Mosque", "city": "Medina",
+    "category": "pilgrimage", "latitude": 24.4394, "longitude": 39.6169, "radiusM": 300,
+    "description": "The first mosque built in Islam." },
+
+  { "seedKey": "bsheel:place:ae-burj-khalifa", "countryCode": "AE", "name": "Burj Khalifa", "city": "Dubai",
+    "category": "landmark", "latitude": 25.1972, "longitude": 55.2744, "radiusM": 400,
+    "description": "The tallest building in the world." },
+
+  { "seedKey": "bsheel:place:ae-al-fahidi", "countryCode": "AE", "name": "Al Fahidi Historical District", "city": "Dubai",
+    "category": "heritage", "latitude": 25.2637, "longitude": 55.2972, "radiusM": 350,
+    "description": "Wind-tower houses from before the oil." },
+
+  { "seedKey": "bsheel:place:tr-hagia-sophia", "countryCode": "TR", "name": "Hagia Sophia", "city": "Istanbul",
+    "category": "heritage", "latitude": 41.0086, "longitude": 28.9802, "radiusM": 300,
+    "description": "Cathedral, then mosque, then museum, then mosque again." },
+
+  { "seedKey": "bsheel:place:tr-grand-bazaar", "countryCode": "TR", "name": "Grand Bazaar", "city": "Istanbul",
+    "category": "culture", "latitude": 41.0106, "longitude": 28.9681, "radiusM": 400,
+    "description": "Four thousand shops under one roof since 1461." },
+
+  { "seedKey": "bsheel:place:es-sagrada-familia", "countryCode": "ES", "name": "Sagrada Família", "city": "Barcelona",
+    "category": "landmark", "latitude": 41.4036, "longitude": 2.1744, "radiusM": 300,
+    "description": "Gaudí's basilica, still unfinished after 140 years." },
+
+  { "seedKey": "bsheel:place:es-alhambra", "countryCode": "ES", "name": "Alhambra", "city": "Granada",
+    "category": "heritage", "latitude": 37.1761, "longitude": -3.5881, "radiusM": 600,
+    "description": "Nasrid palaces and the water gardens of the Generalife." },
+
+  { "seedKey": "bsheel:place:it-colosseum", "countryCode": "IT", "name": "Colosseum", "city": "Rome",
+    "category": "heritage", "latitude": 41.8902, "longitude": 12.4922, "radiusM": 400,
+    "description": "The amphitheatre at the centre of imperial Rome." },
+
+  { "seedKey": "bsheel:place:it-venice-rialto", "countryCode": "IT", "name": "Rialto Market", "city": "Venice",
+    "category": "culture", "latitude": 45.4404, "longitude": 12.3346, "radiusM": 250,
+    "description": "The fish and produce market Venice has shopped at for 700 years." }
+]

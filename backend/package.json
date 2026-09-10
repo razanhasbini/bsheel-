@@ -31,7 +31,8 @@
     "test:realtime": "node scripts/smoke-realtime.mjs",
     "test:telegram": "node scripts/smoke-telegram.mjs",
     "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
-    "proof:eval": "node scripts/proof-eval.mjs"
+    "proof:eval": "node scripts/proof-eval.mjs",
+    "seed:quests": "node scripts/seed-quests.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
