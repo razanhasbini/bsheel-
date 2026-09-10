@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, UnauthorizedExcept
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { hash, verify } from 'argon2';
+import bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import type { AccessTokenPayload, AuthUser, RefreshTokenPayload } from '../../../common/auth/auth-user.js';
@@ -65,9 +66,40 @@ export class AuthService {
     return this.issueTokenPair(account, request);
   }
 
+  /**
+   * Verifies a password against whichever scheme the stored hash uses, and
+   * upgrades a legacy hash to argon2 on the way through.
+   *
+   * The quest-app import brought 180 real accounts whose hashes are bcrypt
+   * ($2a$/$2b$). This service hashes with argon2, and argon2's verify returns
+   * false for a bcrypt hash rather than throwing — so every one of those
+   * users was refused with the correct password and no error to explain it.
+   *
+   * A successful bcrypt check re-hashes with argon2 and persists it, so each
+   * account upgrades on its owner's next sign-in and the bcrypt hash stops
+   * existing. Nothing is written when verification fails.
+   */
+  private async verifyPassword(
+    userId: string,
+    storedHash: string,
+    password: string,
+  ): Promise<boolean> {
+    if (/^\$2[abxy]?\$/.test(storedHash)) {
+      if (!(await bcrypt.compare(password, storedHash))) return false;
+      await this.repository.replacePasswordHash(
+        userId,
+        await hash(password, { type: 2 }),
+      );
+      return true;
+    }
+    return verify(storedHash, password);
+  }
+
   async login(input: LoginDto, request: Request): Promise<TokenPair> {
     const account = await this.repository.findAccountByEmail(input.email);
-    const valid = account?.passwordHash ? await verify(account.passwordHash, input.password) : false;
+    const valid = account?.passwordHash
+      ? await this.verifyPassword(account.id, account.passwordHash, input.password)
+      : false;
     if (!account || !valid) {
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
     }

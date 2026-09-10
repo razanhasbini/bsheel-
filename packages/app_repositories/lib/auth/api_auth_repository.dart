@@ -170,7 +170,8 @@ class ApiAuthRepository implements AuthRepository {
     // pair alongside the account, and storing it is what keeps this device
     // signed in rather than dropping the user on the login screen right after
     // they successfully changed their password.
-    await _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.userUpdated);
+    await _acceptTokens(
+        ApiTokenPair.fromJson(data), AuthChangeEvent.userUpdated);
 
     return AuthUser(
       id: (data['id'] ?? _currentUser?.id ?? '').toString(),
@@ -257,7 +258,6 @@ class ApiAuthRepository implements AuthRepository {
         expiresAt: DateTime.now().add(Duration(seconds: tokens.expiresIn)),
         user: _currentUser ?? _userFromAccessToken(tokens.accessToken),
       );
-
 
   AuthUser _userFromAccessToken(String token) {
     final parts = token.split('.');

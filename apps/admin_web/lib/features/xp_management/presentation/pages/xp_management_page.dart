@@ -257,7 +257,6 @@ class _AuditBody extends ConsumerWidget {
     if (ok == true) await _fixUser(ref, user);
   }
 
-
   // SEC-009: route through admin_set_user_xp so each fix lands in
   // admin_audit_log with the actor + before/after diff. The previous
   // direct .update() relied on the profiles_update_admin RLS policy
@@ -272,7 +271,6 @@ class _AuditBody extends ConsumerWidget {
     );
     ref.invalidate(_xpAuditProvider);
   }
-
 }
 
 // ── Inline code chip ─────────────────────────────────────────────────────────

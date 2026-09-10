@@ -222,7 +222,22 @@ export class QuestsRepository {
                   AND s.status = 'rejected'
                   AND s.appealed = false
                   AND s.deleted_at IS NULL
-              ) AS appeal_available
+              ) AS appeal_available,
+              -- The submission id the appeal screen needs.
+              --
+              -- Without it the client had only uq.id to navigate with, and
+              -- the appeal route resolves a submission — so tapping APPEAL in
+              -- history opened "Submission not found". The route only checks
+              -- that the parameter is a UUID, which is why the mistake was
+              -- invisible until the fetch.
+              (
+                SELECT s.id FROM submissions s
+                WHERE s.user_quest_id = uq.id
+                  AND s.deleted_at IS NULL
+                ORDER BY (s.status = 'rejected' AND s.appealed = false) DESC,
+                         s.submitted_at DESC
+                LIMIT 1
+              ) AS submission_id
        FROM user_quests uq JOIN quests q ON q.id = uq.quest_id
        WHERE uq.user_id = $1
        ORDER BY uq.assigned_at DESC, uq.id DESC

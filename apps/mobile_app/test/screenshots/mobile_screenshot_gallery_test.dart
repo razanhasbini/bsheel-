@@ -849,6 +849,10 @@ class _FakeSubmissionsRepository implements SubmissionsRepository {
   Future<SubmissionModel> createSubmission(SubmissionModel submission) async =>
       submission;
 
+  // Now on the contract, so the appeal flow is finally fakeable in a test.
+  @override
+  Future<void> appealSubmission(String submissionId, String appealNote) async {}
+
   @override
   Future<String> uploadSubmissionMedia(
     String userId,

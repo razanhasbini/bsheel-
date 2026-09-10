@@ -39,25 +39,39 @@ export class DomainEventsProcessor extends WorkerHost {
     const messageId = String(job.id);
     if (await this.repository.wasProcessed(this.consumer, messageId)) return;
 
+    // The publisher rides the aggregate metadata beside the payload under a
+    // reserved key. Split it back out here: subscribers need it, and every
+    // handler below must keep seeing the payload exactly as it was written.
+    const { __aggregate: aggregate, ...payload } = job.data as Record<string, unknown> & {
+      __aggregate?: { type?: string; id?: string; occurredAt?: string | Date };
+    };
+
     if (this.isRealtimeEvent(job.name)) {
       await this.realtime.publish({
         messageId,
         type: job.name,
-        data: job.data,
+        data: payload,
+        // Fall back to the event's own identity rather than emitting an empty
+        // string: a job enqueued by an older build has no __aggregate, and the
+        // client's parser rejects the event outright if any of these is
+        // missing.
+        aggregateType: aggregate?.type ?? job.name.split('.')[0] ?? 'event',
+        aggregateId: aggregate?.id ?? messageId,
+        occurredAt: new Date(aggregate?.occurredAt ?? Date.now()).toISOString(),
       });
     }
-    await this.telegram.handle(job.name, job.data);
+    await this.telegram.handle(job.name, payload);
 
     if (job.name === 'notification.created') {
-      await this.deliverNotification(this.notificationPayload(job.data));
+      await this.deliverNotification(this.notificationPayload(payload));
     } else if (job.name === 'privacy.export.requested') {
-      await this.createPrivacyExport(this.exportPayload(job.data));
+      await this.createPrivacyExport(this.exportPayload(payload));
     } else if (job.name === 'account.deletion.requested') {
-      await this.deleteAccount(this.deletionPayload(job.data));
+      await this.deleteAccount(this.deletionPayload(payload));
     } else if (job.name === 'auth.password_recovery.requested') {
-      await this.deliverPasswordRecovery(this.actionTokenPayload(job.data));
+      await this.deliverPasswordRecovery(this.actionTokenPayload(payload));
     } else if (job.name === 'auth.email_confirmation.requested') {
-      await this.deliverEmailConfirmation(this.actionTokenPayload(job.data));
+      await this.deliverEmailConfirmation(this.actionTokenPayload(payload));
     } else {
       this.logger.debug(
         { eventType: job.name, messageId },

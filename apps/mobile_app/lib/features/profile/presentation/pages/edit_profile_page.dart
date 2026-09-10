@@ -571,8 +571,7 @@ class _FieldState extends State<_Field> {
                           size: 20,
                           color: QuestColors.osTextSecondary,
                         ),
-                        onPressed: () =>
-                            setState(() => _revealed = !_revealed),
+                        onPressed: () => setState(() => _revealed = !_revealed),
                       ),
               ),
             ),

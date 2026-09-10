@@ -10,6 +10,9 @@ interface OutboxRow {
   event_type: string;
   payload: Record<string, unknown>;
   attempts: number;
+  aggregate_type: string;
+  aggregate_id: string;
+  occurred_at: Date;
 }
 
 @Injectable()
@@ -66,7 +69,8 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnModuleDestroy 
        UPDATE outbox_events event
        SET attempts = event.attempts + 1, available_at = now() + interval '30 seconds'
        FROM candidate WHERE event.id = candidate.id
-       RETURNING event.id, event.event_type, event.payload, event.attempts`,
+       RETURNING event.id, event.event_type, event.payload, event.attempts,
+                 event.aggregate_type, event.aggregate_id, event.occurred_at`,
       [batchSize],
     );
     return result.rows;
@@ -79,7 +83,17 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnModuleDestroy 
       // Redis write succeeds but the subsequent PostgreSQL acknowledgement fails.
       await this.queue.addBulk(events.map((event) => ({
         name: event.event_type,
-        data: event.payload,
+        // `payload` stays exactly as it was so no consumer's destructuring
+        // changes; the aggregate metadata rides beside it under a reserved
+        // key that the processor reads and does not forward to handlers.
+        data: {
+          ...event.payload,
+          __aggregate: {
+            type: event.aggregate_type,
+            id: event.aggregate_id,
+            occurredAt: event.occurred_at,
+          },
+        },
         opts: {
           jobId: event.id,
           attempts: 8,

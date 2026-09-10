@@ -235,6 +235,22 @@ export class AuthRepository {
    * an intruder's — fully working. The caller is expected to mint a fresh
    * token pair afterwards so the device doing the change stays signed in.
    */
+  /**
+   * Replaces the stored hash with an equivalent one, changing nothing else.
+   *
+   * Used to upgrade a legacy bcrypt hash to argon2 after a successful sign-in
+   * with the same password. Distinct from `updatePassword` on purpose: this is
+   * not a credential change, so it must not bump `token_version` or revoke
+   * sessions — that would sign the user out at the exact moment they signed in.
+   */
+  async replacePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.database.query(
+      `UPDATE users SET password_hash = $2, updated_at = now()
+       WHERE id = $1 AND status = 'active'`,
+      [userId, passwordHash],
+    );
+  }
+
   async updatePassword(userId: string, passwordHash: string): Promise<AccountCredentials> {
     return this.database.transaction(async (transaction) => {
       const result = await transaction.query<AccountRow>(

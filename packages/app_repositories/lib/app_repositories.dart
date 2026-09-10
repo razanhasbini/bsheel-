@@ -4,6 +4,7 @@
 /// Features depend on the abstract contract; the concrete `Api*Repository`
 /// is wired once per application in its `AppBackend` composition root.
 library;
+
 export 'map/map_repository.dart';
 
 // ── Transport and composition ────────────────────────────────────────────

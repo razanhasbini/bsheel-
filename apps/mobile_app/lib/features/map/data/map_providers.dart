@@ -11,9 +11,10 @@ final mapCountriesProvider =
   ref.watch(authSessionProvider);
   return ref.watch(mapRepositoryProvider).countries();
 });
-final mapProfileCountriesProvider=FutureProvider.autoDispose.family<List<MapCountry>,String>((ref,id){
+final mapProfileCountriesProvider =
+    FutureProvider.autoDispose.family<List<MapCountry>, String>((ref, id) {
   ref.watch(authSessionProvider);
-  return ref.watch(mapRepositoryProvider).countries(userId:id);
+  return ref.watch(mapRepositoryProvider).countries(userId: id);
 });
 typedef MapFilter = ({
   String? country,
@@ -29,7 +30,8 @@ final mapPlacesProvider =
       country: filter.country,
       category: filter.category,
       search: filter.search,
-      offset: filter.offset,savedOnly:filter.savedOnly);
+      offset: filter.offset,
+      savedOnly: filter.savedOnly);
 });
 final mapDetailProvider =
     FutureProvider.autoDispose.family<MapPlaceDetail, String>((ref, id) {

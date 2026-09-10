@@ -268,15 +268,15 @@ class ProfilePage extends ConsumerWidget {
                       }
                     },
                   ),
-                    ref.watch(mapProfileCountriesProvider(profile.id)).when(
-                          data: (countries) =>
-                              DiscoveryProgress(countries: countries),
-                          loading: () => const LinearProgressIndicator(),
-                          error: (_, __) => TextButton(
-                              onPressed: () =>
-                                  ref.invalidate(mapProfileCountriesProvider(profile.id)),
-                              child: const Text('RETRY DISCOVERY PROGRESS')),
-                        ),
+                  ref.watch(mapProfileCountriesProvider(profile.id)).when(
+                        data: (countries) =>
+                            DiscoveryProgress(countries: countries),
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, __) => TextButton(
+                            onPressed: () => ref.invalidate(
+                                mapProfileCountriesProvider(profile.id)),
+                            child: const Text('RETRY DISCOVERY PROGRESS')),
+                      ),
                   if (isViewingOther) ...[
                     const SizedBox(height: 14),
                     FollowButton(targetUserId: userId!),
