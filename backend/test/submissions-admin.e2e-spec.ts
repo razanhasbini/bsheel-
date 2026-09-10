@@ -304,7 +304,7 @@ describe('admin submission surfaces (e2e)', { timeout: 120_000 }, () => {
       expect(detail.quest_title).toBe(quest.title);
       expect(detail.quest_xp_reward).toBe(120);
       expect(detail.quest_duration_hours).toBe(6);
-      expect(detail.quest_category).toBe('e2e');
+      expect(detail.quest_category).toBe('learning');
       expect(detail.quest_difficulty).toBe('easy');
       expect(detail.user_quest_status).toBe('submitted');
       expect(detail.assigned_at).toBeTruthy();
