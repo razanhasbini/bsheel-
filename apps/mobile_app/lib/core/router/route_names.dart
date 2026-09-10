@@ -44,6 +44,9 @@ abstract final class RouteNames {
 
   // Settings & Legal
   static const String settings = 'settings';
+
+  /// Temporary hackathon demo surface (CAMARA live calls).
+  static const String camaraDemo = 'camaraDemo';
   static const String blockedUsers = 'blockedUsers';
   static const String admin = 'admin';
   static const String privacyPolicy = 'privacyPolicy';
@@ -76,6 +79,9 @@ abstract final class RoutePaths {
   static const String notifications = '/notifications';
   static const String joinCollab = '/join/:code';
   static const String settings = '/settings';
+
+  /// Temporary hackathon demo surface (CAMARA live calls).
+  static const String camaraDemo = '/camara-demo';
   static const String blockedUsers = '/settings/blocked-users';
   static const String admin = '/admin';
   static const String privacyPolicy = '/privacy';

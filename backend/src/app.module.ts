@@ -31,6 +31,7 @@ import { AccountModule } from './modules/account/account.module.js';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
 import { GeofencingModule } from './modules/agent/geofencing.module.js';
+import { CamaraDemoModule } from './modules/agent/camara-demo.module.js';
 import { createRequire } from 'node:module';
 
 /**
@@ -127,6 +128,9 @@ function prettyLoggingAvailable(): boolean {
     // Only the CAMARA geofence callback endpoint — the rest of the agent
     // stack lives in the worker.
     GeofencingModule,
+    // The hackathon demo surface: a person taps and waits, so it answers
+    // from the API rather than the queue.
+    CamaraDemoModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

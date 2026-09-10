@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,9 +6,11 @@ import 'pending_deep_link.dart';
 import 'route_names.dart';
 import 'route_guards.dart';
 import '../providers/auth_repository_provider.dart';
+import '../../features/auth/presentation/auth_error_mapper.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/auth_session_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
+import '../../features/dev/presentation/camara_demo_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/signup_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
@@ -93,13 +95,23 @@ Future<void> _persistSplashShown() async {
 /// Web only in practice: on mobile the link is delivered to the running app
 /// and `Uri.base` is not a browser URL.
 String? _phoneHandoffLocation() {
-  final handoff = Uri.base.queryParameters['handoff'];
-  if (handoff == null || handoff.isEmpty) return null;
-  final intent = Uri.base.queryParameters['intent'];
+  final params = Uri.base.queryParameters;
+  final handoff = params['handoff'];
+  // A refusal comes back the same way a success does, carrying `error`
+  // instead of `handoff`. Routing both through the callback screen means the
+  // user is told what happened in the app rather than being left on a raw
+  // API error page.
+  final error = params['error'];
+  if ((handoff == null || handoff.isEmpty) &&
+      (error == null || error.isEmpty)) {
+    return null;
+  }
+  final intent = params['intent'];
   return Uri(
     path: RoutePaths.phoneSigninCallback,
     queryParameters: {
-      'handoff': handoff,
+      if (handoff != null && handoff.isNotEmpty) 'handoff': handoff,
+      if (error != null && error.isNotEmpty) 'error': error,
       if (intent != null && intent.isNotEmpty) 'intent': intent,
     },
   ).toString();
@@ -240,6 +252,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => Consumer(
           builder: (context, cref, _) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
+              final failure = state.uri.queryParameters['error'];
+              if (failure != null && failure.isNotEmpty) {
+                // The carrier refused, or we could not reach it. Say so on
+                // the login screen, where the user can act on it.
+                if (!context.mounted) return;
+                context.go(RoutePaths.login);
+                final messenger = ScaffoldMessenger.maybeOf(context);
+                messenger
+                  ?..clearSnackBars()
+                  ..showSnackBar(SnackBar(
+                    content: Text(mapAuthError(failure)),
+                    duration: const Duration(seconds: 8),
+                  ));
+                return;
+              }
               // Awaited, because on web this call is the one that actually
               // exchanges the handoff code for a session — navigating first
               // would bounce off the auth gate before the tokens land. On
@@ -253,6 +280,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return const SizedBox.shrink();
           },
         ),
+      ),
+      // Temporary: the hackathon demo surface. Sits outside the shell so it
+      // is reachable without disturbing the tab structure, and is removed
+      // with its route when the demo is over.
+      GoRoute(
+        path: RoutePaths.camaraDemo,
+        name: RouteNames.camaraDemo,
+        builder: (context, state) => const CamaraDemoPage(),
       ),
       GoRoute(
         path: RoutePaths.verifyPhone,

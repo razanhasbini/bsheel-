@@ -210,19 +210,20 @@ export class AuthService {
     });
 
     // The network's "no" and the network's silence are different answers and
-    // get different error codes, so the app can offer "check the number" in
-    // one case and "try again" in the other. Neither marks anything verified.
+    // get different codes, so the app can offer "check the number" in one
+    // case and "try again" in the other. Neither marks anything verified.
+    //
+    // Both come back as a REDIRECT rather than a thrown error. This handler
+    // is the browser's landing page after the operator bounces it back, so
+    // throwing would render a raw JSON error at a URL the user is looking
+    // at. Sending them home with a code lets the app say it in its own
+    // voice — and it is the same shape as the success path, so the client
+    // only has one thing to read.
     if (outcome.status === 'NOT_VERIFIED') {
-      throw new BadRequestException({
-        code: 'PHONE_NUMBER_NOT_VERIFIED',
-        message: 'That number could not be verified on this device. Check the number and make sure mobile data is on.',
-      });
+      return { redirectUrl: this.phoneFailureRedirect('PHONE_NUMBER_NOT_VERIFIED', pending.intent) };
     }
     if (outcome.status === 'UNAVAILABLE') {
-      throw new ServiceUnavailableException({
-        code: 'NUMBER_VERIFICATION_UNAVAILABLE',
-        message: 'Could not reach the network to verify your number. Please try again.',
-      });
+      return { redirectUrl: this.phoneFailureRedirect('NUMBER_VERIFICATION_UNAVAILABLE', pending.intent) };
     }
     const phoneNumber = outcome.phoneNumber;
 
@@ -248,6 +249,20 @@ export class AuthService {
     redirectUrl.searchParams.set('handoff', handoffCode);
     redirectUrl.searchParams.set('intent', pending.intent);
     return { redirectUrl: redirectUrl.toString() };
+  }
+
+  /// Sends the browser back to the app carrying a failure code instead of a
+  /// handoff. Never carries the claimed number — it is unverified by
+  /// definition here, and a URL is the last place to echo one.
+  private phoneFailureRedirect(code: string, intent: PhoneSigninIntent): string {
+    const base = this.config.get('PHONE_SIGNIN_MOBILE_REDIRECT_URL', { infer: true });
+    if (!base) {
+      throw new ServiceUnavailableException({ code: 'PHONE_SIGNIN_NOT_CONFIGURED', message: 'Phone sign-in is not available yet' });
+    }
+    const url = new URL(base);
+    url.searchParams.set('error', code);
+    url.searchParams.set('intent', intent);
+    return url.toString();
   }
 
   /// The mobile app's side of the handoff: exchange the one-time code from

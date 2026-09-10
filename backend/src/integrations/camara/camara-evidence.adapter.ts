@@ -120,11 +120,34 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
         area: area as unknown as { areaType: 'CIRCLE' },
         maxAge: this.maxAgeSeconds(query),
       });
-      const strongMatch = response.verificationResult === 'TRUE'
-        || (response.verificationResult === 'PARTIAL' && (response.matchRate ?? 0) >= 80);
-      const outcome: NetworkEvidence['outcome'] = response.verificationResult === 'UNKNOWN'
-        ? 'UNAVAILABLE'
-        : strongMatch ? 'SUPPORTED' : 'CONTRADICTED';
+      // CAMARA answers four ways and they do not collapse into two.
+      //
+      // TRUE and FALSE are positive statements about where the device is.
+      // UNKNOWN is the network saying it does not know. PARTIAL is the
+      // interesting one: it means the reported area overlaps the requested
+      // one, and `matchRate` says by how much — but Nokia's simulator
+      // returns PARTIAL with NO matchRate at all, and the previous
+      // `matchRate ?? 0` read that silence as 0% and rejected on it.
+      //
+      // Treating an unquantified PARTIAL as a contradiction is exactly the
+      // failure this pipeline exists to avoid: it turns "the network was
+      // vague" into "the user was not there". Absent a rate, this is
+      // uncertainty, and uncertainty goes to a human.
+      const result = response.verificationResult;
+      const matchRate = response.matchRate;
+      let outcome: NetworkEvidence['outcome'];
+      if (result === 'TRUE') {
+        outcome = 'SUPPORTED';
+      } else if (result === 'FALSE') {
+        outcome = 'CONTRADICTED';
+      } else if (result === 'PARTIAL') {
+        outcome = typeof matchRate !== 'number'
+          ? 'UNAVAILABLE'
+          : matchRate >= 80 ? 'SUPPORTED' : 'CONTRADICTED';
+      } else {
+        // UNKNOWN, or anything a future API version adds.
+        outcome = 'UNAVAILABLE';
+      }
       return {
         provider: 'nokia-network-as-code',
         providerReference: `location-verification:${query.submissionId}:${randomUUID()}`,
@@ -135,7 +158,7 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
           verificationResult: response.verificationResult,
           ...(response.matchRate === undefined ? {} : { matchRate: response.matchRate }),
           ...(response.lastLocationTime ? { lastLocationTime: response.lastLocationTime } : {}),
-          matchesRequestedArea: strongMatch,
+          matchesRequestedArea: outcome === 'SUPPORTED',
         },
       };
     } catch (error) {

@@ -104,4 +104,32 @@ export class AgentRunsRepository {
       [runId, submissionId, evidence.provider, evidence.modelVersion, evidence.status, JSON.stringify(evidence), evidence.analyzedAt],
     );
   }
+
+  /// Most recent runs, for the demo surface. Returns the decision only —
+  /// never the input snapshot, which carries user content.
+  async recent(limit: number): Promise<readonly {
+    kind: string;
+    status: string;
+    decision: string | null;
+    createdAt: string;
+  }[]> {
+    const capped = Math.min(Math.max(limit, 1), 50);
+    const result = await this.database.query<{
+      kind: string;
+      status: string;
+      decision: string | null;
+      created_at: Date;
+    }>(
+      `SELECT kind, status, output->>'decision' AS decision, created_at
+       FROM agent_runs ORDER BY created_at DESC LIMIT $1`,
+      [capped],
+    );
+    return result.rows.map((row) => ({
+      kind: row.kind,
+      status: row.status,
+      decision: row.decision,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
 }

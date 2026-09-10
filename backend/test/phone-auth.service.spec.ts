@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { Environment } from '../src/config/environment.js';
 import { AuthService } from '../src/modules/auth/application/auth.service.js';
@@ -70,13 +70,25 @@ describe('phone authentication orchestration', () => {
         nonce: 'nonce', claimedPhoneNumber: '+99999991001', oauthFlow: 'standard', claimedEmail: null,
       },
     });
-    await expect(service.completePhoneCallback('code', 'state')).rejects.toBeInstanceOf(BadRequestException);
+    // A refusal redirects rather than throwing: this handler is the page
+    // the user's browser lands on, so a thrown error would render raw JSON
+    // at a URL they are looking at. What matters is that no account exists
+    // and no session is issued — the redirect only carries a reason code.
+    const refused = await service.completePhoneCallback('code', 'state');
+    expect(refused.redirectUrl).toContain('error=PHONE_NUMBER_NOT_VERIFIED');
+    expect(refused.redirectUrl).not.toContain('handoff=');
+    // The unverified number must never be echoed back in a URL.
+    expect(refused.redirectUrl).not.toContain('99999991001');
     expect(repository.findOrCreateByPhone).not.toHaveBeenCalled();
   });
 
   it('does not create an account when the provider is unavailable', async () => {
     const { service, repository } = build({ outcome: { status: 'UNAVAILABLE', reason: 'HTTP 503' } });
-    await expect(service.completePhoneCallback('code', 'state')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    // Distinct from a refusal, so the app can say "try again" rather than
+    // "check the number".
+    const unavailable = await service.completePhoneCallback('code', 'state');
+    expect(unavailable.redirectUrl).toContain('error=NUMBER_VERIFICATION_UNAVAILABLE');
+    expect(unavailable.redirectUrl).not.toContain('handoff=');
     expect(repository.findOrCreateByPhone).not.toHaveBeenCalled();
   });
 

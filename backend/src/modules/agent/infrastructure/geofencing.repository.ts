@@ -141,4 +141,18 @@ export class GeofencingRepository {
       expiresAt: row.expires_at,
     };
   }
+
+  /// How many geofences Nokia is actively watching for this user. Read-only,
+  /// used by the demo surface to show the subscription side is real.
+  async countActive(userId: string): Promise<number> {
+    const result = await this.database.query<{ count: number }>(
+      `SELECT count(*)::integer AS count
+       FROM geofencing_subscriptions s
+       JOIN user_quests uq ON uq.id = s.user_quest_id
+       WHERE uq.user_id = $1 AND s.status = 'active'`,
+      [userId],
+    );
+    return result.rows[0]?.count ?? 0;
+  }
+
 }
