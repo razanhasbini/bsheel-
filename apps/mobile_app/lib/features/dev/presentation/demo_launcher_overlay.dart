@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'camara_demo_page.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/router/route_names.dart';
 
 /// A draggable badge that opens the CAMARA demo from anywhere in the app.
 ///
@@ -13,16 +15,17 @@ import 'camara_demo_page.dart';
 ///
 /// It is draggable because it floats over real UI and would otherwise
 /// cover whatever it happened to land on.
-class DemoLauncherOverlay extends StatefulWidget {
+class DemoLauncherOverlay extends ConsumerStatefulWidget {
   const DemoLauncherOverlay({super.key, required this.child});
 
   final Widget child;
 
   @override
-  State<DemoLauncherOverlay> createState() => _DemoLauncherOverlayState();
+  ConsumerState<DemoLauncherOverlay> createState() =>
+      _DemoLauncherOverlayState();
 }
 
-class _DemoLauncherOverlayState extends State<DemoLauncherOverlay> {
+class _DemoLauncherOverlayState extends ConsumerState<DemoLauncherOverlay> {
   // Bottom-right by default, clear of the nav bar.
   Offset? _position;
 
@@ -53,11 +56,13 @@ class _DemoLauncherOverlayState extends State<DemoLauncherOverlay> {
               );
             }),
             child: _Badge(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const CamaraDemoPage(),
-                ),
-              ),
+              // The router object, not Navigator.of(context). This overlay
+              // is built by MaterialApp.builder, which sits ABOVE the
+              // router's Navigator — so there is no Navigator and no
+              // InheritedGoRouter to look up from here, and the tap did
+              // nothing. Pushing on the router itself works from anywhere.
+              onTap: () =>
+                  ref.read(appRouterProvider).pushNamed(RouteNames.camaraDemo),
             ),
           ),
         ),

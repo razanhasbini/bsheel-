@@ -74,7 +74,17 @@ class _CamaraDemoPageState extends ConsumerState<CamaraDemoPage> {
       if (mounted) setState(() => _report = apiObject(res));
     } catch (e) {
       AppLogger.error('[CamaraDemo] run failed', e);
-      if (mounted) setState(() => _error = e.toString());
+      final raw = e.toString();
+      if (mounted) {
+        setState(() => _error = raw.contains('UNAUTHORIZED') ||
+                raw.contains('401')
+            ? 'Sign in first — the demo asks the network about YOUR verified '
+                'device, so it needs a session. Use +99999991000.'
+            : raw.contains('NO_VERIFIED_PHONE')
+                ? 'This account has no CAMARA-verified number yet, so there '
+                    'is no device for the network to answer about.'
+                : raw);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

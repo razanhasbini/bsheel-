@@ -28,6 +28,12 @@ String? authRedirect({
   // link and leaves immediately — never a real page to guard.
   if (loc == RoutePaths.phoneSigninCallback) return null;
 
+  // TEMPORARY (hackathon demo): exempt so the floating badge always opens
+  // the page. It needs a session to call anything, and says so plainly when
+  // there is none — which is more useful to a judge than being silently
+  // bounced to the login screen with no explanation.
+  if (loc == RoutePaths.camaraDemo) return null;
+
   final isResetPassword = loc == RoutePaths.resetPassword;
   final isAuthRoute = loc == RoutePaths.login ||
       loc == RoutePaths.signup ||
