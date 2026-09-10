@@ -11,9 +11,18 @@ class ApiFeedRepository implements FeedRepository {
   final ApiMediaSigner _media;
 
   @override
+
+  /// One page of the feed.
+  ///
+  /// Pass [cursor] — the `nextCursor` of the last row you received — rather
+  /// than [offset]. The server implements keyset pagination and returns a
+  /// cursor per row; paging by offset duplicates and skips cards whenever a
+  /// score changes between pages, which happens constantly on a live feed.
+  /// [offset] is kept for the first page and for callers that do not paginate.
   Future<List<FeedPostModel>> getFeed({
     int limit = 20,
     int offset = 0,
+    String? cursor,
     String sort = 'recent',
     FeedScope scope = FeedScope.all,
   }) async {
@@ -22,7 +31,10 @@ class ApiFeedRepository implements FeedRepository {
         'feed',
         query: {
           'limit': limit,
-          'offset': offset,
+          // A cursor and an offset are mutually exclusive: sending both makes
+          // the server skip rows the cursor already positioned past.
+          if (cursor == null) 'offset': offset,
+          if (cursor != null) 'cursor': cursor,
           'sort': sort,
           'scope': scope.rpcValue,
         },

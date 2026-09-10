@@ -892,6 +892,7 @@ class _FakeFeedRepository implements FeedRepository {
   Future<List<FeedPostModel>> getFeed({
     int limit = 20,
     int offset = 0,
+    String? cursor,
     FeedScope scope = FeedScope.all,
     String sort = 'recent',
   }) async =>

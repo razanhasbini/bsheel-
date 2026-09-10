@@ -143,7 +143,11 @@ describe('admin dashboard surfaces (e2e)', { timeout: 120_000 }, () => {
       expect(row).toBeDefined();
       expect(row.username).toBe(drifted.username);
       expect(row.current_xp).toBe(storedXp);
-      expect(row.current_level).toBe(50);
+      // The stored level is derived from xp, not taken from the request. It
+      // used to be an independent field, and a mismatched pair made
+      // xp_to_next_level negative — so asking for level 50 alongside this xp
+      // now stores the derived level instead.
+      expect(row.current_level).toBe(Math.floor(storedXp / 100) + 1);
       expect(row.current_quests).toBe(9);
       expect(row.expected_xp).toBe(questXp);
       expect(row.expected_quests).toBe(1);

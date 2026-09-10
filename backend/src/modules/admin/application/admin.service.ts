@@ -50,7 +50,7 @@ export class AdminService {
     });
   }
   setStatus(actorId: string, id: string, status: string, reason: string) { return this.repository.setStatus(actorId, id, status, reason); }
-  setXp(actorId: string, id: string, xp: number, level: number, completed: number, reason: string) { return this.repository.setXp(actorId, id, xp, level, completed, reason); }
+  setXp(actorId: string, id: string, xp: number, level: number | undefined, completed: number, reason: string) { return this.repository.setXp(actorId, id, xp, level, completed, reason); }
   reports(status: string, limit: number, offset: number) { return this.repository.reports(status, limit, offset); }
   reviewReport(actorId: string, id: string, status: string, note?: string) { return this.repository.reviewReport(actorId, id, status, note); }
   removePost(actorId: string, id: string, reason: string) { return this.submissions.removeByAdmin(actorId, id, reason); }

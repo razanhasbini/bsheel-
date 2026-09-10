@@ -331,13 +331,19 @@ class _FeedPostHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(authSessionProvider);
+    // Seed from the row. The feed carries the viewer's vote, saved state and
+    // comment count, so none of the three needs a per-card request — this
+    // page used to cost 1 + 60 for a single 20-post page, one of which
+    // downloaded every comment on a post to render its count.
     final myVoteType = currentUser == null
         ? null
-        : getEffectiveVoteType(ref, post.id, currentUser.id);
+        : getEffectiveVoteType(ref, post.id, currentUser.id,
+            seeded: post.viewerVote, hasSeed: true);
     final counts = getEffectiveVoteCounts(ref, post.id, post);
     final isSaved = currentUser == null
         ? false
-        : getEffectiveSaved(ref, post.id, currentUser.id);
+        : getEffectiveSaved(ref, post.id, currentUser.id,
+            seeded: post.viewerSaved);
 
     // Only a collab with at least two members who actually joined is a
     // collab; a 1-of-N versus with nobody else is just a solo post. The DB

@@ -55,9 +55,26 @@ export class ForceResetPasswordDto {
 }
 
 export class SetUserXpDto {
-  @IsInt() @Min(0) xp!: number;
-  @IsInt() @Min(1) level!: number;
-  @IsInt() @Min(0) questsCompleted!: number;
+  /**
+   * Bounded well below int4's ceiling on purpose.
+   *
+   * There was no upper bound, so a total could be set high enough that the
+   * user's next approval overflowed `xp = xp + award` and the approve
+   * endpoint answered 500 with SQLSTATE 22003 — a moderator's click failing
+   * because of an unrelated admin edit made days earlier. A hundred million
+   * leaves four orders of magnitude of headroom over any real balance.
+   */
+  @IsInt() @Min(0) @Max(100_000_000) xp!: number;
+
+  /**
+   * Accepted for compatibility and then ignored — the level is derived from
+   * xp, because the two were independent and nothing checked they agreed.
+   * A mismatched pair made `xp_to_next_level` negative and the profile panel
+   * render "300 / 200". The admin UI already derives it the same way.
+   */
+  @IsOptional() @IsInt() @Min(1) level?: number;
+
+  @IsInt() @Min(0) @Max(1_000_000) questsCompleted!: number;
   @IsString() @Length(3, 500) reason!: string;
 }
 

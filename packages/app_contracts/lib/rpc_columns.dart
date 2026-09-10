@@ -21,6 +21,22 @@ abstract final class FeedRpcColumns {
   static const String downvoteCount = 'downvote_count';
   static const String netScore = 'net_score';
   static const String hotScore = 'hot_score';
+
+  /// The viewer's own vote on this post, or null. Sent with the row so the
+  /// client stops asking per card — one 20-post page used to cost 61 requests.
+  static const String viewerVote = 'viewer_vote';
+
+  /// Whether the viewer saved this post.
+  static const String viewerSaved = 'viewer_saved';
+
+  /// How many comments the post has. The client used to download the entire
+  /// comment list, 200 at a time, to render this one integer.
+  static const String commentCount = 'comment_count';
+
+  /// Keyset cursor for the row, for `?cursor=` on the next page. The server
+  /// has always sent one; the client paginated by offset and dropped it,
+  /// which duplicates and skips cards whenever scores change mid-scroll.
+  static const String nextCursor = 'next_cursor';
 }
 
 /// Collab group fields returned by the updated get_feed RPC.

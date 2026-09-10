@@ -203,16 +203,33 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
     final scope = ref.read(feedScopeProvider);
 
     try {
-      // ARC-011: server-side scope filtering means current.posts.length
-      // is the exact offset for the next page regardless of scope.
+      // Page by the last row's keyset cursor, not by offset.
+      //
+      // Offset paging re-runs the whole ORDER BY for each page, so a score
+      // changing between pages shifts every row after it: the same post
+      // arrives twice and another is never shown at all. The server has
+      // always returned a per-row cursor for exactly this; it was discarded.
+      // Offset remains the fallback for a page whose rows predate the field.
+      final cursor =
+          current.posts.isEmpty ? null : current.posts.last.nextCursor;
       final raw = await ref.read(feedRepositoryProvider).getFeed(
             limit: _pageSize,
-            offset: current.posts.length,
+            offset: cursor == null ? current.posts.length : 0,
+            cursor: cursor,
             sort: sort,
             scope: _toFeedScope(scope),
           );
+
+      // Belt and braces: a cursor should make duplicates impossible, but the
+      // fallback path cannot promise that, and appending a duplicate throws
+      // on a keyed list.
+      final seen = current.posts.map((post) => post.id).toSet();
+      final fresh = raw.where((post) => !seen.contains(post.id)).toList();
       state = AsyncData(current.copyWith(
-        posts: [...current.posts, ...raw],
+        posts: [...current.posts, ...fresh],
+        // Judge by what the server returned, not by what survived
+        // de-duplication: a full page that was entirely duplicate still
+        // means there is more behind it.
         hasMore: raw.length >= _pageSize,
         isLoadingMore: false,
       ));

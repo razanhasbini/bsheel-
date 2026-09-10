@@ -65,7 +65,13 @@ class FeedPostCard extends ConsumerWidget {
     const ink = QuestColors.osTextPrimary;
     final tint = QuestColors.category(post.questCategory);
 
-    final commentCount = ref.watch(feedCommentCountProvider(post.id));
+    // The row carries the count. Reading feedCommentCountProvider here
+    // subscribed to the post's comments and downloaded all of them, 200 at a
+    // time, to render one integer — for every card the list built. Fall back
+    // to it only when the row predates the field.
+    final commentCount = post.commentCount > 0
+        ? post.commentCount
+        : ref.watch(feedCommentCountProvider(post.id));
 
     final body = (post.caption?.trim().isNotEmpty ?? false)
         ? post.caption!.trim()
