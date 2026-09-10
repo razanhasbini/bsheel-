@@ -19,6 +19,7 @@ import type { Environment } from '../../config/environment.js';
     BullModule.registerQueue({ name: 'quest-maintenance' }),
     BullModule.registerQueue({ name: 'submission-verification' }),
     BullModule.registerQueue({ name: 'quest-assignment-agent' }),
+    BullModule.registerQueue({ name: 'proof-verification' }),
   ],
   exports: [BullModule],
 })

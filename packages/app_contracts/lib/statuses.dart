@@ -81,6 +81,11 @@ abstract final class NotificationType {
   /// Another user commented on the same submission (reply-in-thread).
   static const String commentReply = 'comment_reply';
 
+  /// AI proof verification (#47) could not decide on a submission, so the
+  /// committee must. Sent to admins only, and cleared from the "unclear"
+  /// queue as soon as a moderator approves or rejects it.
+  static const String proofUnclear = 'proof_unclear';
+
   /// Another user mentioned this user in a comment.
   static const String mention = 'mention';
 
@@ -103,6 +108,33 @@ abstract final class CollabGroupStatus {
   static const String open = 'open';
   static const String closed = 'closed';
   static const String expired = 'expired';
+}
+
+/// `reports.status` CHECK constraint values (migration
+/// `0001_initial_domain_schema.sql`).
+///
+/// [pending] is the column default — the state a report is in the moment a
+/// user files it, and the one the queue index and the `pendingReports`
+/// stat count. It is deliberately **not** in [reviewable]: the review
+/// endpoint `PATCH /admin/reports/:id` validates its body against those
+/// three values only, so there is no API transition back to the untriaged
+/// queue. Sending `pending` is a 400, not a reopen.
+abstract final class ReportStatus {
+  static const String pending = 'pending';
+  static const String reviewed = 'reviewed';
+  static const String dismissed = 'dismissed';
+  static const String actioned = 'actioned';
+
+  /// The only statuses `PATCH /admin/reports/:id` accepts, in the order
+  /// the backend DTO lists them.
+  static const List<String> reviewable = [reviewed, dismissed, actioned];
+
+  /// Every legal column value, including the [pending] default.
+  static const List<String> all = [pending, reviewed, dismissed, actioned];
+
+  /// `GET /admin/reports?status=` also takes this pseudo-status, meaning
+  /// "do not filter". It is not a value the column can hold.
+  static const String anyStatus = 'all';
 }
 
 abstract final class AdminRole {

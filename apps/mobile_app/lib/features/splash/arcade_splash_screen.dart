@@ -170,7 +170,7 @@ class _BrandMark extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: QuestColors.osAccent,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusTile),
         border: Border.all(color: QuestColors.osBg, width: 2),
       ),
       child: Text(

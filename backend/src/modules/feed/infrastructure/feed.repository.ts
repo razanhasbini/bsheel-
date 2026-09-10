@@ -49,6 +49,9 @@ export class FeedRepository {
          COALESCE(r.total, 0)::bigint AS reaction_count,
          COALESCE(r.ups, 0)::bigint AS upvote_count,
          COALESCE(r.downs, 0)::bigint AS downvote_count,
+         r.viewer_vote,
+         COALESCE(sv.viewer_saved, false) AS viewer_saved,
+         COALESCE(cc.cnt, 0)::bigint AS comment_count,
          s.net_score,
          s.net_score::double precision /
            power(GREATEST(EXTRACT(EPOCH FROM ($4::timestamptz - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5) AS hot_score,
@@ -102,9 +105,27 @@ export class FeedRepository {
        LEFT JOIN LATERAL (
          SELECT count(*) AS total,
            count(*) FILTER (WHERE rx.type = 'upvote') AS ups,
-           count(*) FILTER (WHERE rx.type = 'downvote') AS downs
+           count(*) FILTER (WHERE rx.type = 'downvote') AS downs,
+           -- The viewer's own vote, so the client stops asking per card.
+           max(rx.type::text) FILTER (WHERE rx.user_id = $1) AS viewer_vote
          FROM reactions rx WHERE rx.submission_id = s.id
        ) r ON true
+       -- Whether the viewer saved this, and how many comments it has.
+       --
+       -- Both used to be per-card round trips: myVoteProvider,
+       -- isPostSavedProvider and feedCommentCountProvider each fired for
+       -- every post, so one 20-post page cost 1 + 60 requests — and the
+       -- comment count was obtained by downloading the entire comment list
+       -- in a 200-per-page loop just to render one integer.
+       LEFT JOIN LATERAL (
+         SELECT EXISTS (
+           SELECT 1 FROM saved_posts sp
+           WHERE sp.submission_id = s.id AND sp.user_id = $1
+         ) AS viewer_saved
+       ) sv ON true
+       LEFT JOIN LATERAL (
+         SELECT count(*) AS cnt FROM comments c WHERE c.submission_id = s.id
+       ) cc ON true
        LEFT JOIN collab_group_members gm ON gm.user_quest_id = uq.id
        LEFT JOIN collab_groups g ON g.id = gm.group_id
        LEFT JOIN LATERAL (SELECT count(*) AS cnt FROM collab_group_members WHERE group_id = gm.group_id) mc ON true

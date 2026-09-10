@@ -12,6 +12,19 @@ void main() {
       expect(out, equals('Failed to do the thing. Please try again.'));
     });
 
+    test('names maintenance mode instead of asking for a blind retry', () {
+      // The shape ApiClient produces for the backend's refusal.
+      final out = mapDbError(
+        'ApiException(503, SERVICE_UNDER_MAINTENANCE, Bsheel is under '
+        'maintenance. Please try again shortly.)',
+        action: 'reroll',
+      );
+      expect(out, contains('maintenance'));
+      // The generic fallback would be actively misleading here: nothing is
+      // broken and retrying now cannot work.
+      expect(out, isNot(contains('Failed to reroll')));
+    });
+
     test('translates 42501 / Not authorized into a sign-in hint', () {
       final out = mapDbError('PostgrestException(message: Not authorized, '
           'code: 42501, details: ...)');

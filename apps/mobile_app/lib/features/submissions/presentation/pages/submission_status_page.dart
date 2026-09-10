@@ -568,7 +568,7 @@ class _ProseCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
         border: Border.all(color: ink, width: 2),
         boxShadow: QuestSpacing.shadowSm,
       ),
@@ -669,7 +669,8 @@ class _ProofRow extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: QuestColors.osBg,
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius:
+                              BorderRadius.circular(QuestSpacing.radiusBadge),
                           border: Border.all(color: ink, width: 2),
                         ),
                         child: Text(
@@ -733,7 +734,7 @@ class _AppealBox extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
         border: Border.all(color: ink, width: 2),
         boxShadow: QuestSpacing.shadowSm,
       ),

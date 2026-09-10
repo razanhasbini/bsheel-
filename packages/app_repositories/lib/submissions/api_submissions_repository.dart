@@ -96,17 +96,20 @@ class ApiSubmissionsRepository implements SubmissionsRepository {
   }
 
   /// Submits the one allowed appeal for a rejected, non-deleted submission.
-  Future<SubmissionModel> appealSubmission(
-    String submissionId,
-    String appealNote,
-  ) async {
-    final row = apiObject(
-      await _client.post(
-        'submissions/$submissionId/appeal',
-        body: {'appealNote': appealNote.trim()},
-      ),
+  ///
+  /// The endpoint answers `204 No Content`. This used to wrap the response in
+  /// `apiObject`, which throws on a null payload — so a successful appeal
+  /// raised `INVALID_API_DATA`, the caller showed "Failed to submit appeal",
+  /// and the user's one allowed appeal was silently spent.
+  ///
+  /// Returns nothing, because the endpoint returns nothing. Callers invalidate
+  /// their providers to pick up the new state.
+  @override
+  Future<void> appealSubmission(String submissionId, String appealNote) async {
+    await _client.post(
+      'submissions/$submissionId/appeal',
+      body: {'appealNote': appealNote.trim()},
     );
-    return _signed(SubmissionModel.fromJson(row));
   }
 
   Future<SubmissionModel> _signed(SubmissionModel submission) async {

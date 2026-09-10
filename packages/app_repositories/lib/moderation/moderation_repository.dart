@@ -13,10 +13,26 @@ abstract class ModerationRepository {
   /// carrying the reviewer context the queue renders (per-user approved and
   /// rejected counts, and whether the media or caption repeats something
   /// that user already had rejected).
+  /// Pass [cursor] from a previous page's last row `next_cursor` to page
+  /// forward. [offset] is kept for callers that have not migrated; it is
+  /// ignored when a cursor is supplied.
   Future<List<Map<String, dynamic>>> reviewQueue({
     int limit = 100,
     int offset = 0,
+    String? cursor,
   });
+
+  /// The "unclear" queue (#47): proof the AI verification agent could not
+  /// judge, still waiting on a human decision. Distinct from the ordinary
+  /// review queue — every row here is one the agent explicitly declined,
+  /// and each carries the reason it gave up plus its provenance findings.
+  Future<List<Map<String, dynamic>>> unclearQueue({
+    int limit = 100,
+    int offset = 0,
+  });
+
+  /// How many escalations are waiting, for the sidebar badge.
+  Future<int> unclearCount();
 
   /// Raw admin rows for the moderation queues. `status` accepts
   /// `pending`, `approved`, `rejected` or `all`; `appealed` filters the

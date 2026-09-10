@@ -4,16 +4,25 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/backend/app_backend.dart';
 import '../../core/providers/admin_counts_provider.dart';
+import '../../core/providers/admin_role_provider.dart';
+import '../../core/router/admin_route_access.dart';
 import '../../core/router/admin_route_names.dart';
 import '../../core/theme/bsheel_design.dart';
 import 'bsheel_widgets.dart';
 
-/// Arcade Pop sidebar — a 230px ink panel holding all seventeen
-/// destinations, ordered by how often a moderator touches them.
+/// Arcade Pop sidebar — a 230px ink panel holding the destinations the
+/// signed-in admin's role can actually use, ordered by how often a
+/// moderator touches them.
+///
+/// A moderator sees fourteen of the nineteen rows. The six in
+/// [AdminRouteAccess.superAdminOnly] are dropped, because every read
+/// behind them is `@Roles('super_admin')` and a moderator following the
+/// link only got as far as a 403. The router refuses those paths as well,
+/// so this row filter is presentation and not the access control.
 ///
 /// The active row is a violet fill with a 2px cream border and a white
-/// label. Badge counts appear on Moderation, Appeals and Reports only:
-/// the three queues that represent work waiting on a person. A badge is
+/// label. Badge counts appear on Moderation, Unclear, Appeals and Reports
+/// only: the queues that represent work waiting on a person. A badge is
 /// coral when its row is inactive and gold when it is active, so it stays
 /// legible against the violet fill.
 class AdminSidebar extends ConsumerWidget {
@@ -39,6 +48,12 @@ class AdminSidebar extends ConsumerWidget {
       badge: _Badge.appeals,
     ),
     _Destination(
+      'UNCLEAR',
+      AdminRouteNames.unclearQueue,
+      '/moderation/unclear',
+      badge: _Badge.unclear,
+    ),
+    _Destination(
       'HISTORY',
       AdminRouteNames.submissionHistory,
       '/moderation/history',
@@ -46,6 +61,7 @@ class AdminSidebar extends ConsumerWidget {
     _Destination('FEED', AdminRouteNames.feedManagement, '/feed'),
     _Destination('QUESTS', AdminRouteNames.questManagement, '/quests'),
     _Destination('QUEST OF THE DAY', AdminRouteNames.questOfTheDay, '/qotd'),
+    _Destination('CAMPAIGNS', AdminRouteNames.questCampaigns, '/campaigns'),
     _Destination('DESTINATIONS', AdminRouteNames.mapPlaces, '/destinations'),
     _Destination('USERS', AdminRouteNames.users, '/users'),
     _Destination('XP', AdminRouteNames.xpManagement, '/xp'),
@@ -71,6 +87,11 @@ class AdminSidebar extends ConsumerWidget {
       'QUEST SUGGESTIONS',
       AdminRouteNames.webQuestSuggestions,
       '/web-quest-suggestions',
+    ),
+    _Destination(
+      'DELETION REQUESTS',
+      AdminRouteNames.deletionRequests,
+      '/deletion-requests',
     ),
     _Destination('SETTINGS', AdminRouteNames.settings, '/settings'),
   ];
@@ -98,6 +119,9 @@ class AdminSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = _activePath(GoRouterState.of(context).matchedLocation);
+    // The role the router already resolved before it let this shell
+    // mount, so reading it here costs nothing and cannot disagree.
+    final role = ref.watch(adminRoleEnumProvider).valueOrNull;
     final counts =
         ref.watch(adminCountsProvider).valueOrNull ?? const AdminCounts.zero();
 
@@ -106,6 +130,7 @@ class AdminSidebar extends ConsumerWidget {
         _Badge.pending => counts.pending,
         _Badge.appeals => counts.appeals,
         _Badge.reports => counts.reports,
+        _Badge.unclear => counts.unclear,
         null => 0,
       };
       return value > 0 ? _fmt(value) : null;
@@ -177,15 +202,16 @@ class AdminSidebar extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
                 children: [
                   for (final d in _destinations)
-                    _NavRow(
-                      label: d.label,
-                      badge: badgeFor(d.badge),
-                      active: d.path == active,
-                      onTap: () {
-                        if (inDrawer) Navigator.of(context).pop();
-                        context.goNamed(d.name);
-                      },
-                    ),
+                    if (AdminRouteAccess.allows(d.path, role))
+                      _NavRow(
+                        label: d.label,
+                        badge: badgeFor(d.badge),
+                        active: d.path == active,
+                        onTap: () {
+                          if (inDrawer) Navigator.of(context).pop();
+                          context.goNamed(d.name);
+                        },
+                      ),
                 ],
               ),
             ),
@@ -198,7 +224,7 @@ class AdminSidebar extends ConsumerWidget {
   }
 }
 
-enum _Badge { pending, appeals, reports }
+enum _Badge { pending, appeals, reports, unclear }
 
 class _Destination {
   final String label;

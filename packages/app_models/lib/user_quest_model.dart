@@ -21,6 +21,13 @@ class UserQuestModel {
   /// omits it never offers an action that would fail.
   final bool appealAvailable;
 
+  /// The submission this history row refers to, when the API supplied one.
+  ///
+  /// Navigate the appeal screen with this, never with [id]: that screen
+  /// resolves a submission, and passing the user_quest id renders
+  /// "Submission not found".
+  final String? submissionId;
+
   const UserQuestModel({
     required this.id,
     required this.userId,
@@ -31,6 +38,7 @@ class UserQuestModel {
     this.expiresAt,
     this.quest,
     this.appealAvailable = false,
+    this.submissionId,
   });
 
   factory UserQuestModel.fromJson(Map<String, dynamic> json) {
@@ -48,6 +56,7 @@ class UserQuestModel {
       ),
       quest: _parseQuest(json),
       appealAvailable: json[UserQuestColumns.appealAvailable] == true,
+      submissionId: json[UserQuestColumns.submissionId]?.toString(),
     );
   }
 
@@ -62,6 +71,7 @@ class UserQuestModel {
       UserQuestColumns.expiresAt: expiresAt?.toIso8601String(),
       if (quest != null) EmbedKeys.quests: quest!.toJson(),
       UserQuestColumns.appealAvailable: appealAvailable,
+      UserQuestColumns.submissionId: submissionId,
     };
   }
 

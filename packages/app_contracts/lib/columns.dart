@@ -52,6 +52,11 @@ abstract final class UserQuestColumns {
 
   /// Computed by the quest-history query, not a stored column.
   static const String appealAvailable = 'appeal_available';
+
+  /// The submission a history row refers to. Returned by the history query
+  /// only. The appeal screen resolves a submission, so navigating with the
+  /// user_quest id lands on "Submission not found".
+  static const String submissionId = 'submission_id';
 }
 
 abstract final class SubmissionColumns {

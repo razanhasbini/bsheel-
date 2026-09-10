@@ -47,9 +47,19 @@ ss -tlnp 2>/dev/null | awk 'NR==1 || /LISTEN/' | head -25 || netstat -tlnp 2>/de
 hdr "Port Bsheel wants"
 BIND_PORT=$(grep -E '^API_BIND_PORT=' .env.prod 2>/dev/null | cut -d= -f2 || echo 3010)
 BIND_PORT=${BIND_PORT:-3010}
-if ss -tln 2>/dev/null | grep -qE "127\.0\.0\.1:${BIND_PORT}\b|:::${BIND_PORT}\b|0\.0\.0\.0:${BIND_PORT}\b"; then
-  bad "port ${BIND_PORT} is already in use — pick another API_BIND_PORT"
-else ok "port ${BIND_PORT} is free"; fi
+PROJECT=$(grep -E '^COMPOSE_PROJECT_NAME=' .env.prod 2>/dev/null | cut -d= -f2)
+PROJECT=${PROJECT:-bsheel-api}
+if ! ss -tln 2>/dev/null | grep -qE "127\.0\.0\.1:${BIND_PORT}\b|:::${BIND_PORT}\b|0\.0\.0\.0:${BIND_PORT}\b"; then
+  ok "port ${BIND_PORT} is free"
+# On a redeploy the port is held by the API this run is about to replace, and
+# refusing that is refusing every deploy after the first. Only a holder from
+# outside our own compose project is a collision.
+elif docker ps --filter "label=com.docker.compose.project=${PROJECT}" \
+       --format '{{.Ports}}' 2>/dev/null | grep -qE "(^|[^0-9])${BIND_PORT}->"; then
+  ok "port ${BIND_PORT} is held by ${PROJECT}'s own API — it will be replaced"
+else
+  bad "port ${BIND_PORT} is in use by something outside ${PROJECT} — pick another API_BIND_PORT"
+fi
 
 hdr "Live Supabase stack — baseline (must still pass AFTER deploy)"
 for path in /auth/v1/health /rest/v1/ /storage/v1/version /functions/v1/; do

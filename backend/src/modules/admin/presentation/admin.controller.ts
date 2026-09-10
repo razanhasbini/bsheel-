@@ -23,6 +23,21 @@ export class AdminController {
 
   @Get('me') me(@CurrentUser() user: AuthUser) { return this.service.me(user.id); }
   @Get('stats') stats() { return this.service.stats(); }
+  /**
+   * The public deletion-request queue. super_admin only: the rows are email
+   * addresses of people asking to be erased, which is not moderation data.
+   */
+  @Roles('super_admin') @Get('deletion-requests')
+  deletionRequests(@Query() query: AdminListQueryDto) {
+    return this.service.deletionRequests(query.limit, query.offset);
+  }
+
+  @HttpCode(204)
+  @Roles('super_admin') @Patch('deletion-requests/:id')
+  markDeletionRequestHandled(@CurrentUser() user: AuthUser, @Param() param: UserIdParam) {
+    return this.service.markDeletionRequestHandled(user.id, param.id);
+  }
+
   @Roles('super_admin') @Get('xp-audit')
   xpAudit(@Query() query: XpAuditQueryDto) { return this.service.xpAudit(query.limit, query.offset); }
   @Get('users') users(@Query() query: AdminListQueryDto) { return this.service.users(query.q, query.limit, query.offset); }

@@ -26,6 +26,8 @@ import { AgentModule } from './modules/agent/agent.module.js';
 import { SubmissionVerificationProcessor } from './modules/agent/infrastructure/submission-verification.processor.js';
 import { QuestAssignmentAgentProcessor } from './modules/agent/infrastructure/quest-assignment-agent.processor.js';
 import { SubmissionsModule } from './modules/submissions/submissions.module.js';
+import { ProofVerificationProcessor } from './modules/submissions/application/proof-verification.processor.js';
+import { ProofVerificationScheduler } from './modules/submissions/application/proof-verification.scheduler.js';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { SubmissionsModule } from './modules/submissions/submissions.module.js';
     RedisModule,
     TelegramModule,
     AgentModule,
+    // AI proof verification (#47): the submission.created consumer and the
+    // catch-up sweep both run here, never in an API replica.
     SubmissionsModule,
   ],
   providers: [
@@ -57,6 +61,8 @@ import { SubmissionsModule } from './modules/submissions/submissions.module.js';
     QuestMaintenanceScheduler,
     SubmissionVerificationProcessor,
     QuestAssignmentAgentProcessor,
+    ProofVerificationProcessor,
+    ProofVerificationScheduler,
   ],
 })
 export class WorkerModule {}

@@ -223,7 +223,22 @@ export class QuestsRepository {
                   AND s.status = 'rejected'
                   AND s.appealed = false
                   AND s.deleted_at IS NULL
-              ) AS appeal_available
+              ) AS appeal_available,
+              -- The submission id the appeal screen needs.
+              --
+              -- Without it the client had only uq.id to navigate with, and
+              -- the appeal route resolves a submission — so tapping APPEAL in
+              -- history opened "Submission not found". The route only checks
+              -- that the parameter is a UUID, which is why the mistake was
+              -- invisible until the fetch.
+              (
+                SELECT s.id FROM submissions s
+                WHERE s.user_quest_id = uq.id
+                  AND s.deleted_at IS NULL
+                ORDER BY (s.status = 'rejected' AND s.appealed = false) DESC,
+                         s.submitted_at DESC
+                LIMIT 1
+              ) AS submission_id
        FROM user_quests uq JOIN quests q ON q.id = uq.quest_id
        WHERE uq.user_id = $1
        ORDER BY uq.assigned_at DESC, uq.id DESC
@@ -346,6 +361,46 @@ export class QuestsRepository {
     });
   }
 
+  /**
+   * Cancels a live quest at the player's request.
+   *
+   * Separate from `expire`, which only accepts a quest whose timer has
+   * already run out — that guard is what makes the countdown
+   * server-enforced, so it must not be loosened. CANCEL QUEST in the app
+   * called `expire`, and the button only renders while the quest is still
+   * running, so every tap returned QUEST_NOT_EXPIRABLE: the action was
+   * present, labelled, and completely non-functional.
+   *
+   * Writes `abandoned`, a value the enum has always had and nothing ever
+   * used, so a cancelled quest stays distinguishable from one the player
+   * simply ran out of time on.
+   *
+   * Does NOT refund the roll. Abandoning frees the active slot; the
+   * five-rerolls-per-24h budget is what bounds intake.
+   */
+  async abandon(userId: string, userQuestId: string): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      const result = await transaction.query(
+        `UPDATE user_quests SET status = 'abandoned', version = version + 1
+         WHERE id = $1 AND user_id = $2 AND status = 'assigned'
+         RETURNING id`,
+        [userQuestId, userId],
+      );
+      if (!result.rowCount) {
+        throw new ConflictException({
+          code: 'QUEST_NOT_ABANDONABLE',
+          message: 'That quest is not yours, or is no longer active',
+        });
+      }
+      await this.emitQuest(
+        'quest.abandoned',
+        userQuestId,
+        { userId, userQuestId },
+        transaction,
+      );
+    });
+  }
+
   async expire(userId: string, userQuestId: string): Promise<void> {
     await this.database.transaction(async (transaction) => {
       const result = await transaction.query(
@@ -399,6 +454,7 @@ export class QuestsRepository {
     const count = Math.min(Math.max(requestedCount || 3, 1), 20);
     return this.database.transaction(async (transaction) => {
       await this.assignmentPolicy.lockUser(userId, transaction);
+      await this.chargeRollIfNotFirstOfCycle(userId, transaction);
       const injection = await transaction.query<QuestRecord>(
         `WITH popped AS (
            UPDATE admin_quest_injections SET consumed_at = now()
@@ -484,33 +540,100 @@ export class QuestsRepository {
 
   async rerollsRemaining(userId: string): Promise<number> {
     const result = await this.database.query<{ remaining: number }>(
+      // Only charged rows count: the free first spin of a cycle is logged
+      // too, as the marker that the cycle has started.
       `SELECT GREATEST(0, 5 - count(*))::integer AS remaining FROM quest_reroll_log
-       WHERE user_id = $1 AND rerolled_at > now() - interval '24 hours'`,
+       WHERE user_id = $1 AND charged AND rerolled_at > now() - interval '24 hours'`,
       [userId],
     );
     return result.rows[0].remaining;
   }
 
-  async recordReroll(userId: string): Promise<number> {
-    return this.database.transaction(async (transaction) => {
-      await this.assignmentPolicy.lockUser(userId, transaction);
-      const count = await transaction.query<{ used: number }>(
-        `SELECT count(*)::integer AS used FROM quest_reroll_log
-         WHERE user_id = $1 AND rerolled_at > now() - interval '24 hours'`,
-        [userId],
-      );
-      if (count.rows[0].used >= 5) {
-        throw new ConflictException({
-          code: 'REROLL_LIMIT_REACHED',
-          message: 'Reroll limit reached (5 per 24h)',
-        });
-      }
+  /**
+   * Charges a reroll for a picker fetch, unless it is the first of this cycle.
+   *
+   * The cap was enforced only inside `POST /quests/rerolls` — a bookkeeping
+   * route the client calls voluntarily. Neither the picker nor assign looked
+   * at the budget, so a caller with zero rerolls left could spin fresh
+   * options indefinitely and take any of them. CLAUDE.md states the cap is
+   * "the real limit on quest intake"; it was not.
+   *
+   * A cycle starts when the player takes a quest, so the first spin after
+   * finishing one is free and every re-spin costs. Concretely: free when no
+   * reroll has been logged since the most recent `assigned_at` — which also
+   * makes a brand-new player's first ever spin free, since they have no
+   * assignment to compare against.
+   *
+   * Runs under the same advisory lock as the rest of `pickerOptions`, so two
+   * concurrent spins cannot both read the budget as unspent.
+   */
+  private async chargeRollIfNotFirstOfCycle(
+    userId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<void> {
+    const state = await transaction.query<{ free: boolean; used: number }>(
+      // "First of this cycle" means nothing has been logged since the most
+      // recent assignment — charged or not. The free spin is recorded with
+      // charged = false precisely so the second spin can tell itself apart
+      // from the first; without that row every spin looks like the first and
+      // the cap never engages.
+      `SELECT
+         NOT EXISTS (
+           SELECT 1 FROM quest_reroll_log l
+           WHERE l.user_id = $1
+             AND l.rerolled_at > COALESCE(
+                   (SELECT max(uq.assigned_at) FROM user_quests uq WHERE uq.user_id = $1),
+                   to_timestamp(0))
+         ) AS free,
+         (SELECT count(*)::integer FROM quest_reroll_log l
+          WHERE l.user_id = $1 AND l.charged
+            AND l.rerolled_at > now() - interval '24 hours') AS used`,
+      [userId],
+    );
+    const { free, used } = state.rows[0];
+
+    if (free) {
       await transaction.query(
-        'INSERT INTO quest_reroll_log (user_id) VALUES ($1)',
+        'INSERT INTO quest_reroll_log (user_id, charged) VALUES ($1, false)',
         [userId],
       );
-      return 5 - count.rows[0].used - 1;
-    });
+      return;
+    }
+
+    if (used >= 5) {
+      throw new ConflictException({
+        code: 'REROLL_LIMIT_REACHED',
+        message: 'Reroll limit reached (5 per 24h)',
+      });
+    }
+    await transaction.query(
+      'INSERT INTO quest_reroll_log (user_id, charged) VALUES ($1, true)',
+      [userId],
+    );
+  }
+
+  /**
+   * Reports the remaining budget. No longer charges it.
+   *
+   * `pickerOptions` is now the single place a reroll is spent, because that
+   * is the call that actually hands out new options — gating only this route
+   * left the cap bypassable by skipping it. Keeping the route as a read
+   * matters for the build already in TestFlight, which calls it immediately
+   * after fetching the picker: if it still charged, every spin would cost
+   * two rerolls and existing users would hit the cap in half the spins.
+   *
+   * Still refuses at zero, so a client that calls this first and honours the
+   * error keeps showing the right thing.
+   */
+  async recordReroll(userId: string): Promise<number> {
+    const remaining = await this.rerollsRemaining(userId);
+    if (remaining <= 0) {
+      throw new ConflictException({
+        code: 'REROLL_LIMIT_REACHED',
+        message: 'Reroll limit reached (5 per 24h)',
+      });
+    }
+    return remaining;
   }
 
   private async expireOverdueForUser(

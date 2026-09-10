@@ -18,5 +18,13 @@ abstract class QuestsRepository {
   Future<List<QuestModel>> getQuestPickerOptions({int count = 3});
   Future<void> expireOverdueQuests(String userId);
   Future<void> markQuestExpired(String userQuestId);
+
+  /// Cancels a live quest at the player's request.
+  ///
+  /// Distinct from [markQuestExpired], which the server only accepts once the
+  /// timer has run out — that guard is what keeps the countdown
+  /// server-enforced. CANCEL QUEST used to call the expiry route while the
+  /// quest was still running, so every tap failed with QUEST_NOT_EXPIRABLE.
+  Future<void> abandonQuest(String userQuestId);
   Future<List<UserQuestModel>> getUserQuestHistory(String userId);
 }

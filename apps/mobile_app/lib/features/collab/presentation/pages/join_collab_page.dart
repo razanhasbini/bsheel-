@@ -23,41 +23,38 @@ class JoinCollabPage extends ConsumerStatefulWidget {
 
 class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
   bool _joining = false;
-  bool _abandoning = false;
 
   Future<void> _join() async {
     // Guard double-tap + intermediate state. Without this an eager tap
     // during the abandon-confirm dialog or mid-join can fire two RPCs
     // and create a duplicate collab membership.
-    if (_joining || _abandoning) return;
+    if (_joining) return;
     if (guardAccountAction(context, ref)) return;
     final activeQuest = ref.read(activeQuestProvider).valueOrNull;
     // Only an in-progress ('assigned') quest blocks joining a group.
     // 'submitted' quests are pending review and stack alongside the
     // new collab quest (matches the server-side join_collab_group rule).
+    // The confirmation is still ours to ask, but the abandon is no longer
+    // ours to perform. Doing it here as its own request meant a join that
+    // then failed — full group, block, expired code, dropped connection —
+    // had already destroyed the quest, leaving the user in no group with
+    // nothing to roll. The intent goes with the join instead, and the
+    // server swaps them inside one transaction or does neither.
+    var swapActiveQuest = false;
     if (activeQuest != null && activeQuest.status == UserQuestStatus.assigned) {
       final confirmed = await _showAbandonDialog();
       if (!confirmed || !mounted) return;
-      setState(() => _abandoning = true);
-      try {
-        await ref.read(collabRepositoryProvider).abandonQuest(activeQuest.id);
-        ref.read(analyticsProvider).track('collab_quest_abandoned');
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(mapDbError(e, action: 'abandon quest'))),
-          );
-        }
-        setState(() => _abandoning = false);
-        return;
-      }
-      if (mounted) setState(() => _abandoning = false);
+      swapActiveQuest = true;
     }
 
     setState(() => _joining = true);
     try {
-      final result =
-          await ref.read(collabRepositoryProvider).joinGroup(widget.code);
+      final result = await ref
+          .read(collabRepositoryProvider)
+          .joinGroup(widget.code, abandonActiveQuest: swapActiveQuest);
+      if (swapActiveQuest) {
+        ref.read(analyticsProvider).track('collab_quest_abandoned');
+      }
       ref.read(analyticsProvider).track('collab_group_joined', {
         'code': widget.code,
         'quest_id': result['quest_id'],
@@ -180,7 +177,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                 ],
               ),
               data: (group) {
-                final isBusy = _joining || _abandoning;
+                final isBusy = _joining;
                 final isVersus = group.mode == CollabMode.versus;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,11 +188,7 @@ class _JoinCollabPageState extends ConsumerState<JoinCollabPage> {
                           : group.creatorDisplayName,
                       groupTitle: group.questTitle,
                       code: group.code,
-                      buttonLabel: _abandoning
-                          ? 'ABANDONING QUEST…'
-                          : _joining
-                              ? 'JOINING…'
-                              : 'JOIN GROUP',
+                      buttonLabel: _joining ? 'JOINING…' : 'JOIN GROUP',
                       onJoin: isBusy ? null : _join,
                     ),
                     const SizedBox(height: 16),
@@ -308,7 +301,7 @@ class _InvitePanel extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: QuestColors.osBg,
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
               border: Border.all(color: QuestColors.osTextPrimary, width: 2),
             ),
             child: FitText(
@@ -455,7 +448,7 @@ class _IconButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(

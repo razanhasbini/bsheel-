@@ -26,27 +26,36 @@ class RealtimeDomainEvent {
   final Map<String, dynamic> data;
   final DateTime occurredAt;
 
+  /// Parses a `domain.event` frame.
+  ///
+  /// Only `type` and `data` are required, because they are the only fields
+  /// every consumer actually reads. This previously demanded `aggregateType`,
+  /// `aggregateId` and `occurredAt` as well — none of which the server sent —
+  /// so it returned null for every event ever delivered and the whole
+  /// realtime feature was inert. The server now sends all five; requiring
+  /// only the two that matter means a future payload change degrades a field
+  /// rather than silencing the stream.
   static RealtimeDomainEvent? tryParse(Object? value) {
     if (value is! Map) return null;
     final json = Map<String, dynamic>.from(value);
     final type = json['type'];
+    final rawData = json['data'];
+    if (type is! String || rawData is! Map) return null;
+
     final aggregateType = json['aggregateType'];
     final aggregateId = json['aggregateId'];
     final occurredAt = DateTime.tryParse(json['occurredAt']?.toString() ?? '');
-    final rawData = json['data'];
-    if (type is! String ||
-        aggregateType is! String ||
-        aggregateId is! String ||
-        occurredAt == null ||
-        rawData is! Map) {
-      return null;
-    }
+
     return RealtimeDomainEvent(
       type: type,
-      aggregateType: aggregateType,
-      aggregateId: aggregateId,
+      // Derived from the event name when absent: `submission.approved` is an
+      // event about a submission, so the prefix is the aggregate.
+      aggregateType: aggregateType is String && aggregateType.isNotEmpty
+          ? aggregateType
+          : type.split('.').first,
+      aggregateId: aggregateId is String ? aggregateId : '',
       data: Map<String, dynamic>.from(rawData),
-      occurredAt: occurredAt.toUtc(),
+      occurredAt: (occurredAt ?? DateTime.now()).toUtc(),
     );
   }
 }

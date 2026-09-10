@@ -1,7 +1,7 @@
+import 'package:app_contracts/app_contracts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_core/app_core.dart';
-import '../../../../design/bs_widgets.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../providers/reaction_controller.dart';
@@ -110,7 +110,14 @@ Future<void> assignQuestFlow({
   // same "already active" snackbar, so the eager refetch was just lag.
   final activeQuest = ref.read(activeQuestProvider).valueOrNull;
 
-  if (activeQuest != null) {
+  // Only a LIVE quest blocks a new one. `/quests/active` also returns rows
+  // whose status is `submitted`, and this checked for null alone — so a
+  // player whose only quest was awaiting moderation could not take another
+  // from the detail page, a profile, or this dialog, even though the server
+  // accepts it. Migration 0021 narrowed the database index for exactly this
+  // reason: review latency is not something the player can clear, and
+  // blocking on it leaves them with nothing to do.
+  if (activeQuest != null && activeQuest.status == UserQuestStatus.assigned) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Can't — there is already an active quest"),
@@ -239,8 +246,9 @@ class _ConfirmTakeQuestDialog extends StatelessWidget {
                     onTap: () => Navigator.pop(context, true),
                     behavior: HitTestBehavior.opaque,
                     child: Container(
-                      constraints:
-                          const BoxConstraints(minHeight: kMinTouchTarget),
+                      constraints: const BoxConstraints(
+                        minHeight: QuestSpacing.minTouchTarget,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
                         color: QuestColors.osSuccess,

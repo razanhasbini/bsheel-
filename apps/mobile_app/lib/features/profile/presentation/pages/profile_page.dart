@@ -174,8 +174,19 @@ class ProfilePage extends ConsumerWidget {
             .toList(growable: false);
         // Server-derived (#46). The old client calculation read whatever
         // history page was loaded, counted rejected attempts, and bucketed by
-        // local date while the reminder job uses UTC.
-        final streak = ref.watch(streakProvider).valueOrNull?.current ?? 0;
+        // a different day boundary than the reminder job.
+        //
+        // Per profile, not per viewer. This read `streakProvider` — the
+        // signed-in user's own streak — unconditionally, so opening someone
+        // else's profile showed *your* streak on *their* card. The
+        // `userStreakProvider` family already existed for exactly this and
+        // had no callers.
+        final streak = (isViewingOther
+                    ? ref.watch(userStreakProvider(profile.id))
+                    : ref.watch(streakProvider))
+                .valueOrNull
+                ?.current ??
+            0;
 
         final socialQuestCount = questHistory
             .where((q) =>
@@ -268,15 +279,15 @@ class ProfilePage extends ConsumerWidget {
                       }
                     },
                   ),
-                    ref.watch(mapProfileCountriesProvider(profile.id)).when(
-                          data: (countries) =>
-                              DiscoveryProgress(countries: countries),
-                          loading: () => const LinearProgressIndicator(),
-                          error: (_, __) => TextButton(
-                              onPressed: () =>
-                                  ref.invalidate(mapProfileCountriesProvider(profile.id)),
-                              child: const Text('RETRY DISCOVERY PROGRESS')),
-                        ),
+                  ref.watch(mapProfileCountriesProvider(profile.id)).when(
+                        data: (countries) =>
+                            DiscoveryProgress(countries: countries),
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, __) => TextButton(
+                            onPressed: () => ref.invalidate(
+                                mapProfileCountriesProvider(profile.id)),
+                            child: const Text('RETRY DISCOVERY PROGRESS')),
+                      ),
                   if (isViewingOther) ...[
                     const SizedBox(height: 14),
                     FollowButton(targetUserId: userId!),
@@ -533,7 +544,7 @@ class _TextButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osSurface,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(
@@ -906,7 +917,7 @@ class _ActivityStrip extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: tint(start + i),
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
                   ),
                 ),
               ),
@@ -1110,7 +1121,8 @@ class _BadgeListBody extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: unlocked ? tint : QuestColors.osSurface,
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusButton),
                     border:
                         Border.all(color: QuestColors.osTextPrimary, width: 2),
                   ),
@@ -1201,7 +1213,7 @@ class _OptionChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
             border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           ),
           child: Text(
@@ -1425,7 +1437,7 @@ class _IconBtn extends StatelessWidget {
           border: Border.all(
               color: QuestColors.osTextPrimary,
               width: QuestSpacing.cardBorderWidth),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           boxShadow: const [
             BoxShadow(
               color: QuestColors.osTextPrimary,
@@ -1864,7 +1876,8 @@ class _SavedPostTile extends ConsumerWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: QuestColors.osAccent,
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusButton),
                     border: Border.all(
                         color: QuestColors.osTextPrimary,
                         width: QuestSpacing.cardBorderWidth),
@@ -1960,7 +1973,8 @@ class _SavedPostTile extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osCard,
-                            borderRadius: BorderRadius.circular(11),
+                            borderRadius: BorderRadius.circular(
+                                QuestSpacing.radiusButton),
                             border: Border.all(color: ink, width: 2),
                           ),
                           alignment: Alignment.center,
@@ -1991,7 +2005,8 @@ class _SavedPostTile extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: QuestColors.osRed,
-                            borderRadius: BorderRadius.circular(11),
+                            borderRadius: BorderRadius.circular(
+                                QuestSpacing.radiusButton),
                             border: Border.all(color: ink, width: 2),
                             boxShadow: const [
                               BoxShadow(color: ink, offset: Offset(3, 3)),

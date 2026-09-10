@@ -9,7 +9,10 @@ final feedRepositoryProvider = Provider<FeedRepository>((ref) {
   return AppBackend.repositories.feed;
 });
 
-/// Current feed sort mode, changed by the filter tabs.
+/// Current feed sort mode. `recent` and `hot` are set by the HOT / NEW chips
+/// in the feed header; `top`, `bottom` and `graveyard` come from the filter
+/// sheet behind the header's filter button. All five are the values the API's
+/// `sort` query parameter accepts.
 final feedSortProvider = StateProvider<String>((ref) => 'recent');
 
 /// Set to `true` while the feed has pushed a sub-route on top of itself
@@ -70,10 +73,18 @@ class FeedState {
 // posts on screen instead of flashing "no reels".
 FeedState? _lastGoodFeed;
 
+// Which ordering the cached page above was fetched under. A cached page from
+// a *different* sort or scope is still worth showing rather than blanking the
+// feed, but it must not be paged on top of — see build().
+String? _lastGoodKey;
+
+String _feedCacheKey(String sort, String scope) => '$sort/$scope';
+
 /// Drops the module-scoped SWR cache. Call on sign-out so the next user
 /// on the same device can't see the previous user's reels briefly.
 void resetFeedCache() {
   _lastGoodFeed = null;
+  _lastGoodKey = null;
 }
 
 class FeedNotifier extends AsyncNotifier<FeedState> {
@@ -88,6 +99,7 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
     final user = ref.watch(authSessionProvider);
     if (user == null) {
       _lastGoodFeed = null;
+      _lastGoodKey = null;
       return const FeedState(posts: [], hasMore: false);
     }
     final sort = ref.watch(feedSortProvider);
@@ -108,6 +120,7 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
       }
       final fresh = FeedState(posts: raw, hasMore: raw.length >= _pageSize);
       _lastGoodFeed = fresh;
+      _lastGoodKey = _feedCacheKey(sort, scope);
       return fresh;
     } catch (e, st) {
       if (kDebugMode) debugPrint('[Feed] ERROR loading feed: $e');
@@ -116,6 +129,15 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         if (kDebugMode) {
           debugPrint(
               '[Feed] Serving cached ${_lastGoodFeed!.posts.length} posts');
+        }
+        // The cache holds page 1 of whatever sort/scope last succeeded. If
+        // that is not the ordering being asked for now — the user changed
+        // the sort and the fetch failed — those posts stay on screen, but
+        // paging stops. `loadMore` would follow a cursor minted under the
+        // OLD ordering and splice the result beneath it. Pull-to-refresh is
+        // the way back.
+        if (_lastGoodKey != _feedCacheKey(sort, scope)) {
+          return _lastGoodFeed!.copyWith(hasMore: false);
         }
         return _lastGoodFeed!;
       }
@@ -149,6 +171,9 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
     if (current != null && current.posts.isNotEmpty) {
       try {
         final scope = ref.read(feedScopeProvider);
+        // offset 0, and the result REPLACES the list rather than appending:
+        // a new ordering means the old position points at nothing meaningful,
+        // so paging has to restart from the first page.
         final raw = await ref.read(feedRepositoryProvider).getFeed(
               limit: _pageSize,
               offset: 0,
@@ -162,6 +187,12 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         ));
       } catch (e) {
         if (kDebugMode) debugPrint('[Feed] Sort change failed: $e');
+        // feedSortProvider already holds the new sort, so what is on screen
+        // is the previous ordering. Freeze paging rather than let loadMore
+        // follow a cursor from it; build() or a pull-to-refresh recovers.
+        if (token == _requestToken) {
+          state = AsyncData(current.copyWith(hasMore: false));
+        }
       }
     }
   }
@@ -190,6 +221,11 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         ));
       } catch (e) {
         if (kDebugMode) debugPrint('[Feed] Scope change failed: $e');
+        // Same reasoning as changeSort: the scope has already flipped, so
+        // the visible posts belong to the previous window.
+        if (token == _requestToken) {
+          state = AsyncData(current.copyWith(hasMore: false));
+        }
       }
     }
   }
@@ -203,16 +239,33 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
     final scope = ref.read(feedScopeProvider);
 
     try {
-      // ARC-011: server-side scope filtering means current.posts.length
-      // is the exact offset for the next page regardless of scope.
+      // Page by the last row's keyset cursor, not by offset.
+      //
+      // Offset paging re-runs the whole ORDER BY for each page, so a score
+      // changing between pages shifts every row after it: the same post
+      // arrives twice and another is never shown at all. The server has
+      // always returned a per-row cursor for exactly this; it was discarded.
+      // Offset remains the fallback for a page whose rows predate the field.
+      final cursor =
+          current.posts.isEmpty ? null : current.posts.last.nextCursor;
       final raw = await ref.read(feedRepositoryProvider).getFeed(
             limit: _pageSize,
-            offset: current.posts.length,
+            offset: cursor == null ? current.posts.length : 0,
+            cursor: cursor,
             sort: sort,
             scope: _toFeedScope(scope),
           );
+
+      // Belt and braces: a cursor should make duplicates impossible, but the
+      // fallback path cannot promise that, and appending a duplicate throws
+      // on a keyed list.
+      final seen = current.posts.map((post) => post.id).toSet();
+      final fresh = raw.where((post) => !seen.contains(post.id)).toList();
       state = AsyncData(current.copyWith(
-        posts: [...current.posts, ...raw],
+        posts: [...current.posts, ...fresh],
+        // Judge by what the server returned, not by what survived
+        // de-duplication: a full page that was entirely duplicate still
+        // means there is more behind it.
         hasMore: raw.length >= _pageSize,
         isLoadingMore: false,
       ));

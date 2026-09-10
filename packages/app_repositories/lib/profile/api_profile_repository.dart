@@ -21,8 +21,8 @@ class ApiProfileRepository implements ProfileRepository {
     // Same endpoint shape as the map's discovery totals: one server figure,
     // read for self or for another profile, so the two can never disagree.
     return StreakModel.fromJson(
-      apiObject(await _client
-          .get(userId == null ? 'profiles/me/streak' : 'profiles/$userId/streak')),
+      apiObject(await _client.get(
+          userId == null ? 'profiles/me/streak' : 'profiles/$userId/streak')),
     );
   }
 

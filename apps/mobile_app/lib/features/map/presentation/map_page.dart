@@ -45,7 +45,8 @@ class _MapPageState extends ConsumerState<MapPage> {
       country: _country,
       category: _category,
       search: _search,
-      offset: _offset,savedOnly:_savedOnly
+      offset: _offset,
+      savedOnly: _savedOnly
     );
     final places = ref.watch(mapPlacesProvider(filter));
     final countryRows = countries.valueOrNull ?? <MapCountry>[];
@@ -240,7 +241,10 @@ class _MapPageState extends ConsumerState<MapPage> {
                     title: const Text('SAVED PLACES'),
                     subtitle: const Text('Saving a place does not unlock it.'),
                     value: _savedOnly,
-                    onChanged: (value) => setState(() { _savedOnly = value; _offset=0; })),
+                    onChanged: (value) => setState(() {
+                          _savedOnly = value;
+                          _offset = 0;
+                        })),
                 places.when(
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),

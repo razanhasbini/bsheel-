@@ -89,10 +89,28 @@ class QuestHistoryPage extends ConsumerWidget {
                       );
                     }
 
-                    void openAppeal(UserQuestModel q) => context.pushNamed(
-                          RouteNames.submissionStatus,
-                          pathParameters: {'id': q.id},
-                        );
+                    // The appeal screen resolves a SUBMISSION. Passing q.id
+                    // — a user_quest id — rendered "Submission not found",
+                    // and the route's UUID-shape check let it through. The
+                    // history query now returns the submission id.
+                    void openAppeal(UserQuestModel q) {
+                      final submissionId = q.submissionId;
+                      if (submissionId == null) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(const SnackBar(
+                            content: Text(
+                              "Couldn't open that submission. Pull to refresh "
+                              'and try again.',
+                            ),
+                          ));
+                        return;
+                      }
+                      context.pushNamed(
+                        RouteNames.submissionStatus,
+                        pathParameters: {'id': submissionId},
+                      );
+                    }
 
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),

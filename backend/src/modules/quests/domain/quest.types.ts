@@ -28,5 +28,12 @@ export interface UserQuestRecord {
   /// alone cannot express it, because a first rejection and a re-rejection
   /// after a spent appeal are both 'rejected'.
   readonly appeal_available?: boolean;
+
+  /// The submission this quest's history row refers to, when one exists.
+  ///
+  /// Only the history query returns it. The appeal screen resolves a
+  /// submission, so navigating with the user_quest id lands on "not found";
+  /// this is the id the client must actually use.
+  readonly submission_id?: string | null;
 }
 

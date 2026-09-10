@@ -15,24 +15,40 @@ class AdminCounts {
   final int appeals;
   final int reports;
 
+  /// AI proof verification escalations awaiting a human (#47).
+  final int unclear;
+
   const AdminCounts({
     required this.pending,
     required this.appeals,
     required this.reports,
+    required this.unclear,
   });
 
   const AdminCounts.zero()
       : pending = 0,
         appeals = 0,
-        reports = 0;
+        reports = 0,
+        unclear = 0;
 }
 
 final adminCountsProvider = FutureProvider<AdminCounts>((ref) async {
-  final stats = await AppBackend.repositories.admin.stats();
+  final repositories = AppBackend.repositories;
+  // Two calls rather than one because /admin/stats does not carry the
+  // escalation count, and the unclear queue already exposes it. Requested
+  // together so the badges still refresh in a single provider rebuild; a
+  // failure of the newer endpoint degrades that badge to zero rather than
+  // taking the whole sidebar's counts down with it.
+  final results = await Future.wait([
+    repositories.admin.stats(),
+    repositories.moderation.unclearCount().catchError((_) => 0),
+  ]);
+  final stats = results[0] as Map<String, dynamic>;
   return AdminCounts(
     pending: (stats['pending'] as num?)?.toInt() ?? 0,
     appeals: (stats['appeals'] as num?)?.toInt() ?? 0,
     reports: (stats['pendingReports'] as num?)?.toInt() ?? 0,
+    unclear: results[1] as int,
   );
 });
 

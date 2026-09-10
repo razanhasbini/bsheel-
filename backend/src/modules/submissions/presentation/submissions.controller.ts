@@ -1,10 +1,11 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBooleanString, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBooleanString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
+import { ProofVerificationService } from '../application/proof-verification.service.js';
 import { SubmissionsService } from '../application/submissions.service.js';
 import { AppealSubmissionDto, CreateSubmissionDto, RejectSubmissionDto, ReviewSubmissionDto, SetVisibilityDto } from './submission.dto.js';
 
@@ -26,13 +27,21 @@ class AdminSubmissionListQuery {
   @IsOptional() @IsIn(['visible', 'hidden_from_feed', 'deleted', 'not_visible']) visibility?: 'visible' | 'hidden_from_feed' | 'deleted' | 'not_visible';
   @IsOptional() @IsIn(['asc', 'desc']) order: 'asc' | 'desc' = 'asc';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
+  /// Kept for the clients that already pass it. Prefer `cursor`: the offset
+  /// path degrades badly with depth (PERFORMANCE.md §5.2).
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
+  /// Opaque keyset cursor from a previous page's `next_cursor`. Bound to the
+  /// list that issued it, so one from another list is rejected.
+  @IsOptional() @IsString() @MaxLength(1024) cursor?: string;
 }
 
 @ApiTags('submissions')
 @Controller({ path: 'submissions', version: '1' })
 export class SubmissionsController {
-  constructor(private readonly service: SubmissionsService) {}
+  constructor(
+    private readonly service: SubmissionsService,
+    private readonly verification: ProofVerificationService,
+  ) {}
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() body: CreateSubmissionDto) { return this.service.create(user.id, body); }
@@ -50,13 +59,28 @@ export class SubmissionsController {
       order: query.order,
       limit: query.limit,
       offset: query.offset,
+      cursor: query.cursor,
     });
   }
 
   @Roles('moderator', 'super_admin')
   @Get('admin/review-queue')
   reviewQueue(@Query() query: AdminSubmissionListQuery) {
-    return this.service.reviewQueue(query.limit, query.offset);
+    return this.service.reviewQueue(query.limit, query.offset, query.cursor);
+  }
+
+  /// The "unclear" section (#47): proof the agent could not judge, waiting on
+  /// a human. Declared before `admin/:id` so the literal segment wins.
+  @Roles('moderator', 'super_admin')
+  @Get('admin/unclear')
+  unclearQueue(@Query() query: AdminSubmissionListQuery) {
+    return this.verification.unclearQueue(query.limit, query.offset);
+  }
+
+  @Roles('moderator', 'super_admin')
+  @Get('admin/unclear/count')
+  unclearCount() {
+    return this.verification.unclearCount();
   }
 
   @Roles('moderator', 'super_admin')
@@ -69,6 +93,7 @@ export class SubmissionsController {
       order: query.order,
       limit: query.limit,
       offset: query.offset,
+      cursor: query.cursor,
     });
   }
 

@@ -73,13 +73,13 @@ class QuestModel {
       createdAt: coerceTimestamp(json[QuestColumns.createdAt]),
       updatedAt: coerceNullableTimestamp(json[QuestColumns.updatedAt]),
       isHidden: coerceBool(json[QuestColumns.isHidden], ifMissing: false),
-      availableFrom:
-          coerceNullableTimestamp(json[QuestColumns.availableFrom]),
+      availableFrom: coerceNullableTimestamp(json[QuestColumns.availableFrom]),
       availableUntil:
           coerceNullableTimestamp(json[QuestColumns.availableUntil]),
-      sponsorName: (json[QuestColumns.sponsorName] as String?)?.trim().isEmpty ?? true
-          ? null
-          : (json[QuestColumns.sponsorName] as String).trim(),
+      sponsorName:
+          (json[QuestColumns.sponsorName] as String?)?.trim().isEmpty ?? true
+              ? null
+              : (json[QuestColumns.sponsorName] as String).trim(),
     );
   }
 

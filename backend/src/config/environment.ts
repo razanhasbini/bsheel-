@@ -83,6 +83,72 @@ const environmentSchema = z
     TELEGRAM_ALLOWED_CHAT_IDS: z.string().default(''),
     TELEGRAM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     TELEGRAM_API_BASE_URL: z.string().url().default('https://api.telegram.org'),
+    // AI proof verification (#47). Off by default: an unconfigured deployment
+    // must behave exactly as it did before the feature existed, rather than
+    // failing every submission it cannot analyse.
+    AI_VERIFICATION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    // Which vision provider runs the analysis. The pipeline is written
+    // against an interface, so this is the only place the choice appears.
+    AI_VERIFICATION_PROVIDER: z.enum(['openai', 'anthropic']).default('openai'),
+    ANTHROPIC_API_KEY: optionalString,
+    OPENAI_API_KEY: optionalString,
+
+    // Shadow mode: the agent analyses and records, and acts on nothing. The
+    // default, and it stays the default until an eval has scored the agent
+    // against real human decisions. Shipping an approval agent whose accuracy
+    // nobody has measured is not a feature.
+    AI_VERIFICATION_SHADOW_MODE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+
+    // Three rungs, because the price spread between them is ~50x and most
+    // submissions never need the top one. Pinned rather than floating, so a
+    // model change is a deploy and shows up in the verdict rows that record
+    // which model produced them.
+    //
+    // The asymmetry is the point: the cheapest model may wave a clean
+    // submission through, but only the most capable model may conclude that a
+    // user's proof is fake.
+    AI_VERIFICATION_MODEL_TRIAGE: z.string().default('gpt-5.6-luna'),
+    AI_VERIFICATION_MODEL_DEEP: z.string().default('gpt-5.6-sol'),
+    AI_VERIFICATION_MODEL_REJECT: z.string().default('gpt-6-astra'),
+    // Used when AI_VERIFICATION_PROVIDER=anthropic.
+    AI_VERIFICATION_MODEL_TRIAGE_ANTHROPIC: z.string().default('claude-haiku-4-5'),
+    AI_VERIFICATION_MODEL_DEEP_ANTHROPIC: z.string().default('claude-sonnet-5'),
+    AI_VERIFICATION_MODEL_REJECT_ANTHROPIC: z.string().default('claude-opus-5'),
+    AI_VERIFICATION_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
+    // Confidence floors, separately tunable because the two errors are not
+    // symmetric. A false approval costs leaderboard integrity and is
+    // recoverable through takedown and XP rollback; a false rejection tells an
+    // honest player they cheated, which is a churn event. So the reject bar
+    // sits higher, and both are set from the eval rather than by taste.
+    AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.85),
+    AI_VERIFICATION_REJECT_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.95),
+    // Perceptual-hash distance at or below which two images are the same
+    // picture. Exposed so the eval harness can sweep it.
+    AI_VERIFICATION_NEAR_DUPLICATE_DISTANCE: z.coerce.number().int().min(0).max(32).default(10),
+    // Vision input cap per image. The Messages API rejects oversized images,
+    // and base64 inflates bytes by ~4/3, so this sits well under the request
+    // ceiling rather than at it.
+    AI_VERIFICATION_MAX_IMAGE_BYTES: z.coerce.number().int().min(65_536).max(5_242_880).default(3_145_728),
+    // How many images from one submission are sent. Proof is usually one
+    // frame; the cap stops a mixed-media submission becoming an unbounded
+    // request.
+    AI_VERIFICATION_MAX_IMAGES: z.coerce.number().int().min(1).max(8).default(4),
+    // Video is read whole to be decoded, so its cap is the submission cap
+    // rather than the per-image one.
+    AI_VERIFICATION_MAX_VIDEO_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).default(52_428_800),
+    // Frames sampled evenly across the clip. Enough to see the activity,
+    // few enough that a video costs a small multiple of a photo.
+    AI_VERIFICATION_VIDEO_FRAMES: z.coerce.number().int().min(1).max(8).default(3),
+    AI_VERIFICATION_FFMPEG_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(30_000),
+    AI_VERIFICATION_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
+    AI_VERIFICATION_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+    AI_VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
     R2_ENDPOINT: optionalUrl,
     R2_REGION: z.string().default('auto'),
     // MinIO (and any self-hosted S3) addresses buckets as a path segment
@@ -133,6 +199,22 @@ const environmentSchema = z
     // while that is true. Runs hourly by default rather than once a day
     // because "today" differs per reader and a single fixed hour would reach
     // half the users after their streak had already lapsed.
+    /**
+     * The timezone whose calendar days a streak is counted in.
+     *
+     * This was UTC, and the app's users are in UTC+3, so the day boundary
+     * fell at 03:00 local. Two submissions at 23:00 and 01:00 local are two
+     * consecutive days to the person who made them and one single day to a
+     * UTC bucket, so a late-night post did not advance the streak — issue
+     * #63, reproduced. Every local midnight-to-03:00 submission was being
+     * credited to the previous day.
+     *
+     * A single zone rather than one per user: the audience is one country,
+     * and a per-user zone needs a column, a client that reports it, and a
+     * decision about what happens when someone travels. Configurable so
+     * that decision can change without a code change.
+     */
+    STREAK_TIMEZONE: z.string().min(1).default('Asia/Beirut'),
     STREAK_REMINDER_ENABLED: z
       .enum(['true', 'false'])
       .default('true')
@@ -189,7 +271,6 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
-    OPENAI_API_KEY: optionalString,
     OPENAI_AGENT_MODEL: optionalString,
     OPENAI_AGENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
     OPENAI_AGENT_MAX_TURNS: z.coerce.number().int().min(1).max(20).default(6),
@@ -271,6 +352,19 @@ const environmentSchema = z
         code: 'custom',
         path: ['DATABASE_POOL_MIN'],
         message: 'DATABASE_POOL_MIN cannot exceed DATABASE_POOL_MAX',
+      });
+    }
+
+    // Caught at startup rather than on the first streak query. An unknown
+    // zone name makes Postgres raise on every one of them, which would look
+    // like the streak feature being broken rather than a typo in the config.
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: environment.STREAK_TIMEZONE });
+    } catch {
+      context.addIssue({
+        code: 'custom',
+        path: ['STREAK_TIMEZONE'],
+        message: `STREAK_TIMEZONE must be an IANA timezone name (got "${environment.STREAK_TIMEZONE}")`,
       });
     }
 
@@ -365,6 +459,32 @@ const environmentSchema = z
     }
     if (environment.AGENT_XP_MIN > environment.AGENT_XP_MAX) {
       context.addIssue({ code: 'custom', path: ['AGENT_XP_MIN'], message: 'AGENT_XP_MIN cannot exceed AGENT_XP_MAX' });
+    }
+
+    // Fail at boot rather than on the first submission. A deployment that
+    // claims to verify proof and silently cannot is worse than one that
+    // refuses to start.
+    if (environment.AI_VERIFICATION_ENABLED) {
+      const keyForProvider = environment.AI_VERIFICATION_PROVIDER === 'openai'
+        ? 'OPENAI_API_KEY' as const
+        : 'ANTHROPIC_API_KEY' as const;
+      if (!environment[keyForProvider]) {
+        context.addIssue({
+          code: 'custom',
+          path: [keyForProvider],
+          message: `${keyForProvider} is required when AI_VERIFICATION_ENABLED is true and the provider is ${environment.AI_VERIFICATION_PROVIDER}`,
+        });
+      }
+      // A reject bar at or below the approve bar means the more damaging
+      // decision is the easier one to reach. Refuse to boot rather than
+      // discover it from a user's appeal.
+      if (environment.AI_VERIFICATION_REJECT_MIN_CONFIDENCE < environment.AI_VERIFICATION_APPROVE_MIN_CONFIDENCE) {
+        context.addIssue({
+          code: 'custom',
+          path: ['AI_VERIFICATION_REJECT_MIN_CONFIDENCE'],
+          message: 'AI_VERIFICATION_REJECT_MIN_CONFIDENCE must be >= AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: rejecting a user is the more costly error and must not be the easier one to reach',
+        });
+      }
     }
   });
 

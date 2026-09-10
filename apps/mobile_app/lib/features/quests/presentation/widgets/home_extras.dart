@@ -715,17 +715,25 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
   /// The user_quest id an appeal or detail view would navigate to. Null
   /// when no matching row exists, which is what keeps the APPEAL slot a
   /// promise the API can honour.
-  String? _matchingUserQuestId(QuestOfTheDayModel qotd) {
-    final active = ref.read(activeQuestProvider).valueOrNull;
-    if (active != null && active.questId == qotd.questId) return active.id;
+  /// The SUBMISSION behind today's ticket, when this attempt can be appealed.
+  ///
+  /// Returns a submission id, not a user_quest id. The appeal screen resolves
+  /// a submission, and this used to hand it `user_quest.id`, so the ticket's
+  /// appeal stub opened "Submission not found". Only the history projection
+  /// carries the submission id — `/quests/active` does not, and an active
+  /// quest has no rejection to appeal anyway.
+  String? _matchingSubmissionId(QuestOfTheDayModel qotd) {
     final history =
         ref.read(questHistoryProvider).valueOrNull ?? const <UserQuestModel>[];
     final cutoff = DateTime.now().subtract(const Duration(hours: 48));
     final candidates = history
-        .where((q) => q.questId == qotd.questId && q.assignedAt.isAfter(cutoff))
+        .where((q) =>
+            q.questId == qotd.questId &&
+            q.assignedAt.isAfter(cutoff) &&
+            q.submissionId != null)
         .toList()
       ..sort((a, b) => b.assignedAt.compareTo(a.assignedAt));
-    return candidates.isEmpty ? null : candidates.first.id;
+    return candidates.isEmpty ? null : candidates.first.submissionId;
   }
 
   @override
@@ -738,7 +746,7 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
     // Ink on sky. White on sky measures 1.9:1.
     final fg = QuestColors.onAccent(QuestColors.osCool);
     final canAppeal =
-        status == _QotdStatus.rejected && _matchingUserQuestId(qotd) != null;
+        status == _QotdStatus.rejected && _matchingSubmissionId(qotd) != null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
@@ -757,7 +765,7 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: QuestColors.osBg,
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusGlyph),
               border: Border.all(color: ink, width: 2),
             ),
             child: Icon(
@@ -803,11 +811,11 @@ class _BsQuestOfDayTicketState extends ConsumerState<BsQuestOfDayTicket> {
             onAccept: _handleAccept,
             onAppeal: canAppeal
                 ? () {
-                    final id = _matchingUserQuestId(qotd);
-                    if (id == null) return;
+                    final submissionId = _matchingSubmissionId(qotd);
+                    if (submissionId == null) return;
                     context.pushNamed(
                       RouteNames.submissionStatus,
-                      pathParameters: {'id': id},
+                      pathParameters: {'id': submissionId},
                     );
                   }
                 : null,
@@ -858,7 +866,7 @@ class _TicketAction extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: actionable ? ink : QuestColors.osBg,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusGlyph),
         border: Border.all(color: ink, width: 2),
       ),
       child: Text(

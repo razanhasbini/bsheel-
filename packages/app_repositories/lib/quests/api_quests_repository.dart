@@ -196,6 +196,11 @@ class ApiQuestsRepository implements QuestsRepository {
   }
 
   @override
+  Future<void> abandonQuest(String userQuestId) async {
+    await _client.post('quests/abandon', body: {'userQuestId': userQuestId});
+  }
+
+  @override
   Future<List<UserQuestModel>> getUserQuestHistory(String userId) async {
     final result = <UserQuestModel>[];
     const pageSize = 100;

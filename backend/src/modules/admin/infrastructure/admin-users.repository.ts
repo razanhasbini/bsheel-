@@ -152,7 +152,7 @@ export class AdminUsersRepository extends AdminRepositoryBase {
     actorId: string,
     userId: string,
     xp: number,
-    level: number,
+    level: number | undefined,
     completed: number,
     reason: string,
   ): Promise<void> {
@@ -166,9 +166,15 @@ export class AdminUsersRepository extends AdminRepositoryBase {
           code: 'PROFILE_NOT_FOUND',
           message: 'Profile not found',
         });
+      // Level is derived, not taken from the caller. It used to be an
+      // independent field with nothing checking the two agreed, so a
+      // mismatched pair made xp_to_next_level negative and the profile panel
+      // render totals like "300 / 200". Same formula the approve path and the
+      // admin UI use.
+      const derivedLevel = Math.max(1, Math.floor(xp / 100) + 1);
       await transaction.query(
         'UPDATE profiles SET xp = $2, level = $3, quests_completed = $4, updated_at = now() WHERE id = $1',
-        [userId, xp, level, completed],
+        [userId, xp, derivedLevel, completed],
       );
       await this.audit(
         actorId,
@@ -176,7 +182,17 @@ export class AdminUsersRepository extends AdminRepositoryBase {
         'profile',
         userId,
         before.rows[0],
-        { xp, level, quests_completed: completed, reason },
+        {
+          xp,
+          level: derivedLevel,
+          quests_completed: completed,
+          reason,
+          // Recorded when the caller asked for something else, so the audit
+          // shows what was requested as well as what was stored.
+          ...(level !== undefined && level !== derivedLevel
+            ? { requested_level: level }
+            : {}),
+        },
         transaction,
       );
     });

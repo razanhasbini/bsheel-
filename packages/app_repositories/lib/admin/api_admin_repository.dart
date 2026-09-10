@@ -450,4 +450,40 @@ class ApiAdminRepository implements AdminRepository {
       },
     );
   }
+
+  // ── Account-deletion request queue ──────────────────────────────
+  // `super_admin` only on the server: every row is the email address of
+  // someone asking to be erased, which is personal data rather than
+  // moderation material. A moderator's call answers 403.
+
+  /// The public deletion-request queue, unhandled first and oldest of
+  /// those at the top — the order the partial index on the table is built
+  /// for.
+  ///
+  /// Each row carries `email`, `note`, `created_at`, `handled_at`,
+  /// `matched_user_id` / `matched_username` (null when the address has no
+  /// account) and `handled_by_email`.
+  Future<List<Map<String, dynamic>>> deletionRequests({
+    int limit = 200,
+    int offset = 0,
+  }) async =>
+      apiObjectList(
+        await _client.get(
+          'admin/deletion-requests',
+          query: {
+            'limit': limit,
+            'offset': offset,
+          },
+        ),
+      );
+
+  /// Marks one request handled, recording the caller as the operator who
+  /// verified the requester.
+  ///
+  /// This erases nothing, and there is no endpoint here that could: the
+  /// queue is unauthenticated intake, so acting on an email address alone
+  /// would let anyone erase anyone. The erasure itself runs through the
+  /// account holder's own authenticated flow.
+  Future<void> markDeletionRequestHandled(String id) =>
+      _client.patch('admin/deletion-requests/$id');
 }

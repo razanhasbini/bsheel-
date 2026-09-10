@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, Equals, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
+import { QUEST_CATEGORIES, normaliseQuestCategory, type QuestCategory } from '../domain/quest-category.js';
 
 export class QuestIdDto {
   @IsUUID()
@@ -53,9 +54,12 @@ export class CreateQuestDto {
   @Length(1, 2000)
   description!: string;
 
-  @IsString()
-  @Length(1, 80)
-  category!: string;
+  /// Closed set, not free text: the `quests_category_check` constraint
+  /// (migration 0027) is the guard, and this turns a violation into a 400
+  /// naming the legal values instead of a 500.
+  @Transform(({ value }) => normaliseQuestCategory(value))
+  @IsIn(QUEST_CATEGORIES)
+  category!: QuestCategory;
 
   @IsIn(['easy', 'medium', 'hard'])
   difficulty!: string;
@@ -86,9 +90,9 @@ export class UpdateQuestDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  @Length(1, 80)
-  category?: string;
+  @Transform(({ value }) => normaliseQuestCategory(value))
+  @IsIn(QUEST_CATEGORIES)
+  category?: QuestCategory;
 
   @IsOptional()
   @IsIn(['easy', 'medium', 'hard'])

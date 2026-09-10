@@ -5,16 +5,19 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_refresh_notifier_provider.dart';
 import '../providers/admin_role_provider.dart';
 import '../providers/repository_providers.dart';
+import 'admin_route_access.dart';
 import 'admin_route_names.dart';
 import '../../features/admin_auth/presentation/pages/admin_login_page.dart';
 import '../../features/admin_auth/presentation/pages/admin_access_denied_page.dart';
 import '../../features/admin_auth/presentation/pages/confirm_email_page.dart';
 import '../../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../../features/moderation/presentation/pages/pending_submissions_page.dart';
+import '../../features/moderation/presentation/pages/unclear_queue_page.dart';
 import '../../features/moderation/presentation/pages/submission_review_page.dart';
 import '../../features/moderation/presentation/pages/submission_history_page.dart';
 import '../../features/feed_management/presentation/pages/feed_management_page.dart';
 import '../../features/quest_management/presentation/pages/quest_management_page.dart';
+import '../../features/quest_campaigns/presentation/pages/quest_campaigns_page.dart';
 import '../../features/quest_of_day/presentation/pages/qotd_management_page.dart';
 import '../../features/map_places/presentation/pages/map_places_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -27,6 +30,7 @@ import '../../features/quest_injection/presentation/pages/quest_injection_page.d
 import '../../features/settings/presentation/pages/app_settings_page.dart';
 import '../../features/web_signups/presentation/pages/web_signups_page.dart';
 import '../../features/web_quest_suggestions/presentation/pages/web_quest_suggestions_page.dart';
+import '../../features/deletion_requests/presentation/pages/deletion_requests_page.dart';
 import '../../shared/layout/admin_shell.dart';
 import '../../features/legal/privacy_policy_page.dart';
 import '../../features/legal/delete_account_page.dart';
@@ -36,7 +40,13 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
   // Re-evaluate redirects when admin-role resolution flips (e.g. just
   // after login the FutureProvider goes loading → data, and we want
   // the gate from SEC-027 to immediately allow / deny once we know).
-  ref.listen(isAdminUserProvider, (_, __) => refresh.poke());
+  //
+  // This listens to the same provider the redirect reads. It used to
+  // listen to `isAdminUserProvider`, which awaits `adminRoleEnumProvider`
+  // and therefore resolves one microtask later — poking on the earlier of
+  // the two while reading the later one is how a gate ends up waiting for
+  // a notification that has already been sent.
+  ref.listen(adminRoleEnumProvider, (_, __) => refresh.poke());
 
   return GoRouter(
     initialLocation: AdminRoutePaths.login,
@@ -51,9 +61,12 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
       if (user == null && !loggingIn && !isPublic) {
         return AdminRoutePaths.login;
       }
-      if (user != null &&
-          loggingIn &&
-          ref.read(isAdminUserProvider).valueOrNull == true) {
+      // The signed-in admin's role, resolved once by `GET admin/me`. Both
+      // gates below read it: "is this person an admin at all" and "is this
+      // particular destination open to their role" are the same question
+      // asked at two depths, and they must not be able to disagree.
+      final role = ref.read(adminRoleEnumProvider).valueOrNull;
+      if (user != null && loggingIn && role != null) {
         return AdminRoutePaths.dashboard;
       }
       // SEC-027: gate every authenticated, non-public route on admin
@@ -61,16 +74,20 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
       // post-mount check. Stops feature pages from running their
       // FutureProviders for non-admin signed-in users.
       if (user != null && !loggingIn && !isPublic) {
-        final isAdminAsync = ref.read(isAdminUserProvider);
-        // Treat null (loading) as "wait" — return to login briefly so we
-        // never let a non-admin's first-paint hit the page.
-        final isAdmin = isAdminAsync.valueOrNull;
-        if (isAdmin == false) {
+        // null is either "not an admin" or "the role has not resolved
+        // yet". Both mean we must not paint the page, so bounce to the
+        // login gate; the poke above brings us back the moment it lands.
+        if (role == null) {
           return AdminRoutePaths.login;
         }
-        // null = still loading the role; bounce to login until resolved.
-        if (isAdmin == null) {
-          return AdminRoutePaths.login;
+        // Role gating, and the reason it lives here rather than only in
+        // the sidebar: this is a web app, so a moderator can type
+        // `/quests` and arrive at a screen whose every read is
+        // `@Roles('super_admin')`. Hiding the link is not access control
+        // — it only hides the 403. Refuse the navigation instead and land
+        // them somewhere their role can actually use.
+        if (!AdminRouteAccess.allows(path, role)) {
+          return AdminRoutePaths.dashboard;
         }
       }
       return null;
@@ -144,6 +161,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const SubmissionHistoryPage(),
           ),
           GoRoute(
+            path: AdminRoutePaths.unclearQueue,
+            name: AdminRouteNames.unclearQueue,
+            builder: (context, state) => const UnclearQueuePage(),
+          ),
+          GoRoute(
             path: AdminRoutePaths.feedManagement,
             name: AdminRouteNames.feedManagement,
             builder: (context, state) => const FeedManagementPage(),
@@ -157,6 +179,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.questOfTheDay,
             name: AdminRouteNames.questOfTheDay,
             builder: (context, state) => const QotdManagementPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.questCampaigns,
+            name: AdminRouteNames.questCampaigns,
+            builder: (context, state) => const QuestCampaignsPage(),
           ),
           GoRoute(
             path: AdminRoutePaths.mapPlaces,
@@ -214,6 +241,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.webQuestSuggestions,
             name: AdminRouteNames.webQuestSuggestions,
             builder: (context, state) => const WebQuestSuggestionsPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.deletionRequests,
+            name: AdminRouteNames.deletionRequests,
+            builder: (context, state) => const DeletionRequestsPage(),
           ),
         ],
       ),

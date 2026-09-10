@@ -11,6 +11,7 @@ import type { TransactionalEmailService } from '../src/modules/auth/infrastructu
 import type { RealtimeEventPublisher } from '../src/infrastructure/realtime/realtime-event.publisher.js';
 import type { TelegramEventService } from '../src/integrations/telegram/telegram-event.service.js';
 import type { Environment } from '../src/config/environment.js';
+import type { ProofVerificationService } from '../src/modules/submissions/application/proof-verification.service.js';
 
 function notificationJob(data: Record<string, unknown>) {
   return {
@@ -65,6 +66,9 @@ function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
     fakeConfig(),
     submissionVerificationQueue,
     fakeQueue(),
+    // AI proof verification (#47) runs off submission.created; stubbed
+    // because these cases exercise the other side effects.
+    { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
   );
   return { processor, repository, cipher, push, realtime, submissionVerificationQueue };
 }
@@ -141,13 +145,26 @@ describe('DomainEventsProcessor quest realtime delivery', () => {
       id: '0e7957f7-b932-4a16-8ea1-8c43438033c3',
       name: 'quest.assigned',
       data,
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
-    expect(realtime.publish).toHaveBeenCalledWith({
-      messageId: '0e7957f7-b932-4a16-8ea1-8c43438033c3',
-      type: 'quest.assigned',
-      data,
-    });
+    // No __aggregate on this job, so the processor falls back to the event's
+    // own identity. That fallback matters: jobs enqueued by an older build
+    // have no metadata, and the client drops an event missing these fields.
+    expect(realtime.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: '0e7957f7-b932-4a16-8ea1-8c43438033c3',
+        type: 'quest.assigned',
+        data,
+        aggregateType: 'quest',
+        aggregateId: '0e7957f7-b932-4a16-8ea1-8c43438033c3',
+      }),
+    );
+    const published = (realtime.publish as unknown as {
+      mock: { calls: readonly (readonly { occurredAt: string }[])[];
+    } }).mock.calls[0][0];
+    expect(published.occurredAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
     expect(repository.markProcessed).toHaveBeenCalledWith(
       'domain-side-effects-v1',
       '0e7957f7-b932-4a16-8ea1-8c43438033c3',
@@ -162,14 +179,47 @@ describe('DomainEventsProcessor quest realtime delivery', () => {
       id: '5d72452c-41fc-4564-a679-d867fbd58b7f',
       name: 'report.reviewed',
       data,
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
+
+    expect(realtime.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: '5d72452c-41fc-4564-a679-d867fbd58b7f',
+        type: 'report.reviewed',
+        data,
+        aggregateType: 'report',
+      }),
+    );
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  it('forwards the outbox aggregate metadata and keeps it out of the payload', async () => {
+    const { processor, realtime } = setup({ invalidToken: false });
+
+    await processor.process({
+      id: '9c1f2f4e-1111-4222-8333-444455556666',
+      name: 'submission.approved',
+      data: {
+        submissionId: 'submission-1',
+        userId: 'user-1',
+        // The publisher rides the metadata beside the payload under this key.
+        __aggregate: {
+          type: 'submission',
+          id: 'submission-1',
+          occurredAt: '2026-09-07T11:00:00.000Z',
+        },
+      },
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(realtime.publish).toHaveBeenCalledWith({
-      messageId: '5d72452c-41fc-4564-a679-d867fbd58b7f',
-      type: 'report.reviewed',
-      data,
+      messageId: '9c1f2f4e-1111-4222-8333-444455556666',
+      type: 'submission.approved',
+      // __aggregate must NOT appear here: handlers destructure this object and
+      // the client renders it.
+      data: { submissionId: 'submission-1', userId: 'user-1' },
+      aggregateType: 'submission',
+      aggregateId: 'submission-1',
+      occurredAt: '2026-09-07T11:00:00.000Z',
     });
-    expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
 });
 
@@ -205,13 +255,16 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       fakeConfig(),
       fakeQueue(),
       fakeQueue(),
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({
       id: '4654825c-0863-4935-8eaf-77fe439002a8',
       name: 'auth.password_recovery.requested',
       data: { tokenId: 'action-token-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(actionTokenCipher.unprotect).toHaveBeenCalledWith(
       Buffer.from('encrypted-action-token'),
@@ -254,6 +307,9 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       fakeConfig(),
       fakeQueue(),
       fakeQueue(),
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await expect(
@@ -261,7 +317,7 @@ describe('DomainEventsProcessor password recovery delivery', () => {
         id: 'fe3f5516-1f2f-47ca-845f-bab7aa564116',
         name: 'auth.password_recovery.requested',
         data: { tokenId: 'action-token-id' },
-      } as Job<Record<string, unknown>, unknown, string>),
+      } as unknown as Job<Record<string, unknown>, unknown, string>),
     ).rejects.toThrow('provider unavailable');
     expect(repository.markProcessed).not.toHaveBeenCalled();
   });
@@ -298,13 +354,16 @@ describe('DomainEventsProcessor email confirmation delivery', () => {
       fakeConfig(),
       fakeQueue(),
       fakeQueue(),
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the other side effects.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({
       id: '8b911873-a208-4ddc-b16d-8de80fc55079',
       name: 'auth.email_confirmation.requested',
       data: { tokenId: 'action-token-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(email.sendEmailConfirmation).toHaveBeenCalledWith(
       'confirm@example.test',
@@ -346,6 +405,9 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
       submissionVerificationQueue,
       fakeQueue(),
+      // AI proof verification (#47) runs off submission.created; stubbed
+      // because these cases exercise the CAMARA/agent enqueue instead.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({

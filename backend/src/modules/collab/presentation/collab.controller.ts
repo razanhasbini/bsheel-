@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { CollabService } from '../application/collab.service.js';
-import { CollabAssignmentParam, CollabCodeParam, CollabVoteParam, CreateCollabGroupDto, JoinCollabGroupDto } from './collab.dto.js';
+import { CollabAssignmentParam, CollabCodeParam, CollabGroupParam, CollabVoteParam, CreateCollabGroupDto, JoinCollabGroupDto } from './collab.dto.js';
 
 @ApiTags('collaboration')
 @Controller({ path: 'collab', version: '1' })
@@ -20,7 +20,7 @@ export class CollabController {
 
   @Post('groups/join')
   join(@CurrentUser() user: AuthUser, @Body() body: JoinCollabGroupDto) {
-    return this.service.join(user.id, body.code);
+    return this.service.join(user.id, body.code, body.abandonActiveQuest);
   }
 
   @Get('assignments/:id')
@@ -32,6 +32,12 @@ export class CollabController {
   @Post('assignments/:id/abandon')
   abandon(@CurrentUser() user: AuthUser, @Param() param: CollabAssignmentParam) {
     return this.service.abandon(user.id, param.id);
+  }
+
+  @HttpCode(204)
+  @Delete('groups/:groupId/members/me')
+  leave(@CurrentUser() user: AuthUser, @Param() param: CollabGroupParam) {
+    return this.service.leave(user.id, param.groupId);
   }
 
   @HttpCode(204)

@@ -5,6 +5,7 @@ import { AuthActionTokenCipher } from '../../auth/infrastructure/auth-action-tok
 import { assertPasswordPolicy } from '../../auth/domain/password-policy.js';
 import { SubmissionsService } from '../../submissions/application/submissions.service.js';
 import { AdminRepository } from '../infrastructure/admin.repository.js';
+import { MaintenanceModeService } from './maintenance-mode.service.js';
 import type { CreateUserDto, InjectQuestDto, SetQotdDto } from '../presentation/admin.dto.js';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class AdminService {
     private readonly repository: AdminRepository,
     private readonly submissions: SubmissionsService,
     private readonly actionTokenCipher: AuthActionTokenCipher,
+    private readonly maintenance: MaintenanceModeService,
   ) {}
   async me(userId: string) {
     const admin = await this.repository.me(userId);
@@ -50,7 +52,7 @@ export class AdminService {
     });
   }
   setStatus(actorId: string, id: string, status: string, reason: string) { return this.repository.setStatus(actorId, id, status, reason); }
-  setXp(actorId: string, id: string, xp: number, level: number, completed: number, reason: string) { return this.repository.setXp(actorId, id, xp, level, completed, reason); }
+  setXp(actorId: string, id: string, xp: number, level: number | undefined, completed: number, reason: string) { return this.repository.setXp(actorId, id, xp, level, completed, reason); }
   reports(status: string, limit: number, offset: number) { return this.repository.reports(status, limit, offset); }
   reviewReport(actorId: string, id: string, status: string, note?: string) { return this.repository.reviewReport(actorId, id, status, note); }
   removePost(actorId: string, id: string, reason: string) { return this.submissions.removeByAdmin(actorId, id, reason); }
@@ -75,11 +77,30 @@ export class AdminService {
 
   notifications(limit: number, offset: number) { return this.repository.notifications(limit, offset); }
   publicConfig() { return this.repository.publicConfig(); }
-  setConfig(actorId: string, key: string, value: unknown, description: string | undefined, isPublic: boolean) { return this.repository.setConfig(actorId, key, value, description, isPublic); }
+  /**
+   * Writes a config row, then drops the maintenance cache.
+   *
+   * Unconditionally, not only for `maintenance_mode`: one wasted `SELECT`
+   * after any config write is cheaper than a write that quietly misses the
+   * cache because someone spelled the key differently.
+   */
+  async setConfig(actorId: string, key: string, value: unknown, description: string | undefined, isPublic: boolean) {
+    const row = await this.repository.setConfig(actorId, key, value, description, isPublic);
+    this.maintenance.invalidate();
+    return row;
+  }
   qotd(limit: number, offset: number) { return this.repository.qotd(limit, offset); }
   setQotd(actorId: string, input: SetQotdDto) { return this.repository.setQotd(actorId, input); }
   deleteQotd(id: string) { return this.repository.deleteQotd(id); }
   waitlist(limit: number, offset: number) { return this.repository.waitlist(limit, offset); }
   suggestions(status: string, limit: number, offset: number) { return this.repository.suggestions(status, limit, offset); }
   reviewSuggestion(actorId: string, id: string, status: 'approved' | 'rejected', xpReward: number, durationHours: number) { return this.repository.reviewSuggestion(actorId, id, status, xpReward, durationHours); }
+  deletionRequests(limit: number, offset: number) {
+    return this.repository.deletionRequests(limit, offset);
+  }
+
+  markDeletionRequestHandled(actorId: string, requestId: string) {
+    return this.repository.markDeletionRequestHandled(actorId, requestId);
+  }
+
 }

@@ -59,7 +59,8 @@ class _OfflinePanel extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: QuestColors.osRed,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusTile),
                     border: Border.all(color: ink, width: 3),
                     boxShadow: [
                       BoxShadow(color: ink, offset: const Offset(4, 5)),

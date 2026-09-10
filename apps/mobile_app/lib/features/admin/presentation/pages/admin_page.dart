@@ -139,12 +139,13 @@ class _AdminPageState extends ConsumerState<AdminPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.lock_outline,
-                        size: 48, color: QuestColors.osRed),
+                    Icon(Icons.lock_outline,
+                        size: 48,
+                        color: QuestColors.onCream(QuestColors.osRed)),
                     const SizedBox(height: QuestSpacing.md),
                     Text('ACCESS DENIED',
-                        style: QuestTypography.headlineSmall
-                            .copyWith(color: QuestColors.osRed)),
+                        style: QuestTypography.headlineSmall.copyWith(
+                            color: QuestColors.onCream(QuestColors.osRed))),
                     const SizedBox(height: QuestSpacing.sm),
                     Text(AppLocalizations.of(context)!.notAuthorized,
                         style: QuestTypography.bodyMedium
@@ -257,12 +258,12 @@ class _SuperAdminGate extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.shield_outlined,
-                size: 48, color: QuestColors.osRed),
+            Icon(Icons.shield_outlined,
+                size: 48, color: QuestColors.onCream(QuestColors.osRed)),
             const SizedBox(height: QuestSpacing.md),
             Text('SUPER-ADMIN ONLY',
                 style: QuestTypography.headlineSmall
-                    .copyWith(color: QuestColors.osRed)),
+                    .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
             const SizedBox(height: QuestSpacing.sm),
             Text('$label is restricted to super-admins.',
                 textAlign: TextAlign.center,
@@ -313,7 +314,7 @@ class _ModerationTab extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text('Error: $e',
                   style: QuestTypography.bodyMedium
-                      .copyWith(color: QuestColors.osRed)),
+                      .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
             ),
             data: (submissions) {
               if (submissions.isEmpty) {
@@ -417,7 +418,7 @@ class _ModerationTab extends ConsumerWidget {
         backgroundColor: QuestColors.cardBg(context),
         title: Text(AppLocalizations.of(context)!.rejectSubmission,
             style: QuestTypography.headlineSmall
-                .copyWith(color: QuestColors.osRed)),
+                .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -434,11 +435,13 @@ class _ModerationTab extends ConsumerWidget {
                 hintStyle: QuestTypography.bodySmall
                     .copyWith(color: QuestColors.textMuted.withAlpha(80)),
                 enabledBorder: OutlineInputBorder(
-                  borderSide:
-                      BorderSide(color: QuestColors.osRed.withAlpha(80)),
+                  borderSide: BorderSide(
+                      color:
+                          QuestColors.onCream(QuestColors.osRed).withAlpha(80)),
                 ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: QuestColors.osRed),
+                focusedBorder: OutlineInputBorder(
+                  borderSide:
+                      BorderSide(color: QuestColors.onCream(QuestColors.osRed)),
                 ),
               ),
             ),
@@ -455,7 +458,7 @@ class _ModerationTab extends ConsumerWidget {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('REJECT',
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.osRed)),
+                    .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
           ),
         ],
       ),
@@ -571,7 +574,7 @@ class _PushNotificationTabState extends ConsumerState<_PushNotificationTab> {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('SEND',
                 style: QuestTypography.labelSmall
-                    .copyWith(color: QuestColors.osRed)),
+                    .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
           ),
         ],
       ),
@@ -867,7 +870,7 @@ class _DeletedPostsTab extends ConsumerWidget {
             error: (e, _) => Center(
               child: Text('Error: $e',
                   style: QuestTypography.bodyMedium
-                      .copyWith(color: QuestColors.osRed)),
+                      .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
             ),
             data: (submissions) {
               if (submissions.isEmpty) {

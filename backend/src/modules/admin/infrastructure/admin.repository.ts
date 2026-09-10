@@ -42,4 +42,6 @@ export class AdminRepository {
   setQotd(...args: Parameters<AdminOperationsRepository['setQotd']>) { return this.operationsRepository.setQotd(...args); }
   deleteQotd(...args: Parameters<AdminOperationsRepository['deleteQotd']>) { return this.operationsRepository.deleteQotd(...args); }
   waitlist(...args: Parameters<AdminOperationsRepository['waitlist']>) { return this.operationsRepository.waitlist(...args); }
+  deletionRequests(...args: Parameters<AdminOperationsRepository['deletionRequests']>) { return this.operationsRepository.deletionRequests(...args); }
+  markDeletionRequestHandled(...args: Parameters<AdminOperationsRepository['markDeletionRequestHandled']>) { return this.operationsRepository.markDeletionRequestHandled(...args); }
 }

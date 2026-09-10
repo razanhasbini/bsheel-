@@ -238,7 +238,7 @@ class _UnblockButton extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: QuestColors.osSurface,
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
               border: Border.all(color: QuestColors.osTextPrimary, width: 2),
             ),
             child: busy
@@ -331,7 +331,7 @@ class _IconButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
           boxShadow: const [
             BoxShadow(

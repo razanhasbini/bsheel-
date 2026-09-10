@@ -86,7 +86,10 @@ const steps = [
             (ARRAY['Photograph','Cook','Run','Draw','Build','Record','Interview','Repair'])[1 + (g % 8)]
               || ' something ' || (ARRAY['blue','loud','tiny','ancient','borrowed'])[1 + (g % 5)] || ' #' || g,
             'Seeded quest ' || g || '. ' || repeat('Do the thing and photograph it. ', 4),
-            (ARRAY['fitness','food','art','social','outdoors','music','tech','random'])[1 + (g % 8)],
+            -- The five categories quests_category_check allows (migration 0027).
+            -- Was an eight-value list of which six were never legal; the seeded
+            -- category distribution therefore changed with that migration.
+            (ARRAY['fitness','creativity','social','learning','adventure'])[1 + (g % 5)],
             (ARRAY['easy','medium','hard'])[1 + (g % 3)],
             10 + (g % 200),
             1 + (g % 24),
@@ -353,6 +356,10 @@ const steps = [
   ],
   [
     'admin_audit_log',
+    // Seeded only into an empty log. The table is append-only (migration
+    // 0027), so --truncate cannot reset it and a second run would otherwise
+    // double the row count and stop the volumes in PERFORMANCE.md being
+    // reproducible.
     `INSERT INTO admin_audit_log (actor_id, action, target_type, target_id, after_state, created_at)
      SELECT ${userId('1 + (g % 6)')},
             (ARRAY['submission.approve','submission.reject','user.set_status','quest.create'])[1 + (g % 4)],
@@ -360,11 +367,18 @@ const steps = [
             (${submissionId('1 + (g % ' + APPROVED_UQ + ')')})::text,
             jsonb_build_object('seed', g),
             now() - make_interval(mins => g)
-     FROM generate_series(1, 20000) g`,
+     FROM generate_series(1, 20000) g
+     WHERE NOT EXISTS (SELECT 1 FROM admin_audit_log)`,
   ],
 ];
 
-const truncate = `TRUNCATE admin_quest_injections, admin_audit_log, media_objects, outbox_events, reports, saved_quests,
+// admin_audit_log is absent on purpose: migration 0027 made it append-only, so
+// naming it here would raise restrict_violation from the BEFORE TRUNCATE
+// trigger and take the whole statement down. Its seed step above only fills an
+// empty log for that reason. A perf run that needs the log empty needs a fresh
+// database, not a bypass — this script has no guard against being pointed at a
+// real one.
+const truncate = `TRUNCATE admin_quest_injections, media_objects, outbox_events, reports, saved_quests,
   saved_posts, collab_votes, collab_group_members, collab_groups, notifications,
   blocked_users, follows, comments, reactions, submissions, user_quests, quests,
   admins, profiles, users RESTART IDENTITY CASCADE`;

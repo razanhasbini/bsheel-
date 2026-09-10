@@ -107,7 +107,10 @@ class BsheelErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: QuestColors.osRed),
+            // `onCream`: the accent fill is 2.9:1 on the page ground and a
+            // 48px glyph still needs 3:1.
+            Icon(Icons.error_outline,
+                size: 48, color: QuestColors.onCream(QuestColors.osRed)),
             const SizedBox(height: QuestSpacing.md),
             Text(
               mapDbError(error, action: action),

@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { TelegramClient } from './telegram.client.js';
 import { escapeHtml } from './telegram-event.service.js';
 import { TelegramRepository, type TelegramCommandState } from './telegram.repository.js';
+import { QUEST_CATEGORIES } from '../../modules/quests/domain/quest-category.js';
 
-const QUEST_CATEGORIES = ['fitness', 'creativity', 'social', 'learning', 'adventure'] as const;
 const QUEST_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
 @Injectable()

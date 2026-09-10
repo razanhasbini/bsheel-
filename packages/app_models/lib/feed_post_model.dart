@@ -41,6 +41,21 @@ class FeedPostModel {
   /// Null for legacy rows or pre-0116 RPC clients.
   final DateTime? expiresAt;
 
+  /// The viewer's own vote (`upvote`/`downvote`), or null when they have not
+  /// voted. Comes with the row, so no per-card request is needed.
+  final String? viewerVote;
+
+  /// Whether the viewer saved this post. Comes with the row.
+  final bool viewerSaved;
+
+  /// Comment count. Comes with the row; the client used to fetch every
+  /// comment to count them.
+  final int commentCount;
+
+  /// Keyset cursor for this row. Pass the last one to `?cursor=` for the next
+  /// page — offset paging duplicates and skips cards when scores move.
+  final String? nextCursor;
+
   const FeedPostModel({
     required this.id,
     required this.mediaUrl,
@@ -69,6 +84,10 @@ class FeedPostModel {
     this.collabMemberCount = 0,
     this.collabMembers = const [],
     this.expiresAt,
+    this.viewerVote,
+    this.viewerSaved = false,
+    this.commentCount = 0,
+    this.nextCursor,
   });
 
   /// Parse from the get_feed RPC response row.
@@ -102,6 +121,10 @@ class FeedPostModel {
       questCategory: (json[FeedRpcColumns.questCategory] ?? '').toString(),
       xpReward: coerceInt(json[FeedRpcColumns.xpReward]),
       upvoteCount: coerceInt(json[FeedRpcColumns.upvoteCount]),
+      viewerVote: json[FeedRpcColumns.viewerVote] as String?,
+      viewerSaved: json[FeedRpcColumns.viewerSaved] == true,
+      commentCount: coerceInt(json[FeedRpcColumns.commentCount]),
+      nextCursor: json[FeedRpcColumns.nextCursor]?.toString(),
       downvoteCount: coerceInt(json[FeedRpcColumns.downvoteCount]),
       netScore: coerceInt(json[FeedRpcColumns.netScore]),
       hotScore: coerceDouble(json[FeedRpcColumns.hotScore]),
@@ -128,6 +151,10 @@ class FeedPostModel {
     String? avatarUrl,
     List<CollabFeedMember>? collabMembers,
     int? upvoteCount,
+    String? viewerVote,
+    bool? viewerSaved,
+    int? commentCount,
+    String? nextCursor,
     int? downvoteCount,
     int? netScore,
   }) {
@@ -148,6 +175,10 @@ class FeedPostModel {
       questCategory: questCategory,
       xpReward: xpReward,
       upvoteCount: upvoteCount ?? this.upvoteCount,
+      viewerVote: viewerVote ?? this.viewerVote,
+      viewerSaved: viewerSaved ?? this.viewerSaved,
+      commentCount: commentCount ?? this.commentCount,
+      nextCursor: nextCursor ?? this.nextCursor,
       downvoteCount: downvoteCount ?? this.downvoteCount,
       netScore: netScore ?? this.netScore,
       hotScore: hotScore,

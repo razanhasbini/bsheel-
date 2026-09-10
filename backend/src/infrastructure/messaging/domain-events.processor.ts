@@ -11,6 +11,7 @@ import { ObjectStorageService } from '../../modules/media/infrastructure/object-
 import { DomainEventsRepository } from './domain-events.repository.js';
 import { RealtimeEventPublisher } from '../realtime/realtime-event.publisher.js';
 import { TelegramEventService } from '../../integrations/telegram/telegram-event.service.js';
+import { ProofVerificationService } from '../../modules/submissions/application/proof-verification.service.js';
 
 interface NotificationCreatedPayload {
   readonly notificationId: string;
@@ -34,6 +35,7 @@ export class DomainEventsProcessor extends WorkerHost {
     private readonly config: ConfigService<Environment, true>,
     @InjectQueue('submission-verification') private readonly submissionVerificationQueue: Queue,
     @InjectQueue('quest-assignment-agent') private readonly questAssignmentQueue: Queue,
+    private readonly proofVerification: ProofVerificationService,
   ) {
     super();
   }
@@ -44,36 +46,62 @@ export class DomainEventsProcessor extends WorkerHost {
     const messageId = String(job.id);
     if (await this.repository.wasProcessed(this.consumer, messageId)) return;
 
+    // The publisher rides the aggregate metadata beside the payload under a
+    // reserved key. Split it back out here: subscribers need it, and every
+    // handler below must keep seeing the payload exactly as it was written.
+    const { __aggregate: aggregate, ...payload } = job.data as Record<string, unknown> & {
+      __aggregate?: { type?: string; id?: string; occurredAt?: string | Date };
+    };
+
     if (this.isRealtimeEvent(job.name)) {
       await this.realtime.publish({
         messageId,
         type: job.name,
-        data: job.data,
+        data: payload,
+        // Fall back to the event's own identity rather than emitting an empty
+        // string: a job enqueued by an older build has no __aggregate, and the
+        // client's parser rejects the event outright if any of these is
+        // missing.
+        aggregateType: aggregate?.type ?? job.name.split('.')[0] ?? 'event',
+        aggregateId: aggregate?.id ?? messageId,
+        occurredAt: new Date(aggregate?.occurredAt ?? Date.now()).toISOString(),
       });
     }
-    await this.telegram.handle(job.name, job.data);
+    await this.telegram.handle(job.name, payload);
 
     if (job.name === 'notification.created') {
-      await this.deliverNotification(this.notificationPayload(job.data));
+      await this.deliverNotification(this.notificationPayload(payload));
     } else if (job.name === 'privacy.export.requested') {
-      await this.createPrivacyExport(this.exportPayload(job.data));
+      await this.createPrivacyExport(this.exportPayload(payload));
     } else if (job.name === 'account.deletion.requested') {
-      await this.deleteAccount(this.deletionPayload(job.data));
+      await this.deleteAccount(this.deletionPayload(payload));
     } else if (job.name === 'auth.password_recovery.requested') {
-      await this.deliverPasswordRecovery(this.actionTokenPayload(job.data));
+      await this.deliverPasswordRecovery(this.actionTokenPayload(payload));
     } else if (job.name === 'auth.email_confirmation.requested') {
-      await this.deliverEmailConfirmation(this.actionTokenPayload(job.data));
+      await this.deliverEmailConfirmation(this.actionTokenPayload(payload));
     } else if (job.name === 'submission.created') {
-      // Only enqueues the dedicated job — CV/CAMARA/OpenAI calls never run
-      // inline in this shared processor. submission.appealed is a distinct
-      // event type and never reaches this branch, so an appeal can never be
-      // auto re-decided by the agent; appeals stay human-only.
-      await this.enqueueSubmissionVerification(job.data);
+      // Two independent verifiers run off this one event, and they answer
+      // different questions. Neither may decide the submission alone.
+      //
+      // 1. AI proof verification (#47) — is the MEDIA authentic and does it
+      //    show the task? Advisory: it records a verdict and escalates what
+      //    it cannot judge, never touching review state or XP. A throw here
+      //    would fail the whole job and retry the notification side effects
+      //    with it, so the service swallows its own errors and leaves the
+      //    row retryable for the sweep instead.
+      await this.proofVerification.verify(this.submissionPayload(payload).submissionId);
+      // 2. CAMARA/agent verification (#47, #53) — was the DEVICE where the
+      //    quest required, per the network? Enqueued rather than run inline:
+      //    CAMARA and OpenAI calls never belong in a processor shared with
+      //    notification delivery. submission.appealed is a distinct event
+      //    type and never reaches this branch, so an appeal can never be
+      //    auto re-decided; appeals stay human-only.
+      await this.enqueueSubmissionVerification(payload);
     } else if (job.name === 'quest.assigned') {
       // Same rule: enqueue only. The post-assignment work measures the
       // user's distance over CAMARA and opens a geofence, neither of which
       // belongs in a processor shared with notification delivery.
-      await this.enqueueQuestAssignmentAgent(job.data);
+      await this.enqueueQuestAssignmentAgent(payload);
     } else {
       this.logger.debug(
         { eventType: job.name, messageId },
@@ -81,6 +109,14 @@ export class DomainEventsProcessor extends WorkerHost {
       );
     }
     await this.repository.markProcessed(this.consumer, messageId);
+  }
+
+  private submissionPayload(data: Record<string, unknown>): { submissionId: string } {
+    const submissionId = data.submissionId;
+    if (typeof submissionId !== 'string') {
+      throw new Error('submission.created payload is missing submissionId');
+    }
+    return { submissionId };
   }
 
   private async deliverPasswordRecovery(payload: {

@@ -1,4 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Environment } from '../../../config/environment.js';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
 import type { UpdateProfileDto } from '../presentation/profile.dto.js';
 
@@ -41,7 +43,10 @@ const publicColumns = `id, username::text, display_name, avatar_url, bio, xp, le
 
 @Injectable()
 export class ProfilesRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly config: ConfigService<Environment, true>,
+  ) {}
 
   async findPublic(id: string): Promise<PublicProfileRecord | null> {
     const result = await this.database.query<PublicProfileRecord>(
@@ -87,13 +92,20 @@ export class ProfilesRepository {
   /// at the end of today. `longest` is the best run ever, which may be an
   /// older one than the current.
   async streak(userId: string): Promise<StreakRecord> {
+    // `STREAK_TIMEZONE`, not UTC. The audience is at UTC+3, so a UTC day
+    // boundary falls at 03:00 local: submissions at 23:00 and 01:00 local are
+    // two consecutive days to the person who made them and one single day to
+    // a UTC bucket, so a late-night post did not advance the streak (#63).
+    // Passed as a parameter, never interpolated.
+    const timezone = this.config.get('STREAK_TIMEZONE', { infer: true });
     const result = await this.database.query<{
       current_streak: number;
       longest_streak: number;
       last_day: string | null;
+      today: string;
     }>(
       `WITH days AS (
-         SELECT DISTINCT (s.submitted_at AT TIME ZONE 'UTC')::date AS d
+         SELECT DISTINCT (s.submitted_at AT TIME ZONE $2)::date AS d
          FROM submissions s
          WHERE s.user_id = $1 AND s.status = 'approved' AND s.visibility <> 'deleted'
        ),
@@ -104,12 +116,13 @@ export class ProfilesRepository {
          SELECT grp, count(*)::int AS len, max(d) AS last_day FROM grouped GROUP BY grp
        )
        SELECT
-         COALESCE(MAX(CASE WHEN last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+         COALESCE(MAX(CASE WHEN last_day >= (now() AT TIME ZONE $2)::date - 1
                            THEN len END), 0)::int AS current_streak,
          COALESCE(MAX(len), 0)::int AS longest_streak,
-         to_char(MAX(last_day), 'YYYY-MM-DD') AS last_day
+         to_char(MAX(last_day), 'YYYY-MM-DD') AS last_day,
+         to_char((now() AT TIME ZONE $2)::date, 'YYYY-MM-DD') AS today
        FROM runs`,
-      [userId],
+      [userId, timezone],
     );
     const row = result.rows[0];
     return {
@@ -117,9 +130,15 @@ export class ProfilesRepository {
       longest: row?.longest_streak ?? 0,
       lastDay: row?.last_day ?? null,
       // Alive but expiring tonight, which is what the reminder is about.
+      //
+      // "Today" now comes from the same query and the same zone as the run
+      // itself. It used to be the API host's `new Date()` in UTC, so between
+      // 21:00 and 24:00 UTC — midnight to 03:00 local — the server called a
+      // streak submitted-to today "at risk" and the reminder job disagreed
+      // with the number on screen.
       atRisk: (row?.current_streak ?? 0) > 0
-        && row?.last_day !== null
-        && row?.last_day !== new Date().toISOString().slice(0, 10),
+        && row?.last_day != null
+        && row.last_day !== row.today,
     };
   }
 

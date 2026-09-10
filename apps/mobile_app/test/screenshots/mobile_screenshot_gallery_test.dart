@@ -850,6 +850,9 @@ class _FakeQuestsRepository implements QuestsRepository {
   Future<void> markQuestExpired(String userQuestId) async {}
 
   @override
+  Future<void> abandonQuest(String userQuestId) async {}
+
+  @override
   Future<List<UserQuestModel>> getUserQuestHistory(String userId) async =>
       _questHistory;
 }
@@ -858,6 +861,10 @@ class _FakeSubmissionsRepository implements SubmissionsRepository {
   @override
   Future<SubmissionModel> createSubmission(SubmissionModel submission) async =>
       submission;
+
+  // Now on the contract, so the appeal flow is finally fakeable in a test.
+  @override
+  Future<void> appealSubmission(String submissionId, String appealNote) async {}
 
   @override
   Future<String> uploadSubmissionMedia(
@@ -895,6 +902,7 @@ class _FakeFeedRepository implements FeedRepository {
   Future<List<FeedPostModel>> getFeed({
     int limit = 20,
     int offset = 0,
+    String? cursor,
     FeedScope scope = FeedScope.all,
     String sort = 'recent',
   }) async =>
@@ -944,7 +952,10 @@ class _FakeCollabRepository implements CollabRepository {
       _collabPreview;
 
   @override
-  Future<Map<String, dynamic>> joinGroup(String code) async {
+  Future<Map<String, dynamic>> joinGroup(
+    String code, {
+    bool abandonActiveQuest = false,
+  }) async {
     return {'ok': true};
   }
 
@@ -960,6 +971,9 @@ class _FakeCollabRepository implements CollabRepository {
 
   @override
   Future<void> unvoteCollab(String groupId, String submissionId) async {}
+
+  @override
+  Future<void> leaveGroup(String groupId) async {}
 }
 
 class _FakeReactionsRepository implements ReactionsRepository {

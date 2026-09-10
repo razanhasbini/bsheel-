@@ -18,10 +18,25 @@ const _filterOptions = <_FilterOption>[
   _FilterOption(feedSortGraveyard, 'GRAVEYARD', Icons.cancel_rounded),
 ];
 
+/// The label for [sort], for the bar under the feed header that names the
+/// ordering currently on screen.
+///
+/// `recent` has no row in the sheet — CLEAR is how you get back to it — so
+/// its label lives here. Without a caption a user who picks MOST UPVOTED,
+/// LEAST UPVOTED or GRAVEYARD gets a re-ordered feed with nothing on screen
+/// saying which ordering they are looking at.
+String feedSortLabel(String sort) {
+  if (sort == feedSortRecent) return 'NEWEST';
+  for (final option in _filterOptions) {
+    if (option.key == sort) return option.label;
+  }
+  return sort.toUpperCase();
+}
+
 /// Slides up a chunky filter sheet for the feed sort. Tap a row to apply,
-/// tap "CLEAR FILTER" or outside the card to dismiss without changing
-/// anything. The active filter persists across global / following until
-/// the user clears it.
+/// tap "CLEAR" or outside the card to dismiss without changing anything.
+/// The active filter persists across global / following until the user
+/// clears it.
 Future<void> showFeedFilterSheet(
   BuildContext context, {
   required WidgetRef ref,
@@ -83,7 +98,7 @@ class _FeedFilterSheet extends ConsumerWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: ink.withAlpha(80),
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
               ),
             ),
           ),
@@ -94,16 +109,22 @@ class _FeedFilterSheet extends ConsumerWidget {
               children: [
                 Icon(Icons.filter_list_rounded, color: ink, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  'FILTER FEED',
-                  style: QuestTypography.headlineSmall.copyWith(
-                    color: ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
+                // Expanded rather than Text + Spacer: on a 320dp screen the
+                // title and CLEAR together are wider than the sheet, and a
+                // Spacer cannot give the row back the space it needs.
+                Expanded(
+                  child: Text(
+                    'FILTER FEED',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.headlineSmall.copyWith(
+                      color: ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 if (hasFilter)
                   GestureDetector(
                     onTap: () => _select(context, feedSortRecent),
@@ -176,7 +197,7 @@ class _FilterRow extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: isActive ? QuestColors.osPrimary : ink.withAlpha(20),
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
                 border: Border.all(
                     color: isActive ? ink : ink.withAlpha(80), width: 2),
               ),

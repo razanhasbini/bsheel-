@@ -54,10 +54,24 @@ final isPostSavedProvider = FutureProvider.autoDispose
 
 // ── Public getters that merge optimistic state with server state ─────────
 
+/// The viewer's vote on a post.
+///
+/// Prefers, in order: an in-flight optimistic value, the value the row
+/// already carried, then a per-post fetch. That last step used to be the
+/// only step — [myVoteProvider] fired for every card, so a 20-post page
+/// cost twenty extra round trips before the feed could finish drawing. The
+/// server now sends `viewer_vote` with the row, so pass [seeded] and the
+/// fetch never happens.
 String? getEffectiveVoteType(
-    WidgetRef ref, String submissionId, String userId) {
+  WidgetRef ref,
+  String submissionId,
+  String userId, {
+  String? seeded,
+  bool hasSeed = false,
+}) {
   final optimistic = ref.watch(_optimisticVoteType(submissionId));
   if (optimistic != null) return optimistic == 'none' ? null : optimistic;
+  if (hasSeed) return seeded;
   return ref
       .watch(myVoteProvider((submissionId: submissionId, userId: userId)))
       .valueOrNull
@@ -74,10 +88,21 @@ Map<String, int> getEffectiveVoteCounts(
   };
 }
 
-bool getEffectiveSaved(WidgetRef ref, String submissionId, String userId) {
+/// Whether the viewer saved a post.
+///
+/// Same shape as [getEffectiveVoteType]: optimistic value, then the value the
+/// row carried, then a per-post fetch. Pass [seeded] from
+/// `FeedPostModel.viewerSaved` to skip the fetch.
+bool getEffectiveSaved(
+  WidgetRef ref,
+  String submissionId,
+  String userId, {
+  bool? seeded,
+}) {
   final key = (submissionId: submissionId, userId: userId);
   final optimistic = ref.watch(_optimisticSaved(key));
   if (optimistic != null) return optimistic;
+  if (seeded != null) return seeded;
   return ref.watch(isPostSavedProvider(key)).valueOrNull ?? false;
 }
 

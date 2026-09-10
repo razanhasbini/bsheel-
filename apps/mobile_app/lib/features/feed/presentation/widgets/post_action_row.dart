@@ -165,7 +165,7 @@ class _ArcadePostChipState extends State<ArcadePostChip> {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: widget.ground,
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
         border: Border.all(color: ink, width: 2),
         boxShadow: widget.elevated && !down
             ? const [

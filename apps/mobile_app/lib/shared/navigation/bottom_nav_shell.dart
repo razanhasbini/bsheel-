@@ -10,6 +10,7 @@ import 'package:app_repositories/app_repositories.dart'
 import '../../core/backend/app_backend.dart';
 import '../../core/router/route_names.dart';
 import '../../core/providers/auth_session_provider.dart';
+import '../../core/providers/streak_provider.dart';
 import '../../core/providers/connectivity_provider.dart';
 import '../../features/feed/presentation/providers/feed_provider.dart';
 import '../../core/providers/current_profile_provider.dart';
@@ -106,6 +107,13 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       ref.invalidate(activeQuestProvider);
       ref.invalidate(questHistoryProvider);
       ref.invalidate(userSubmissionsProvider);
+      // The streak is derived from approved submissions, so an approval
+      // moves it — but nothing invalidated it anywhere in the app, so the
+      // card kept whatever value it had fetched at launch. That is issue
+      // #63: "i submitted a quest, it got accepted, nezlet aal feed but my
+      // streak count did not increase." The server had counted it; Home was
+      // showing a stale number.
+      ref.invalidate(streakProvider);
     }
 
     final realtime = AppBackend.repositories.realtime;
@@ -431,7 +439,9 @@ class _NavGlyph extends StatelessWidget {
           height: _size,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            // Was a bare 2, which is not a step the design uses anywhere;
+            // the pip token is the nearest one and 1px on a 13pt glyph.
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusPip),
           ),
         );
       case _NavGlyphShape.circle:

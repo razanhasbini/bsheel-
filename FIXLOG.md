@@ -6,6 +6,89 @@ is already written down.
 
 ---
 
+## 2026-09-09 — Four first-step CI failures, and a proof agent that asked incoherent questions
+
+**Commits:** `fix/ci-green` (PR #52), `feat/47-ai-proof-verification` (PR #54).
+
+**Symptom.** `main` looked plausible and both CI jobs were red. Every gate
+after the first step of each job had never run.
+
+**Root cause.** Four independent first-step failures, which is why they hid:
+
+| Job | Step | Failure |
+|---|---|---|
+| `backend` | 1. `npm ci` | lockfile missing the transitive `@types/*` closure of `@types/express@5.0.6` |
+| `backend` | `db:types:check` | `database.types.ts` drifted for migrations 0023-0024 |
+| `analyze-and-test` | 1. `check_secrets.sh` | **false positive** on a documentation placeholder in `legacy-import/ACCESS.md` |
+| `analyze-and-test` | `melos run analyze` | 4 lint infos in `map_test.dart` |
+
+Plus 9 files not `dart format` clean. Because `npm ci` and
+`check_secrets.sh` are each the *first* step of their job, the two gates
+that would have caught the rest were never reached.
+
+**Lesson worth keeping.** Same shape as the 2026-08-30 billing outage below:
+a first-step failure makes a whole job's worth of green look like red. Check
+*which* step failed before concluding anything about the code. After the four
+fixes the tree was fully green — 689 tests.
+
+**The `check_secrets.sh` hit was documentation, and the fix was the document.**
+`FIXLOG` already records this exact trap from 2026-09-01, when the guard
+caught `FIXLOG.md` itself. The precedent held: fix the illustration, never
+loosen the scanner. A guard that fails on documentation teaches people to
+skip it, and the last real leak survived in exactly such a window.
+
+### The type-drift gate has now earned its place three times
+
+Migrations 0017-0020 (recorded in `HANDOFF.md`), then 0023-0024, then 0027 —
+where it caught me regenerating types *before* adding the migration in the
+same session. `database.types.ts` is generated: fix drift with
+`npm run db:types`, never by editing it.
+
+### AI proof verification: the design error was asking an unanswerable question
+
+The first implementation was one vision call with a generic prompt. The
+defect was not prompt quality. Read the quest catalogue and ask of each
+whether a photograph can establish it:
+
+- "Watch the sunrise" — yes, and the capture time corroborates it.
+- "Read 20 pages of something difficult" — no. A photo of a book shows no page count.
+- **"Spend an hour with no phone" — no. The phone took the photograph.**
+
+Roughly a third of the catalogue cannot be checked from an image at all. A
+model asked to verify one of those answers anyway, with a confidence score
+attached — which is how an automated reviewer confidently rejects an honest
+player. Prompt tuning cannot fix an incoherent question.
+
+The fix is a per-quest verification contract, so the agent is told what its
+evidence can settle, and for the unverifiable third no vision call is made.
+Writing the seed data caught a live instance of the same error in my own
+work: I had marked `fitness` auto-rejectable, which would have let the agent
+reject "take a 30 minute walk somewhere new" for failing to prove a duration
+no photograph can show.
+
+**Two traps in the forensics layer, both of which would have hurt real users.**
+EXIF `DateTimeOriginal` is local wall-clock with **no timezone**: a truthful
+player in Apia (UTC+13) writes a capture time that reads as ten hours before
+a UTC assignment. A naive comparison accuses honest players across half the
+world, so the window is widened by the maximum UTC offset unless EXIF carries
+one — deliberately trading sensitivity, because missing a lazy cheat is far
+cheaper than calling a truthful player a liar. And `etag` is not a content
+hash: S3/R2 set it to the body MD5 only for single-part uploads, so comparing
+etags would silently stop matching on exactly the large files most likely to
+be recycled. Hence `media_objects.content_md5`.
+
+**Also found:** `seed-local.mjs` uploaded proof bytes to storage and never
+created the `media_objects` rows the real upload flow creates, so the table
+was empty locally and everything reading media metadata — forensics, the
+media quota, the orphan reclaim — saw nothing and silently did nothing.
+
+**Trap for whoever writes the next capability-gated suite.** `it.runIf` is
+evaluated at collection time, before `beforeAll` runs, so a flag set in a
+hook is still false when the guard reads it and every case silently skips. A
+suite that skips itself looks exactly like a suite that passes.
+
+---
+
 ## 2026-09-08 — Supabase removed from both clients; six latent defects surfaced
 
 **Commit:** this session.

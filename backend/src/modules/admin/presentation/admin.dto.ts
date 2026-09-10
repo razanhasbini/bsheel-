@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { Equals, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { QUEST_CATEGORIES, normaliseQuestCategory, type QuestCategory } from '../../quests/domain/quest-category.js';
 
 export class AdminListQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit = 50;
@@ -55,9 +56,26 @@ export class ForceResetPasswordDto {
 }
 
 export class SetUserXpDto {
-  @IsInt() @Min(0) xp!: number;
-  @IsInt() @Min(1) level!: number;
-  @IsInt() @Min(0) questsCompleted!: number;
+  /**
+   * Bounded well below int4's ceiling on purpose.
+   *
+   * There was no upper bound, so a total could be set high enough that the
+   * user's next approval overflowed `xp = xp + award` and the approve
+   * endpoint answered 500 with SQLSTATE 22003 — a moderator's click failing
+   * because of an unrelated admin edit made days earlier. A hundred million
+   * leaves four orders of magnitude of headroom over any real balance.
+   */
+  @IsInt() @Min(0) @Max(100_000_000) xp!: number;
+
+  /**
+   * Accepted for compatibility and then ignored — the level is derived from
+   * xp, because the two were independent and nothing checked they agreed.
+   * A mismatched pair made `xp_to_next_level` negative and the profile panel
+   * render "300 / 200". The admin UI already derives it the same way.
+   */
+  @IsOptional() @IsInt() @Min(1) level?: number;
+
+  @IsInt() @Min(0) @Max(1_000_000) questsCompleted!: number;
   @IsString() @Length(3, 500) reason!: string;
 }
 
@@ -84,7 +102,9 @@ export class InjectQuestDto {
   @IsUUID() targetUserId!: string;
   @IsString() @Length(1, 100) title!: string;
   @IsString() @Length(1, 500) description!: string;
-  @IsString() @Length(1, 80) category!: string;
+  /// Closed set: an injected quest is a row in `quests` like any other, so
+  /// it answers to `quests_category_check` (migration 0027).
+  @Transform(({ value }) => normaliseQuestCategory(value)) @IsIn(QUEST_CATEGORIES) category!: QuestCategory;
   @IsIn(['easy', 'medium', 'hard']) difficulty!: 'easy' | 'medium' | 'hard';
   @IsInt() @Min(5) @Max(1000) xpReward!: number;
   @IsInt() @Min(1) @Max(168) durationHours!: number;

@@ -180,11 +180,10 @@ try {
        OR aggregate_id = ANY($2::uuid[])`,
     [ids.users, ids.submissions],
   ).catch(() => undefined);
-  await pool.query(
-    `DELETE FROM admin_audit_log WHERE target_id = ANY($1::text[])
-       OR after_state->>'telegram_chat_id' = $2`,
-    [[...ids.users, ...ids.quests, ...ids.submissions, ...ids.reports], String(chatId)],
-  ).catch(() => undefined);
+  // admin_audit_log is append-only (migration 0027), so the DELETE that used
+  // to run here now raises restrict_violation. The rows this smoke run appends
+  // are left in place: they are the record that these admin commands ran, and
+  // nothing points at them.
   if (ids.users.length) await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [ids.users]);
   if (ids.quests.length) await pool.query('DELETE FROM quests WHERE id = ANY($1::uuid[])', [ids.quests]);
   await pool.query('DELETE FROM telegram_command_state WHERE chat_id = $1', [chatId]);

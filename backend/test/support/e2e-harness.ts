@@ -56,10 +56,22 @@ export class E2eHarness {
     readonly database: DatabaseService,
   ) {}
 
-  static async boot(): Promise<E2eHarness> {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+  /**
+   * @param options.overrides Providers to swap out in this file's app only.
+   *   The escape hatch for process-wide state: spec files run in parallel
+   *   against one database, so a suite that needs to flip a global switch has
+   *   to flip a copy of it or it breaks every other suite mid-run.
+   */
+  static async boot(
+    options: {
+      overrides?: readonly { provide: unknown; useValue: unknown }[];
+    } = {},
+  ): Promise<E2eHarness> {
+    let builder = Test.createTestingModule({ imports: [AppModule] });
+    for (const override of options.overrides ?? []) {
+      builder = builder.overrideProvider(override.provide).useValue(override.useValue);
+    }
+    const moduleFixture: TestingModule = await builder.compile();
 
     const app = moduleFixture.createNestApplication();
 
@@ -76,7 +88,19 @@ export class E2eHarness {
         stopAtFirstError: false,
       }),
     );
-    await app.init();
+    // Listening once, rather than letting supertest bind a fresh ephemeral
+    // port per request.
+    //
+    // `request(app.getHttpServer())` binds and releases a port for every call
+    // when the server is not already listening. Across a full suite that is
+    // thousands of bind/close cycles per worker, and under load a few of them
+    // produced a response that never reached Nest at all: no entry in the
+    // request log, and an Express-level 404 or a reset instead of the
+    // handler's answer. It surfaced as a different failing test each run,
+    // always inside whichever suite was busiest — which read as flakiness
+    // rather than as the harness. Binding once removes the churn: supertest
+    // reuses the address of an already-listening server.
+    await app.listen(0);
 
     return new E2eHarness(
       app,
@@ -198,6 +222,25 @@ export class E2eHarness {
     durationHours?: number;
     title?: string;
     isActive?: boolean;
+    /// A member of the closed set `quests_category_check` allows (migration
+    /// 0027). This used to be the hard-coded string 'e2e', which is what put
+    /// eight fixture rows outside the legal set in the shared development
+    /// database. A test that wants to prove the constraint bites passes an
+    /// illegal value here and expects the insert to throw.
+    ///
+    /// Note for #47: 'e2e' also used to matter because it matched no row in
+    /// `quest_verification_defaults`, so a fixture quest resolved to the
+    /// fail-closed contract and no test could accidentally hand the
+    /// verification agent authority. Every one of the five legal categories
+    /// IS seeded, so that trick is no longer available — the fail-closed
+    /// default is now written per quest instead, see `verificationAuthority`.
+    category?: string;
+    /// Whether a fixture quest may be auto-decided by the verification agent
+    /// (#47). Defaults to `false`, written as a per-quest override on
+    /// `quests.may_auto_approve` / `may_auto_reject`, which
+    /// `quest_verification_contract` resolves above the category default.
+    /// Pass 'inherit' to fall through to the seeded category default.
+    verificationAuthority?: 'fail_closed' | 'inherit';
     /// #51 quest-type columns. Null windows mean "always available", which
     /// is what every pre-existing quest has.
     isHidden?: boolean;
@@ -207,8 +250,9 @@ export class E2eHarness {
   } = {}): Promise<TestQuest> {
     const result = await this.database.query<TestQuest>(
       `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active,
-                           is_hidden, available_from, available_until, sponsor_name)
-       VALUES ($1, $2, 'e2e', 'easy', $3, $4, $5, $6, $7, $8, $9)
+                           is_hidden, available_from, available_until, sponsor_name,
+                           may_auto_approve, may_auto_reject)
+       VALUES ($1, $2, $10, 'easy', $3, $4, $5, $6, $7, $8, $9, $11, $11)
        RETURNING id, title, xp_reward, duration_hours`,
       [
         options.title ?? `Quest ${this.uniqueName('q')}`,
@@ -220,6 +264,13 @@ export class E2eHarness {
         options.availableFrom ?? null,
         options.availableUntil ?? null,
         options.sponsorName ?? null,
+        options.category ?? 'learning',
+        // Fail closed unless a test opts in. Every legal category is seeded
+        // in `quest_verification_defaults`, so without this override a
+        // fixture quest would inherit auto-approve authority — 'learning'
+        // resolves to `provenance_only` with `may_auto_approve = true`. Null
+        // inherits the category default, which is what 'inherit' asks for.
+        options.verificationAuthority === 'inherit' ? null : false,
       ],
     );
     this.questIds.push(result.rows[0].id);
@@ -435,6 +486,13 @@ export class E2eHarness {
     this.trackedIds.push(...ids);
   }
 
+  /// Registers a quest the suite created through the API, so teardown removes
+  /// the row. createQuest() does this for itself.
+  trackQuest(...ids: readonly string[]): void {
+    this.questIds.push(...ids);
+    this.trackedIds.push(...ids);
+  }
+
   // --- teardown -------------------------------------------------------------
 
   async close(): Promise<void> {
@@ -477,11 +535,14 @@ export class E2eHarness {
               OR payload->>'targetUserId' = ANY($3::text[])`,
           [this.trackedIds, this.userIds, this.trackedIds],
         );
-        // admin_audit_log.target_id is text, not uuid, so it needs its own cast.
-        await this.database.query(
-          `DELETE FROM admin_audit_log WHERE actor_id = ANY($1::uuid[]) OR target_id = ANY($2::text[])`,
-          [this.trackedIds, this.trackedIds],
-        );
+        // admin_audit_log is deliberately NOT cleaned up. Migration 0027 made
+        // it append-only in the database, so the DELETE that used to sit here
+        // now raises restrict_violation — which is the guarantee working, not
+        // a bug to route around. Fixture audit rows therefore accumulate in a
+        // development database; they are inert (no foreign key points at them
+        // and every assertion here selects by a per-run target_id), and the
+        // owner-only ALTER TABLE ... DISABLE TRIGGER escape hatch exists if a
+        // developer ever wants the table empty again.
       }
 
       if (this.userIds.length) {

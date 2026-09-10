@@ -65,7 +65,7 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
           ),
           title: Text('UNFOLLOW?',
               style: QuestTypography.headlineSmall
-                  .copyWith(color: QuestColors.osRed)),
+                  .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
           content: Text(
             'You won\'t see their posts in your feed and they won\'t be notified.',
             style: QuestTypography.bodyMedium
@@ -81,8 +81,11 @@ class _FollowButtonState extends ConsumerState<FollowButton> {
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: Text('UNFOLLOW',
+                  // At label size on the dialog's card ground raw coral is
+                  // 2.9:1. The destructive choice must not be the hardest
+                  // thing in the dialog to read.
                   style: QuestTypography.labelSmall
-                      .copyWith(color: QuestColors.osRed)),
+                      .copyWith(color: QuestColors.onCream(QuestColors.osRed))),
             ),
           ],
         ),

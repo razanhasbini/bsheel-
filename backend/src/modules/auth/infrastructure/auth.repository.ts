@@ -141,6 +141,29 @@ export class AuthRepository {
     return result.rows[0] ? this.mapAccount(result.rows[0]) : null;
   }
 
+  /**
+   * Current `token_version` for each still-active account in `ids`.
+   *
+   * Used by the realtime gateway to expire live sockets. Revocation was
+   * checked only in `handleConnection`, so a socket opened before a logout,
+   * ban, or password reset kept receiving events indefinitely — the HTTP
+   * side rejected the same token immediately, but the WebSocket did not.
+   *
+   * An id missing from the result means the account is gone, soft-deleted or
+   * no longer `active`, all of which must drop the socket. A version that
+   * moved means the session behind it was revoked.
+   */
+  async liveTokenVersions(ids: readonly string[]): Promise<Map<string, number>> {
+    if (ids.length === 0) return new Map();
+    const result = await this.database.query<{ id: string; token_version: number }>(
+      `SELECT id, token_version
+       FROM users
+       WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND status = 'active'`,
+      [ids],
+    );
+    return new Map(result.rows.map((row) => [row.id, row.token_version]));
+  }
+
   async findOrCreateOAuthAccount(identity: OAuthIdentity, ageVerified: boolean): Promise<AccountCredentials> {
     return this.database.transaction(async (transaction) => {
       await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 11))', [
@@ -422,6 +445,22 @@ export class AuthRepository {
    * an intruder's — fully working. The caller is expected to mint a fresh
    * token pair afterwards so the device doing the change stays signed in.
    */
+  /**
+   * Replaces the stored hash with an equivalent one, changing nothing else.
+   *
+   * Used to upgrade a legacy bcrypt hash to argon2 after a successful sign-in
+   * with the same password. Distinct from `updatePassword` on purpose: this is
+   * not a credential change, so it must not bump `token_version` or revoke
+   * sessions — that would sign the user out at the exact moment they signed in.
+   */
+  async replacePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.database.query(
+      `UPDATE users SET password_hash = $2, updated_at = now()
+       WHERE id = $1 AND status = 'active'`,
+      [userId, passwordHash],
+    );
+  }
+
   async updatePassword(userId: string, passwordHash: string): Promise<AccountCredentials> {
     return this.database.transaction(async (transaction) => {
       const result = await transaction.query<AccountRow>(

@@ -66,9 +66,21 @@ host is on the dashboard under Settings → Database; use the **session**
 (port 5432) endpoint, not the transaction pooler, because the import runs
 one long read transaction:
 
-```
-LEGACY_DATABASE_URL=postgresql://bsheel_import_ro:PASSWORD@db.<ref>.supabase.co:5432/postgres?sslmode=require
-```
+Assemble `LEGACY_DATABASE_URL` from these parts rather than copying a
+template — `scripts/check_secrets.sh` scans tracked files for connection
+URIs carrying an inline password, and it cannot tell an illustration from a
+leak (see `FIXLOG.md`, 2026-09-01). A placeholder written out in full shape
+fails the build.
+
+| Part | Value |
+|---|---|
+| scheme | `postgresql` |
+| role | `bsheel_import_ro` |
+| password | the one you generated in step 1 |
+| host | the session endpoint from Settings → Database |
+| port | `5432` |
+| database | `postgres` |
+| query | `sslmode=require` |
 
 ## When you are done
 

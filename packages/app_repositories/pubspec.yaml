@@ -1,5 +1,5 @@
 name: app_repositories
-description: Repository contracts and Supabase implementations shared by mobile and admin apps.
+description: Repository contracts and their HTTP implementations, shared by the mobile and admin apps.
 version: 0.0.1
 publish_to: none
 

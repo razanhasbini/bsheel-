@@ -1825,7 +1825,8 @@ class _CollabMediaGalleryState extends State<_CollabMediaGallery> {
                                 color: active
                                     ? QuestColors.textPrimary
                                     : QuestColors.textPrimary.withAlpha(110),
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: BorderRadius.circular(
+                                    QuestSpacing.radiusPip),
                               ),
                             );
                           }),
