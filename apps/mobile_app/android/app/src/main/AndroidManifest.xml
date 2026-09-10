@@ -42,6 +42,9 @@
                       android:pathPrefix="/reset-password"/>
                 <data android:scheme="https"
                       android:host="admin.bsheel.app"
+                      android:pathPrefix="/phone-signin-callback"/>
+                <data android:scheme="https"
+                      android:host="admin.bsheel.app"
                       android:pathPrefix="/post"/>
                 <data android:scheme="https"
                       android:host="admin.bsheel.app"

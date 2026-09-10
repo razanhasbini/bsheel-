@@ -51,6 +51,19 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthResult> signInWithGoogle() {
     throw UnimplementedError();
   }
+
+  @override
+  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AuthResult> linkPhone(String phoneNumber) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> handlePhoneCallback(Uri uri) async {}
 }
 
 void main() {

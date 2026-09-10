@@ -28,6 +28,42 @@ services:
     volumes:
       - redis_data:/data
 
+  # Local object storage, so proof upload works on a laptop without a
+  # Cloudflare account. The backend signs S3 URLs the browser then PUTs to
+  # directly, so the endpoint has to be reachable from the BROWSER, not just
+  # from the api container — hence the published port and the matching
+  # host:port in R2_ENDPOINT. Production still points at real R2.
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: bsheel
+      MINIO_ROOT_PASSWORD: bsheel-dev-secret
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - minio_data:/data
+
+  # Creates the bucket and opens it for browser PUTs from the dev origin.
+  minio_init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 bsheel bsheel-dev-secret &&
+      mc mb --ignore-existing local/bsheel-dev &&
+      mc anonymous set download local/bsheel-dev &&
+      echo 'minio ready'
+      "
+
   migrate:
     build:
       context: backend
@@ -42,8 +78,13 @@ services:
   api:
     build:
       context: backend
-    env_file: backend/.env.example
+    env_file:
+      - path: backend/.env.example
+        required: true
+      - path: backend/.env
+        required: false
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
       REDIS_URL: redis://redis:6379
     depends_on:
@@ -58,8 +99,13 @@ services:
     build:
       context: backend
     command: ["node", "--enable-source-maps", "dist/main.worker.js"]
-    env_file: backend/.env.example
+    env_file:
+      - path: backend/.env.example
+        required: true
+      - path: backend/.env
+        required: false
     environment:
+      NODE_ENV: development
       APP_NAME: bsheel-worker
       DATABASE_URL: postgresql://bsheel:bsheel@postgres:5432/bsheel
       REDIS_URL: redis://redis:6379
@@ -84,3 +130,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  minio_data:

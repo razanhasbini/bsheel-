@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:shared_ui/shared_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -89,6 +90,21 @@ class SettingsPage extends ConsumerWidget {
                       _SignOutRow(label: _sentence(l.signOut)),
                     ],
                   ),
+
+                  // TEMPORARY — the hackathon demo surface. Debug builds only,
+                  // so it cannot ship to TestFlight by accident. Delete this
+                  // block and lib/features/dev/ when the demo is over.
+                  if (kDebugMode) ...[
+                    const _GroupLabel('HACKATHON DEMO'),
+                    _GroupCard(
+                      children: [
+                        _SettingRow(
+                          label: 'CAMARA live demo',
+                          onTap: () => context.pushNamed(RouteNames.camaraDemo),
+                        ),
+                      ],
+                    ),
+                  ],
 
                   // Only rendered for users present in the admins table. The
                   // /admin route itself re-checks isAdminProvider, so this is

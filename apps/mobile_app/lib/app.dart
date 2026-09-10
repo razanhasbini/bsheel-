@@ -9,6 +9,7 @@ import 'core/lifecycle/app_resume_observer.dart';
 import 'core/services/analytics_consent_controller.dart';
 import 'core/widgets/app_prompts_listener.dart';
 import 'core/widgets/maintenance_overlay.dart';
+import 'features/dev/presentation/demo_launcher_overlay.dart';
 import 'core/widgets/offline_overlay.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/locale_provider.dart';
@@ -91,12 +92,18 @@ class _QuestAppState extends ConsumerState<QuestApp> {
       //   2. OfflineOverlay — surfaces a single arcade-pop "you're
       //      offline" panel rather than letting individual pages fail
       //      silently with empty states.
-      builder: (context, child) => MaintenanceOverlay(
-        child: AppPromptsListener(
-          // Wraps the offline + content layers so the admin-triggered
-          // rate prompt and force-update overlay both have priority over
-          // any in-app screen the user is on.
-          child: OfflineOverlay(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => DemoLauncherOverlay(
+        // TEMPORARY — the hackathon demo launcher, above everything so a
+        // judge can reach it from any screen. kDebugMode only, so it cannot
+        // reach a release build. Remove this wrapper and lib/features/dev/
+        // once the demo is done.
+        child: MaintenanceOverlay(
+          child: AppPromptsListener(
+            // Wraps the offline + content layers so the admin-triggered
+            // rate prompt and force-update overlay both have priority over
+            // any in-app screen the user is on.
+            child: OfflineOverlay(child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
     );

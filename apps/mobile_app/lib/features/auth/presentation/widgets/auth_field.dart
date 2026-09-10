@@ -39,6 +39,7 @@ class AuthField extends StatefulWidget {
     this.enabled = true,
     this.trailing,
     this.textCapitalization = TextCapitalization.none,
+    this.required = false,
   });
 
   final String label;
@@ -63,6 +64,10 @@ class AuthField extends StatefulWidget {
   /// username tick.
   final Widget? trailing;
   final TextCapitalization textCapitalization;
+
+  /// Appends a coral asterisk to the label. The form marks what is
+  /// mandatory rather than explaining it in prose — one glyph, no sentence.
+  final bool required;
 
   @override
   State<AuthField> createState() => _AuthFieldState();
@@ -118,8 +123,18 @@ class _AuthFieldState extends State<AuthField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          widget.label.toUpperCase(),
+        Text.rich(
+          TextSpan(
+            text: widget.label.toUpperCase(),
+            children: widget.required
+                ? const [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(color: QuestColors.osRedText),
+                    ),
+                  ]
+                : null,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: QuestTypography.osLabelSmall.copyWith(

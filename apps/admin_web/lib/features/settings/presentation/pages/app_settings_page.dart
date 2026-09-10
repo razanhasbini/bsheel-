@@ -219,6 +219,30 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     }
   }
 
+  /// Dedicated handler rather than the shared `_toggle()` above: this key is
+  /// an internal ops flag (`is_public = false` in migration 0026), and
+  /// `_toggle()` hard-codes `isPublic: true` for the client-facing flags it
+  /// was written for. Omitting `isPublic` here lets it default to false, so
+  /// flipping this switch can never accidentally expose it via `GET /config`.
+  Future<void> _toggleAgentVerification(bool currentValue) async {
+    setState(() => _saving = true);
+    try {
+      await AppBackend.repositories.admin.setConfig(
+        'agent_submission_verification_enabled',
+        value: (!currentValue).toString(),
+      );
+      ref.invalidate(_appConfigProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _confirmMaintenanceToggle(bool currentValue) async {
     // Asymmetric confirm: turning ON locks every user out, so block on
     // a confirm. Turning OFF restores access — also confirm so we
@@ -304,9 +328,23 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
               data: (config) {
                 final socialEnabled = config['social_login_enabled'] != 'false';
                 final maintenanceOn = config['maintenance_mode'] == 'true';
+                final agentVerificationOn =
+                    config['agent_submission_verification_enabled'] == 'true';
 
                 return Column(
                   children: [
+                    _SettingsTile(
+                      icon: Icons.smart_toy_outlined,
+                      title: 'AI SUBMISSION VERIFICATION',
+                      subtitle: agentVerificationOn
+                          ? 'The AI agent evaluates new submissions before a moderator does. Still requires AGENT_SUBMISSION_VERIFICATION_ENABLED on the backend to actually run.'
+                          : 'Paused — every submission goes straight to the human moderation queue, same as before this existed.',
+                      value: agentVerificationOn,
+                      saving: _saving,
+                      onChanged: (val) =>
+                          _toggleAgentVerification(agentVerificationOn),
+                    ),
+                    const SizedBox(height: QuestSpacing.md),
                     _SettingsTile(
                       icon: Icons.login,
                       title: 'SOCIAL LOGIN',
@@ -318,6 +356,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       onChanged: (val) =>
                           _toggle('social_login_enabled', socialEnabled),
                     ),
+
                     const SizedBox(height: QuestSpacing.md),
                     _SettingsTile(
                       icon: Icons.build_rounded,

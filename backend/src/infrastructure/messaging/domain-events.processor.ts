@@ -1,6 +1,8 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import { ConfigService } from '@nestjs/config';
+import type { Job, Queue } from 'bullmq';
+import type { Environment } from '../../config/environment.js';
 import { AuthActionTokenCipher } from '../../modules/auth/infrastructure/auth-action-token-cipher.js';
 import { TransactionalEmailService } from '../../modules/auth/infrastructure/transactional-email.service.js';
 import { DeviceTokenCipher } from '../../modules/notifications/infrastructure/device-token-cipher.js';
@@ -30,6 +32,9 @@ export class DomainEventsProcessor extends WorkerHost {
     private readonly email: TransactionalEmailService,
     private readonly realtime: RealtimeEventPublisher,
     private readonly telegram: TelegramEventService,
+    private readonly config: ConfigService<Environment, true>,
+    @InjectQueue('submission-verification') private readonly submissionVerificationQueue: Queue,
+    @InjectQueue('quest-assignment-agent') private readonly questAssignmentQueue: Queue,
     private readonly proofVerification: ProofVerificationService,
   ) {
     super();
@@ -75,16 +80,28 @@ export class DomainEventsProcessor extends WorkerHost {
     } else if (job.name === 'auth.email_confirmation.requested') {
       await this.deliverEmailConfirmation(this.actionTokenPayload(payload));
     } else if (job.name === 'submission.created') {
-      // AI proof verification (#47). Advisory: it records a verdict and
-      // escalates what it cannot judge, and never touches review state or
-      // XP. A throw here would fail the whole job and retry the notification
-      // side effects with it, so the service swallows its own errors and
-      // leaves the row retryable for the sweep instead.
+      // Two independent verifiers run off this one event, and they answer
+      // different questions. Neither may decide the submission alone.
       //
-      // Reads `payload`, not `job.data`: the outbox now carries aggregate
-      // identity in an `__aggregate` envelope that is stripped off above,
-      // and handlers must see the payload without it.
+      // 1. AI proof verification (#47) — is the MEDIA authentic and does it
+      //    show the task? Advisory: it records a verdict and escalates what
+      //    it cannot judge, never touching review state or XP. A throw here
+      //    would fail the whole job and retry the notification side effects
+      //    with it, so the service swallows its own errors and leaves the
+      //    row retryable for the sweep instead.
       await this.proofVerification.verify(this.submissionPayload(payload).submissionId);
+      // 2. CAMARA/agent verification (#47, #53) — was the DEVICE where the
+      //    quest required, per the network? Enqueued rather than run inline:
+      //    CAMARA and OpenAI calls never belong in a processor shared with
+      //    notification delivery. submission.appealed is a distinct event
+      //    type and never reaches this branch, so an appeal can never be
+      //    auto re-decided; appeals stay human-only.
+      await this.enqueueSubmissionVerification(payload);
+    } else if (job.name === 'quest.assigned') {
+      // Same rule: enqueue only. The post-assignment work measures the
+      // user's distance over CAMARA and opens a geofence, neither of which
+      // belongs in a processor shared with notification delivery.
+      await this.enqueueQuestAssignmentAgent(payload);
     } else {
       this.logger.debug(
         { eventType: job.name, messageId },
@@ -211,6 +228,56 @@ export class DomainEventsProcessor extends WorkerHost {
         throw error;
       }
     }
+  }
+
+  private async enqueueSubmissionVerification(data: Record<string, unknown>): Promise<void> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return;
+    const payload = this.submissionCreatedPayload(data);
+    await this.submissionVerificationQueue.add(
+      'submission.verify',
+      { submissionId: payload.submissionId },
+      {
+        // Deterministic id: a retried outbox publish of the same
+        // submission.created event can never enqueue a second run.
+        // BullMQ rejects a custom job id containing ':' — it reserves the
+        // colon for its own Redis key namespacing and throws "Custom Id
+        // cannot contain :". The throw happens inside the shared
+        // domain-events processor, so it took the whole job down with it
+        // and the event was retried instead of acknowledged: the agent
+        // pipeline never ran and nothing said why. Keep the id stable (it
+        // is what makes the enqueue idempotent) but separator-safe.
+        jobId: `submission-${payload.submissionId}-verification-v1`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: { age: 86_400, count: 10_000 },
+        removeOnFail: { age: 604_800, count: 50_000 },
+      },
+    );
+  }
+
+  private submissionCreatedPayload(data: Record<string, unknown>): { submissionId: string } {
+    if (typeof data.submissionId !== 'string') {
+      throw new Error('submission.created payload is malformed');
+    }
+    return { submissionId: data.submissionId };
+  }
+
+  private async enqueueQuestAssignmentAgent(data: Record<string, unknown>): Promise<void> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return;
+    if (typeof data.userQuestId !== 'string') {
+      throw new Error('quest.assigned payload is malformed');
+    }
+    await this.questAssignmentQueue.add(
+      'quest.assignment-agent',
+      { userQuestId: data.userQuestId },
+      {
+        jobId: `user-quest-${data.userQuestId}-assignment-agent-v1`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: { age: 86_400, count: 10_000 },
+        removeOnFail: { age: 604_800, count: 50_000 },
+      },
+    );
   }
 
   private notificationPayload(

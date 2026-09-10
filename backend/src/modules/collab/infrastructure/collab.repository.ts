@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
+import { QuestAssignmentPolicyRepository } from '../../quests/infrastructure/quest-assignment-policy.repository.js';
 
 interface GroupRow {
   readonly id: string;
@@ -14,7 +15,7 @@ interface GroupRow {
 
 @Injectable()
 export class CollabRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly database: DatabaseService, private readonly assignmentPolicy: QuestAssignmentPolicyRepository) {}
 
   async create(userId: string, userQuestId: string, mode: 'with' | 'versus') {
     return this.database.transaction(async (transaction) => {
@@ -82,6 +83,8 @@ export class CollabRepository {
 
   async join(userId: string, code: string, abandonActiveQuest = false) {
     return this.database.transaction(async (transaction) => {
+      await this.assignmentPolicy.lockUser(userId, transaction);
+      await this.assignmentPolicy.assertCooldownElapsed(userId, transaction);
       // Any status, so a group that filled up can say so. Closing on the
       // last join means `status = 'open'` never holds for a full group, and
       // COLLAB_GROUP_FULL below was therefore unreachable: someone arriving

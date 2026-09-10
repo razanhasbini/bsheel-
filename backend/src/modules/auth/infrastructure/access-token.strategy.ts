@@ -25,7 +25,13 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!account || account.tokenVersion !== payload.tokenVersion) {
       throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Session is no longer valid' });
     }
-    return { id: account.id, email: account.email, role: account.role, tokenVersion: account.tokenVersion };
+    return {
+      id: account.id,
+      email: account.email,
+      phoneVerified: account.phoneVerified,
+      role: account.role,
+      tokenVersion: account.tokenVersion,
+    };
   }
 }
 

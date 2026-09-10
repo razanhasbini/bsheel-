@@ -12,10 +12,11 @@ import type {
   CreateQuestDto,
   UpdateQuestDto,
 } from '../presentation/quest.dto.js';
+import { QuestAssignmentPolicyRepository } from './quest-assignment-policy.repository.js';
 
 @Injectable()
 export class QuestsRepository {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly database: DatabaseService, private readonly assignmentPolicy: QuestAssignmentPolicyRepository) {}
 
   async assertDestinationAccess(userId: string, questId: string, assignment = false) {
     const result = await this.database.query(`SELECT p.is_published,p.category,d.requires_verification,
@@ -260,7 +261,7 @@ export class QuestsRepository {
   ): Promise<UserQuestRecord> {
     await this.assertDestinationAccess(userId, questId, true);
     return this.database.transaction(async (transaction) => {
-      await this.lockUser(userId, transaction);
+      await this.assignmentPolicy.lockUser(userId, transaction);
       await this.expireOverdueForUser(userId, transaction);
       if (displaceActive) {
         await transaction.query(
@@ -286,6 +287,7 @@ export class QuestsRepository {
           message: 'User already has an active quest',
         });
       }
+      if (!displaceActive) await this.assignmentPolicy.assertCooldownElapsed(userId, transaction);
       // A chain step past the first is locked until the previous step has
       // APPROVED proof for this user. The roll never offers one, but this
       // endpoint takes a questId from the client, so the rule has to be
@@ -422,6 +424,7 @@ export class QuestsRepository {
         },
         transaction,
       );
+      await this.insertExpirationNotification(userId, userQuestId, transaction);
     });
   }
 
@@ -450,7 +453,7 @@ export class QuestsRepository {
   ): Promise<readonly QuestRecord[]> {
     const count = Math.min(Math.max(requestedCount || 3, 1), 20);
     return this.database.transaction(async (transaction) => {
-      await this.lockUser(userId, transaction);
+      await this.assignmentPolicy.lockUser(userId, transaction);
       await this.chargeRollIfNotFirstOfCycle(userId, transaction);
       const injection = await transaction.query<QuestRecord>(
         `WITH popped AS (
@@ -633,16 +636,6 @@ export class QuestsRepository {
     return remaining;
   }
 
-  private async lockUser(
-    userId: string,
-    transaction: DatabaseTransaction,
-  ): Promise<void> {
-    await transaction.query(
-      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      [userId],
-    );
-  }
-
   private async expireOverdueForUser(
     userId: string,
     transaction: DatabaseTransaction,
@@ -663,7 +656,28 @@ export class QuestsRepository {
         },
         transaction,
       );
+      await this.insertExpirationNotification(userId, assignment.id, transaction);
     }
+  }
+
+  private async insertExpirationNotification(userId: string, assignmentId: string, transaction: DatabaseTransaction): Promise<void> {
+    const notification = await transaction.query<{ id: string }>(
+      `INSERT INTO notifications (user_id, title, body, type, reference_id)
+       SELECT $1, 'Quest gone. Poof. 💨',
+              'Time ran out. Pull a new one and try again. No streak shame here.',
+              'quest_expired', $2
+       WHERE NOT EXISTS (
+         SELECT 1 FROM notifications
+         WHERE user_id = $1 AND type = 'quest_expired' AND reference_id = $2
+       ) RETURNING id`,
+      [userId, assignmentId],
+    );
+    if (!notification.rows[0]) return;
+    await transaction.query(
+      `INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       VALUES ('notification', $1, 'notification.created', $2::jsonb)`,
+      [notification.rows[0].id, JSON.stringify({ notificationId: notification.rows[0].id, userId })],
+    );
   }
 
   private async insertAssignmentNotification(

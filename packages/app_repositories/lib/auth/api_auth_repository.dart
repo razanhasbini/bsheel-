@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:crypto/crypto.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import 'auth_models.dart';
 import 'auth_repository.dart';
@@ -182,6 +185,18 @@ class ApiAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResult> signInWithApple() async {
+    // Sign in with Apple on the web is a different product from the native
+    // flow: it needs a Services ID and a redirect URI registered with Apple,
+    // passed as `webAuthenticationOptions`. Bsheel has neither, because it
+    // ships iOS and Android. Without them the plugin fails deep inside its
+    // JS interop with an unreadable type error, so say what is actually
+    // wrong instead.
+    if (kIsWeb) {
+      throw const AuthException(
+        'Sign in with Apple is not available in the browser. '
+        'Use the phone number option, or run the iOS app.',
+      );
+    }
     final rawNonce = _nonce();
     final credential = await SignInWithApple.getAppleIDCredential(
       scopes: [
@@ -203,9 +218,20 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<AuthResult> signInWithGoogle() async {
     final provider = GoogleSignIn.instance;
+    // The two ids swap roles by platform, and getting it wrong is fatal
+    // rather than degraded.
+    //
+    // On iOS/Android `clientId` identifies the app and `serverClientId` asks
+    // Google to audience the ID token at our backend, which is what makes it
+    // verifiable there. On web the browser IS the client, so the web id goes
+    // in `clientId` — and passing `serverClientId` at all trips an assertion
+    // in google_sign_in_web ("serverClientId is not supported on Web"), which
+    // is what the login screen was showing.
+    final webId = _googleWebClientId.isEmpty ? null : _googleWebClientId;
+    final iosId = _googleIosClientId.isEmpty ? null : _googleIosClientId;
     _googleInitialization ??= provider.initialize(
-      clientId: _googleIosClientId.isEmpty ? null : _googleIosClientId,
-      serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
+      clientId: kIsWeb ? webId : iosId,
+      serverClientId: kIsWeb ? null : webId,
     );
     await _googleInitialization;
     try {
@@ -216,6 +242,138 @@ class ApiAuthRepository implements AuthRepository {
     if (idToken == null)
       throw const AuthException('Google Sign In failed — no ID token.');
     return _oauth('google', idToken, displayName: account.displayName ?? '');
+  }
+
+  @override
+  Future<AuthResult> signInWithPhone(String phoneNumber,
+      {String? email}) async {
+    final start = apiObject(
+      await _client.post(
+        'auth/phone/start',
+        authenticated: false,
+        body: {
+          'phoneNumber': phoneNumber,
+          'ageVerified': true,
+          if (email != null && email.isNotEmpty) 'email': email,
+        },
+      ),
+    );
+    final handoff = await _completePhoneRedirect(
+      start['authorizationUrl'] as String,
+    );
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    return _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
+  }
+
+  @override
+  Future<AuthResult> linkPhone(String phoneNumber) async {
+    final start = apiObject(
+      await _client.post(
+        'auth/link/phone/start',
+        body: {'phoneNumber': phoneNumber},
+      ),
+    );
+    final handoff = await _completePhoneRedirect(
+      start['authorizationUrl'] as String,
+    );
+    // The backend always re-issues a fresh token pair here, even though the
+    // caller was already signed in: the OLD access token still carries
+    // `phoneVerified: false`, and that claim is what the router's mandatory
+    // verification gate reads. Accepting the new pair is what makes the
+    // gate clear immediately instead of waiting for the next natural
+    // refresh.
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    return _acceptTokens(
+        ApiTokenPair.fromJson(data), AuthChangeEvent.userUpdated);
+  }
+
+  /// Set only while a phone-sign-in redirect is in flight, resolved by
+  /// [handlePhoneCallback] once the OS delivers the verified
+  /// `https://admin.bsheel.app/phone-signin-callback` App Link/Universal
+  /// Link back into the app (see RoutePaths.phoneSigninCallback). No custom
+  /// URL scheme is used for this — those are not OS-verified and another
+  /// app could register the same one to intercept an auth callback.
+  Completer<Uri>? _pendingPhoneCallback;
+
+  /// Called by the router the moment the verified callback link lands.
+  ///
+  /// On iOS and Android the link re-enters the still-running app, so a
+  /// [signInWithPhone] call is sitting on [_pendingPhoneCallback] and all
+  /// this has to do is wake it.
+  ///
+  /// On web there is no such call to wake: the redirect is a fresh page
+  /// load, and the Completer died with the previous one. So when nothing is
+  /// waiting we finish the exchange here instead of dropping the link. That
+  /// is safe because the handoff code is single-use and server-issued — it,
+  /// not the Completer, is what secures this step.
+  Future<void> handlePhoneCallback(Uri uri) async {
+    final pending = _pendingPhoneCallback;
+    if (pending != null) {
+      _pendingPhoneCallback = null;
+      pending.complete(uri);
+      return;
+    }
+    final handoff = uri.queryParameters['handoff'];
+    if (handoff == null || handoff.isEmpty) return;
+    final data = apiObject(
+      await _client.post(
+        'auth/phone/complete',
+        authenticated: false,
+        body: {'handoffCode': handoff},
+      ),
+    );
+    await _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
+  }
+
+  Future<String> _completePhoneRedirect(String authorizationUrl) async {
+    if (kIsWeb) {
+      // Same tab, deliberately. A second tab would run a second copy of the
+      // app with its own Completer, and the copy that asked for the sign-in
+      // would wait five minutes and time out. Navigating away ends this
+      // page; the redirect comes back into a fresh load, where
+      // handlePhoneCallback finishes the exchange. This future never
+      // completes because the page it belongs to is gone.
+      await launchUrl(
+        Uri.parse(authorizationUrl),
+        webOnlyWindowName: '_self',
+      );
+      return Completer<String>().future;
+    }
+    final completer = Completer<Uri>();
+    _pendingPhoneCallback = completer;
+    final launched = await launchUrl(
+      Uri.parse(authorizationUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      _pendingPhoneCallback = null;
+      throw const AuthException('Could not open the phone verification page.');
+    }
+    final Uri result;
+    try {
+      // Matches the backend's own 5-minute state TTL (phone_signin_states).
+      result = await completer.future.timeout(const Duration(minutes: 5));
+    } on TimeoutException {
+      _pendingPhoneCallback = null;
+      throw const AuthException('Phone sign-in timed out.');
+    }
+    final handoff = result.queryParameters['handoff'];
+    if (handoff == null || handoff.isEmpty) {
+      throw const AuthException('Phone sign-in did not complete.');
+    }
+    return handoff;
   }
 
   Future<AuthResult> _oauth(
@@ -276,6 +434,8 @@ class ApiAuthRepository implements AuthRepository {
       userMetadata: {
         if (payload['role'] != null) 'role': payload['role'],
         if (payload['username'] != null) 'username': payload['username'],
+        if (payload['phoneVerified'] != null)
+          'phoneVerified': payload['phoneVerified'],
       },
     );
   }

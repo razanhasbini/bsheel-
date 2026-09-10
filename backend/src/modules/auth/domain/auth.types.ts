@@ -2,9 +2,11 @@ import type { SystemRole } from '../../../common/auth/auth-user.js';
 
 export interface AccountCredentials {
   readonly id: string;
-  readonly email: string;
+  /** Null for a phone-only account — see users.email nullability, migration 0027. */
+  readonly email: string | null;
   readonly passwordHash: string | null;
   readonly emailVerified: boolean;
+  readonly phoneVerified: boolean;
   readonly status: string;
   readonly tokenVersion: number;
   readonly role: SystemRole;

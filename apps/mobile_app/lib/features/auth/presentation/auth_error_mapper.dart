@@ -7,6 +7,43 @@ import 'password_policy.dart';
 String mapAuthError(String raw) {
   final msg = raw.toLowerCase();
 
+  // ── Google Sign-In on the web ────────────────────────────────
+  // Google refuses any origin not registered against the OAuth client, and
+  // reports it in a way that means nothing to a user. Name the actual fix.
+  if (msg.contains('idpiframe_initialization_failed') ||
+      msg.contains('not a valid origin') ||
+      msg.contains('invalid_client') ||
+      msg.contains('origin_mismatch')) {
+    return 'Google has not been told about this address yet. Add it as an '
+        'authorised JavaScript origin on the OAuth client, then try again.';
+  }
+  if (msg.contains('popup_closed') || msg.contains('popup_blocked')) {
+    return 'The Google window was closed before sign-in finished.';
+  }
+  if (msg.contains('serverclientid is not supported')) {
+    return 'Google sign-in is misconfigured for the web build.';
+  }
+
+  // ── CAMARA Number Verification ───────────────────────────────
+  // The carrier's "no" is a different fact from the carrier being
+  // unreachable: one means check the number, the other means try again.
+  // Say which, rather than collapsing both into "sign-in failed".
+  if (msg.contains('phone_number_not_verified')) {
+    return 'We could not confirm that number belongs to this phone. '
+        'Check the number, and make sure mobile data is on — your carrier '
+        'verifies it over the cellular connection, not Wi-Fi.';
+  }
+  if (msg.contains('number_verification_unavailable')) {
+    return 'Could not reach your carrier to check that number. '
+        'Please try again in a moment.';
+  }
+  if (msg.contains('phone_signin_not_configured')) {
+    return 'Phone verification is not available right now.';
+  }
+  if (msg.contains('invalid_phone_signin_state')) {
+    return 'That verification link expired. Please start again.';
+  }
+
   // ── Credentials ──────────────────────────────────────────────
   if (msg.contains('invalid login') ||
       msg.contains('invalid_credentials') ||

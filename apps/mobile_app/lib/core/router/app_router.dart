@@ -1,17 +1,21 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pending_deep_link.dart';
 import 'route_names.dart';
 import 'route_guards.dart';
+import '../providers/auth_repository_provider.dart';
+import '../../features/auth/presentation/auth_error_mapper.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/auth_session_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
+import '../../features/dev/presentation/camara_demo_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/signup_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
+import '../../features/auth/presentation/pages/verify_phone_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_walkthrough_page.dart';
 import '../../features/quests/presentation/pages/home_page.dart';
 import '../../features/quests/presentation/pages/quest_details_page.dart';
@@ -85,6 +89,34 @@ Future<void> _persistSplashShown() async {
   }
 }
 
+/// The callback route to open when this page load *is* a phone-sign-in
+/// return, or null when it is an ordinary start.
+///
+/// Web only in practice: on mobile the link is delivered to the running app
+/// and `Uri.base` is not a browser URL.
+String? _phoneHandoffLocation() {
+  final params = Uri.base.queryParameters;
+  final handoff = params['handoff'];
+  // A refusal comes back the same way a success does, carrying `error`
+  // instead of `handoff`. Routing both through the callback screen means the
+  // user is told what happened in the app rather than being left on a raw
+  // API error page.
+  final error = params['error'];
+  if ((handoff == null || handoff.isEmpty) &&
+      (error == null || error.isEmpty)) {
+    return null;
+  }
+  final intent = params['intent'];
+  return Uri(
+    path: RoutePaths.phoneSigninCallback,
+    queryParameters: {
+      if (handoff != null && handoff.isNotEmpty) 'handoff': handoff,
+      if (error != null && error.isNotEmpty) 'error': error,
+      if (intent != null && intent.isNotEmpty) 'intent': intent,
+    },
+  ).toString();
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // IMPORTANT: read these providers, do NOT watch them.
   //
@@ -110,14 +142,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     if (prev?.valueOrNull != next.valueOrNull) onboardingTicker.value++;
   });
   ref.onDispose(onboardingTicker.dispose);
+
   final routerRefresh = Listenable.merge([authNotifier, onboardingTicker]);
 
   return GoRouter(
     // Splash is the cold-start entry; on warm router rebuilds (auth state
     // change, theme change, etc.) jump straight to /home so users don't
     // see the splash again.
-    initialLocation:
-        _splashShownThisProcess ? RoutePaths.home : RoutePaths.splash,
+    // A phone sign-in that came back through the browser wins over both.
+    //
+    // On iOS/Android the operator's redirect re-enters the running app as a
+    // Universal Link and the callback route is pushed. On web it is a fresh
+    // page load, so the handoff arrives as a query string on whatever URL
+    // the backend was told to send the browser to — it never reaches the
+    // hash route by itself. Reading Uri.base here is what turns that page
+    // load back into the callback route.
+    initialLocation: _phoneHandoffLocation() ??
+        (_splashShownThisProcess ? RoutePaths.home : RoutePaths.splash),
     refreshListenable: routerRefresh,
     redirect: (context, state) {
       final currentUser = ref.read(authSessionProvider);
@@ -126,6 +167,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         location: state.matchedLocation,
         isLoggedIn: currentUser != null,
         isOnboardingComplete: onboardingAsync.valueOrNull,
+        isPhoneVerified: ref.read(phoneVerifiedProvider),
       );
       // UX-002: remember where a logged-out user was trying to go so we
       // can land them there after sign-in.
@@ -196,6 +238,61 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ResetPasswordPage(
           recoveryToken: state.uri.queryParameters['token'],
         ),
+      ),
+      // Landing spot for the verified https://admin.bsheel.app/phone-signin-
+      // callback App Link/Universal Link Nokia's browser redirects back to
+      // after CAMARA Number Verification consent. Never rendered as a real
+      // page — it hands the URL to whichever signInWithPhone()/linkPhone()
+      // call is waiting, then leaves immediately. Deliberately not a custom
+      // URL scheme: those aren't OS-verified, so another app could register
+      // the same one and intercept an auth callback.
+      GoRoute(
+        path: RoutePaths.phoneSigninCallback,
+        name: RouteNames.phoneSigninCallback,
+        builder: (context, state) => Consumer(
+          builder: (context, cref, _) {
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              final failure = state.uri.queryParameters['error'];
+              if (failure != null && failure.isNotEmpty) {
+                // The carrier refused, or we could not reach it. Say so on
+                // the login screen, where the user can act on it.
+                if (!context.mounted) return;
+                context.go(RoutePaths.login);
+                final messenger = ScaffoldMessenger.maybeOf(context);
+                messenger
+                  ?..clearSnackBars()
+                  ..showSnackBar(SnackBar(
+                    content: Text(mapAuthError(failure)),
+                    duration: const Duration(seconds: 8),
+                  ));
+                return;
+              }
+              // Awaited, because on web this call is the one that actually
+              // exchanges the handoff code for a session — navigating first
+              // would bounce off the auth gate before the tokens land. On
+              // mobile it just wakes the waiting sign-in call and returns
+              // immediately, so the await costs nothing there.
+              await cref
+                  .read(authRepositoryProvider)
+                  .handlePhoneCallback(state.uri);
+              if (context.mounted) context.go(RoutePaths.home);
+            });
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+      // Temporary: the hackathon demo surface. Sits outside the shell so it
+      // is reachable without disturbing the tab structure, and is removed
+      // with its route when the demo is over.
+      GoRoute(
+        path: RoutePaths.camaraDemo,
+        name: RouteNames.camaraDemo,
+        builder: (context, state) => const CamaraDemoPage(),
+      ),
+      GoRoute(
+        path: RoutePaths.verifyPhone,
+        name: RouteNames.verifyPhone,
+        builder: (context, state) => const VerifyPhonePage(),
       ),
       GoRoute(
         path: RoutePaths.onboardingWalkthrough,

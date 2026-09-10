@@ -7,3 +7,11 @@ import 'auth_repository_provider.dart';
 final authSessionProvider = StateProvider<AuthUser?>((ref) {
   return ref.watch(authRepositoryProvider).currentUser;
 });
+
+/// Whether the signed-in user has a CAMARA-verified phone number on file.
+/// False (not just absent) while signed out — the router's mandatory-
+/// verification gate only applies once there is a session to gate.
+final phoneVerifiedProvider = Provider<bool>((ref) {
+  final user = ref.watch(authSessionProvider);
+  return user?.userMetadata['phoneVerified'] == true;
+});

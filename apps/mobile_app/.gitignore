@@ -46,3 +46,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 dart_defines.json
+dart_defines.local.json

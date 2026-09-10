@@ -473,8 +473,12 @@ export class SubmissionsRepository {
   ): Promise<void> {
     await this.database.transaction(async (transaction) => {
       const submission = await this.lockForReview(id, transaction);
-      const profile = await transaction.query<{ level: number }>('SELECT level FROM profiles WHERE id = $1 FOR UPDATE', [submission.user_id]);
+      const profile = await transaction.query<{ xp: number; level: number; name: string }>(
+        `SELECT xp, level, COALESCE(NULLIF(display_name, ''), username::text, 'Someone') AS name
+         FROM profiles WHERE id = $1 FOR UPDATE`, [submission.user_id],
+      );
       const oldLevel = profile.rows[0].level;
+      const oldXp = profile.rows[0].xp;
       // One figure covers base + Quest-of-the-Day bonus. Rollback on takedown
       // and restore both read xp_awarded_amount, so folding the bonus in here
       // keeps those paths correct with no extra branch.
@@ -488,10 +492,10 @@ export class SubmissionsRepository {
         [id, actorId, reviewNote ?? null, awardedXp],
       );
       await transaction.query("UPDATE user_quests SET status = 'approved', completed_at = now(), version = version + 1 WHERE id = $1", [submission.user_quest_id]);
-      const newProfile = await transaction.query<{ level: number }>(
+      const newProfile = await transaction.query<{ xp: number; level: number }>(
         `UPDATE profiles SET xp = xp + $2, quests_completed = quests_completed + 1,
            level = GREATEST(1, (xp + $2) / 100 + 1)
-         WHERE id = $1 RETURNING level`,
+         WHERE id = $1 RETURNING xp, level`,
         [submission.user_id, awardedXp],
       );
       // Name the bonus when there is one — the ticket promised it on the home
@@ -501,6 +505,10 @@ export class SubmissionsRepository {
         : `+${awardedXp} XP added to your name. Keep cooking.`;
       await this.createNotification(submission.user_id, 'Approved. Respect. ✅', xpLine, 'submission_approved', id, transaction);
       await this.notifyCollabPartners(submission.user_id, submission.user_quest_id, id, transaction);
+      await this.notifyFollowers(submission.user_id, profile.rows[0].name, id, transaction);
+      await this.notifyLeaderboardChanges(
+        submission.user_id, profile.rows[0].name, oldXp, newProfile.rows[0].xp, transaction,
+      );
       if (newProfile.rows[0].level > oldLevel) {
         await this.createNotification(
           submission.user_id,
@@ -677,7 +685,12 @@ export class SubmissionsRepository {
 
   private async lockForReview(id: string, transaction: DatabaseTransaction): Promise<ReviewRow> {
     const result = await transaction.query<ReviewRow>(
-      `SELECT s.*, q.xp_reward AS quest_xp,
+      // The agent's per-user recommendation wins when it exists: two users
+      // who completed the same quest can be owed different XP depending on
+      // how far each actually travelled (migration 0029). Null falls back
+      // to the quest's flat reward, so an unconfigured agent — or a
+      // moderator faster than the async pipeline — behaves exactly as before.
+      `SELECT s.*, COALESCE(s.recommended_xp, q.xp_reward) AS quest_xp,
               COALESCE(d.bonus_xp, 0) AS qotd_bonus_xp
        FROM submissions s
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
@@ -771,6 +784,64 @@ export class SubmissionsRepository {
         submissionId,
         userId,
       ],
+    );
+  }
+
+  private async notifyFollowers(
+    userId: string, authorName: string, submissionId: string, transaction: DatabaseTransaction,
+  ): Promise<void> {
+    await transaction.query(
+      `WITH recipients AS (
+         SELECT follower_id FROM follows
+         WHERE following_id = $1 AND follower_id <> $1
+         ORDER BY created_at LIMIT 100
+       ), inserted AS (
+         INSERT INTO notifications (user_id, title, body, type, reference_id)
+         SELECT follower_id, $2, 'Quest cleared. Go gas them up. 🙌',
+                'follow_quest_completed', $3 FROM recipients
+         RETURNING id, user_id
+       )
+       INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       SELECT 'notification', id, 'notification.created',
+         jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
+      [userId, `${authorName} just pulled it off.`, submissionId],
+    );
+  }
+
+  private async notifyLeaderboardChanges(
+    userId: string, userName: string, oldXp: number, newXp: number, transaction: DatabaseTransaction,
+  ): Promise<void> {
+    if (newXp <= oldXp) return;
+    const ranks = await transaction.query<{ old_rank: number; new_rank: number }>(
+      `SELECT
+         (count(*) FILTER (WHERE id <> $1 AND xp > $2) + 1)::integer AS old_rank,
+         (count(*) FILTER (WHERE id <> $1 AND xp > $3) + 1)::integer AS new_rank
+       FROM profiles`,
+      [userId, oldXp, newXp],
+    );
+    if (ranks.rows[0].new_rank <= 10 && ranks.rows[0].old_rank > 10) {
+      await this.createNotification(
+        userId, 'Top 10. Welcome to the front page. 🏆',
+        "You climbed into the top 10 on the leaderboard. Don't get comfortable.",
+        'top_10_entry', null, transaction,
+      );
+    }
+    if (ranks.rows[0].new_rank >= ranks.rows[0].old_rank) return;
+    await transaction.query(
+      `WITH recipients AS (
+         SELECT id FROM profiles
+         WHERE id <> $1 AND xp > $2 AND xp <= $3
+         ORDER BY xp DESC, id LIMIT 20
+       ), inserted AS (
+         INSERT INTO notifications (user_id, title, body, type)
+         SELECT id, $4, 'They climbed past you on the leaderboard. Your move.',
+                'leaderboard_overtaken' FROM recipients
+         RETURNING id, user_id
+       )
+       INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
+       SELECT 'notification', id, 'notification.created',
+         jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
+      [userId, oldXp, newXp, `${userName} just pulled ahead of you. 😤`],
     );
   }
 

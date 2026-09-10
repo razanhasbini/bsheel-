@@ -43,4 +43,28 @@ abstract class AuthRepository {
   Future<AuthResult> signInWithApple();
 
   Future<AuthResult> signInWithGoogle();
+
+  /// Signs in (or signs up, for a first-time number) via CAMARA Number
+  /// Verification: opens the carrier consent redirect in the system
+  /// browser, waits for it to complete, and exchanges the result for a
+  /// session. Throws [AuthException] if the user cancels or the network
+  /// cannot verify the number.
+  /// [phoneNumber] must be E.164 (`+96170123456`). It is only a CLAIM: the
+  /// backend hands it to CAMARA Number Verification V1, and the mobile
+  /// network decides whether this device is actually using it. A mismatch
+  /// throws `PHONE_NUMBER_NOT_VERIFIED`, never a signed-in session.
+  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email});
+
+  /// Same redirect, but attaches the verified number to the already
+  /// signed-in account instead of creating a session. Still returns an
+  /// [AuthResult]: the backend re-issues a fresh token pair carrying
+  /// `phoneVerified: true`, which the caller must accept the same way as
+  /// any other sign-in for the mandatory-verification gate to clear.
+  Future<AuthResult> linkPhone(String phoneNumber);
+
+  /// Called by the router when the verified
+  /// `https://admin.bsheel.app/phone-signin-callback` deep link lands,
+  /// resolving whichever [signInWithPhone] or [linkPhone] call is waiting
+  /// for it. A no-op if nothing is waiting.
+  Future<void> handlePhoneCallback(Uri uri);
 }

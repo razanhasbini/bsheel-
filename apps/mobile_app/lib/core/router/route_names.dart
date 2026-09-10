@@ -8,6 +8,8 @@ abstract final class RouteNames {
   static const String signup = 'signup';
   static const String forgotPassword = 'forgotPassword';
   static const String resetPassword = 'resetPassword';
+  static const String phoneSigninCallback = 'phoneSigninCallback';
+  static const String verifyPhone = 'verifyPhone';
   static const String onboardingWalkthrough = 'onboardingWalkthrough';
 
   // Main tabs
@@ -42,6 +44,9 @@ abstract final class RouteNames {
 
   // Settings & Legal
   static const String settings = 'settings';
+
+  /// Temporary hackathon demo surface (CAMARA live calls).
+  static const String camaraDemo = 'camaraDemo';
   static const String blockedUsers = 'blockedUsers';
   static const String admin = 'admin';
   static const String privacyPolicy = 'privacyPolicy';
@@ -54,6 +59,8 @@ abstract final class RoutePaths {
   static const String signup = '/signup';
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
+  static const String phoneSigninCallback = '/phone-signin-callback';
+  static const String verifyPhone = '/verify-phone';
   static const String onboardingWalkthrough = '/onboarding-walkthrough';
   static const String home = '/';
   static const String map = '/map';
@@ -72,6 +79,9 @@ abstract final class RoutePaths {
   static const String notifications = '/notifications';
   static const String joinCollab = '/join/:code';
   static const String settings = '/settings';
+
+  /// Temporary hackathon demo surface (CAMARA live calls).
+  static const String camaraDemo = '/camara-demo';
   static const String blockedUsers = '/settings/blocked-users';
   static const String admin = '/admin';
   static const String privacyPolicy = '/privacy';

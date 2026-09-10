@@ -92,6 +92,7 @@ export class RealtimeGateway
       const user: AuthUser = {
         id: account.id,
         email: account.email,
+        phoneVerified: account.phoneVerified,
         role: account.role,
         tokenVersion: account.tokenVersion,
       };
