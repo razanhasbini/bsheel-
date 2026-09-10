@@ -1,12 +1,17 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { HomeDiscoveryService } from '../application/home-discovery.service.js';
 import { DiscoveryRepository } from '../infrastructure/discovery.repository.js';
 import type { HomeModule } from '../domain/discovery.types.js';
+
+export class QuestIdParam {
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+  id!: string;
+}
 
 export class CountryParam {
   @Matches(/^[A-Z]{2}$/, { message: 'country must be a two-letter ISO code' })
@@ -15,6 +20,21 @@ export class CountryParam {
 
 export class DiscoveryLimitQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(30) limit?: number;
+}
+
+export class GenerateQuery {
+  /** Which shelf's pool to reach into. */
+  @IsIn(['WORTH_THE_TRIP', 'TRENDING', 'LIMITED_TIME', 'COUNTRY'])
+  channel!: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY';
+
+  @IsOptional() @Matches(/^[A-Z]{2}$/) country?: string;
+
+  /**
+   * What the shelf is already showing, so GENERATE reaches past it.
+   * Comma-separated because it arrives on a query string; capped so a client
+   * cannot turn an exclusion list into an unbounded IN clause.
+   */
+  @IsOptional() @IsString() @MaxLength(2000) exclude?: string;
 }
 
 /**
@@ -49,6 +69,35 @@ export class DiscoveryController {
   @ApiOperation({ summary: 'Quests ranked by participation — activations and votes, decayed by age' })
   trending(@CurrentUser() user: AuthUser, @Query() query: DiscoveryLimitQuery) {
     return this.repository.trending(user.id, query.limit ?? 10);
+  }
+
+  @Get('countries')
+  @ApiOperation({ summary: 'Countries that have published quests, for the EXPLORE picker' })
+  countries() {
+    return this.repository.countriesWithContent();
+  }
+
+  @Get('generate')
+  @ApiOperation({ summary: "One more quest from a shelf's pool, past what is already shown" })
+  generate(@CurrentUser() user: AuthUser, @Query() query: GenerateQuery) {
+    // The exclusion list is what makes this feel like reaching further rather
+    // than reshuffling: without it, a small catalogue hands back a card the
+    // player is already looking at.
+    const exclude = (query.exclude ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+      .slice(0, 50);
+    return this.repository.generateFor(user.id, query.channel, {
+      countryCode: query.country,
+      excludeIds: exclude,
+    });
+  }
+
+  @Get('quests/:id/journey')
+  @ApiOperation({ summary: 'The milestone line for a multi-step quest, resolved for this viewer' })
+  journey(@CurrentUser() user: AuthUser, @Param() param: QuestIdParam) {
+    return this.repository.journeyFor(user.id, param.id);
   }
 
   @Get('countries/:code')

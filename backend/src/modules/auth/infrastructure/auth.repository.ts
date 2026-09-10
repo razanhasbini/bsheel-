@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
+import { countryFromPhone } from '../../discovery/domain/dialling-codes.js';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { AccountCredentials, SessionRecord } from '../domain/auth.types.js';
 import type { OAuthIdentity } from './oauth-identity-verifier.js';
@@ -350,12 +351,17 @@ export class AuthRepository {
       const emailIsFree = normalizedEmail
         ? (await transaction.query('SELECT 1 FROM users WHERE email = $1', [normalizedEmail])).rows.length === 0
         : false;
+      // The dialling code is where they signed up from, and it is a fact the
+      // carrier verified rather than a claim on a form. Null when the code
+      // maps to no seeded country — including Nokia's +999 simulator range,
+      // which belongs to nowhere and must not be turned into somewhere.
+      const signupCountry = countryFromPhone(phoneNumber);
       const created = await transaction.query<AccountRow>(
-        `INSERT INTO users (email, phone_number, phone_verified_at)
-         VALUES ($2, $1, now())
+        `INSERT INTO users (email, phone_number, phone_verified_at, signup_country_code)
+         VALUES ($2, $1, now(), $3)
          RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
                    status, token_version, NULL::text AS role`,
-        [phoneNumber, emailIsFree ? normalizedEmail : null],
+        [phoneNumber, emailIsFree ? normalizedEmail : null, signupCountry],
       );
       const account = created.rows[0];
       const username = `user_${createStableSuffix('phone', phoneNumber)}`;

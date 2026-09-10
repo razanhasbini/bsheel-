@@ -42,8 +42,14 @@ export class HomeDiscoveryService {
     // The country shelf follows the user: where they last actually were,
     // falling back to wherever the catalogue is richest so a brand-new
     // account still has somewhere to look.
+    // Where the shelf points, in order of how well we actually know it:
+    // somewhere the network confirmed they were, then the country their
+    // verified phone belongs to, then wherever the catalogue is richest.
+    // The last is a fallback rather than a guess — it names a place with
+    // content, not a place we think the user is from.
     const verifiedCountry = await this.repository.lastVerifiedCountry(userId);
-    const country = verifiedCountry ?? (await this.repository.mostPopulatedCountry());
+    const signupCountry = verifiedCountry ?? (await this.repository.signupCountry(userId));
+    const country = signupCountry ?? (await this.repository.mostPopulatedCountry());
 
     const [journeys, hidden, limited, flagship, trending, nearby, partner] = await Promise.all([
       this.repository.journeysInProgress(userId, MODULE_LIMITS.CONTINUE_JOURNEY.max),
