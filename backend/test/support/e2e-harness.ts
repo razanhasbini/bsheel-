@@ -311,7 +311,16 @@ export class E2eHarness {
     return id;
   }
 
-  async assignQuest(user: TestUser, questId: string): Promise<{ id: string }> {
+  /// Assigns a quest and, by default, ages it past the assignment cooldown.
+  ///
+  /// Pass `keepCooldown: true` to leave `assigned_at` at now — the suite that
+  /// tests the cooldown itself needs a fresh assignment to be refused, which
+  /// the default aging would prevent.
+  async assignQuest(
+    user: TestUser,
+    questId: string,
+    options: { keepCooldown?: boolean } = {},
+  ): Promise<{ id: string }> {
     const response = await this.fixtureRequest(() =>
       this.post('/quests/assign', user).send({ questId }),
     );
@@ -319,6 +328,9 @@ export class E2eHarness {
       throw new Error(`fixture assign failed: ${response.status} ${JSON.stringify(response.body)}`);
     }
     this.trackedIds.push(response.body.data.id);
+    if (!options.keepCooldown) {
+      await this.stepPastAssignmentCooldown(response.body.data.id as string);
+    }
     return response.body.data;
   }
 
@@ -336,12 +348,50 @@ export class E2eHarness {
     return objectKey;
   }
 
+
+  /// Backdates one assignment past the quest-assignment cooldown.
+  ///
+  /// A player may not take a new quest within
+  /// QUEST_ASSIGNMENT_COOLDOWN_SECONDS (30 by default) of their last, keyed
+  /// on `assigned_at`. That is correct for players and impossible for
+  /// fixtures: several suites give one user three quests inside the same
+  /// second, and sleeping 30 seconds per assignment would make the e2e run
+  /// unusable.
+  ///
+  /// The cooldown is deliberately left ENABLED rather than switched off for
+  /// the test runner. Turning it off would stop its own suite from
+  /// exercising it, and a limit that is disabled wherever it is inconvenient
+  /// is a limit nobody is testing. So fixtures age past it instead — exactly
+  /// what quest-assignment.e2e-spec.ts already does by hand to reach the
+  /// other side of the window.
+  ///
+  /// 31 seconds keeps every assignment on the same UTC day, so nothing keyed
+  /// on the assignment date changes: the Quest-of-the-Day bonus, streak days,
+  /// and the EXIF capture window all still see what they expect.
+  private async stepPastAssignmentCooldown(userQuestId: string): Promise<void> {
+    await this.database.query(
+      `UPDATE user_quests SET assigned_at = assigned_at - interval '31 seconds' WHERE id = $1`,
+      [userQuestId],
+    );
+  }
+
   async createSubmission(
     user: TestUser,
-    options: { questId?: string; caption?: string; showInFeed?: boolean; mediaUrl?: string } = {},
+    options: {
+      questId?: string;
+      caption?: string;
+      showInFeed?: boolean;
+      mediaUrl?: string;
+      /// Leaves `assigned_at` at now, so a following assignment for the same
+      /// user is refused by the cooldown. Only the cooldown's own suite wants
+      /// this.
+      keepCooldown?: boolean;
+    } = {},
   ): Promise<TestSubmission> {
     const questId = options.questId ?? (await this.createQuest()).id;
-    const assignment = await this.assignQuest(user, questId);
+    const assignment = await this.assignQuest(user, questId, {
+      keepCooldown: options.keepCooldown,
+    });
     const mediaUrl = options.mediaUrl ?? (await this.createMediaObject(user));
     const response = await this.fixtureRequest(() =>
       this.post('/submissions', user).send({

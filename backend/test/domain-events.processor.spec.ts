@@ -442,6 +442,9 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
       fakeQueue(),
       questAssignmentQueue,
+      // Stubbed: this case asserts the assignment-agent enqueue, not the
+      // proof-verification side effect.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({

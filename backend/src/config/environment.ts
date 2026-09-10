@@ -267,6 +267,15 @@ const environmentSchema = z
     // AI agent phase — submission verification only. Every flag below
     // defaults to disabled, so the pipeline is fully inert until turned on
     // deliberately. QoS on Demand / Emergency Mode is out of scope here.
+    // Seconds a player must wait between quest assignments. Anti-abuse on
+    // quest intake, alongside the five-rerolls-per-24h cap.
+    //
+    // Configurable rather than a constant so the e2e suite can set 0. Ten
+    // fixtures assign several quests to one user in the same second, which a
+    // 30-second wall makes impossible to express — and a test that sleeps 30
+    // seconds per assignment is not a test anyone will run. The shipped
+    // default is unchanged.
+    QUEST_ASSIGNMENT_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
