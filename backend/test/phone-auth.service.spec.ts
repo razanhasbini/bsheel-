@@ -1,5 +1,4 @@
 import type { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { Environment } from '../src/config/environment.js';
 import { AuthService } from '../src/modules/auth/application/auth.service.js';
@@ -106,7 +105,13 @@ describe('phone authentication orchestration', () => {
 
   it('rejects expired or replayed state before contacting Nokia', async () => {
     const { service, numberVerification } = build({ pending: null });
-    await expect(service.completePhoneCallback('code', 'replayed')).rejects.toBeInstanceOf(BadRequestException);
+    // Redirects rather than throws, for the same reason every other failure
+    // does: this handler is a landing page, and a thrown error renders raw
+    // JSON at a URL somebody is looking at. What must stay true is that
+    // Nokia is never contacted and no session is issued.
+    const result = await service.completePhoneCallback('code', 'replayed');
+    expect(result.redirectUrl).toContain('error=INVALID_PHONE_SIGNIN_STATE');
+    expect(result.redirectUrl).not.toContain('handoff=');
     expect(numberVerification.verifyClaimedNumber).not.toHaveBeenCalled();
   });
 });

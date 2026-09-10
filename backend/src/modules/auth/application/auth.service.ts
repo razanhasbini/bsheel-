@@ -186,14 +186,22 @@ export class AuthService {
   /// picks up the result over a normal authenticated POST
   /// (completePhoneHandoff), never embedded in a URL.
   async completePhoneCallback(code: string, state: string): Promise<{ redirectUrl: string }> {
+    // Every exit from here REDIRECTS. This handler is the page a browser
+    // lands on after the operator bounces it back, so throwing renders raw
+    // `{"success":false,…}` JSON at a URL a person is looking at — which is
+    // exactly what a TestFlight tester hit after mistyping a number.
+    //
+    // An expired or replayed link is the most likely failure of all, because
+    // it is what a second attempt produces, and it was the one still
+    // throwing.
     const pending = await this.phoneStates.consumePending(state);
     if (!pending) {
-      throw new BadRequestException({ code: 'INVALID_PHONE_SIGNIN_STATE', message: 'This phone sign-in link is invalid or has expired' });
+      return { redirectUrl: this.phoneFailureRedirect('INVALID_PHONE_SIGNIN_STATE', 'sign_in') };
     }
     // Rows predating migration 0032 carry no claim, so there is nothing for
     // V1 to verify against. Fail closed rather than verify nothing.
     if (!pending.claimedPhoneNumber) {
-      throw new BadRequestException({ code: 'INVALID_PHONE_SIGNIN_STATE', message: 'This phone sign-in link is invalid or has expired' });
+      return { redirectUrl: this.phoneFailureRedirect('INVALID_PHONE_SIGNIN_STATE', pending.intent) };
     }
 
     const outcome = await this.numberVerification.verifyClaimedNumber({

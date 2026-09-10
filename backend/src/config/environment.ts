@@ -311,6 +311,14 @@ const environmentSchema = z
     // network-as-code.nokia.rapidapi.com (see camara-client.factory.ts) —
     // the value Nokia documents, and the only one that routes to the API.
     // Leave blank unless Nokia moves the API within their hub.
+    // Universal Link / App Link association. Served from this host at the
+    // well-known paths, because Apple and Google fetch them there
+    // unauthenticated and will not follow a prefix or a redirect.
+    IOS_APP_ID: z.string().min(1).default('JMDKX9TYX6.com.questapp.mobileApp'),
+    ANDROID_PACKAGE_NAME: z.string().min(1).default('com.questapp.mobileApp'),
+    // No default: an assetlinks file listing the wrong fingerprint tells
+    // Android the app is NOT authorised, and it caches that.
+    ANDROID_CERT_FINGERPRINT: optionalString,
     CAMARA_RAPIDAPI_HOST: optionalString,
 
     // CAMARA Number Verification (issue #1) — a separate 3-legged flow from
