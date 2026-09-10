@@ -185,6 +185,18 @@ class ApiAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResult> signInWithApple() async {
+    // Sign in with Apple on the web is a different product from the native
+    // flow: it needs a Services ID and a redirect URI registered with Apple,
+    // passed as `webAuthenticationOptions`. Bsheel has neither, because it
+    // ships iOS and Android. Without them the plugin fails deep inside its
+    // JS interop with an unreadable type error, so say what is actually
+    // wrong instead.
+    if (kIsWeb) {
+      throw const AuthException(
+        'Sign in with Apple is not available in the browser. '
+        'Use the phone number option, or run the iOS app.',
+      );
+    }
     final rawNonce = _nonce();
     final credential = await SignInWithApple.getAppleIDCredential(
       scopes: [
@@ -206,9 +218,20 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<AuthResult> signInWithGoogle() async {
     final provider = GoogleSignIn.instance;
+    // The two ids swap roles by platform, and getting it wrong is fatal
+    // rather than degraded.
+    //
+    // On iOS/Android `clientId` identifies the app and `serverClientId` asks
+    // Google to audience the ID token at our backend, which is what makes it
+    // verifiable there. On web the browser IS the client, so the web id goes
+    // in `clientId` — and passing `serverClientId` at all trips an assertion
+    // in google_sign_in_web ("serverClientId is not supported on Web"), which
+    // is what the login screen was showing.
+    final webId = _googleWebClientId.isEmpty ? null : _googleWebClientId;
+    final iosId = _googleIosClientId.isEmpty ? null : _googleIosClientId;
     _googleInitialization ??= provider.initialize(
-      clientId: _googleIosClientId.isEmpty ? null : _googleIosClientId,
-      serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
+      clientId: kIsWeb ? webId : iosId,
+      serverClientId: kIsWeb ? null : webId,
     );
     await _googleInitialization;
     try {

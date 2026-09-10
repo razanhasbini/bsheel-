@@ -7,6 +7,23 @@ import 'password_policy.dart';
 String mapAuthError(String raw) {
   final msg = raw.toLowerCase();
 
+  // ── Google Sign-In on the web ────────────────────────────────
+  // Google refuses any origin not registered against the OAuth client, and
+  // reports it in a way that means nothing to a user. Name the actual fix.
+  if (msg.contains('idpiframe_initialization_failed') ||
+      msg.contains('not a valid origin') ||
+      msg.contains('invalid_client') ||
+      msg.contains('origin_mismatch')) {
+    return 'Google has not been told about this address yet. Add it as an '
+        'authorised JavaScript origin on the OAuth client, then try again.';
+  }
+  if (msg.contains('popup_closed') || msg.contains('popup_blocked')) {
+    return 'The Google window was closed before sign-in finished.';
+  }
+  if (msg.contains('serverclientid is not supported')) {
+    return 'Google sign-in is misconfigured for the web build.';
+  }
+
   // ── CAMARA Number Verification ───────────────────────────────
   // The carrier's "no" is a different fact from the carrier being
   // unreachable: one means check the number, the other means try again.

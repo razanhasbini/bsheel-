@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_repositories/app_repositories.dart' show AuthUser;
@@ -200,14 +201,20 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
         const OrRule(),
         const SizedBox(height: 17),
         if (socialEnabled) ...[
-          ArcadeButton(
-            label: 'CONTINUE WITH APPLE',
-            icon: Icons.apple,
-            variant: ArcadeButtonVariant.ghost,
-            isLoading: _appleLoading,
-            onTap: _anyLoading ? null : _signInWithApple,
-          ),
-          const SizedBox(height: 15),
+          // Apple is hidden in the browser rather than shown broken: the web
+          // flow needs a Services ID and registered redirect that this app
+          // does not have, so the button could only ever fail. On iOS and
+          // Android it uses the native sheet and needs none of that.
+          if (!kIsWeb) ...[
+            ArcadeButton(
+              label: 'CONTINUE WITH APPLE',
+              icon: Icons.apple,
+              variant: ArcadeButtonVariant.ghost,
+              isLoading: _appleLoading,
+              onTap: _anyLoading ? null : _signInWithApple,
+            ),
+            const SizedBox(height: 15),
+          ],
           ArcadeButton(
             label: 'CONTINUE WITH GOOGLE',
             icon: Icons.g_mobiledata,

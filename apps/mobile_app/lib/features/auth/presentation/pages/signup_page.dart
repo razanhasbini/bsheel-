@@ -33,7 +33,8 @@ class SignupPage extends ConsumerStatefulWidget {
   ConsumerState<SignupPage> createState() => _SignupPageState();
 }
 
-class _SignupPageState extends ConsumerState<SignupPage> with SecureScreenMixin {
+class _SignupPageState extends ConsumerState<SignupPage>
+    with SecureScreenMixin {
   final _phoneController = TextEditingController(text: '+');
   final _emailController = TextEditingController();
   final _phoneFocus = FocusNode();
