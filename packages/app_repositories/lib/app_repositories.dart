@@ -91,3 +91,6 @@ export 'media/api_media_uploader.dart';
 
 // ── Realtime ─────────────────────────────────────────────────────────────
 export 'realtime/api_realtime_client.dart';
+
+export 'discovery/discovery_repository.dart';
+export 'discovery/api_discovery_repository.dart';

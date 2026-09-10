@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DiscoveryRepository } from './infrastructure/discovery.repository.js';
 import { HomeDiscoveryService } from './application/home-discovery.service.js';
+import { QuestUnlockService } from './application/quest-unlock.service.js';
 import { DiscoveryController } from './presentation/discovery.controller.js';
 
 /**
@@ -13,7 +14,7 @@ import { DiscoveryController } from './presentation/discovery.controller.js';
  */
 @Module({
   controllers: [DiscoveryController],
-  providers: [DiscoveryRepository, HomeDiscoveryService],
-  exports: [DiscoveryRepository],
+  providers: [DiscoveryRepository, HomeDiscoveryService, QuestUnlockService],
+  exports: [DiscoveryRepository, QuestUnlockService],
 })
 export class DiscoveryModule {}

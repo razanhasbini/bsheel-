@@ -23,6 +23,7 @@ import '../../data/quest_providers.dart';
 import '../widgets/arcade_page_chrome.dart';
 import '../widgets/home_arcade_widgets.dart';
 import '../widgets/home_extras.dart';
+import '../widgets/discovery_shelves.dart';
 
 /// ──────────────────────────────────────────────────────────────────────────
 /// HOME — Arcade Pop rebuild (Direction A)
@@ -419,6 +420,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                           ),
                         ),
                       ),
+
+                    // ── Discovery shelves ──
+                    // Below the roll and the hero, deliberately: the
+                    // spontaneous "give me something now" loop stays the top
+                    // of this screen, and discovery is what you scroll into
+                    // once that is answered. The server chooses which
+                    // shelves exist, so this renders nothing at all when
+                    // there is nothing worth showing.
+                    const SliverToBoxAdapter(child: DiscoveryShelves()),
 
                     // ── Weekly XP race — visible motivation toward a goal ──
                     SliverToBoxAdapter(

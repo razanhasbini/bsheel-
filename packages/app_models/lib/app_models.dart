@@ -18,3 +18,5 @@ export 'saved_post_model.dart';
 export 'saved_post_with_quest_model.dart';
 export 'quest_of_the_day_model.dart';
 export 'map_models.dart';
+
+export 'discovery/discovery_module.dart';

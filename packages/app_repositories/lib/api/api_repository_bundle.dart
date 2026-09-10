@@ -12,6 +12,7 @@ import '../profile/api_profile_repository.dart';
 import '../public_config/api_public_config_repository.dart';
 import '../quest_campaigns/api_quest_campaigns_repository.dart';
 import '../quests/api_quests_repository.dart';
+import '../discovery/api_discovery_repository.dart';
 import '../reactions/api_reactions_repository.dart';
 import '../realtime/api_realtime_client.dart';
 import '../saved_posts/api_saved_posts_repository.dart';
@@ -65,6 +66,7 @@ class ApiRepositoryBundle {
   late final ApiPublicConfigRepository publicConfig =
       ApiPublicConfigRepository(client);
   late final ApiQuestsRepository quests = ApiQuestsRepository(client);
+  late final ApiDiscoveryRepository discovery = ApiDiscoveryRepository(client);
   late final ApiQuestCampaignsRepository questCampaigns =
       ApiQuestCampaignsRepository(client);
   late final ApiReactionsRepository reactions = ApiReactionsRepository(client);
