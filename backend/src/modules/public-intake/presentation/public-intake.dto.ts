@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsIn, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { QUEST_CATEGORIES, normaliseQuestCategory, type QuestCategory } from '../../quests/domain/quest-category.js';
 
 export class JoinWaitlistDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
@@ -13,7 +14,7 @@ export class JoinWaitlistDto {
 export class SubmitQuestSuggestionDto {
   @IsString() @Length(3, 100) title!: string;
   @IsString() @Length(10, 500) description!: string;
-  @IsIn(['fitness', 'creativity', 'social', 'learning', 'adventure']) category!: string;
+  @Transform(({ value }) => normaliseQuestCategory(value)) @IsIn(QUEST_CATEGORIES) category!: QuestCategory;
   @IsIn(['easy', 'medium', 'hard']) difficulty!: string;
   @IsOptional() @IsString() @MaxLength(60) suggestedByName?: string;
   @IsOptional() @IsString() @MaxLength(40) suggestedByHandle?: string;

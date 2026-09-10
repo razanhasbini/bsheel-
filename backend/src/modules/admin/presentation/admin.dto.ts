@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { Equals, IsBoolean, IsDefined, IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { QUEST_CATEGORIES, normaliseQuestCategory, type QuestCategory } from '../../quests/domain/quest-category.js';
 
 export class AdminListQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit = 50;
@@ -84,7 +85,9 @@ export class InjectQuestDto {
   @IsUUID() targetUserId!: string;
   @IsString() @Length(1, 100) title!: string;
   @IsString() @Length(1, 500) description!: string;
-  @IsString() @Length(1, 80) category!: string;
+  /// Closed set: an injected quest is a row in `quests` like any other, so
+  /// it answers to `quests_category_check` (migration 0027).
+  @Transform(({ value }) => normaliseQuestCategory(value)) @IsIn(QUEST_CATEGORIES) category!: QuestCategory;
   @IsIn(['easy', 'medium', 'hard']) difficulty!: 'easy' | 'medium' | 'hard';
   @IsInt() @Min(5) @Max(1000) xpReward!: number;
   @IsInt() @Min(1) @Max(168) durationHours!: number;

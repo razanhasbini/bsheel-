@@ -198,6 +198,12 @@ export class E2eHarness {
     durationHours?: number;
     title?: string;
     isActive?: boolean;
+    /// A member of the closed set `quests_category_check` allows (migration
+    /// 0027). This used to be the hard-coded string 'e2e', which is what put
+    /// eight fixture rows outside the legal set in the shared development
+    /// database. A test that wants to prove the constraint bites passes an
+    /// illegal value here and expects the insert to throw.
+    category?: string;
     /// #51 quest-type columns. Null windows mean "always available", which
     /// is what every pre-existing quest has.
     isHidden?: boolean;
@@ -208,7 +214,7 @@ export class E2eHarness {
     const result = await this.database.query<TestQuest>(
       `INSERT INTO quests (title, description, category, difficulty, xp_reward, duration_hours, is_active,
                            is_hidden, available_from, available_until, sponsor_name)
-       VALUES ($1, $2, 'e2e', 'easy', $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $10, 'easy', $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, title, xp_reward, duration_hours`,
       [
         options.title ?? `Quest ${this.uniqueName('q')}`,
@@ -220,6 +226,7 @@ export class E2eHarness {
         options.availableFrom ?? null,
         options.availableUntil ?? null,
         options.sponsorName ?? null,
+        options.category ?? 'learning',
       ],
     );
     this.questIds.push(result.rows[0].id);
@@ -435,6 +442,13 @@ export class E2eHarness {
     this.trackedIds.push(...ids);
   }
 
+  /// Registers a quest the suite created through the API, so teardown removes
+  /// the row. createQuest() does this for itself.
+  trackQuest(...ids: readonly string[]): void {
+    this.questIds.push(...ids);
+    this.trackedIds.push(...ids);
+  }
+
   // --- teardown -------------------------------------------------------------
 
   async close(): Promise<void> {
@@ -477,11 +491,14 @@ export class E2eHarness {
               OR payload->>'targetUserId' = ANY($3::text[])`,
           [this.trackedIds, this.userIds, this.trackedIds],
         );
-        // admin_audit_log.target_id is text, not uuid, so it needs its own cast.
-        await this.database.query(
-          `DELETE FROM admin_audit_log WHERE actor_id = ANY($1::uuid[]) OR target_id = ANY($2::text[])`,
-          [this.trackedIds, this.trackedIds],
-        );
+        // admin_audit_log is deliberately NOT cleaned up. Migration 0027 made
+        // it append-only in the database, so the DELETE that used to sit here
+        // now raises restrict_violation — which is the guarantee working, not
+        // a bug to route around. Fixture audit rows therefore accumulate in a
+        // development database; they are inert (no foreign key points at them
+        // and every assertion here selects by a per-run target_id), and the
+        // owner-only ALTER TABLE ... DISABLE TRIGGER escape hatch exists if a
+        // developer ever wants the table empty again.
       }
 
       if (this.userIds.length) {
