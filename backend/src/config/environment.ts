@@ -158,6 +158,10 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    // Only needed when the store answers to a different hostname from
+    // inside the network than from a browser — a containerised MinIO, say.
+    // Left blank with real R2, where one hostname serves both.
+    S3_INTERNAL_ENDPOINT: optionalUrl,
     R2_ACCESS_KEY_ID: optionalString,
     R2_SECRET_ACCESS_KEY: optionalString,
     R2_BUCKET: optionalString,
