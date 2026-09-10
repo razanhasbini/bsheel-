@@ -4,12 +4,21 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/backend/app_backend.dart';
 import '../../core/providers/admin_counts_provider.dart';
+import '../../core/providers/admin_role_provider.dart';
+import '../../core/router/admin_route_access.dart';
 import '../../core/router/admin_route_names.dart';
 import '../../core/theme/bsheel_design.dart';
 import 'bsheel_widgets.dart';
 
-/// Arcade Pop sidebar — a 230px ink panel holding all seventeen
-/// destinations, ordered by how often a moderator touches them.
+/// Arcade Pop sidebar — a 230px ink panel holding the destinations the
+/// signed-in admin's role can actually use, ordered by how often a
+/// moderator touches them.
+///
+/// A moderator sees fourteen of the seventeen rows: the five listed in
+/// [AdminRouteAccess.superAdminOnly] are dropped, because every read
+/// behind them is `@Roles('super_admin')` and a moderator following the
+/// link only got as far as a 403. The router refuses those paths as well,
+/// so this row filter is presentation and not the access control.
 ///
 /// The active row is a violet fill with a 2px cream border and a white
 /// label. Badge counts appear on Moderation, Appeals and Reports only:
@@ -98,6 +107,9 @@ class AdminSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = _activePath(GoRouterState.of(context).matchedLocation);
+    // The role the router already resolved before it let this shell
+    // mount, so reading it here costs nothing and cannot disagree.
+    final role = ref.watch(adminRoleEnumProvider).valueOrNull;
     final counts =
         ref.watch(adminCountsProvider).valueOrNull ?? const AdminCounts.zero();
 
@@ -177,15 +189,16 @@ class AdminSidebar extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
                 children: [
                   for (final d in _destinations)
-                    _NavRow(
-                      label: d.label,
-                      badge: badgeFor(d.badge),
-                      active: d.path == active,
-                      onTap: () {
-                        if (inDrawer) Navigator.of(context).pop();
-                        context.goNamed(d.name);
-                      },
-                    ),
+                    if (AdminRouteAccess.allows(d.path, role))
+                      _NavRow(
+                        label: d.label,
+                        badge: badgeFor(d.badge),
+                        active: d.path == active,
+                        onTap: () {
+                          if (inDrawer) Navigator.of(context).pop();
+                          context.goNamed(d.name);
+                        },
+                      ),
                 ],
               ),
             ),

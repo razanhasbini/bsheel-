@@ -1,4 +1,5 @@
 import 'package:app_contracts/app_contracts.dart';
+import 'package:app_repositories/app_repositories.dart' show ApiAdminRepository;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,11 +8,25 @@ import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
-/// Every report, newest first. `status: all` rather than `pending`, so the
-/// filter chips can switch view without a second round trip.
+/// The admin API this page reads and writes through.
+///
+/// Resolved from the one bundle `AppBackend` owns, exactly as a direct
+/// `AppBackend.repositories.admin` call would be — but named, so a test
+/// can stand in for the network and assert what the page actually sends.
+/// The status the review call carries is the whole of this page's bug
+/// history; it should be provable without a live backend.
+final reportsApiProvider = Provider<ApiAdminRepository>(
+  (ref) => AppBackend.repositories.admin,
+);
+
+/// Every report, newest first. The `all` pseudo-status rather than
+/// `pending`, so the filter chips can switch view without a second round
+/// trip.
 final reportsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  return AppBackend.repositories.admin.reports(status: 'all', limit: 100);
+  return ref
+      .watch(reportsApiProvider)
+      .reports(status: ReportStatus.anyStatus, limit: 100);
 });
 
 /// `/reports` — one card per report, evidence on the left and the two
@@ -37,18 +52,14 @@ class ReportsPage extends ConsumerStatefulWidget {
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
-  static const String _fPending = 'pending';
-  static const String _fActioned = 'actioned';
-  static const String _fDismissed = 'dismissed';
-  static const String _fAll = 'all';
-
-  String _filter = _fPending;
+  String _filter = ReportStatus.pending;
 
   @override
   Widget build(BuildContext context) {
     final reportsAsync = ref.watch(reportsProvider);
     final loaded = reportsAsync.valueOrNull;
-    final untriaged = loaded?.where((r) => _status(r) == _fPending).length ?? 0;
+    final untriaged =
+        loaded?.where((r) => _status(r) == ReportStatus.pending).length ?? 0;
 
     return AdminPage(
       title: 'Reports',
@@ -68,23 +79,32 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         onChanged: (v) => setState(() => _filter = v),
         filters: [
           BsheelFilter(
-            _fPending,
+            ReportStatus.pending,
             'Untriaged',
             count: loaded == null ? null : untriaged,
             ground: BsheelColors.accent,
           ),
+          // `reviewed` is a real value of `reports.status` and the only
+          // one the review endpoint accepts that is not a decision. It had
+          // no chip, so a report in that state was reachable only under
+          // ALL — which is why the state was easy to forget existed.
           BsheelFilter(
-            _fActioned,
+            ReportStatus.reviewed,
+            'Reviewed',
+            count: _countOf(loaded, ReportStatus.reviewed),
+          ),
+          BsheelFilter(
+            ReportStatus.actioned,
             'Actioned',
-            count: loaded?.where((r) => _status(r) == _fActioned).length,
+            count: _countOf(loaded, ReportStatus.actioned),
           ),
           BsheelFilter(
-            _fDismissed,
+            ReportStatus.dismissed,
             'Dismissed',
-            count: loaded?.where((r) => _status(r) == _fDismissed).length,
+            count: _countOf(loaded, ReportStatus.dismissed),
           ),
           BsheelFilter(
-            _fAll,
+            ReportStatus.anyStatus,
             'All',
             count: loaded?.length,
           ),
@@ -108,7 +128,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           }
 
           final counts = _countsByTarget(reports);
-          final visible = _filter == _fAll
+          final visible = _filter == ReportStatus.anyStatus
               ? reports
               : reports.where((r) => _status(r) == _filter).toList();
 
@@ -118,7 +138,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               message: 'No report has this status. The rest of the queue is '
                   'still there under ALL.',
               actionLabel: 'Show every report',
-              onAction: () => setState(() => _filter = _fAll),
+              onAction: () => setState(() => _filter = ReportStatus.anyStatus),
             );
           }
 
@@ -128,7 +148,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           String? loudest;
           var loudestCount = 0;
           for (final r in visible) {
-            if (_status(r) != _fPending) continue;
+            if (_status(r) != ReportStatus.pending) continue;
             final key = _targetKey(r);
             final n = counts[key] ?? 1;
             if (n > loudestCount) {
@@ -161,7 +181,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   // ── Row reading ────────────────────────────────────────────────────
 
   static String _status(Map<String, dynamic> r) =>
-      (r['status'] ?? _fPending).toString();
+      (r['status'] ?? ReportStatus.pending).toString();
+
+  /// How many of [rows] carry [status], or null while the page is loading
+  /// — a chip with no count and a chip reading 0 say different things.
+  static int? _countOf(List<Map<String, dynamic>>? rows, String status) =>
+      rows?.where((r) => _status(r) == status).length;
 
   static String _reportId(Map<String, dynamic> r) => (r['id'] ?? '').toString();
 
@@ -182,20 +207,39 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   // ── Actions ────────────────────────────────────────────────────────
 
+  /// Sends one of [ReportStatus.reviewable] and nothing else.
+  ///
+  /// The Reopen button used to send `pending`. That is a legal value of
+  /// `reports.status` — it is the column default — but not of the
+  /// endpoint: `ReviewReportDto` validates the body against
+  /// `['reviewed', 'dismissed', 'actioned']`, so the request came back 400
+  /// and the report stayed exactly as it was. The moderator was told
+  /// "nothing changed", which was true and gave no hint that the button
+  /// could never have worked.
   Future<void> _review(Map<String, dynamic> r, String status) async {
+    assert(
+      ReportStatus.reviewable.contains(status),
+      '$status is not a status PATCH admin/reports/:id accepts',
+    );
+    final before = _status(r);
     try {
-      await AppBackend.repositories.admin.reviewReport(
-        _reportId(r),
-        status: status,
-      );
+      await ref.read(reportsApiProvider).reviewReport(
+            _reportId(r),
+            status: status,
+          );
       ref.invalidate(reportsProvider);
-      _toast(
-        status == _fDismissed
-            ? 'Report dismissed. The content is untouched.'
-            : 'Report marked $status.',
-      );
+      _toast(switch (status) {
+        ReportStatus.dismissed => 'Report dismissed. The content is untouched.',
+        // Said plainly, because "reopened" would overclaim: the row is
+        // decidable again, but `reviewed` is not `pending`, so it does not
+        // return to the untriaged queue or the sidebar badge.
+        ReportStatus.reviewed =>
+          'Decision cleared — the report is marked reviewed and open for a '
+              'new decision. It does not go back to the untriaged queue.',
+        _ => 'Report marked $status.',
+      });
     } catch (e) {
-      _toast('Nothing changed — the report is still open. $e');
+      _toast('Nothing changed — the report still reads $before. $e');
     }
   }
 
@@ -251,11 +295,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await AppBackend.repositories.admin.removePost(
-        submissionId,
-        reason.isEmpty ? 'Removed while actioning a content report' : reason,
-      );
-      await _review(r, _fActioned);
+      await ref.read(reportsApiProvider).removePost(
+            submissionId,
+            reason.isEmpty
+                ? 'Removed while actioning a content report'
+                : reason,
+          );
+      await _review(r, ReportStatus.actioned);
       _toast('Post removed and the report marked actioned.');
     } catch (e) {
       _toast('Nothing was removed — the post is still up. $e');
@@ -294,12 +340,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await AppBackend.repositories.admin.setAccountStatus(
-        userId,
-        'banned',
-        'Banned while actioning content report ${_reportId(r)}',
-      );
-      await _review(r, _fActioned);
+      await ref.read(reportsApiProvider).setAccountStatus(
+            userId,
+            'banned',
+            'Banned while actioning content report ${_reportId(r)}',
+          );
+      await _review(r, ReportStatus.actioned);
       _toast('@$username is banned and the report is marked actioned.');
     } catch (e) {
       _toast('Nothing changed — the account is untouched. $e');
@@ -340,8 +386,13 @@ class _ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = (data['reported_type'] ?? '').toString();
-    final status = (data['status'] ?? 'pending').toString();
-    final pending = status == 'pending';
+    final status = (data['status'] ?? ReportStatus.pending).toString();
+    // Two statuses are still open: nobody has looked at it yet
+    // (`pending`), and somebody looked and recorded no decision
+    // (`reviewed`). Both want the decision buttons; the two decided
+    // statuses want the way back out of a decision.
+    final open =
+        status == ReportStatus.pending || status == ReportStatus.reviewed;
     final reason = (data['reason'] ?? '').toString().trim();
     final reporter = ((data[EmbedKeys.profiles]
                 as Map<String, dynamic>?)?[ProfileColumns.username] ??
@@ -391,11 +442,12 @@ class _ReportCard extends StatelessWidget {
               // a dashed outline once dismissed — the colour says what is
               // left to do, not what kind of thing it is.
               tone: switch (status) {
-                'actioned' => BsheelPillTone.green,
-                'dismissed' => BsheelPillTone.ghost,
+                ReportStatus.actioned => BsheelPillTone.green,
+                ReportStatus.dismissed => BsheelPillTone.ghost,
+                ReportStatus.reviewed => BsheelPillTone.sky,
                 _ => BsheelPillTone.gold,
               },
-              dashed: status == 'dismissed',
+              dashed: status == ReportStatus.dismissed,
               small: true,
             ),
             Text(
@@ -428,7 +480,13 @@ class _ReportCard extends StatelessWidget {
           maxLines: 4,
           overflow: TextOverflow.ellipsis,
         ),
-        if (!pending) ...[
+        if (status == ReportStatus.reviewed) ...[
+          const SizedBox(height: 6),
+          const Text(
+            'REVIEWED — NO DECISION RECORDED',
+            style: BsheelType.labelSm,
+          ),
+        ] else if (!open) ...[
           const SizedBox(height: 6),
           Text(
             'ALREADY $status'.toUpperCase(),
@@ -443,7 +501,7 @@ class _ReportCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Removal is only offered where there is a post to remove.
-        if (pending && isSubmission) ...[
+        if (open && isSubmission) ...[
           BsheelButton.coral(
             label: 'Remove post',
             expand: true,
@@ -452,12 +510,12 @@ class _ReportCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        if (pending) ...[
+        if (open) ...[
           BsheelButton.ghost(
             label: 'Dismiss',
             expand: true,
             small: true,
-            onPressed: () => onReview('dismissed'),
+            onPressed: () => onReview(ReportStatus.dismissed),
           ),
           if (data['reported_user_id'] != null) ...[
             const SizedBox(height: 8),
@@ -465,11 +523,15 @@ class _ReportCard extends StatelessWidget {
                 align: TextAlign.center, onTap: onBan),
           ],
         ] else
+          // The furthest back a decided report can go. The API has no
+          // transition to `pending`, so this does not say "Reopen": it
+          // clears the decision to `reviewed`, which puts the Dismiss and
+          // Remove buttons back without pretending the row is untriaged.
           BsheelButton.ghost(
-            label: 'Reopen',
+            label: 'Mark reviewed',
             expand: true,
             small: true,
-            onPressed: () => onReview('pending'),
+            onPressed: () => onReview(ReportStatus.reviewed),
           ),
       ],
     );
