@@ -19,6 +19,20 @@ library;
 String mapDbError(Object error, {String action = 'continue'}) {
   final msg = error.toString();
 
+  // ── Maintenance mode ─────────────────────────────────────────
+  // The API answers 503 SERVICE_UNDER_MAINTENANCE to ordinary traffic
+  // while an operator has the flag on. Without this branch the code was
+  // unknown to every mapper, so the fallback at the bottom produced
+  // "Failed to {action}. Please try again." — which reads as a bug and
+  // invites the user to retry straight into a wall.
+  //
+  // The mobile app also paints its full-screen maintenance panel from the
+  // same flag, polled every five seconds; this covers the window before
+  // that lands, and anything else that surfaces the raw failure.
+  if (_has(msg, 'SERVICE_UNDER_MAINTENANCE')) {
+    return 'Bsheel is down for maintenance. Please try again shortly.';
+  }
+
   // Auth / authorization
   if (_has(msg, '42501') ||
       _has(msg, 'Not authorized') ||

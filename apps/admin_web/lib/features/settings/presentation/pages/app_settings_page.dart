@@ -234,8 +234,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
         ),
         content: Text(
           turningOn
-              ? 'Every active user will see the under-maintenance screen within a few seconds and will not be able to use the app until you turn this off.'
-              : 'Users will be able to access the app again immediately.',
+              ? 'The API stops serving ordinary users: every request answers '
+                  '503 SERVICE_UNDER_MAINTENANCE and the app shows the '
+                  'under-maintenance screen within a few seconds. '
+                  'You keep full access — admin accounts, sign-in and the '
+                  'health checks are exempt, so you can always come back here '
+                  'and switch it off.'
+              : 'The API starts serving ordinary users again immediately, and '
+                  'the under-maintenance screen clears within a few seconds.',
           style: const TextStyle(color: BsheelColors.inkSoft),
         ),
         actions: [
@@ -317,8 +323,8 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                       icon: Icons.build_rounded,
                       title: 'MAINTENANCE MODE',
                       subtitle: maintenanceOn
-                          ? '🚧 LIVE — every user sees the maintenance screen and cannot use the app.'
-                          : 'When ON, every user is locked out behind the under-maintenance screen.',
+                          ? '🚧 LIVE — the API is refusing every non-admin request (503) and users see the maintenance screen. You are exempt.'
+                          : 'When ON, the API refuses every non-admin request and users are held behind the under-maintenance screen. Admins, sign-in and the health checks stay up.',
                       value: maintenanceOn,
                       saving: _saving,
                       danger: true,

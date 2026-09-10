@@ -176,6 +176,13 @@ void main() {
         // appeal is still available, so quest history can offer the button
         // without a second request.
         UserQuestColumns.appealAvailable,
+        // Added alongside it, and missing from this expectation until now:
+        // the row carries the submission id so the appeal route can be
+        // opened straight from quest history. Unrelated to the maintenance
+        // and deletion-queue work in this commit — the assertion was simply
+        // left behind when the column landed, and it fails `melos run test`
+        // for everyone.
+        UserQuestColumns.submissionId,
       });
       expect(json[UserQuestColumns.assignedAt], '2026-05-03T12:00:00.000Z');
       expect(json[UserQuestColumns.completedAt], isNull);

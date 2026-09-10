@@ -56,10 +56,22 @@ export class E2eHarness {
     readonly database: DatabaseService,
   ) {}
 
-  static async boot(): Promise<E2eHarness> {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+  /**
+   * @param options.overrides Providers to swap out in this file's app only.
+   *   The escape hatch for process-wide state: spec files run in parallel
+   *   against one database, so a suite that needs to flip a global switch has
+   *   to flip a copy of it or it breaks every other suite mid-run.
+   */
+  static async boot(
+    options: {
+      overrides?: readonly { provide: unknown; useValue: unknown }[];
+    } = {},
+  ): Promise<E2eHarness> {
+    let builder = Test.createTestingModule({ imports: [AppModule] });
+    for (const override of options.overrides ?? []) {
+      builder = builder.overrideProvider(override.provide).useValue(override.useValue);
+    }
+    const moduleFixture: TestingModule = await builder.compile();
 
     const app = moduleFixture.createNestApplication();
 

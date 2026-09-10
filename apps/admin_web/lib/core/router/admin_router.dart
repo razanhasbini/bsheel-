@@ -27,6 +27,7 @@ import '../../features/quest_injection/presentation/pages/quest_injection_page.d
 import '../../features/settings/presentation/pages/app_settings_page.dart';
 import '../../features/web_signups/presentation/pages/web_signups_page.dart';
 import '../../features/web_quest_suggestions/presentation/pages/web_quest_suggestions_page.dart';
+import '../../features/deletion_requests/presentation/pages/deletion_requests_page.dart';
 import '../../shared/layout/admin_shell.dart';
 import '../../features/legal/privacy_policy_page.dart';
 import '../../features/legal/delete_account_page.dart';
@@ -214,6 +215,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.webQuestSuggestions,
             name: AdminRouteNames.webQuestSuggestions,
             builder: (context, state) => const WebQuestSuggestionsPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.deletionRequests,
+            name: AdminRouteNames.deletionRequests,
+            builder: (context, state) => const DeletionRequestsPage(),
           ),
         ],
       ),

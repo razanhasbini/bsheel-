@@ -8,7 +8,7 @@ import '../../core/router/admin_route_names.dart';
 import '../../core/theme/bsheel_design.dart';
 import 'bsheel_widgets.dart';
 
-/// Arcade Pop sidebar — a 230px ink panel holding all seventeen
+/// Arcade Pop sidebar — a 230px ink panel holding all eighteen
 /// destinations, ordered by how often a moderator touches them.
 ///
 /// The active row is a violet fill with a 2px cream border and a white
@@ -71,6 +71,11 @@ class AdminSidebar extends ConsumerWidget {
       'QUEST SUGGESTIONS',
       AdminRouteNames.webQuestSuggestions,
       '/web-quest-suggestions',
+    ),
+    _Destination(
+      'DELETION REQUESTS',
+      AdminRouteNames.deletionRequests,
+      '/deletion-requests',
     ),
     _Destination('SETTINGS', AdminRouteNames.settings, '/settings'),
   ];

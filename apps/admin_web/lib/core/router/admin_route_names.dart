@@ -19,6 +19,7 @@ abstract final class AdminRouteNames {
   static const String settings = 'settings';
   static const String webSignups = 'webSignups';
   static const String webQuestSuggestions = 'webQuestSuggestions';
+  static const String deletionRequests = 'deletionRequests';
 }
 
 abstract final class AdminRoutePaths {
@@ -44,4 +45,5 @@ abstract final class AdminRoutePaths {
   static const String settings = '/settings';
   static const String webSignups = '/web-signups';
   static const String webQuestSuggestions = '/web-quest-suggestions';
+  static const String deletionRequests = '/deletion-requests';
 }
