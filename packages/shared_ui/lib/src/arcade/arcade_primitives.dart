@@ -454,7 +454,10 @@ class _ArcadeTextFieldState extends State<ArcadeTextField> {
           Text(
             widget.errorText!,
             style: QuestTypography.bodySmall.copyWith(
-              color: QuestColors.osRed,
+              // `onCream`, not raw coral: at 11px this needs 4.5:1 and the
+              // accent fill measures 2.9:1. A form's error text is the
+              // string a user has to read to get unstuck.
+              color: QuestColors.onCream(QuestColors.osRed),
               fontSize: 11,
             ),
           ),
@@ -642,9 +645,14 @@ class ArcadeErrorState extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
+            // Not white. `QuestColors.onAccent` exists for exactly this
+            // ground and documents the measurement: white on coral is
+            // 3.03:1 and fails WCAG AA, ink on coral is 5.88:1 and passes.
+            // This is the error state — the one moment the user most needs
+            // to read what happened.
+            child: Icon(
               Icons.error_outline_rounded,
-              color: QuestColors.osTextOnPrimary,
+              color: QuestColors.onAccent(QuestColors.osRed),
               size: 34,
             ),
           ),
