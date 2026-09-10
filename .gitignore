@@ -137,3 +137,7 @@ deploy/.env.prod.bak
 # ...but the template must ship: `.env.*` above would otherwise
 # swallow it, and `!.env.example` does not cover `.env.prod.example`.
 !deploy/.env.prod.example
+
+# `build/` above only matches directories. apps/mobile_app/build is a symlink
+# out of the iCloud-synced tree (codesign rejects Finder-stamped bundles).
+apps/mobile_app/build
