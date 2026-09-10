@@ -133,9 +133,9 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         // The cache holds page 1 of whatever sort/scope last succeeded. If
         // that is not the ordering being asked for now — the user changed
         // the sort and the fetch failed — those posts stay on screen, but
-        // paging stops: loadMore offsets into the NEW ordering and would
-        // splice its page 2 under the OLD ordering's page 1. Pull-to-refresh
-        // is the way back.
+        // paging stops. `loadMore` would follow a cursor minted under the
+        // OLD ordering and splice the result beneath it. Pull-to-refresh is
+        // the way back.
         if (_lastGoodKey != _feedCacheKey(sort, scope)) {
           return _lastGoodFeed!.copyWith(hasMore: false);
         }
@@ -172,7 +172,7 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
       try {
         final scope = ref.read(feedScopeProvider);
         // offset 0, and the result REPLACES the list rather than appending:
-        // a new ordering means the old offset points at nothing meaningful,
+        // a new ordering means the old position points at nothing meaningful,
         // so paging has to restart from the first page.
         final raw = await ref.read(feedRepositoryProvider).getFeed(
               limit: _pageSize,
@@ -189,7 +189,7 @@ class FeedNotifier extends AsyncNotifier<FeedState> {
         if (kDebugMode) debugPrint('[Feed] Sort change failed: $e');
         // feedSortProvider already holds the new sort, so what is on screen
         // is the previous ordering. Freeze paging rather than let loadMore
-        // offset into the new one; build() or a pull-to-refresh recovers.
+        // follow a cursor from it; build() or a pull-to-refresh recovers.
         if (token == _requestToken) {
           state = AsyncData(current.copyWith(hasMore: false));
         }

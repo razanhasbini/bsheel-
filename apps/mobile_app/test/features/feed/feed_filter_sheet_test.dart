@@ -15,7 +15,13 @@ import 'package:mobile_app/l10n/app_localizations.dart';
 /// Records what the feed asks the server for, so a sort tap can be checked
 /// against the request that left the client rather than only the UI state.
 class _RecordingFeedRepository implements FeedRepository {
-  final calls = <({int limit, int offset, String sort, FeedScope scope})>[];
+  final calls = <({
+    int limit,
+    int offset,
+    String sort,
+    FeedScope scope,
+    String? cursor
+  })>[];
 
   @override
   Future<List<FeedPostModel>> getFeed({
@@ -23,8 +29,15 @@ class _RecordingFeedRepository implements FeedRepository {
     int offset = 0,
     String sort = 'recent',
     FeedScope scope = FeedScope.all,
+    String? cursor,
   }) async {
-    calls.add((limit: limit, offset: offset, sort: sort, scope: scope));
+    calls.add((
+      limit: limit,
+      offset: offset,
+      sort: sort,
+      scope: scope,
+      cursor: cursor,
+    ));
     return _posts;
   }
 
@@ -116,9 +129,11 @@ void main() {
     expect(container.read(feedSortProvider), 'top');
     expect(repository.calls, isNotEmpty);
     expect(repository.calls.map((call) => call.sort), everyElement('top'));
-    // A new ordering restarts paging — an offset carried over from the
-    // previous sort would splice two different orderings together.
+    // A new ordering restarts paging. Carrying anything over from the
+    // previous sort — an offset, or a keyset cursor minted under the old
+    // ordering — would splice two different orderings together.
     expect(repository.calls.map((call) => call.offset), everyElement(0));
+    expect(repository.calls.map((call) => call.cursor), everyElement(isNull));
 
     // And the header now says which ordering the user is looking at.
     expect(find.text('SORTED BY MOST UPVOTED'), findsOneWidget);
