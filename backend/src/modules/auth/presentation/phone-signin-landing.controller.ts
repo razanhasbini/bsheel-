@@ -109,6 +109,20 @@ export class PhoneSigninLandingController {
     @Res() response: Response,
   ): void {
     const verified = Boolean(handoff) && !error;
+
+    // A browser has no OS to intercept the link, so when a web build is
+    // configured the handoff is forwarded to it and sign-in completes there.
+    // Unset in production, where the app is the only client and the page
+    // below is the fallback for a device that missed the Universal Link.
+    const webApp = this.config.get('PHONE_SIGNIN_WEB_APP_URL', { infer: true });
+    if (webApp) {
+      const target = new URL(webApp);
+      if (handoff) target.searchParams.set('handoff', handoff);
+      if (error) target.searchParams.set('error', error);
+      response.redirect(302, target.toString());
+      return;
+    }
+
     response
       .status(200)
       .type('html')

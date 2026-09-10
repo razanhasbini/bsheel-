@@ -78,6 +78,18 @@ class ApiClient {
   final Uri baseUrl;
   final ApiTokenStore tokenStore;
   final Duration timeout;
+
+  /// Called once when a refresh fails and the stored session is discarded.
+  ///
+  /// Without it the tokens vanish and nothing else notices: the router still
+  /// believes the user is signed in, so it holds them on a Home screen where
+  /// every request 401s and every section renders empty. Being silently
+  /// stranded there is worse than being asked to sign in again.
+  ///
+  /// Assigned after construction rather than passed in, because the thing
+  /// that handles it — the auth repository — is built from the same bundle
+  /// as this client and cannot exist yet while this is being constructed.
+  void Function()? onSessionExpired;
   final http.Client _http;
   Future<bool>? _refreshInFlight;
 
@@ -272,6 +284,7 @@ class ApiClient {
       return true;
     } on ApiException {
       await tokenStore.clear();
+      onSessionExpired?.call();
       return false;
     }
   }

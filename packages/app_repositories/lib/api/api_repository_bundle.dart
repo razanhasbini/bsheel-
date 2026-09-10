@@ -79,7 +79,15 @@ class ApiRepositoryBundle {
   late final ApiSubmissionsRepository submissions =
       ApiSubmissionsRepository(client);
 
-  Future<void> initialize() => auth.restoreSession();
+  Future<void> initialize() {
+    // Wired here rather than in the constructor because `auth` is a late
+    // field on this same object, and Dart will not let a field initializer
+    // read `this`. From now on a refresh failure emits signedOut, the router
+    // hears it, and the user is asked to sign in instead of being left on a
+    // Home screen where nothing loads.
+    client.onSessionExpired = auth.notifySessionExpired;
+    return auth.restoreSession();
+  }
 
   void close() {
     realtime.dispose();

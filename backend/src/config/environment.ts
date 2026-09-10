@@ -319,6 +319,10 @@ const environmentSchema = z
     // No default: an assetlinks file listing the wrong fingerprint tells
     // Android the app is NOT authorised, and it caches that.
     ANDROID_CERT_FINGERPRINT: optionalString,
+    // Where to forward the handoff when the client is a browser, which has
+    // no OS to intercept a Universal Link. Local Flutter web sets this;
+    // production leaves it blank so the fallback page is what shows.
+    PHONE_SIGNIN_WEB_APP_URL: optionalUrl,
     CAMARA_RAPIDAPI_HOST: optionalString,
 
     // CAMARA Number Verification (issue #1) — a separate 3-legged flow from

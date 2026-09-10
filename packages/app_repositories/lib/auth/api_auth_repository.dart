@@ -53,6 +53,16 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Stream<AuthState> get authStateChanges => _changes.stream;
 
+  /// Announces that a refresh failed and the stored session is gone.
+  ///
+  /// The tokens were already cleared by the client; this is what tells the
+  /// rest of the app, so the router can send the user to sign in rather than
+  /// holding them on a screen whose every request now 401s.
+  void notifySessionExpired() {
+    _currentUser = null;
+    _changes.add(const AuthState(AuthChangeEvent.signedOut, null));
+  }
+
   @override
   AuthUser? get currentUser => _currentUser;
 
