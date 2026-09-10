@@ -76,7 +76,19 @@ export class E2eHarness {
         stopAtFirstError: false,
       }),
     );
-    await app.init();
+    // Listening once, rather than letting supertest bind a fresh ephemeral
+    // port per request.
+    //
+    // `request(app.getHttpServer())` binds and releases a port for every call
+    // when the server is not already listening. Across a full suite that is
+    // thousands of bind/close cycles per worker, and under load a few of them
+    // produced a response that never reached Nest at all: no entry in the
+    // request log, and an Express-level 404 or a reset instead of the
+    // handler's answer. It surfaced as a different failing test each run,
+    // always inside whichever suite was busiest — which read as flakiness
+    // rather than as the harness. Binding once removes the churn: supertest
+    // reuses the address of an already-listening server.
+    await app.listen(0);
 
     return new E2eHarness(
       app,
