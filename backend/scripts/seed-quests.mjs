@@ -35,6 +35,13 @@ const data = {
   mechanics: read('quests.mechanics.json'),
   chains: read('chains.json'),
   collections: read('collections.json'),
+  // Bulk depth behind the curated shelves, composed from templates by
+  // scripts/generate-catalogue.mjs. Optional: a checkout that has not run
+  // the generator still seeds the hand-written content.
+  generated: (() => {
+    try { return read('quests.generated.json'); }
+    catch { return { quests: [], hidden: [], chains: [] }; }
+  })(),
 };
 
 // Refuse the whole run rather than insert half a catalogue. Half a chain is a
@@ -58,6 +65,8 @@ function allQuests() {
   for (const q of data.mechanics.events) out.push({ ...q, kind: 'event' });
   for (const q of data.mechanics.sponsored) out.push({ ...q, kind: 'sponsored' });
   for (const q of data.chains.questsForChains) out.push({ ...q, kind: 'chain-step' });
+  for (const q of data.generated.quests) out.push({ ...q, kind: 'generated' });
+  for (const q of data.generated.hidden) out.push({ ...q, kind: 'generated-hidden', isHidden: true });
   return out;
 }
 
@@ -178,7 +187,7 @@ try {
   }
 
   // ── Chains ─────────────────────────────────────────────────────────────
-  for (const ch of data.chains.chains) {
+  for (const ch of [...data.chains.chains, ...data.generated.chains]) {
     const { rows } = await client.query(
       `INSERT INTO quest_chains (seed_key, name, description, mode, completion_rule, is_active)
        VALUES ($1,$2,$3,$4,$5,true)
@@ -206,7 +215,7 @@ try {
   //
   // Replaced wholesale per quest, so a rule that was edited in the file does
   // not leave its previous version behind still able to open the quest.
-  for (const q of data.mechanics.hidden) {
+  for (const q of [...data.mechanics.hidden, ...data.generated.hidden]) {
     const questId = questIds.get(q.seedKey);
     await client.query('DELETE FROM quest_unlock_rules WHERE quest_id = $1', [questId]);
     const u = q.unlock;

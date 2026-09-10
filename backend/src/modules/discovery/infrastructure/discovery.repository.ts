@@ -372,9 +372,12 @@ export class DiscoveryRepository {
   async generateFor(
     userId: string,
     channel: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY',
-    options: { countryCode?: string; excludeIds?: readonly string[] } = {},
-  ): Promise<DiscoveryQuestCard | null> {
+    options: { countryCode?: string; excludeIds?: readonly string[]; count?: number } = {},
+  ): Promise<readonly DiscoveryQuestCard[]> {
     const exclude = options.excludeIds ?? [];
+    // Three, like the roll. One card is a verdict; three is a choice, and
+    // choosing is the mechanic the whole app is built around.
+    const count = Math.min(Math.max(options.count ?? 3, 1), 10);
     const result = await this.database.query<CardRow>(
       `SELECT ${CARD_COLUMNS}
        ${CARD_JOINS}
@@ -383,11 +386,28 @@ export class DiscoveryRepository {
          AND ($3::text IS NULL OR p.country_code = $3)
          AND ($4::boolean IS NOT TRUE OR q.available_until IS NOT NULL)
        ORDER BY random()
-       LIMIT 1`,
-      [userId, exclude, options.countryCode ?? null, channel === 'LIMITED_TIME'],
+       LIMIT $5`,
+      [userId, exclude, options.countryCode ?? null, channel === 'LIMITED_TIME', count],
     );
-    const row = result.rows[0];
-    return row ? toCard(row) : null;
+    return result.rows.map(toCard);
+  }
+
+  /** How much is left in a shelf's pool, so the client can stop asking. */
+  async remainingFor(
+    userId: string,
+    channel: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY',
+    options: { countryCode?: string; excludeIds?: readonly string[] } = {},
+  ): Promise<number> {
+    const result = await this.database.query<{ n: number }>(
+      `SELECT count(*)::int AS n
+       ${CARD_JOINS}
+       WHERE ${eligibilityFor(channel, { alias: 'q', userParam: '$1' })}
+         AND q.id <> ALL($2::uuid[])
+         AND ($3::text IS NULL OR p.country_code = $3)
+         AND ($4::boolean IS NOT TRUE OR q.available_until IS NOT NULL)`,
+      [userId, options.excludeIds ?? [], options.countryCode ?? null, channel === 'LIMITED_TIME'],
+    );
+    return result.rows[0]?.n ?? 0;
   }
 
   /** Marks unlocks as shown, so the discovery moment happens exactly once. */

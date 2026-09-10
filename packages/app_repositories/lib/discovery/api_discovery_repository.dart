@@ -39,27 +39,31 @@ class ApiDiscoveryRepository implements DiscoveryRepository {
   }
 
   @override
-  Future<DiscoveryQuestCard?> generate({
+  Future<GeneratedQuests> generate({
     required String channel,
     String? countryCode,
     List<String> exclude = const [],
+    int count = 3,
   }) async {
     final query = <String, String>{
       'channel': channel,
+      'count': '$count',
       if (countryCode != null) 'country': countryCode,
-      // Capped here as well as on the server: sending fifty ids up a query
-      // string is already generous, and the server refuses more anyway.
+      // Capped here as well as on the server: fifty ids up a query string is
+      // already generous, and the server refuses more anyway.
       if (exclude.isNotEmpty) 'exclude': exclude.take(50).join(','),
     };
     final qs = query.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
-    final raw = await _client.get('discovery/generate?$qs');
-    final data = (raw is Map<String, dynamic>) ? raw['data'] : null;
-    // Null is a real answer: the pool behind this shelf is exhausted for
-    // this player, and the caller says so rather than showing a repeat.
-    if (data is! Map<String, dynamic>) return null;
-    return DiscoveryQuestCard.fromJson(data);
+    final data = apiObject(await _client.get('discovery/generate?$qs'));
+    return GeneratedQuests(
+      quests: (data['quests'] as List? ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(DiscoveryQuestCard.fromJson)
+          .toList(),
+      remaining: (data['remaining'] as num?)?.toInt() ?? 0,
+    );
   }
 
   @override

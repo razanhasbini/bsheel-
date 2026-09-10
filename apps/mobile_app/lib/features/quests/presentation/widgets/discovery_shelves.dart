@@ -85,58 +85,58 @@ class _ShelfState extends ConsumerState<_Shelf> {
       ? widget.module.title
       : 'EXPLORE ${_pickedName!.toUpperCase()}';
 
-  /// Presents a generated quest, rather than quietly appending a card.
+  /// Offers a few generated quests, rather than quietly appending a card.
   ///
   /// Pressing GENERATE is an ask — "show me something else" — so the answer
-  /// should arrive as an answer. Sliding a sixth card onto the end of a
-  /// horizontal list puts it off-screen, which reads as the button having
-  /// done nothing at all.
+  /// arrives as one, and as a CHOICE. One card is a verdict; three is the
+  /// same shape as the roll, which is the mechanic players already know.
+  /// Sliding a sixth card onto the end of a horizontal list put it
+  /// off-screen, which read as the button having done nothing.
   Future<void> _generate() async {
     setState(() => _generating = true);
     try {
-      final card = await AppBackend.repositories.discovery.generate(
+      final result = await AppBackend.repositories.discovery.generate(
         channel: _generateChannels[widget.module.type]!,
         countryCode: _pickedCode,
-        // Everything already on screen, so this reaches further rather than
-        // reshuffling — on a small catalogue that difference is the feature.
+        // Everything offered so far, so each press reaches further rather
+        // than reshuffling the same handful.
         exclude: [..._items.map((i) => i.id), ..._seen],
       );
       if (!mounted) return;
       setState(() => _generating = false);
-      if (card == null) {
+      if (result.isEmpty) {
         await _showExhausted();
         return;
       }
-      _seen.add(card.id);
-      await _present(card);
+      _seen.addAll(result.quests.map((q) => q.id));
+      await _present(result);
     } catch (_) {
       if (mounted) setState(() => _generating = false);
     }
   }
 
-  /// Shows one generated quest, with the two things a player wants next:
-  /// take it, or see another.
-  Future<void> _present(DiscoveryQuestCard card) async {
+  /// Shows the choice, and what the player wants next: take one, or reroll.
+  Future<void> _present(GeneratedQuests result) async {
     if (!mounted) return;
     final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _GeneratedSheet(card: card, shelfTitle: _title),
+      builder: (context) => _GeneratedSheet(result: result, shelfTitle: _title),
     );
     if (!mounted) return;
     if (action == 'again') {
       await _generate();
-    } else if (action == 'open') {
-      // Keep it on the shelf too, so the player can find it again after
-      // looking at the detail page.
-      setState(() => _extra.add(card));
+    } else if (action != null && action.startsWith('open:')) {
+      final id = action.substring(5);
+      // Kept on the shelf too, so it can be found again after looking at
+      // the detail page.
+      setState(() => _extra.addAll(result.quests.where((q) => q.id == id)));
       if (mounted) {
-        context.pushNamed(RouteNames.questDetails,
-            pathParameters: {'id': card.id});
+        context.pushNamed(RouteNames.questDetails, pathParameters: {'id': id});
       }
     } else {
-      setState(() => _extra.add(card));
+      setState(() => _extra.addAll(result.quests));
     }
   }
 
@@ -163,8 +163,8 @@ class _ShelfState extends ConsumerState<_Shelf> {
             ),
             const SizedBox(height: 8),
             Text(
-              // Says which shelf ran out and what to do instead, because
-              // "no more" without a next step is just a wall.
+              // Names the shelf that ran out and offers a next step, because
+              // "no more" on its own is just a wall.
               'You have seen every quest in ${_title.toLowerCase()} for now. '
               'Try another country, or roll for something you can do today.',
               style: QuestTypography.osBodySmall.copyWith(
@@ -366,11 +366,11 @@ class _GenerateButton extends StatelessWidget {
   }
 }
 
-/// The generated quest, presented rather than filed away.
+/// The generated quests, presented as a choice rather than filed away.
 class _GeneratedSheet extends StatelessWidget {
-  const _GeneratedSheet({required this.card, required this.shelfTitle});
+  const _GeneratedSheet({required this.result, required this.shelfTitle});
 
-  final DiscoveryQuestCard card;
+  final GeneratedQuests result;
   final String shelfTitle;
 
   @override
@@ -378,6 +378,9 @@ class _GeneratedSheet extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(QuestSpacing.md),
       padding: const EdgeInsets.all(QuestSpacing.lg),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+      ),
       decoration: BoxDecoration(
         color: QuestColors.cardBg(context),
         borderRadius: BorderRadius.circular(QuestSpacing.radiusSheet),
@@ -395,73 +398,114 @@ class _GeneratedSheet extends StatelessWidget {
               color: QuestColors.textDim(context),
             ),
           ),
-          const SizedBox(height: 10),
-          if (card.badges.isNotEmpty)
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [for (final b in card.badges.take(4)) _Badge(label: b)],
-            ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           Text(
-            card.title,
+            'PICK ONE',
             style: QuestTypography.osDisplayLarge.copyWith(
-              fontSize: 22,
-              height: 1.1,
-              letterSpacing: -0.5,
+              fontSize: 24,
+              letterSpacing: -0.6,
               color: QuestColors.text(context),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            card.description,
-            style: QuestTypography.osBodySmall.copyWith(
-              fontSize: 14,
-              height: 1.5,
-              color: QuestColors.textDim(context),
+          const SizedBox(height: 10),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: result.quests.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) => _Option(quest: result.quests[i]),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('${card.xpReward} XP',
-                  style: QuestTypography.osLabelLarge
-                      .copyWith(fontSize: 14, color: QuestColors.osPrimary)),
-              const Spacer(),
-              if (card.destination != null)
-                Flexible(
-                  child: Text(
-                    '${card.destination!.placeName}, ${card.destination!.countryName}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.osBodySmall.copyWith(
-                        fontSize: 12, color: QuestColors.textDim(context)),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: QuestSpacing.lg),
+          const SizedBox(height: QuestSpacing.md),
           ArcadeButton(
-            label: 'SEE THIS QUEST',
-            variant: ArcadeButtonVariant.positive,
-            onTap: () => Navigator.of(context).pop('open'),
-          ),
-          const SizedBox(height: 8),
-          ArcadeButton(
-            label: 'GENERATE ANOTHER',
+            label: 'REROLL',
             variant: ArcadeButtonVariant.ghost,
             onTap: () => Navigator.of(context).pop('again'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Center(
-            child: TextButton(
-              onPressed: () => Navigator.of(context).pop('keep'),
-              child: Text('KEEP IT ON THE SHELF',
-                  style: QuestTypography.osLabelSmall.copyWith(
-                      fontSize: 11, color: QuestColors.textDim(context))),
+            child: Text(
+              // Honest about depth, so the button never has to be a dead end.
+              '${result.remaining} more in this shelf',
+              style: QuestTypography.osBodySmall.copyWith(
+                fontSize: 11,
+                color: QuestColors.textDim(context),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Option extends StatelessWidget {
+  const _Option({required this.quest});
+
+  final DiscoveryQuestCard quest;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop('open:${quest.id}'),
+      child: Container(
+        padding: const EdgeInsets.all(QuestSpacing.md),
+        decoration: BoxDecoration(
+          color: QuestColors.bg(context),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (quest.badges.isNotEmpty)
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  for (final b in quest.badges.take(3)) _Badge(label: b)
+                ],
+              ),
+            const SizedBox(height: 6),
+            Text(
+              quest.title,
+              style: QuestTypography.osLabelLarge.copyWith(
+                fontSize: 15,
+                color: QuestColors.text(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              quest.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osBodySmall.copyWith(
+                fontSize: 12,
+                height: 1.4,
+                color: QuestColors.textDim(context),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text('${quest.xpReward} XP',
+                    style: QuestTypography.osLabelSmall
+                        .copyWith(fontSize: 11, color: QuestColors.osPrimary)),
+                const Spacer(),
+                if (quest.destination != null)
+                  Flexible(
+                    child: Text(
+                      quest.destination!.placeName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.osBodySmall.copyWith(
+                          fontSize: 11, color: QuestColors.textDim(context)),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

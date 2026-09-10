@@ -35,6 +35,9 @@ export class GenerateQuery {
    * cannot turn an exclusion list into an unbounded IN clause.
    */
   @IsOptional() @IsString() @MaxLength(2000) exclude?: string;
+
+  /** How many to offer. Three by default, matching the roll. */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10) count?: number;
 }
 
 /**
@@ -88,10 +91,14 @@ export class DiscoveryController {
       .map((id) => id.trim())
       .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
       .slice(0, 50);
-    return this.repository.generateFor(user.id, query.channel, {
-      countryCode: query.country,
-      excludeIds: exclude,
-    });
+    const options = { countryCode: query.country, excludeIds: exclude };
+    // The remaining count travels with the cards so the client can say
+    // "that is everything" honestly rather than discovering it by asking
+    // once more and getting nothing back.
+    return Promise.all([
+      this.repository.generateFor(user.id, query.channel, { ...options, count: query.count ?? 3 }),
+      this.repository.remainingFor(user.id, query.channel, options),
+    ]).then(([quests, remaining]) => ({ quests, remaining }));
   }
 
   @Get('quests/:id/journey')

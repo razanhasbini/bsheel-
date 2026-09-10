@@ -19,15 +19,19 @@ abstract class DiscoveryRepository {
   /// Countries the catalogue has quests for, for the EXPLORE picker.
   Future<List<DiscoveryCountry>> countries();
 
-  /// One more quest from a shelf's pool, past what is already on screen.
+  /// A handful of quests from a shelf's pool, past what is already shown.
   ///
-  /// [exclude] is what the shelf is showing. Without it a small catalogue
-  /// hands back a card the player is already looking at, which reads as
-  /// broken rather than as a small catalogue.
-  Future<DiscoveryQuestCard?> generate({
+  /// Three by default, because one is a verdict and three is a choice —
+  /// the same shape as the main roll, which is the mechanic players already
+  /// understand.
+  ///
+  /// [exclude] is what has already been offered. Without it a catalogue
+  /// hands back cards the player is looking at, which reads as broken.
+  Future<GeneratedQuests> generate({
     required String channel,
     String? countryCode,
     List<String> exclude,
+    int count,
   });
 
   /// The milestone line for a multi-step quest, or null when it is not one.

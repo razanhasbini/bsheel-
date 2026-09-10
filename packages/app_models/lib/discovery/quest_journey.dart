@@ -1,3 +1,5 @@
+import 'discovery_module.dart';
+
 /// Where a milestone sits in a multi-step quest.
 ///
 /// Server-decided, never inferred here: a step opens only on *approved*
@@ -117,4 +119,19 @@ class DiscoveryCountry {
         name: json['name'] as String? ?? '',
         questCount: (json['questCount'] as num?)?.toInt() ?? 0,
       );
+}
+
+/// What GENERATE hands back: a few to choose from, and how deep the pool
+/// still is.
+///
+/// The remaining count travels with the cards so the shelf can say "that is
+/// everything" honestly, rather than discovering it by asking once more and
+/// getting nothing.
+class GeneratedQuests {
+  const GeneratedQuests({required this.quests, required this.remaining});
+
+  final List<DiscoveryQuestCard> quests;
+  final int remaining;
+
+  bool get isEmpty => quests.isEmpty;
 }

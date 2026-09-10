@@ -1,0 +1,247 @@
+{
+  "_comment": [
+    "Quest templates, keyed to what a place actually IS rather than to its name.",
+    "A landmark, a market and a heritage site invite different challenges, so the",
+    "generator composes per place category and never asks the same thing of all",
+    "of them. {place}, {city} and {country} are filled from real seeded rows.",
+    "",
+    "No template may ask for climbing, trespass, or anything at odds with a site's",
+    "rules — the validator enforces that, but these are written to pass it."
+  ],
+  "landmark": [
+    {
+      "slug": "scale",
+      "title": "Show how big {place} really is",
+      "category": "creativity",
+      "difficulty": "medium",
+      "xp": 55,
+      "description": "Photographs flatten {place}. Take one that actually conveys the scale — use a person, a doorway, anything that gives the eye something to measure against."
+    },
+    {
+      "slug": "detail",
+      "title": "The detail everyone walks past at {place}",
+      "category": "creativity",
+      "difficulty": "easy",
+      "xp": 45,
+      "description": "Find something at {place} that almost nobody photographs, and make a case on camera for why it deserves attention."
+    },
+    {
+      "slug": "light",
+      "title": "{place} at the hour nobody comes",
+      "category": "adventure",
+      "difficulty": "medium",
+      "xp": 60,
+      "description": "Be at {place} at first light or last light. Film what the low sun does to it, and say what time you got there."
+    },
+    {
+      "slug": "sound",
+      "title": "What {place} sounds like",
+      "category": "creativity",
+      "difficulty": "easy",
+      "xp": 45,
+      "description": "Record a minute of audio at {place} with your eyes closed. Then explain what a listener would be able to tell about the place from sound alone."
+    },
+    {
+      "slug": "frame",
+      "title": "One frame that says {city}",
+      "category": "creativity",
+      "difficulty": "medium",
+      "xp": 50,
+      "description": "Take a single photograph at {place} that could not have been taken anywhere else in the world. Explain what gives it away."
+    }
+  ],
+  "culture": [
+    {
+      "slug": "maker",
+      "title": "Learn one thing from a maker at {place}",
+      "category": "learning",
+      "difficulty": "easy",
+      "xp": 50,
+      "description": "Find somebody at {place} who makes or sells something by hand. Ask them to teach you one step of it, and show your attempt."
+    },
+    {
+      "slug": "order",
+      "title": "Order in the local language at {place}",
+      "category": "social",
+      "difficulty": "easy",
+      "xp": 45,
+      "description": "Learn how to order something properly at {place} in the local language — the real phrasing, not a translation app — and use it."
+    },
+    {
+      "slug": "five",
+      "title": "Five things only {city} sells",
+      "category": "adventure",
+      "difficulty": "medium",
+      "xp": 55,
+      "description": "Find five things at {place} you could not buy at home, from five different sellers. Show each and say what it is for."
+    },
+    {
+      "slug": "recommend",
+      "title": "Let a stranger at {place} choose for you",
+      "category": "social",
+      "difficulty": "medium",
+      "xp": 55,
+      "description": "Ask somebody working at {place} what they would pick if they were you. Buy or try exactly that, no substitutions."
+    },
+    {
+      "slug": "oldest",
+      "title": "The oldest trader at {place}",
+      "category": "social",
+      "difficulty": "medium",
+      "xp": 60,
+      "description": "Find the longest-standing business at {place} and get its owner to tell you how long they have been there and what has changed."
+    }
+  ],
+  "heritage": [
+    {
+      "slug": "layers",
+      "title": "Read the layers at {place}",
+      "category": "learning",
+      "difficulty": "medium",
+      "xp": 60,
+      "description": "{place} was built and rebuilt. Photograph two pieces of work from clearly different periods and explain how you told them apart."
+    },
+    {
+      "slug": "technique",
+      "title": "How did they build {place}?",
+      "category": "learning",
+      "difficulty": "medium",
+      "xp": 60,
+      "description": "Pick one construction detail at {place} — a joint, an arch, a surface — and explain on camera how it was made without modern tools."
+    },
+    {
+      "slug": "oldest-thing",
+      "title": "The oldest thing you can stand beside at {place}",
+      "category": "adventure",
+      "difficulty": "easy",
+      "xp": 50,
+      "description": "Find the oldest original stonework at {place} that visitors can get close to, and say how you know it is the old part. Stay on the marked routes and behind every barrier — look, do not lean."
+    },
+    {
+      "slug": "then-now",
+      "title": "{place}, then and now",
+      "category": "creativity",
+      "difficulty": "medium",
+      "xp": 65,
+      "description": "Find a historical image of {place}, then stand where the photographer or artist stood and recreate the angle."
+    },
+    {
+      "slug": "guide",
+      "title": "One thing no sign at {place} tells you",
+      "category": "learning",
+      "difficulty": "medium",
+      "xp": 65,
+      "description": "Ask a licensed guide at {place} for something that is not written on any panel, and pass it on in your own words."
+    }
+  ],
+  "pilgrimage": [
+    {
+      "slug": "significance",
+      "title": "Why {place} matters",
+      "category": "learning",
+      "difficulty": "easy",
+      "xp": 55,
+      "description": "Learn from someone at {place} why it holds the significance it does, and explain it in your own words. Dress and behave as the site asks, film only where filming is permitted, and never during prayer."
+    },
+    {
+      "slug": "welcome",
+      "title": "How {place} welcomes visitors",
+      "category": "social",
+      "difficulty": "easy",
+      "xp": 55,
+      "description": "Ask how visitors are expected to prepare before entering {place}, and show that you followed it. Observe the rules for visitors throughout, do not record anyone at worship, and never film during prayer."
+    }
+  ],
+  "hidden": [
+    {
+      "slug": "find",
+      "title": "What is hidden at {place}",
+      "category": "adventure",
+      "difficulty": "medium",
+      "xp": 70,
+      "description": "There is something at {place} most visitors never reach. Find it from the permitted routes and show it."
+    }
+  ],
+  "standard": [
+    {
+      "slug": "phrase",
+      "title": "Teach yourself one useful phrase",
+      "category": "learning",
+      "difficulty": "easy",
+      "xp": 15,
+      "description": "Learn one phrase in a language you do not speak that would actually help a traveller, then use it on someone who speaks it."
+    },
+    {
+      "slug": "stairs",
+      "title": "No lifts today",
+      "category": "fitness",
+      "difficulty": "easy",
+      "xp": 15,
+      "description": "Stairs only for a whole day. Show the worst flight you climbed."
+    },
+    {
+      "slug": "cook",
+      "title": "Cook something you have never cooked",
+      "category": "learning",
+      "difficulty": "medium",
+      "xp": 25,
+      "description": "Pick a dish you have never attempted and make it. Show the first attempt honestly, however it went."
+    },
+    {
+      "slug": "portrait",
+      "title": "Ask a stranger for a portrait",
+      "category": "social",
+      "difficulty": "medium",
+      "xp": 25,
+      "description": "Ask somebody if you may photograph them, explain why, and show them the result before you leave."
+    },
+    {
+      "slug": "route",
+      "title": "A new way to somewhere familiar",
+      "category": "adventure",
+      "difficulty": "easy",
+      "xp": 15,
+      "description": "Travel a route you know well by a way you never have. Show one thing you had never seen on it."
+    },
+    {
+      "slug": "repair",
+      "title": "Fix instead of replace",
+      "category": "learning",
+      "difficulty": "medium",
+      "xp": 30,
+      "description": "Repair something you were about to throw away. Show it broken, then working."
+    },
+    {
+      "slug": "sunrise",
+      "title": "Be somewhere before the sun",
+      "category": "fitness",
+      "difficulty": "medium",
+      "xp": 30,
+      "description": "Be outside and moving before sunrise. Film the moment the light arrives."
+    },
+    {
+      "slug": "draw",
+      "title": "Draw what is in front of you",
+      "category": "creativity",
+      "difficulty": "easy",
+      "xp": 20,
+      "description": "Draw whatever you can see right now in under ten minutes. No redoing it."
+    },
+    {
+      "slug": "listen",
+      "title": "Ask someone older about their city",
+      "category": "social",
+      "difficulty": "easy",
+      "xp": 25,
+      "description": "Ask somebody at least thirty years older what their city was like when they were your age. Show one thing they told you about."
+    },
+    {
+      "slug": "quiet",
+      "title": "An hour without the phone",
+      "category": "adventure",
+      "difficulty": "easy",
+      "xp": 20,
+      "description": "Leave the phone behind for an hour somewhere you have never walked. Photograph one thing you noticed, afterwards."
+    }
+  ]
+}

@@ -27,9 +27,14 @@ export function validateSeed(data) {
   const countryCodes = new Set(data.countries.map((c) => c.code));
   const collectionKeys = new Set(data.collections.map((c) => c.seedKey));
 
+  const generated = data.generated ?? { quests: [], hidden: [], chains: [] };
   const quests = [
     ...data.standard, ...data.destination, ...data.mechanics.hidden,
     ...data.mechanics.events, ...data.mechanics.sponsored, ...data.chains.questsForChains,
+    // Generated content is held to exactly the same bar. It is composed
+    // rather than written, which makes it MORE important to check, not less:
+    // one bad template becomes seventy bad quests.
+    ...generated.quests, ...generated.hidden,
   ];
   const questKeys = new Set(quests.map((q) => q.seedKey));
 
@@ -76,7 +81,7 @@ export function validateSeed(data) {
     }
   }
 
-  for (const q of data.mechanics.hidden) {
+  for (const q of [...data.mechanics.hidden, ...generated.hidden]) {
     const u = q.unlock;
     if (!u) { problems.push(`hidden quest ${q.seedKey}: no unlock rule`); continue; }
     if (u.type === 'country_entered' && !countryCodes.has(u.countryCode)) {
@@ -95,7 +100,7 @@ export function validateSeed(data) {
   }
 
   // A chain step that points nowhere is a dead end a player can walk into.
-  for (const ch of data.chains.chains) {
+  for (const ch of [...data.chains.chains, ...generated.chains]) {
     if (ch.steps.length < 2) problems.push(`chain ${ch.seedKey}: needs at least two steps`);
     for (const step of ch.steps) {
       if (!questKeys.has(step)) problems.push(`chain ${ch.seedKey}: unknown step ${step}`);
