@@ -53,10 +53,15 @@ case "$code" in
   *)                   bad "auth/login -> $code  body: $body" ;;
 esac
 
-# Socket.IO's polling handshake starts with '0{'. Proves the /socket.io route
-# and the WebSocket upgrade path reach the gateway.
-code=$(get "$HOST/socket.io/?EIO=4&transport=polling"); body=$(head -c 60 /tmp/vf.$$ 2>/dev/null)
+# The gateway is declared `transports: ['websocket']`, so Engine.IO answers a
+# polling handshake with 400 "Transport unknown" by design. That response is
+# itself the proof the route is mounted and reaching our app — a proxy that
+# never routed /socket.io would 404 or serve the catch-all instead. Checking
+# for the polling handshake failed a perfectly healthy deploy.
+code=$(get "$HOST/socket.io/?EIO=4&transport=polling"); body=$(head -c 80 /tmp/vf.$$ 2>/dev/null)
 if printf '%s' "$body" | grep -q '^0{'; then ok "socket.io handshake reaches the realtime gateway"
+elif printf '%s' "$body" | grep -q 'Transport unknown'; then
+  ok "socket.io route reaches the gateway (polling refused by design; websocket only)"
 else bad "socket.io/ -> $code  body: $body"; fi
 
 # /docs must not be public in production.
