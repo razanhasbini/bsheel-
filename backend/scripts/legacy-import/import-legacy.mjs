@@ -202,10 +202,21 @@ async function importUserQuests(legacy, target) {
   }
 }
 
-/// Submissions. media_url is carried across verbatim; see STORAGE notes in
-/// ACCESS.md for making those paths resolve. xp_awarded is set from the
-/// status so the reversal paths stay correct, and visibility defaults to
-/// visible for approved work.
+/// Submissions. `media_url` is carried across verbatim and NO media_objects
+/// row is created here, deliberately: copying bytes needs the legacy object
+/// store, which is a different credential and a different failure mode from
+/// this read-only database transaction.
+///
+/// Run `npm run legacy:media` afterwards. Until it has run, an imported
+/// submission points at a path that does not resolve against the new bucket
+/// and has no media record, so signed-URL serving, AI proof verification and
+/// the media quota all silently see nothing (#57).
+///
+/// This comment used to cite "STORAGE notes in ACCESS.md", which has never
+/// contained any. The note is the header of scripts/legacy-import/import-media.mjs.
+///
+/// xp_awarded is set from the status so the reversal paths stay correct, and
+/// visibility defaults to visible for approved work.
 async function importSubmissions(legacy, target) {
   const { rows } = await legacy.query(`
     SELECT s.id, s.user_quest_id, s.user_id, s.media_url, s.media_type::text AS media_type,
