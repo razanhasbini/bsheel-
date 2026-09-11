@@ -5,6 +5,7 @@ import type { Job } from 'bullmq';
 import type { Environment } from '../../../config/environment.js';
 import { SubmissionsService } from '../../submissions/application/submissions.service.js';
 import { SubmissionVerificationService } from '../application/submission-verification.service.js';
+import { AgentRunsRepository } from './agent-runs.repository.js';
 
 interface SubmissionVerifyPayload {
   readonly submissionId: string;
@@ -25,6 +26,7 @@ export class SubmissionVerificationProcessor extends WorkerHost {
     private readonly service: SubmissionVerificationService,
     private readonly submissions: SubmissionsService,
     private readonly config: ConfigService<Environment, true>,
+    private readonly agentRuns: AgentRunsRepository,
   ) {
     super();
   }
@@ -56,10 +58,43 @@ export class SubmissionVerificationProcessor extends WorkerHost {
     if (!outcome.skipped && outcome.decision.decision !== 'HUMAN_REVIEW' && !shadow) {
       const note = outcome.decision.reasons.join(' | ');
       const source = { decision_source: 'openai_agent', agent_run_id: outcome.runId };
-      if (outcome.decision.decision === 'APPROVED') {
-        await this.submissions.approve(null, payload.submissionId, note, source);
-      } else {
-        await this.submissions.reject(null, payload.submissionId, note, source);
+      try {
+        if (outcome.decision.decision === 'APPROVED') {
+          await this.submissions.approve(null, payload.submissionId, note, source);
+        } else {
+          await this.submissions.reject(null, payload.submissionId, note, source);
+        }
+      } catch (error) {
+        // The run is already marked 'succeeded' by the time this branch is
+        // reached — the service records its decision before handing it back,
+        // because it is deliberately not allowed to write to submissions
+        // itself. So an apply that throws leaves a succeeded run whose
+        // decision was never carried out, and BullMQ's retry then finds a
+        // held idempotency key and does nothing at all. The decision is
+        // dropped in silence.
+        //
+        // Marking the run failed is what makes the retry a retry: start()
+        // reclaims a failed row, so the next attempt evaluates and applies
+        // again. Rethrowing is what makes BullMQ attempt it.
+        //
+        // Failing safe either way — the submission stays pending and a
+        // moderator sees it in the ordinary queue — but "safe" and "silent"
+        // are different things, and only one of them is acceptable.
+        await this.agentRuns.fail(
+          outcome.runId,
+          'APPLY_FAILED',
+          error instanceof Error ? error.message : 'Applying the agent decision failed',
+        );
+        this.logger.error(
+          {
+            submissionId: payload.submissionId,
+            runId: outcome.runId,
+            decision: outcome.decision.decision,
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+          },
+          'Agent decision could not be applied; run marked failed so the retry re-evaluates',
+        );
+        throw error;
       }
     }
     this.logger.log(

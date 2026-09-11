@@ -22,8 +22,26 @@ export interface StartAgentRunInput {
 export class AgentRunsRepository {
   constructor(private readonly database: DatabaseService) {}
 
-  /** Returns null when a concurrent caller already claimed this idempotency key. */
-  async start(input: StartAgentRunInput): Promise<AgentRunRecord | null> {
+  /**
+   * Claims this idempotency key for one run, atomically.
+   *
+   * This single statement IS the claim — there is deliberately no read-then-
+   * decide in front of it, because a caller that reads the row first and then
+   * starts has two predicates for one question, and the one that loses is
+   * silent. The read method that used to exist for that purpose is gone
+   * rather than left lying around.
+   *
+   * Returns null when the key is held: either a run succeeded, or another
+   * worker holds a claim that has not yet expired.
+   *
+   * `leaseSeconds` is what makes a killed worker recoverable. The reclaim
+   * clause used to read `WHERE agent_runs.status = 'failed'` alone, so a row
+   * left 'running' by a restart or an OOM could never be started again —
+   * the submission was permanently unevaluable, `start()` returned null, and
+   * the processor logged "nothing to verify" and acknowledged the job. A
+   * claim older than the lease is presumed abandoned and taken.
+   */
+  async start(input: StartAgentRunInput, leaseSeconds: number): Promise<AgentRunRecord | null> {
     const result = await this.database.query<AgentRunRecord>(
       `INSERT INTO agent_runs (kind, subject_type, subject_id, idempotency_key, status, model, prompt_version, policy_version, input_snapshot, started_at)
        VALUES ($1, $2, $3, $4, 'running', $5, $6, $7, $8::jsonb, now())
@@ -35,6 +53,9 @@ export class AgentRunsRepository {
          output = NULL, error_code = NULL, error_message = NULL,
          started_at = now(), completed_at = NULL
        WHERE agent_runs.status = 'failed'
+          OR (agent_runs.status IN ('pending', 'running')
+              AND (agent_runs.started_at IS NULL
+                   OR agent_runs.started_at < now() - make_interval(secs => $9)))
        RETURNING id, status`,
       [
         input.kind,
@@ -45,15 +66,8 @@ export class AgentRunsRepository {
         input.promptVersion,
         input.policyVersion,
         JSON.stringify(input.inputSnapshot),
+        leaseSeconds,
       ],
-    );
-    return result.rows[0] ?? null;
-  }
-
-  async findByIdempotencyKey(idempotencyKey: string): Promise<AgentRunRecord | null> {
-    const result = await this.database.query<AgentRunRecord>(
-      'SELECT id, status FROM agent_runs WHERE idempotency_key = $1',
-      [idempotencyKey],
     );
     return result.rows[0] ?? null;
   }

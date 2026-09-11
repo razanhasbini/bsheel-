@@ -50,6 +50,22 @@ describe('comment notification recipients (e2e)', { timeout: 120_000 }, () => {
     return new Set(result.rows.map((row) => row.id));
   };
 
+  /// Notifications this suite's users gained, restricted to the comment
+  /// domain.
+  ///
+  /// The type filter is what makes the exact-set assertions below stable.
+  /// Scoping to these users is not enough: approving a submission in any
+  /// *other* suite fans `leaderboard_overtaken` out to everyone sitting in
+  /// the overtaken XP band, and these fixtures sit in it like anyone else. A
+  /// fifth row would then appear in a four-row comparison, and the failure
+  /// blamed comment routing for another suite's leaderboard maths — which is
+  /// exactly how this file earned a reputation for being flaky.
+  ///
+  /// Filtering by type rather than by `reference_id` on purpose: several
+  /// cases here assert that the reference points back at the post, and
+  /// filtering on it would make those assertions vacuous.
+  const COMMENT_NOTIFICATION_TYPES = ['new_comment', 'comment_reply', 'mention'];
+
   const since = async (before: Set<string>) => {
     const result = await harness.database.query<{
       id: string;
@@ -59,8 +75,9 @@ describe('comment notification recipients (e2e)', { timeout: 120_000 }, () => {
       reference_id: string | null;
     }>(
       `SELECT id, user_id, type, actor_id, reference_id FROM notifications
-       WHERE user_id = ANY($1::uuid[]) ORDER BY created_at, id`,
-      [everyone.map((user) => user.id)],
+       WHERE user_id = ANY($1::uuid[]) AND type = ANY($2::text[])
+       ORDER BY created_at, id`,
+      [everyone.map((user) => user.id), COMMENT_NOTIFICATION_TYPES],
     );
     return result.rows.filter((row) => !before.has(row.id));
   };

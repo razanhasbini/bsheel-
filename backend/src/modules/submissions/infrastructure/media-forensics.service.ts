@@ -16,7 +16,9 @@ export interface ObjectFacts {
   readonly objectKey: string;
   readonly exif: ExifFacts;
   readonly image: ImageFacts;
-  readonly perceptualHash: PerceptualHash;
+  /// Null when the frame is too flat to fingerprint — see `differenceHash`.
+  /// Null means "cannot be compared perceptually", never "matches nothing".
+  readonly perceptualHash: PerceptualHash | null;
   /// MD5 of the stored bytes, for exact-duplicate matching. Computed here
   /// rather than trusted from the storage ETag, because a multipart upload's
   /// ETag is a hash *of hashes* and is not comparable across objects.

@@ -536,6 +536,7 @@ export interface Database {
     "stage": string | null;
     "relevance": string | null;
     "content_evidence": Json | null;
+    "claimed_at": Timestamp | null;
   };
   "submissions": {
     "id": Generated<string>;

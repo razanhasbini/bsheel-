@@ -57,9 +57,11 @@ export class ProofVerificationService {
     const subject = await this.repository.claim(
       submissionId,
       this.config.get('AI_VERIFICATION_MAX_ATTEMPTS', { infer: true }),
+      this.config.get('AI_VERIFICATION_CLAIM_LEASE_SECONDS', { infer: true }),
     );
     // Null means already analysed, out of attempts, or claimed by another
-    // worker. All three are correct no-ops.
+    // worker whose lease has not expired. All three are correct no-ops —
+    // and the last one is only true now that the claim is a lease.
     if (!subject) return;
 
     if (subject.status !== 'pending') {
