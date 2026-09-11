@@ -51,7 +51,23 @@ export interface HomeModule {
   readonly journeys: readonly JourneyProgress[];
 }
 
+/**
+ * A journey card on Home, from either of two different backend concepts.
+ *
+ * `kind` is the discriminator, and it exists so the two stay separate in the
+ * database while reading as one shelf to a player. A chain is ordered
+ * progression with dependencies; a collection is a themed grouping with no
+ * ordering. Merging the tables would lose that distinction; merging only the
+ * PRESENTATION is what lets Home say "continue your journey" about both.
+ */
 export interface JourneyProgress {
+  /** 'chain' — a multi-stage run. 'collection' — a themed set. */
+  readonly kind: 'chain' | 'collection';
+  /** Present on a chain: the run to continue, and whether this user can. */
+  readonly runId?: string;
+  readonly canContinue?: boolean;
+  readonly nextCheckpointName?: string | null;
+  readonly hasUnseenUnlock?: boolean;
   readonly id: string;
   readonly name: string;
   readonly description: string;

@@ -10,11 +10,13 @@ import { QuestAuthoringRepository } from './infrastructure/quest-authoring.repos
 import { JourneyRepository } from './infrastructure/journey.repository.js';
 import { JourneyProgressionService } from './application/journey-progression.service.js';
 import { JourneyNotifier } from './application/journey-notifier.service.js';
+import { JourneyService } from './application/journey.service.js';
+import { JourneysController } from './presentation/journeys.controller.js';
 import { QuestAssignmentPolicyRepository } from './infrastructure/quest-assignment-policy.repository.js';
 import { QuestMaintenanceService } from './application/quest-maintenance.service.js';
 
 @Module({
-  controllers: [QuestsController, QuestCampaignsController, QuestAuthoringController],
+  controllers: [QuestsController, QuestCampaignsController, QuestAuthoringController, JourneysController],
   providers: [
     QuestsService,
     QuestsRepository,
@@ -26,6 +28,7 @@ import { QuestMaintenanceService } from './application/quest-maintenance.service
     JourneyRepository,
     JourneyProgressionService,
     JourneyNotifier,
+    JourneyService,
   ],
   exports: [
     QuestsService, QuestAssignmentPolicyRepository, QuestMaintenanceService,

@@ -231,6 +231,7 @@ export class DiscoveryRepository {
       [userId, limit],
     );
     return result.rows.map((row) => ({
+      kind: 'collection' as const,
       id: row.id,
       name: row.name,
       description: row.description,
@@ -238,6 +239,72 @@ export class DiscoveryRepository {
       countryName: row.country_name,
       totalQuests: row.total_quests,
       completedQuests: row.completed_quests,
+    }));
+  }
+
+  /**
+   * Live chain runs, as journey cards.
+   *
+   * Chains and collections stay separate tables — ordered progression and
+   * themed grouping are genuinely different things — and are merged only
+   * here, in presentation, so Home can say "continue your journey" about
+   * both without the database pretending they are one concept.
+   */
+  async chainRunsInProgress(userId: string, limit: number): Promise<readonly JourneyProgress[]> {
+    const result = await this.database.query<{
+      run_id: string; chain_id: string; name: string; description: string;
+      total_steps: number; completed_steps: number;
+      next_title: string | null; next_hidden: boolean | null;
+      can_continue: boolean; unseen: boolean;
+    }>(
+      `SELECT r.id AS run_id, r.chain_id, ch.name, ch.description,
+              (SELECT count(*)::int FROM quest_chain_steps cs WHERE cs.chain_id = r.chain_id) AS total_steps,
+              (SELECT count(*)::int FROM quest_chain_steps cs
+                 JOIN user_quests uq ON uq.quest_id = cs.quest_id AND uq.status = 'approved'
+                WHERE cs.chain_id = r.chain_id
+                  AND (uq.user_id = r.owner_user_id OR EXISTS (
+                    SELECT 1 FROM quest_chain_run_participants p
+                    WHERE p.chain_run_id = r.id AND p.user_id = uq.user_id))) AS completed_steps,
+              mine.title AS next_title, mine.is_hidden AS next_hidden,
+              (mine.quest_id IS NOT NULL) AS can_continue,
+              COALESCE(mine.unseen, false) AS unseen
+       FROM quest_chain_runs r
+       JOIN quest_chains ch ON ch.id = r.chain_id
+       LEFT JOIN LATERAL (
+         SELECT u.quest_id, q.title, q.is_hidden, (u.seen_at IS NULL) AS unseen
+         FROM journey_stage_unlocks u
+         JOIN quests q ON q.id = u.quest_id
+         WHERE u.chain_run_id = r.id AND u.target_user_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM user_quests uq
+             WHERE uq.quest_id = u.quest_id AND uq.user_id = $1
+               AND uq.status IN ('assigned', 'submitted', 'approved')
+           )
+         ORDER BY u.step_order LIMIT 1
+       ) mine ON true
+       WHERE r.status = 'active'
+         AND (r.owner_user_id = $1 OR EXISTS (
+           SELECT 1 FROM quest_chain_run_participants p
+           WHERE p.chain_run_id = r.id AND p.user_id = $1))
+       ORDER BY r.started_at DESC NULLS LAST
+       LIMIT $2`,
+      [userId, limit],
+    );
+    return result.rows.map((row) => ({
+      kind: 'chain' as const,
+      id: row.chain_id,
+      runId: row.run_id,
+      name: row.name,
+      description: row.description,
+      countryCode: null,
+      countryName: null,
+      totalQuests: row.total_steps,
+      completedQuests: row.completed_steps,
+      canContinue: row.can_continue,
+      // A hidden checkpoint keeps its name even on the card that offers it —
+      // the tease is the point, and Home is not a place to leak it.
+      nextCheckpointName: row.next_hidden ? null : row.next_title,
+      hasUnseenUnlock: row.unseen && row.can_continue,
     }));
   }
 

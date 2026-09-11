@@ -51,8 +51,9 @@ export class HomeDiscoveryService {
     const signupCountry = verifiedCountry ?? (await this.repository.signupCountry(userId));
     const country = signupCountry ?? (await this.repository.mostPopulatedCountry());
 
-    const [journeys, chains, hidden, limited, flagship, trending, nearby, partner] = await Promise.all([
+    const [collections, chainRuns, chains, hidden, limited, flagship, trending, nearby, partner] = await Promise.all([
       this.repository.journeysInProgress(userId, MODULE_LIMITS.CONTINUE_JOURNEY.max),
+      this.repository.chainRunsInProgress(userId, MODULE_LIMITS.CONTINUE_JOURNEY.max),
       this.repository.chainOpeners(userId, MODULE_LIMITS.MULTI_STAGE.max),
       this.repository.hiddenDiscovered(userId, MODULE_LIMITS.HIDDEN_DISCOVERED.max),
       this.repository.limitedTime(userId, MODULE_LIMITS.LIMITED_TIME.max),
@@ -73,7 +74,10 @@ export class HomeDiscoveryService {
         : [];
 
     const candidates: HomeModule[] = [
-      module('CONTINUE_JOURNEY', 'CONTINUE YOUR JOURNEY', null, [], journeys),
+      // Chains first: a multi-stage journey has a checkpoint waiting, which
+      // is a stronger call to action than progress through a themed set.
+      module('CONTINUE_JOURNEY', 'CONTINUE YOUR JOURNEY', null, [],
+        [...chainRuns, ...collections].slice(0, MODULE_LIMITS.CONTINUE_JOURNEY.max)),
       module('MULTI_STAGE', 'MULTI-STAGE QUESTS',
         'One step opens the next. Each one verified.', chains),
       module('HIDDEN_DISCOVERED', 'HIDDEN QUEST DISCOVERED', 'You found something.', hidden),
