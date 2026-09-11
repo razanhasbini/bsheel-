@@ -61,23 +61,19 @@ export class SubmissionVerificationService {
   /// "gives results back" is a coherent idea: see
   /// `submissionsWithLateGeofenceEvidence` for why location verification and
   /// retrieval are deliberately not retried.
-  async sweepRecoveredEvidence(limit: number): Promise<{ requeued: number }> {
-    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
-      return { requeued: 0 };
-    }
+  async findRecoveredEvidence(limit: number): Promise<readonly {
+    submissionId: string;
+    evidenceGeneration: string;
+  }[]> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return [];
     const pending = await this.agentRuns.submissionsWithLateGeofenceEvidence(limit);
-    let requeued = 0;
-    for (const { submissionId, latestEventId } of pending) {
-      // The event id is the evidence generation: one re-verification per
-      // batch of new events, and a redelivered event re-runs nothing because
-      // it produces the same key.
-      const outcome = await this.verify(submissionId, latestEventId);
-      if (outcome && !outcome.skipped) requeued += 1;
-    }
-    if (requeued > 0) {
-      this.logger.log({ candidates: pending.length, requeued }, 'Re-verified submissions on late geofence evidence');
-    }
-    return { requeued };
+    // The event id is the evidence generation: one re-verification per batch
+    // of new events, and a redelivered event produces the same key and so
+    // re-runs nothing.
+    return pending.map(({ submissionId, latestEventId }) => ({
+      submissionId,
+      evidenceGeneration: latestEventId,
+    }));
   }
 
   /// `evidenceGeneration` re-opens the idempotency key for one more run.
@@ -171,7 +167,15 @@ export class SubmissionVerificationService {
         bounds: context.policy,
       });
       await this.recommendXp(context, submissionId);
-      await this.agentRuns.succeed(run.id, finalized);
+      // Deliberately NOT marked succeeded here. The caller applies the
+      // decision, and a run is only finished once that has happened.
+      //
+      // Marking it here left a window — one await wide — where a worker that
+      // died took the decision with it: the run said 'succeeded', nothing had
+      // been applied, and `start()` will not reclaim a succeeded run, so the
+      // retry short-circuited and the submission waited on a human forever
+      // with no record of why. Leaving it 'running' means the lease reclaims
+      // it, which is exactly what the lease is for.
       return { runId: run.id, decision: finalized };
     } catch (error) {
       this.logger.error({ submissionId, runId: run.id, errorName: error instanceof Error ? error.name : 'UnknownError' }, 'Submission verification run failed');
