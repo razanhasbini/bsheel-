@@ -148,3 +148,93 @@ describe('phone authentication orchestration', () => {
     expect(numberVerification.verifyClaimedNumber).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The gate that decides whether a number may be used as a credential.
+ *
+ * CAMARA Number Verification is the ONLY thing in this app that may conclude
+ * a number belongs to its claimant: `completePhoneCallback` writes
+ * `phone_verified_at` and it writes Nokia's answer, never the user's claim.
+ * Everything downstream trusts that column, so these pin what happens when
+ * it is absent — including for a row somebody wrote by hand, which is how a
+ * Lebanese number ended up in a local database marked verified when Nokia's
+ * simulator will only ever verify +99999991000.
+ */
+const CORRECT_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$HB9fnB0mQAbR93mpNw62vA$uKLv5FJyjszzQcSFDvLEg7HjXKE7eDkqQ/2jd2o21A8';
+
+describe('phone sign-in refuses a number CAMARA never verified', () => {
+  function loginWith(account: Partial<{ phoneVerified: boolean; passwordHash: string | null }>) {
+    const repository = {
+      findAccountByPhone: vi.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000020',
+        email: null,
+        // A REAL argon2 hash of 'RealPassword99'. It has to be real: with a
+        // malformed one argon2 throws and the test passes without the gate
+        // ever being consulted, which is a test that proves nothing.
+        passwordHash: account.passwordHash === undefined ? CORRECT_HASH : account.passwordHash,
+        emailVerified: false,
+        phoneVerified: account.phoneVerified ?? false,
+        status: 'active',
+        tokenVersion: 0,
+        role: 'user',
+      }),
+      findAccountByEmail: vi.fn(),
+      touchLastLogin: vi.fn(),
+      replacePasswordHash: vi.fn(),
+    };
+    const service = new AuthService(
+      repository as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service, repository };
+  }
+
+  it('refuses a password sign-in when the number was never verified', async () => {
+    const { service } = loginWith({ phoneVerified: false, passwordHash: null });
+    // passwordHash null makes this INVALID_CREDENTIALS, which is the right
+    // answer for an account that cannot be signed into at all — and the
+    // point is that it is never a session.
+    await expect(
+      service.login({ phoneNumber: '+96170555001', password: 'CheckPoint4Me' }, {} as never),
+    ).rejects.toThrow();
+  });
+
+  it('refuses even with the CORRECT password when phone_verified_at is absent', async () => {
+    // The case that matters most, and the one that caught a fabricated row:
+    // the password is right, so this fails on the carrier verification
+    // alone. Asserting the specific code is what proves the gate ran rather
+    // than something incidental throwing first.
+    const { service } = loginWith({ phoneVerified: false });
+    let thrown: { getResponse?: () => { code?: string } } | undefined;
+    try {
+      await service.login({ phoneNumber: '+96170555001', password: 'RealPassword99' }, {} as never);
+    } catch (error) {
+      thrown = error as typeof thrown;
+    }
+    expect(thrown, 'an unverified number must never sign in').toBeDefined();
+    expect(thrown!.getResponse!().code).toBe('PHONE_NOT_VERIFIED');
+  });
+
+  it('lets the SAME password through once CAMARA has verified the number', async () => {
+    // The other half, without which the test above would also pass if login
+    // were simply broken: identical credentials, one column different.
+    const { service, repository } = loginWith({ phoneVerified: true });
+    await service.login({ phoneNumber: '+99999991000', password: 'RealPassword99' }, {} as never)
+      .catch(() => undefined);
+    // Reaching touchLastLogin means both the password and the gate passed;
+    // only token issuance (unstubbed JWT) is left.
+    expect(repository.touchLastLogin).toHaveBeenCalledOnce();
+  });
+
+  it('never reads the email path when a phone number was supplied', async () => {
+    // Which identifier was used decides which verification gate applies, so
+    // a phone sign-in must not be able to fall through to the email lookup
+    // and inherit the email gate instead.
+    const { service, repository } = loginWith({ phoneVerified: false });
+    await service.login({ phoneNumber: '+96170555001', password: 'x' }, {} as never)
+      .catch(() => undefined);
+    expect(repository.findAccountByPhone).toHaveBeenCalledOnce();
+    expect(repository.findAccountByEmail).not.toHaveBeenCalled();
+  });
+});
