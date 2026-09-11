@@ -125,6 +125,13 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
   /// CI gets a fresh database; a developer's machine does.
   const removeFixturePlaces = async (): Promise<void> => {
     if (!harness) return;
+    // Telemetry for this run's quests, for the same reason places are
+    // removed: rows left behind change what another suite measures.
+    await harness.database.query(
+      `DELETE FROM analytics_events WHERE quest_id IN
+         (SELECT id FROM quests WHERE title LIKE $1)`,
+      [`%${tag}`],
+    );
     const scoped = 'SELECT id FROM map_places WHERE name LIKE $1';
     const pattern = `%${tag}`;
     for (const table of [
@@ -518,7 +525,7 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
   /// analytics". Before this existed, `businesses.status` was standing in
   /// for entitlement, so every business that existed got the full dashboard.
   describe('the analytics subscription', () => {
-    const routes = ['summary', 'daily', 'quests', 'places', 'countries', 'proof'];
+    const routes = ['summary', 'daily', 'funnel', 'quests', 'places', 'countries', 'proof'];
 
     it('refuses every route for a business that is not subscribed', async () => {
       const unsubscribed = await createBusiness('Not Subscribed', false);
@@ -744,6 +751,131 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
       // Two completions, one person.
       expect(origins.visitors).toBe(1);
       expect((await summaryOf(business)).completions).toBe(2);
+    });
+  });
+
+
+  /// The funnel (#81 §8), and the distinction it exists to preserve.
+  ///
+  /// Exposure is client-attested: a phone reported that it drew a quest
+  /// card and nothing server-side can confirm it. Participation is what the
+  /// server wrote while doing the work. A business reading one as solidly
+  /// as the other is the failure this shape prevents, so they never merge.
+  describe('the funnel', () => {
+    const impression = (questId: string, overrides: Record<string, unknown> = {}) => ({
+      clientEventId: randomUUID(),
+      eventType: 'quest_impression',
+      questId,
+      surface: 'feed',
+      occurredAt: new Date().toISOString(),
+      ...overrides,
+    });
+
+    const funnelOf = async (businessId: string) =>
+      (await harness.get(`/businesses/${businessId}/analytics/funnel`, owner).expect(200))
+        .body.data;
+
+    /// Null, not zero. "No telemetry was reported" is a statement about us;
+    /// "nobody saw it" is a statement about the business, and only one of
+    /// those is ours to make.
+    it('reports no exposure at all rather than zero when nothing was reported',
+        async () => {
+      const businessId = await createBusiness('Funnel No Telemetry');
+      const placeId = await createPlace('Funnel Quiet Place');
+      await claim(businessId, placeId);
+      const questId = await questAt(placeId, 'Funnel Quiet Quest');
+      await submit(questId, { outcome: 'approved' });
+
+      const funnel = await funnelOf(businessId);
+      expect(funnel.exposure).toBeNull();
+      // The server-authoritative half is still there and still correct.
+      expect(funnel.participation.completions).toBe(1);
+      // And every ratio that needs exposure is null rather than invented.
+      expect(funnel.conversion.impressionToView).toBeNull();
+      expect(funnel.conversion.viewToBsheeel).toBeNull();
+    });
+
+    it('counts reported exposure, and reach as people rather than screens',
+        async () => {
+      const businessId = await createBusiness('Funnel With Telemetry');
+      const placeId = await createPlace('Funnel Busy Place');
+      await claim(businessId, placeId);
+      const questId = await questAt(placeId, 'Funnel Busy Quest');
+
+      const viewer = await harness.createUser({ prefix: 'funnelview' });
+      await harness
+        .post('/analytics/events', viewer)
+        .send({
+          events: [
+            impression(questId),
+            impression(questId),
+            impression(questId, { eventType: 'quest_detail_view' }),
+            impression(questId, { eventType: 'quest_bsheeel' }),
+          ],
+        })
+        .expect(202);
+
+      const funnel = await funnelOf(businessId);
+      expect(funnel.exposure.impressions).toBe(2);
+      expect(funnel.exposure.detailViews).toBe(1);
+      expect(funnel.exposure.bsheeels).toBe(1);
+      // Four events, one person.
+      expect(funnel.exposure.reach).toBe(1);
+      expect(funnel.conversion.impressionToView).toBe(0.5);
+    });
+
+    // Scope is membership, here as everywhere: one business must not see
+    // another's impressions.
+    it('counts only exposure at its own places', async () => {
+      const mine = await createBusiness('Funnel Mine');
+      const theirs = await createBusiness('Funnel Theirs');
+      const myPlace = await createPlace('Funnel My Place');
+      const theirPlace = await createPlace('Funnel Their Place');
+      await claim(mine, myPlace);
+      await claim(theirs, theirPlace);
+      const theirQuest = await questAt(theirPlace, 'Funnel Their Quest');
+
+      const viewer = await harness.createUser({ prefix: 'funnelscope' });
+      await harness
+        .post('/analytics/events', viewer)
+        .send({ events: [impression(theirQuest), impression(theirQuest)] })
+        .expect(202);
+
+      expect((await funnelOf(mine)).exposure).toBeNull();
+      expect((await funnelOf(theirs)).exposure.impressions).toBe(2);
+    });
+
+    /// Said in the payload rather than only in a doc, because a client that
+    /// forgets it draws one uniform funnel and a business then reads
+    /// impressions as solidly as completions.
+    it('labels which half of the funnel is which', async () => {
+      const businessId = await createBusiness('Funnel Attestation');
+
+      const funnel = await funnelOf(businessId);
+      expect(funnel.attestation).toEqual({
+        exposure: 'client_reported',
+        participation: 'server_authoritative',
+      });
+    });
+
+    it('takes the same window rules as the daily series', async () => {
+      const businessId = await createBusiness('Funnel Window');
+
+      const ranged = await harness
+        .get(
+          `/businesses/${businessId}/analytics/funnel?from=2026-03-01&to=2026-03-05`,
+          owner,
+        )
+        .expect(200);
+      expect(ranged.body.data.window).toEqual({ from: '2026-03-01', to: '2026-03-05' });
+
+      const reversed = await harness
+        .get(
+          `/businesses/${businessId}/analytics/funnel?from=2026-05-10&to=2026-05-01`,
+          owner,
+        )
+        .expect(400);
+      expect(reversed.body.error.code).toBe('RANGE_REVERSED');
     });
   });
 

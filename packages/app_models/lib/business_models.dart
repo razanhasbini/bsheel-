@@ -293,6 +293,110 @@ class BusinessPlacePerformance {
           lastActivityAt: _dateOrNull(j['lastActivityAt']));
 }
 
+/// The funnel (#81 §8), in two halves that are deliberately not merged.
+///
+/// [exposure] is **client-attested** — a phone reported that it drew a quest
+/// card, and nothing server-side can confirm it. [participation] is what the
+/// server wrote while doing the work. A screen that draws them as one
+/// uniform funnel invites a business to read impressions as solidly as
+/// completions, which is why they arrive separately and carry
+/// [exposureIsClientReported].
+///
+/// [exposure] is null when no telemetry was reported at all. That is not
+/// zero: "nothing was reported" is a statement about Bsheel, "nobody saw it"
+/// is a statement about the business.
+class BusinessFunnel {
+  const BusinessFunnel({
+    required this.from,
+    required this.to,
+    required this.participation,
+    this.exposure,
+    this.impressionToView,
+    this.viewToBsheeel,
+    this.bsheeelToActivation,
+    this.activationToCompletion,
+    this.exposureIsClientReported = true,
+  });
+
+  final String from, to;
+  final BusinessExposure? exposure;
+  final BusinessParticipation participation;
+
+  /// Null wherever the stage above is empty or unreported — never zero,
+  /// which would invite acting on a stage nobody has reached.
+  final double? impressionToView, viewToBsheeel;
+  final double? bsheeelToActivation, activationToCompletion;
+
+  final bool exposureIsClientReported;
+
+  bool get hasExposure => exposure != null;
+
+  factory BusinessFunnel.fromJson(Map<String, dynamic> j) {
+    final window = ((j['window'] as Map?) ?? const {}).cast<String, dynamic>();
+    final conversion =
+        ((j['conversion'] as Map?) ?? const {}).cast<String, dynamic>();
+    final attestation =
+        ((j['attestation'] as Map?) ?? const {}).cast<String, dynamic>();
+    final exposure = j['exposure'] as Map?;
+    return BusinessFunnel(
+      from: (window['from'] as String?) ?? '',
+      to: (window['to'] as String?) ?? '',
+      exposure: exposure == null
+          ? null
+          : BusinessExposure.fromJson(exposure.cast<String, dynamic>()),
+      participation: BusinessParticipation.fromJson(
+          ((j['participation'] as Map?) ?? const {}).cast<String, dynamic>()),
+      impressionToView: (conversion['impressionToView'] as num?)?.toDouble(),
+      viewToBsheeel: (conversion['viewToBsheeel'] as num?)?.toDouble(),
+      bsheeelToActivation:
+          (conversion['bsheeelToActivation'] as num?)?.toDouble(),
+      activationToCompletion:
+          (conversion['activationToCompletion'] as num?)?.toDouble(),
+      // Defaults to the cautious reading if the server ever stops saying.
+      exposureIsClientReported:
+          (attestation['exposure'] as String?) != 'server_authoritative',
+    );
+  }
+}
+
+class BusinessExposure {
+  const BusinessExposure({
+    required this.impressions,
+    required this.detailViews,
+    required this.bsheeels,
+    required this.shares,
+    required this.reach,
+  });
+
+  final int impressions, detailViews, bsheeels, shares;
+
+  /// People, not screens. Impressions counts times a card was drawn.
+  final int reach;
+
+  factory BusinessExposure.fromJson(Map<String, dynamic> j) => BusinessExposure(
+      impressions: (j['impressions'] as num?)?.toInt() ?? 0,
+      detailViews: (j['detailViews'] as num?)?.toInt() ?? 0,
+      bsheeels: (j['bsheeels'] as num?)?.toInt() ?? 0,
+      shares: (j['shares'] as num?)?.toInt() ?? 0,
+      reach: (j['reach'] as num?)?.toInt() ?? 0);
+}
+
+class BusinessParticipation {
+  const BusinessParticipation({
+    required this.activations,
+    required this.completions,
+    required this.visitors,
+  });
+
+  final int activations, completions, visitors;
+
+  factory BusinessParticipation.fromJson(Map<String, dynamic> j) =>
+      BusinessParticipation(
+          activations: (j['activations'] as num?)?.toInt() ?? 0,
+          completions: (j['completions'] as num?)?.toInt() ?? 0,
+          visitors: (j['visitors'] as num?)?.toInt() ?? 0);
+}
+
 /// Where visitors said they were from.
 ///
 /// The three counts are the point. Only visitors who declared a country

@@ -112,6 +112,28 @@ These are the ones a reader can misread, so they are worded deliberately:
 - **A place claimed but not published says so.** It reports no activity at
   all, which otherwise looks like a broken dashboard.
 
+## The funnel, and why it has two halves
+
+`From seen to completed` is drawn as **two separate blocks**, labelled
+"reported by the app" and "recorded by Bsheel". That is not decoration:
+
+- The top half comes from `analytics_events` — a phone told us it drew a
+  quest card or that somebody opened one. **Nothing server-side can confirm
+  it.**
+- The bottom half comes from `user_quests` and `submissions` — what the
+  server wrote while doing the work.
+
+If you ever see them merged into one smooth funnel, that is the bug. A
+business reading an impression as solidly as a completion is exactly what
+the split prevents.
+
+To generate some, open a few quests at the business's place in the app and
+press BSHEEEL on one. Events batch and flush within ten seconds, so give it
+a moment. **Impressions are not measured yet** — accurate counting needs
+visibility detection, and an over-counted impression is worse than none
+because it is shown to a business as a measurement. Reach, opens and
+BSHEEELs are real.
+
 ## Two things that will look broken and are not
 
 **The country panel is empty.** It only counts visitors who have *both* set
@@ -120,6 +142,11 @@ by default. It will say *"None of your N visitors have shared a country
 yet"* — which is the honest answer, not zero visitors. To see it populated,
 set a country and consent on a few accounts that have completed a quest at
 the place.
+
+**The funnel's top half says "the app has not reported any views".** That is
+the honest answer when no telemetry exists for the window — not zero, which
+would be a claim that nobody saw your quests. Open a quest in the app and it
+fills in.
 
 **Private proof is missing from the proof wall, on purpose.** It shows only
 proof its author published to the feed (`show_in_feed`). An approved

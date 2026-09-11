@@ -86,6 +86,19 @@ enum PlaceSort { completions, visitors, saves, name }
 final placeSortProvider =
     StateProvider<PlaceSort>((ref) => PlaceSort.completions);
 
+/// The funnel shares the chart's window, so changing the range moves both
+/// and they cannot disagree about the period on screen.
+final funnelProvider = FutureProvider.autoDispose
+    .family<BusinessFunnel, String>((ref, businessId) {
+  final selection = ref.watch(dailyWindowProvider);
+  return ref.watch(businessRepositoryProvider).funnel(
+        businessId,
+        days: selection.days,
+        from: selection.from,
+        to: selection.to,
+      );
+});
+
 final visitorOriginsProvider = FutureProvider.autoDispose
     .family<BusinessVisitorOrigins, String>((ref, businessId) {
   return ref.watch(businessRepositoryProvider).visitorOrigins(businessId);

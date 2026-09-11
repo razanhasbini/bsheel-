@@ -14,6 +14,7 @@ import '../../data/quest_providers.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../widgets/arcade_page_chrome.dart';
+import '../../../../core/services/analytics_reporter.dart';
 
 /// Quest details, drawn to `export/mobile/06-quest-detail.jpg`.
 ///
@@ -44,6 +45,17 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
     super.initState();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
+    });
+    // #81 §28: a detail view, reported once per opening. Fire-and-forget
+    // and after the first frame, so telemetry can never delay the screen or
+    // fail it. `ref.read` inside initState needs the frame callback.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(analyticsReporterProvider).report(
+            eventType: AnalyticsEvents.questDetailView,
+            questId: widget.questId,
+            surface: AnalyticsSurfaces.questDetail,
+          );
     });
   }
 

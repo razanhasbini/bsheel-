@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from '../analytics/analytics.module.js';
 import { BusinessAccessGuard } from './application/business-access.guard.js';
 import { BusinessAnalyticsGuard } from './application/business-analytics.guard.js';
 import { BusinessAnalyticsService } from './application/business-analytics.service.js';
@@ -15,6 +16,9 @@ import { BusinessController } from './presentation/business.controller.js';
 /// BusinessRepository is exported so the analytics module can resolve a
 /// caller's places without reaching into this module's service.
 @Module({
+  // For AnalyticsEventsRepository: the event store owns ingest, this
+  // module owns the business scoping rules that read it.
+  imports: [AnalyticsModule],
   controllers: [BusinessController, BusinessAnalyticsController, BusinessAdminController],
   providers: [
     BusinessRepository,

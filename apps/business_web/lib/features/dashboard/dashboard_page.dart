@@ -8,6 +8,7 @@ import '../../core/providers/analytics_providers.dart';
 import '../../core/providers/proof_controller.dart';
 import '../../core/providers/session_providers.dart';
 import 'widgets/completion_chart.dart';
+import 'widgets/funnel_section.dart';
 import 'widgets/stat_tile.dart';
 import 'widgets/team_section.dart';
 
@@ -118,6 +119,10 @@ class _Dashboard extends ConsumerWidget {
               _SummarySection(businessId: business.id),
               const SizedBox(height: 28),
               _DailySection(businessId: business.id),
+              const SizedBox(height: 28),
+              // Directly under the chart: it shares the chart's window, so
+              // the two cannot disagree about the period on screen.
+              FunnelSection(businessId: business.id),
               const SizedBox(height: 28),
               _QuestSection(businessId: business.id),
               const SizedBox(height: 28),

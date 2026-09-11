@@ -64,7 +64,8 @@ packages/
 backend/
   src/modules/         auth, profiles, quests, submissions, feed, social,
                        collab, notifications, media, admin, account,
-                       public-intake, search, leaderboard, business, health
+                       public-intake, search, leaderboard, business,
+                       analytics, health
   src/integrations/    telegram
   migrations/          forward-only, checksummed SQL
   test/                unit (*.spec.ts) + integration (*.e2e-spec.ts)
@@ -498,6 +499,59 @@ For someone testing this rather than building it,
 `docs/TESTING_THE_BUSINESS_DASHBOARD.md` is the shorter read — including the
 two things that look broken and are not (an empty country panel, and private
 proof absent from the proof wall).
+
+## The exposure event store (#81 §28)
+
+`analytics_events` exists for one reason: nothing in the schema recorded
+that a quest was ever **seen**. Everything from activation down already has
+an owner — `user_quests` says who started, `submissions` who finished,
+`network_evidence` whether the network agreed — so impressions, detail
+views, BSHEEEL presses and shares were not "not built yet", they were **not
+computable**.
+
+Two rules decide everything about it:
+
+**It stores only what has no other source.** There is no `quest_assigned`
+or `quest_approved` event, because a second source for a fact a table
+already owns drifts from the first. `business-analytics/funnel` assembles
+the funnel from both halves — the top from here, the bottom from the tables
+that own it — and `analytics-events.spec.ts` fails if someone adds an event
+type that duplicates a table.
+
+**What is in here is client-attested.** A phone reports that it drew a quest
+card; nothing server-side can confirm it. Completions are
+server-authoritative. Those are not the same kind of number, so they never
+merge: the funnel response keeps `exposure` and `participation` in separate
+objects, carries an explicit `attestation`, and the dashboard labels the
+reported half *on the figures* rather than in a footnote. `exposure` is
+**null**, not zeroed, when nothing was reported — "nothing was reported" is
+a statement about Bsheel, "nobody saw it" would be a claim about the
+business.
+
+Three smaller things that are load-bearing:
+
+- **Ingest is idempotent** on `(user_id, client_event_id)`, with the id
+  generated client-side. A phone that loses its connection mid-flush
+  resends the same ids, and a resend must not inflate the one figure nobody
+  can audit.
+- **Client clocks are clamped, not trusted** — `clampOccurredAt` pulls a
+  timestamp into ±2h/1min of receipt, and both values are stored so the
+  clamp is visible. A device years out would otherwise put real activity on
+  a day nobody is looking at, which is worse than losing it because it looks
+  like data.
+- **`AnalyticsReporter` never retries and never awaits.** A dropped batch
+  costs a rounding error; a retry queue costs the user battery and
+  eventually replays stale events into the wrong day.
+
+**Impressions are deliberately not emitted yet.** The event type and the
+aggregation exist, but accurate counting needs visibility detection, and an
+over-counted impression is worse than an absent one because a business is
+shown it as a measurement. The dashboard shows reach, opens and BSHEEELs —
+every number on it is one somebody actually reported.
+
+Retention is not implemented. Raw per-user telemetry has no reason to
+outlive the aggregates drawn from it; a rollup plus a delete is the obvious
+next step and should land before this table is large.
 
 ## High-risk invariants
 
