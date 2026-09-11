@@ -32,7 +32,8 @@
     "test:telegram": "node scripts/smoke-telegram.mjs",
     "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
     "proof:eval": "node scripts/proof-eval.mjs",
-    "proof:contract": "node scripts/proof-contract-audit.mjs"
+    "proof:contract": "node scripts/proof-contract-audit.mjs",
+    "proof:backfill": "node scripts/proof-backfill.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

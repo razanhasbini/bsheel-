@@ -226,6 +226,124 @@ export class ProofVerificationRepository {
   }
 
 
+  /// Submissions a **person** decided that carry no verdict, newest first.
+  ///
+  /// The eval set the agent's authority is supposed to be earned from, and
+  /// the only way to have one without waiting. `proof:eval` scores stored
+  /// verdicts against the human decision that followed, and `verify()`
+  /// refuses to analyse anything already reviewed — correctly, since
+  /// spending a vision call on a settled submission buys nothing
+  /// operationally. So the ordinary path can only ever accumulate forward,
+  /// and a database full of moderated history is unreadable to it.
+  ///
+  /// `reviewed_by IS NOT NULL` is what makes these rows ground truth: both
+  /// automated deciders pass a null actor deliberately, so a reviewer id is
+  /// proof a person decided. Newest first because moderation standards
+  /// drift, and a precision number computed against last year's judgement
+  /// describes last year's moderators.
+  async decidedWithoutVerdict(limit: number): Promise<readonly string[]> {
+    const result = await this.database.query<{ id: string }>(
+      `SELECT s.id
+       FROM submissions s
+       LEFT JOIN submission_verifications v
+              ON v.submission_id = s.id AND v.state = 'complete'
+       WHERE s.status IN ('approved', 'rejected')
+         AND s.reviewed_by IS NOT NULL
+         AND s.reviewed_at IS NOT NULL
+         AND s.deleted_at IS NULL
+         AND s.visibility <> 'deleted'
+         AND v.submission_id IS NULL
+       ORDER BY s.reviewed_at DESC
+       LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 500)],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  /// The same read `claim()` performs, without claiming anything.
+  ///
+  /// No attempt increment and no state change, because a backfill is not
+  /// work the pipeline owes anyone — it must not consume the retries a live
+  /// submission would need, and it must be re-runnable.
+  ///
+  /// Returns null unless a person decided this submission. That guard is the
+  /// point rather than caution: scoring a verdict against an automated
+  /// decision measures the agent against itself.
+  async evalSubject(submissionId: string): Promise<VerificationSubject | null> {
+    const result = await this.database.query<VerificationSubject>(
+      `SELECT s.id AS submission_id, 0 AS attempts, s.user_id, s.caption, s.media_url,
+              s.status::text AS status,
+              q.title AS quest_title, q.description AS quest_description,
+              q.category::text AS quest_category
+       FROM submissions s
+       JOIN user_quests uq ON uq.id = s.user_quest_id
+       JOIN quests q ON q.id = uq.quest_id
+       WHERE s.id = $1
+         AND s.status IN ('approved', 'rejected')
+         AND s.reviewed_by IS NOT NULL
+         AND s.deleted_at IS NULL`,
+      [submissionId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /// Stores a backfilled verdict, and alerts nobody.
+  ///
+  /// The difference from `complete()` is the whole reason this exists: that
+  /// method alerts every admin when a verdict is 'unclear', in the same
+  /// transaction, so an escalation cannot be recorded without the alert that
+  /// makes someone look at it. Right for a live submission awaiting review.
+  /// Catastrophic for a backfill — scoring a year of history would notify
+  /// every admin about every old submission the agent found ambiguous, for
+  /// submissions a human settled long ago.
+  ///
+  /// `acted` is hard-coded false rather than passed. A backfilled verdict is
+  /// the cleanest eval data there is: the decision it is scored against was
+  /// already made and recorded before this verdict existed, so it cannot
+  /// have influenced it even in principle.
+  async completeForEval(
+    submissionId: string,
+    analysis: ProofAnalysis,
+    stage: string,
+    verdict: ProofVerdict,
+    durationMs: number,
+  ): Promise<void> {
+    await this.database.query(
+      `INSERT INTO submission_verifications
+         (submission_id, state, verdict, confidence, relevance, content_evidence,
+          rationale, escalation_reason, model, input_tokens, output_tokens,
+          duration_ms, stage, acted, completed_at)
+       VALUES ($1, 'complete', $2::proof_verdict, $3, $4, $5::jsonb,
+               $6, $7, $8, $9, $10, $11, $12, false, now())
+       ON CONFLICT (submission_id) DO UPDATE
+         SET state = 'complete', verdict = EXCLUDED.verdict,
+             confidence = EXCLUDED.confidence, relevance = EXCLUDED.relevance,
+             content_evidence = EXCLUDED.content_evidence,
+             rationale = EXCLUDED.rationale,
+             escalation_reason = EXCLUDED.escalation_reason,
+             model = EXCLUDED.model, input_tokens = EXCLUDED.input_tokens,
+             output_tokens = EXCLUDED.output_tokens, duration_ms = EXCLUDED.duration_ms,
+             stage = EXCLUDED.stage, acted = false,
+             last_error = NULL, completed_at = now()`,
+      [
+        submissionId,
+        verdict,
+        analysis.confidence,
+        analysis.relevance,
+        analysis.observations.length > 0
+          ? JSON.stringify({ observations: analysis.observations.map((item) => ({ ...item })) })
+          : null,
+        analysis.rationale,
+        analysis.escalationReason,
+        analysis.model,
+        analysis.inputTokens,
+        analysis.outputTokens,
+        durationMs,
+        stage,
+      ],
+    );
+  }
+
   /// The private object keys making up a submission's proof, with the window
   /// the attempt ran in.
   ///
