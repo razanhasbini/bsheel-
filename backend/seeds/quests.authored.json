@@ -1,0 +1,149 @@
+[
+  {
+    "seedKey": "bsheel:q:authored-take-a-30-minute-walk-somewhere-new",
+    "title": "Take a 30 minute walk somewhere new",
+    "category": "fitness",
+    "difficulty": "easy",
+    "xpReward": 15,
+    "durationHours": 4,
+    "description": "Pick a street you have never walked down and follow it for half an hour."
+  },
+  {
+    "seedKey": "bsheel:q:authored-do-50-push-ups-before-noon",
+    "title": "Do 50 push-ups before noon",
+    "category": "fitness",
+    "difficulty": "medium",
+    "xpReward": 25,
+    "durationHours": 6,
+    "description": "Split them however you like. Photo of you mid-set."
+  },
+  {
+    "seedKey": "bsheel:q:authored-run-to-the-highest-point-near-you",
+    "title": "Run to the highest point near you",
+    "category": "fitness",
+    "difficulty": "hard",
+    "xpReward": 50,
+    "durationHours": 12,
+    "description": "Find the highest accessible point within walking distance and get there."
+  },
+  {
+    "seedKey": "bsheel:q:authored-draw-the-view-from-your-window",
+    "title": "Draw the view from your window",
+    "category": "creativity",
+    "difficulty": "easy",
+    "xpReward": 15,
+    "durationHours": 4,
+    "description": "Any medium. Ten minutes minimum. It does not have to be good."
+  },
+  {
+    "seedKey": "bsheel:q:authored-write-a-six-word-story-about-today",
+    "title": "Write a six-word story about today",
+    "category": "creativity",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 4,
+    "description": "Exactly six words. Photograph it written by hand."
+  },
+  {
+    "seedKey": "bsheel:q:authored-build-something-from-what-is-in-the-room",
+    "title": "Build something from what is in the room",
+    "category": "creativity",
+    "difficulty": "medium",
+    "xpReward": 30,
+    "durationHours": 8,
+    "description": "No shopping. Use only what is already around you."
+  },
+  {
+    "seedKey": "bsheel:q:authored-compliment-a-stranger-and-mean-it",
+    "title": "Compliment a stranger and mean it",
+    "category": "social",
+    "difficulty": "easy",
+    "xpReward": 15,
+    "durationHours": 4,
+    "description": "Specific, not generic. Tell us how it went."
+  },
+  {
+    "seedKey": "bsheel:q:authored-call-someone-you-have-not-spoken-to-in-a-year",
+    "title": "Call someone you have not spoken to in a year",
+    "category": "social",
+    "difficulty": "medium",
+    "xpReward": 35,
+    "durationHours": 24,
+    "description": "Actually call. Not a text."
+  },
+  {
+    "seedKey": "bsheel:q:authored-eat-lunch-with-someone-new",
+    "title": "Eat lunch with someone new",
+    "category": "social",
+    "difficulty": "hard",
+    "xpReward": 45,
+    "durationHours": 24,
+    "description": "Someone you have never shared a meal with before."
+  },
+  {
+    "seedKey": "bsheel:q:authored-learn-to-say-hello-in-three-new-languages",
+    "title": "Learn to say hello in three new languages",
+    "category": "learning",
+    "difficulty": "easy",
+    "xpReward": 15,
+    "durationHours": 6,
+    "description": "Record yourself saying all three."
+  },
+  {
+    "seedKey": "bsheel:q:authored-read-20-pages-of-something-difficult",
+    "title": "Read 20 pages of something difficult",
+    "category": "learning",
+    "difficulty": "medium",
+    "xpReward": 25,
+    "durationHours": 12,
+    "description": "Something you would not normally pick up."
+  },
+  {
+    "seedKey": "bsheel:q:authored-teach-someone-something-you-know-well",
+    "title": "Teach someone something you know well",
+    "category": "learning",
+    "difficulty": "hard",
+    "xpReward": 40,
+    "durationHours": 24,
+    "description": "Ten minutes, one person, one skill."
+  },
+  {
+    "seedKey": "bsheel:q:authored-watch-the-sunrise",
+    "title": "Watch the sunrise",
+    "category": "adventure",
+    "difficulty": "medium",
+    "xpReward": 30,
+    "durationHours": 24,
+    "description": "Be outside before the sun is up. Photo at first light."
+  },
+  {
+    "seedKey": "bsheel:q:authored-take-a-bus-to-the-end-of-its-route",
+    "title": "Take a bus to the end of its route",
+    "category": "adventure",
+    "difficulty": "medium",
+    "xpReward": 30,
+    "durationHours": 8,
+    "description": "Any line. Ride it to the last stop and look around."
+  },
+  {
+    "seedKey": "bsheel:q:authored-spend-an-hour-with-no-phone",
+    "title": "Spend an hour with no phone",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 20,
+    "durationHours": 4,
+    "description": "Leave it behind. Tell us what you noticed."
+  },
+  {
+    "seedKey": "bsheel:q:authored-the-door-that-only-opens-in-ramadan",
+    "title": "The door that only opens in Ramadan",
+    "category": "adventure",
+    "difficulty": "hard",
+    "xpReward": 450,
+    "durationHours": 24,
+    "place": "bsheel:place:eg-giza",
+    "requiresVerification": true,
+    "editorialTier": "flagship",
+    "description": "Find the side entrance that is unlocked only during the holy month, and photograph the lantern above it."
+  }
+]

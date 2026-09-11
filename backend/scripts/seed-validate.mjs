@@ -29,7 +29,7 @@ export function validateSeed(data) {
 
   const generated = data.generated ?? { quests: [], hidden: [], chains: [] };
   const quests = [
-    ...data.standard, ...data.destination, ...data.mechanics.hidden,
+    ...data.standard, ...(data.authored ?? []), ...data.destination, ...data.mechanics.hidden,
     ...data.mechanics.events, ...data.mechanics.sponsored, ...data.chains.questsForChains,
     // Generated content is held to exactly the same bar. It is composed
     // rather than written, which makes it MORE important to check, not less:

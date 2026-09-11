@@ -31,6 +31,14 @@ const data = {
   countries: read('countries.json'),
   places: read('places.json'),
   standard: read('quests.standard.json'),
+  // Quests authored through the admin console and exported back out, so
+  // content somebody made on their laptop reaches everyone else's. Optional
+  // for the same reason the generated file is: a checkout without it still
+  // seeds the curated catalogue.
+  authored: (() => {
+    try { return read('quests.authored.json'); }
+    catch { return []; }
+  })(),
   destination: read('quests.destination.json'),
   mechanics: read('quests.mechanics.json'),
   chains: read('chains.json'),
@@ -60,6 +68,7 @@ const client = await pool.connect();
 function allQuests() {
   const out = [];
   for (const q of data.standard) out.push({ ...q, kind: 'standard' });
+  for (const q of data.authored) out.push({ ...q, kind: 'authored' });
   for (const q of data.destination) out.push({ ...q, kind: 'destination' });
   for (const q of data.mechanics.hidden) out.push({ ...q, kind: 'hidden', isHidden: true });
   for (const q of data.mechanics.events) out.push({ ...q, kind: 'event' });
