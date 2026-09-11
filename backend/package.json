@@ -33,7 +33,8 @@
     "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
     "proof:eval": "node scripts/proof-eval.mjs",
     "proof:contract": "node scripts/proof-contract-audit.mjs",
-    "proof:backfill": "node scripts/proof-backfill.mjs"
+    "proof:backfill": "node scripts/proof-backfill.mjs",
+    "legacy:media": "node scripts/legacy-import/import-media.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
