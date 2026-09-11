@@ -300,6 +300,12 @@ const environmentSchema = z
     // start()'s ON CONFLICT only reclaimed 'failed' rows, so the submission
     // could never be evaluated again and nothing said why.
     AGENT_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(900),
+    // How often to look for submissions whose geofence evidence arrived after
+    // the agent had already escalated them (#15). Ten minutes: a webhook
+    // backlog clears in minutes, and a submission waiting on one should not
+    // wait on a sweep for much longer than a moderator would have taken.
+    AGENT_RECOVERY_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(600_000),
+    AGENT_RECOVERY_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
       .default('false')

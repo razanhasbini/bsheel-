@@ -51,7 +51,46 @@ export class SubmissionVerificationService {
     @Inject(NETWORK_EVIDENCE_PROVIDER) private readonly networkProvider: NetworkEvidenceProvider,
   ) {}
 
-  async verify(submissionId: string): Promise<SubmissionVerificationOutcome | null> {
+  /// Re-verifies submissions whose geofence evidence arrived after the agent
+  /// had already given up on it (#15).
+  ///
+  /// "fallback to human OR pend them till camara gives results back" — the
+  /// first half has always worked, since every provider failure folds to
+  /// UNAVAILABLE and finalizeDecision turns that into HUMAN_REVIEW rather
+  /// than a rejection. This is the second half, for the one capability where
+  /// "gives results back" is a coherent idea: see
+  /// `submissionsWithLateGeofenceEvidence` for why location verification and
+  /// retrieval are deliberately not retried.
+  async sweepRecoveredEvidence(limit: number): Promise<{ requeued: number }> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
+      return { requeued: 0 };
+    }
+    const pending = await this.agentRuns.submissionsWithLateGeofenceEvidence(limit);
+    let requeued = 0;
+    for (const { submissionId, latestEventId } of pending) {
+      // The event id is the evidence generation: one re-verification per
+      // batch of new events, and a redelivered event re-runs nothing because
+      // it produces the same key.
+      const outcome = await this.verify(submissionId, latestEventId);
+      if (outcome && !outcome.skipped) requeued += 1;
+    }
+    if (requeued > 0) {
+      this.logger.log({ candidates: pending.length, requeued }, 'Re-verified submissions on late geofence evidence');
+    }
+    return { requeued };
+  }
+
+  /// `evidenceGeneration` re-opens the idempotency key for one more run.
+  ///
+  /// Without it a submission gets exactly one verification ever, which is
+  /// right while the evidence is fixed and wrong once new evidence lands. It
+  /// is a discriminator, not a bypass: the same generation still collapses
+  /// to one run, so a redelivered webhook cannot spend a second set of
+  /// CAMARA and model calls.
+  async verify(
+    submissionId: string,
+    evidenceGeneration?: string,
+  ): Promise<SubmissionVerificationOutcome | null> {
     if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
       return { runId: '', decision: this.humanReviewFallback('Automated submission verification is disabled for this deployment.'), skipped: 'DISABLED' };
     }
@@ -66,7 +105,9 @@ export class SubmissionVerificationService {
     }
 
     const promptVersion = this.config.get('OPENAI_AGENT_PROMPT_VERSION', { infer: true });
-    const idempotencyKey = `submission:${submissionId}:verification:${promptVersion}`;
+    const idempotencyKey = evidenceGeneration
+      ? `submission:${submissionId}:verification:${promptVersion}:ev:${evidenceGeneration}`
+      : `submission:${submissionId}:verification:${promptVersion}`;
 
     // `start()` is the claim, and it is the ONLY check. There used to be a
     // `findByIdempotencyKey` read here that short-circuited on anything not

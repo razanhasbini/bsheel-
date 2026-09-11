@@ -32,6 +32,17 @@ export class SubmissionVerificationProcessor extends WorkerHost {
   }
 
   async process(job: Job<Record<string, unknown>, unknown, string>): Promise<void> {
+    // The late-evidence sweep (#15): re-verifies submissions whose geofence
+    // event arrived after the agent had already escalated them. It runs on
+    // this queue rather than its own because it produces exactly the work
+    // this processor already does.
+    if (job.name === 'submission.verify.recovered') {
+      const outcome = await this.service.sweepRecoveredEvidence(
+        this.config.get('AGENT_RECOVERY_SWEEP_BATCH_SIZE', { infer: true }),
+      );
+      this.logger.debug({ jobId: job.id, ...outcome }, 'Late-evidence sweep finished');
+      return;
+    }
     if (job.name !== 'submission.verify') {
       throw new Error(`Unknown submission-verification job: ${job.name}`);
     }

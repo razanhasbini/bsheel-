@@ -343,10 +343,23 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
 
   it('keeps a filter applied across pages', async () => {
     const { ids } = await walk('/submissions/admin?status=pending&order=asc', 2);
-    // Every id returned under status=pending must actually be pending.
+
+    // A row that has since vanished is not a filter violation. Other suites
+    // delete their fixtures on the way out, so a submission can be returned
+    // by the walk and gone by the time it is looked up — which failed here as
+    // `expected undefined to be 'pending'`, reading like the filter had let a
+    // non-pending row through when nothing of the sort had happened.
+    let checked = 0;
     for (const id of ids.slice(0, 10)) {
       const row = await harness.submission(id);
-      expect(row?.status).toBe('pending');
+      if (!row) continue;
+      expect(row.status, `row ${id} came back under status=pending`).toBe('pending');
+      checked += 1;
     }
+
+    // This suite's own fixtures are pending and are never deleted mid-run, so
+    // they guarantee the assertion above actually ran against something.
+    for (const id of owned) expect(ids).toContain(id);
+    expect(checked).toBeGreaterThan(0);
   });
 });

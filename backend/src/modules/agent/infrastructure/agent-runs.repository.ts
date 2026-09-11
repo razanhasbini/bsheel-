@@ -111,6 +111,71 @@ export class AgentRunsRepository {
     );
   }
 
+  /// Submissions whose geofence answer was wrong *at the time* and is not any
+  /// more, because the event arrived late (#15).
+  ///
+  /// The recoverable half of "CAMARA was unavailable". The three mandatory
+  /// capabilities are not equally retryable, and treating them as if they
+  /// were is how a retry becomes a fabrication:
+  ///
+  ///   LOCATION_VERIFICATION and LOCATION_RETRIEVAL ask where the device is
+  ///   **now**, bounded by maxAge. Re-asking tomorrow about a quest that
+  ///   ended yesterday answers a different question, and recording that
+  ///   answer as evidence for the old window would be inventing proof of
+  ///   presence. Those stay with a human, permanently, and that is correct.
+  ///
+  ///   GEOFENCING is the exception, and the only one. Its evidence is not a
+  ///   request at all — it is a replay of entry/exit events the provider
+  ///   POSTed to our webhook and we stored. Those events are *historical*:
+  ///   `occurred_at` is when the device crossed the boundary, `received_at`
+  ///   is when we heard about it. A webhook retry, a provider backlog or an
+  ///   outage on our side separates the two, and an event that lands after
+  ///   the agent ran is genuinely new information about a window that has
+  ///   already closed.
+  ///
+  /// So: a GEOFENCING evidence row that did not support completion, and an
+  /// event for that same assignment received after that evidence was
+  /// observed. The submission must still be pending — once a person has
+  /// decided, late evidence is a matter for an appeal, not a re-run.
+  ///
+  /// Returns the newest event id alongside, which becomes part of the run's
+  /// idempotency key: one re-verification per batch of new evidence, and a
+  /// redelivered event re-runs nothing.
+  async submissionsWithLateGeofenceEvidence(limit: number): Promise<readonly {
+    submissionId: string;
+    latestEventId: string;
+  }[]> {
+    const result = await this.database.query<{ submission_id: string; latest_event_id: string }>(
+      `SELECT ne.submission_id,
+              (SELECT event.id FROM geofencing_events event
+               JOIN geofencing_subscriptions subscription ON subscription.id = event.subscription_id
+               WHERE subscription.user_quest_id = ne.user_quest_id
+                 AND event.received_at > ne.observed_at
+               ORDER BY event.received_at DESC, event.id DESC
+               LIMIT 1) AS latest_event_id
+       FROM network_evidence ne
+       JOIN submissions s ON s.id = ne.submission_id
+       WHERE ne.capability = 'GEOFENCING'
+         AND ne.outcome <> 'SUPPORTED'
+         AND s.status = 'pending'
+         AND s.deleted_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM geofencing_events event
+           JOIN geofencing_subscriptions subscription ON subscription.id = event.subscription_id
+           WHERE subscription.user_quest_id = ne.user_quest_id
+             AND event.received_at > ne.observed_at
+         )
+       GROUP BY ne.submission_id, ne.user_quest_id, ne.observed_at
+       ORDER BY ne.observed_at
+       LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 200)],
+    );
+    return result.rows.map((row) => ({
+      submissionId: row.submission_id,
+      latestEventId: row.latest_event_id,
+    }));
+  }
+
   async recordCvEvidence(runId: string, submissionId: string, evidence: CvEvidence): Promise<void> {
     await this.database.query(
       `INSERT INTO cv_evidence (agent_run_id, submission_id, provider, model_version, status, result, analyzed_at)
