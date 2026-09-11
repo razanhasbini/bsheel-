@@ -248,8 +248,15 @@ export class SubmissionVerificationService {
     if (!model) return this.humanReviewFallback('OPENAI_AGENT_MODEL is not configured.');
 
     const allowedAdditional = this.networkProvider.supportedAdditionalCapabilities;
+    // Only offer a tool that can actually answer. The frame tool was
+    // registered unconditionally while no CV provider implements `getFrame`
+    // — and the local one deliberately returns no key frames to ask about —
+    // so the model carried a tool in its schema on every call whose only
+    // possible reply was "unavailable", and could spend a turn discovering
+    // that. This mirrors how the additional-evidence tool below is already
+    // gated on the provider offering something.
     const tools = [
-      buildCvFrameTool(this.cvProvider),
+      ...(this.cvProvider.getFrame ? [buildCvFrameTool(this.cvProvider)] : []),
       ...(context.quest.destination && allowedAdditional.length > 0
         ? [buildAdditionalNetworkEvidenceTool(this.networkProvider, this.locationQuery(context, phoneNumber), allowedAdditional)]
         : []),

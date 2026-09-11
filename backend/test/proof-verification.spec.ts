@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVerdictPayload, type VerdictPayload } from '../src/modules/submissions/domain/proof-prompt.js';
+import { describeSubmission, parseVerdictPayload, type VerdictPayload } from '../src/modules/submissions/domain/proof-prompt.js';
 import {
   applyConfidenceFloor,
   isSupportedImageType,
@@ -243,5 +243,54 @@ describe('parseVerdictPayload', () => {
       usage,
     );
     expect(result.observations).toEqual([]);
+  });
+});
+
+/// What the vision pass is told about physical presence.
+///
+/// `map_location_evidence` has no writer, so the "no signals" branch fires on
+/// every submission — which makes its exact wording load-bearing rather than
+/// a fallback nobody reads.
+describe('describeSubmission, on physical presence', () => {
+  const request = (signals = {}) => ({
+    questTitle: 'Watch the sunrise from the corniche',
+    questDescription: 'Be there before the sun clears the horizon.',
+    questCategory: 'adventure',
+    evidenceRubric: 'Expect the place or the moment.',
+    verifiability: 'content' as const,
+    forensicNotes: [],
+    caption: null,
+    images: [],
+    unreadableMedia: [],
+    signals,
+  });
+
+  // The regression that mattered. This used to end "If the quest depends on
+  // physical presence, return 'unclear'", which pushed every destination
+  // quest to an escalation for want of evidence the CAMARA agent collects
+  // moments later — poisoning the eval rows that decide whether the agent is
+  // ever allowed to act.
+  it('does not ask for an escalation over evidence it was never given', () => {
+    const text = describeSubmission(request());
+    expect(text).not.toMatch(/return "unclear"/);
+    expect(text).toContain('NOT your question');
+    expect(text).toContain('runs after you');
+  });
+
+  it('tells it plainly not to count the absence against the player', () => {
+    const text = describeSubmission(request());
+    expect(text).toContain('do not count its absence against the player');
+  });
+
+  // The other branch still reports real signals faithfully, for whenever
+  // something does write them.
+  it('reports signals that are present, and calls absent ones absent', () => {
+    const text = describeSubmission(
+      request({ locationVerified: true, geofenceVerified: false }),
+    );
+    expect(text).toContain('location verified: confirmed');
+    expect(text).toContain("inside the quest's geofence: NOT confirmed");
+    expect(text).toContain('location retrieved: not available');
+    expect(text).toContain('never as a failed check');
   });
 });
