@@ -5,6 +5,7 @@ import 'package:app_core/app_core.dart';
 import '../../../../core/utils/account_lock_guard.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../providers/reaction_controller.dart';
+import '../../../../core/services/analytics_reporter.dart';
 
 /// Shows the BSHEEEL popup flow.
 ///
@@ -66,6 +67,20 @@ Future<void> showBsheeelDialog({
 
   // User picked an action — save now, then maybe take the quest.
   await repo.savePost(submissionId, userId);
+
+  // #81 §28: the intent stage. Emitted here rather than at each call site,
+  // and only on a confirmed save — a dismissed dialog is not a BSHEEEL.
+  //
+  // Distinct from `saved_posts`, which is the resulting state: state cannot
+  // tell a business that somebody pressed it, unpressed it and pressed it
+  // again, and intent over time is what they are asking about. An un-save
+  // is deliberately not an event; "how many people took it back" is a
+  // different question nobody has asked for yet.
+  ref.read(analyticsReporterProvider).report(
+        eventType: AnalyticsEvents.questBsheeel,
+        questId: questId,
+        surface: AnalyticsSurfaces.feed,
+      );
   ref.invalidate(
     isPostSavedProvider((submissionId: submissionId, userId: userId)),
   );

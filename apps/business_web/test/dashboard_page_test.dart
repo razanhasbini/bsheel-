@@ -61,6 +61,7 @@ void main() {
     List<BusinessQuestPerformance> quests = const [],
     List<BusinessPlacePerformance> places = const [],
     BusinessDailySeries? series,
+    BusinessFunnel? funnel,
     BusinessVisitorOrigins? origins,
   }) async {
     useTallSurface(tester);
@@ -78,6 +79,14 @@ void main() {
                   from: '2026-09-01', to: '2026-09-07', points: [])),
           questPerformanceProvider.overrideWith((ref, arg) async => quests),
           placePerformanceProvider.overrideWith((ref, arg) async => places),
+          funnelProvider.overrideWith((ref, arg) async =>
+              funnel ??
+              const BusinessFunnel(
+                from: '2026-09-01',
+                to: '2026-09-07',
+                participation: BusinessParticipation(
+                    activations: 0, completions: 0, visitors: 0),
+              )),
           visitorOriginsProvider.overrideWith((ref, arg) async =>
               origins ??
               const BusinessVisitorOrigins(
@@ -350,6 +359,104 @@ void main() {
 
       expect(find.text('30D'), findsOneWidget);
       expect(find.text('DATES'), findsOneWidget);
+    });
+  });
+
+  /// The funnel's whole point is that the two halves are not the same kind
+  /// of number. Exposure is what a phone said it drew; participation is
+  /// what the server recorded.
+  group('the funnel', () {
+    BusinessFunnel funnelWith({
+      BusinessExposure? exposure,
+      int activations = 0,
+      int completions = 0,
+      double? impressionToView,
+      double? bsheeelToActivation,
+    }) =>
+        BusinessFunnel(
+          from: '2026-09-01',
+          to: '2026-09-07',
+          exposure: exposure,
+          participation: BusinessParticipation(
+              activations: activations,
+              completions: completions,
+              visitors: completions),
+          impressionToView: impressionToView,
+          bsheeelToActivation: bsheeelToActivation,
+        );
+
+    /// Not zeroes. "The app has not reported any views" is a statement
+    /// about Bsheel; showing 0 impressions would be a claim about the
+    /// business, and a false one.
+    testWidgets('says nothing was reported rather than showing zeroes',
+        (tester) async {
+      await pump(tester,
+          business: summary(), funnel: funnelWith(completions: 3));
+
+      expect(find.textContaining('has not reported any views'), findsOneWidget);
+      expect(
+          find.textContaining('not the same as nobody seeing'), findsOneWidget);
+      expect(find.text('Times shown'), findsNothing);
+    });
+
+    // The label lives on the numbers. A caveat in a footnote gets quoted
+    // without it.
+    testWidgets('labels the reported half where the figures are',
+        (tester) async {
+      await pump(
+        tester,
+        business: summary(),
+        funnel: funnelWith(
+          exposure: const BusinessExposure(
+              impressions: 100,
+              detailViews: 40,
+              bsheeels: 12,
+              shares: 3,
+              reach: 60),
+          activations: 9,
+          completions: 5,
+          impressionToView: 0.4,
+        ),
+      );
+
+      expect(find.text('reported by the app'), findsOneWidget);
+      expect(find.text('recorded by Bsheel'), findsOneWidget);
+      expect(find.text('100'), findsOneWidget);
+      expect(find.text('40% of times shown'), findsOneWidget);
+    });
+
+    // Impressions counts screens; reach counts people. Conflating them
+    // overstates an audience by however often it scrolled past.
+    testWidgets('keeps screens and people apart', (tester) async {
+      await pump(
+        tester,
+        business: summary(),
+        funnel: funnelWith(
+          exposure: const BusinessExposure(
+              impressions: 100,
+              detailViews: 0,
+              bsheeels: 0,
+              shares: 0,
+              reach: 60),
+        ),
+      );
+
+      expect(find.text('Screens, not people'), findsOneWidget);
+      expect(find.text('60'), findsOneWidget);
+    });
+
+    /// A rate out of an unreported stage is absent, not 0% — which would
+    /// read as a real conversion failure rather than a missing denominator.
+    testWidgets('omits a rate whose denominator was never reported',
+        (tester) async {
+      await pump(tester,
+          business: summary(),
+          funnel: funnelWith(activations: 4, completions: 1));
+
+      expect(find.textContaining('of BSHEEELs'), findsNothing);
+      expect(find.text('0% of BSHEEELs'), findsNothing);
+      // The server-authoritative half is still shown.
+      expect(find.text('4'), findsWidgets);
     });
   });
 }

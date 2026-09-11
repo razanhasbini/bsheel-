@@ -45,6 +45,13 @@ export class BusinessAnalyticsController {
     return this.analytics.places(params.businessId);
   }
 
+  /// The funnel: client-attested exposure above, server-authoritative
+  /// participation below, deliberately not merged.
+  @Get('funnel')
+  funnel(@Param() params: BusinessIdDto, @Query() query: BusinessDailyQueryDto) {
+    return this.analytics.funnel(params.businessId, query);
+  }
+
   /// Where visitors say they are from — aggregate, consented, and above the
   /// reporting threshold only.
   @Get('countries')

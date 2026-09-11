@@ -59,6 +59,16 @@ export interface Database {
     "completed_at": Timestamp | null;
     "created_at": Generated<Timestamp>;
   };
+  "analytics_events": {
+    "id": Generated<string>;
+    "client_event_id": string;
+    "user_id": string;
+    "event_type": string;
+    "quest_id": string;
+    "surface": string;
+    "occurred_at": Timestamp;
+    "received_at": Generated<Timestamp>;
+  };
   "app_config": {
     "key": string;
     "value": Json;

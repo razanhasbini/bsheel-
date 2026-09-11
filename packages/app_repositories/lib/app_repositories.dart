@@ -7,6 +7,7 @@ library;
 
 export 'map/map_repository.dart';
 export 'business/business_repository.dart';
+export 'analytics/analytics_repository.dart';
 
 // ── Transport and composition ────────────────────────────────────────────
 export 'api/api_client.dart';

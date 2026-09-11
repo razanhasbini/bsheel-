@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { BusinessAnalyticsRepository } from '../infrastructure/business-analytics.repository.js';
+import { AnalyticsEventsRepository } from '../../analytics/infrastructure/analytics-events.repository.js';
+import { conversion, type BusinessFunnel } from '../../analytics/domain/analytics-events.js';
 import {
   MAX_DAILY_SPAN_DAYS,
   MIN_REPORTABLE_COHORT,
@@ -13,7 +15,10 @@ import type {
 
 @Injectable()
 export class BusinessAnalyticsService {
-  constructor(private readonly analytics: BusinessAnalyticsRepository) {}
+  constructor(
+    private readonly analytics: BusinessAnalyticsRepository,
+    private readonly events: AnalyticsEventsRepository,
+  ) {}
 
   /// The dashboard's headline figures.
   ///
@@ -55,6 +60,63 @@ export class BusinessAnalyticsService {
 
   visitorOrigins(businessId: string) {
     return this.analytics.visitorOrigins(businessId);
+  }
+
+  /// The funnel (#81 §8), in two halves that are never merged.
+  ///
+  /// `exposure` is client-attested — a phone reported that it drew a card,
+  /// and nothing server-side can confirm it. `participation` is what the
+  /// server wrote while doing the work. Presenting them as one sequence of
+  /// equally solid numbers is the mistake this shape exists to prevent, so
+  /// they stay in separate objects all the way to the screen, and
+  /// `exposure` is **null** rather than zeroed when no telemetry exists:
+  /// "nothing was reported" is a statement about us, "nobody saw it" is a
+  /// statement about the business.
+  async funnel(businessId: string, query: BusinessDailyQueryDto) {
+    const resolved = resolveDailyWindow(
+      { days: query.days, from: query.from, to: query.to },
+      new Date(),
+    );
+    if ('error' in resolved) {
+      throw new BadRequestException({
+        code: resolved.error,
+        message: dailyWindowMessage(resolved.error),
+      });
+    }
+    const [exposure, participation] = await Promise.all([
+      this.events.exposureFor(businessId, resolved.window),
+      this.events.participationFor(businessId, resolved.window),
+    ]);
+    const funnel: BusinessFunnel = { exposure, participation };
+    return {
+      window: resolved.window,
+      ...funnel,
+      /// Ratios only where both ends are known. Every one crossing the
+      /// attested/authoritative boundary is null when exposure is absent,
+      /// rather than inventing a denominator.
+      conversion: {
+        impressionToView: exposure
+          ? conversion(exposure.impressions, exposure.detailViews)
+          : null,
+        viewToBsheeel: exposure
+          ? conversion(exposure.detailViews, exposure.bsheeels)
+          : null,
+        bsheeelToActivation: exposure
+          ? conversion(exposure.bsheeels, participation.activations)
+          : null,
+        activationToCompletion: conversion(
+          participation.activations,
+          participation.completions,
+        ),
+      },
+      /// Said in the payload, not only in a doc, because a client that
+      /// forgets it will draw one uniform funnel and a business will read
+      /// impressions as solidly as completions.
+      attestation: {
+        exposure: 'client_reported',
+        participation: 'server_authoritative',
+      },
+    };
   }
 
   /// Publicly published proof at this business's places, newest first.

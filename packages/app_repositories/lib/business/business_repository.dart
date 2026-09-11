@@ -32,6 +32,11 @@ abstract class BusinessRepository {
   Future<List<BusinessPlacePerformance>> placePerformance(String businessId);
   Future<BusinessVisitorOrigins> visitorOrigins(String businessId);
 
+  /// The funnel. Exposure is client-attested and may be absent entirely;
+  /// participation is server-authoritative. See [BusinessFunnel].
+  Future<BusinessFunnel> funnel(String businessId,
+      {int days = 30, String? from, String? to});
+
   /// Published proof at the business's places. [cursor] continues a page.
   Future<BusinessProofPage> proof(String businessId,
       {int limit = 20, BusinessProofCursor? cursor});
@@ -97,6 +102,16 @@ class ApiBusinessRepository implements BusinessRepository {
       apiObjectList(await _client.get(_analytics(businessId, 'places')))
           .map(BusinessPlacePerformance.fromJson)
           .toList();
+
+  @override
+  Future<BusinessFunnel> funnel(String businessId,
+          {int days = 30, String? from, String? to}) async =>
+      BusinessFunnel.fromJson(
+          apiObject(await _client.get(_analytics(businessId, 'funnel'), query: {
+        'days': days,
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      })));
 
   @override
   Future<BusinessVisitorOrigins> visitorOrigins(String businessId) async =>
