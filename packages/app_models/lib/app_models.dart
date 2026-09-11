@@ -21,3 +21,4 @@ export 'map_models.dart';
 
 export 'discovery/discovery_module.dart';
 export 'discovery/quest_journey.dart';
+export 'discovery/journey_run.dart';
