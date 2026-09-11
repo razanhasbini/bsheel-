@@ -132,6 +132,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('EXPLORE'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    // The world view shows one badge per country, not pins. With no GPS fix
+    // the intro timer flies the camera to Lebanon's places, after which the
+    // pins are on screen.
+    expect(find.bySemanticsLabel(RegExp(r'^Lebanon, ')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2300));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Test landmark'));
     await tester.pumpAndSettle();
     expect(find.text('Fixture description'), findsOneWidget);

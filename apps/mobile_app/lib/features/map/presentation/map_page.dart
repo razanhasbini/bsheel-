@@ -31,22 +31,38 @@ final mapGeometryProvider = FutureProvider<List<CountryGeometry>>((ref) async =>
         jsonDecode(await rootBundle.loadString('assets/map/countries-50m.json'))
             as Map<String, dynamic>));
 
-/// CARTO Voyager without labels: soft colours, no street names, so the pins
-/// and the fog carry the screen. Free with attribution; heavy production
-/// traffic should move to a keyed plan.
-const _tiles =
-    'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png';
+/// Leaflet's own default basemap — the standard OpenStreetMap layer.
+/// flutter_map is Leaflet for Flutter, and this is the layer Leaflet ships
+/// with. The tile usage policy asks for an identifying user agent, which
+/// `userAgentPackageName` sends; sustained production traffic should move to
+/// a hosted tile plan.
+const _tiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const _userAgent = 'com.questapp.mobileApp';
 
 /// An approved quest uncovers the hidden places within this distance — the
-/// same number the server uses, so the cleared circle is exactly the area
-/// that is really open.
+/// same number the server uses, so what the legend promises is exactly the
+/// area that is really open.
 const double _revealRadiusM = 10000;
 
 /// Beirut, before anything is known.
 const _home = LatLng(33.8938, 35.5018);
 
-const _flags = <String, String>{'LB': '🇱🇧', 'QA': '🇶🇦'};
+/// Where the intro starts: the whole world, Middle East roughly centred.
+const _world = LatLng(22, 30);
+const double _worldZoom = 1.2;
+
+/// Below this zoom the board shows one badge per country instead of every
+/// pin — 76 pins on a world view are a smear, one flag per country is a map.
+const double _badgeZoom = 5.5;
+
+/// Any ISO 3166-1 alpha-2 code as its flag emoji, so a country the seed adds
+/// tomorrow needs no table entry here.
+String _flag(String? code) {
+  if (code == null || code.length != 2) return '📍';
+  final upper = code.toUpperCase();
+  return String.fromCharCodes(
+      [for (final unit in upper.codeUnits) 0x1F1E6 + unit - 0x41]);
+}
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -54,7 +70,8 @@ class MapPage extends ConsumerStatefulWidget {
   ConsumerState<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends ConsumerState<MapPage> {
+class _MapPageState extends ConsumerState<MapPage>
+    with SingleTickerProviderStateMixin {
   String? _country, _category;
   String _search = '';
   bool _savedOnly = false;
@@ -68,15 +85,106 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   /// Snapchat-style: the camera rides with the player until they pan.
   bool _follow = false;
-  bool _fittedOnce = false;
   LatLng? _lastFix;
+
+  /// True while the world view is still on screen; the first fix — or the
+  /// intro timer, whichever comes first — flies the camera in.
+  bool _introPending = true;
+  Timer? _introTimer;
+
+  /// Zoomed out enough to show country badges rather than pins.
+  bool _badges = true;
+
+  // ── Camera flight ─────────────────────────────────────────────────────
+  // flutter_map moves the camera in one jump; the flight is a tween over
+  // centre and zoom driven by this controller, so opening the map reads as
+  // "the world, then you", and picking a country reads as travelling to it.
+  late final AnimationController _fly = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..addListener(_onFlyTick);
+  LatLng _flyFrom = _world, _flyTo = _world;
+  double _zoomFrom = _worldZoom, _zoomTo = _worldZoom;
+
+  @override
+  void initState() {
+    super.initState();
+    // If the phone has not produced a fix by then, fly to the quests instead
+    // of leaving the player staring at a grey world.
+    _introTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted && _introPending) _finishIntro(null);
+    });
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _introTimer?.cancel();
+    _fly.dispose();
     _searchController.dispose();
     _map.dispose();
     super.dispose();
+  }
+
+  void _onFlyTick() {
+    final t = Curves.easeInOutCubic.transform(_fly.value);
+    _map.move(
+      LatLng(
+        _flyFrom.latitude + (_flyTo.latitude - _flyFrom.latitude) * t,
+        _flyFrom.longitude + (_flyTo.longitude - _flyFrom.longitude) * t,
+      ),
+      _zoomFrom + (_zoomTo - _zoomFrom) * t,
+    );
+  }
+
+  void _flyToPoint(LatLng target, double zoom,
+      {Duration duration = const Duration(milliseconds: 1400)}) {
+    _flyFrom = _map.camera.center;
+    _zoomFrom = _map.camera.zoom;
+    _flyTo = target;
+    _zoomTo = zoom.clamp(1.0, 18.0);
+    _fly.duration = duration;
+    _fly.forward(from: 0);
+  }
+
+  /// Frame a set of points with room for the header and the nav pill.
+  void _flyToPoints(List<LatLng> points, double navInset,
+      {double maxZoom = 15}) {
+    if (points.isEmpty) return;
+    if (points.length == 1) {
+      _flyToPoint(points.first, 13);
+      return;
+    }
+    final fitted = CameraFit.bounds(
+      bounds: LatLngBounds.fromPoints(points),
+      padding: EdgeInsets.fromLTRB(40, 190, 40, navInset + 70),
+      maxZoom: maxZoom,
+    ).fit(_map.camera);
+    _flyToPoint(fitted.center, fitted.zoom);
+  }
+
+  /// The intro's second half: from the world to the player, or — with no
+  /// fix — to the quests, so the first thing seen is never empty grey.
+  void _finishIntro(LatLng? fix) {
+    if (!_introPending) return;
+    _introPending = false;
+    _introTimer?.cancel();
+    if (fix != null) {
+      _flyToPoint(fix, 12, duration: const Duration(milliseconds: 2600));
+      return;
+    }
+    final everyPlace =
+        ref.read(mapPlacesProvider(mapAllPlacesFilter)).valueOrNull ??
+            const <MapPlace>[];
+    final home = everyPlace.where((p) => p.countryCode == 'LB').toList();
+    final navInset = MediaQuery.of(context).padding.bottom * 0.30 + 78;
+    if (home.isNotEmpty) {
+      _flyToPoints(
+          [for (final p in home) LatLng(p.latitude, p.longitude)], navInset,
+          maxZoom: 9);
+    } else {
+      _flyToPoint(_home, 8, duration: const Duration(milliseconds: 2600));
+    }
   }
 
   MapFilter get _filter => (
@@ -112,27 +220,27 @@ class _MapPageState extends ConsumerState<MapPage> {
             })
         .toList();
     final everyPlace = allPlaces.valueOrNull ?? const <MapPlace>[];
-    final confirmedPoints = [
-      for (final p in everyPlace)
-        if (p.confirmed) LatLng(p.latitude, p.longitude),
-    ];
     final navInset = MediaQuery.of(context).padding.bottom * 0.30 + 78;
 
     final fix = live.point;
     if (fix != null && fix != _lastFix) {
       _lastFix = fix;
-      if (_follow) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _map.move(fix, math.max(_map.camera.zoom, 14));
-        });
-      }
-    }
-    if (!_fittedOnce && rows.isNotEmpty) {
-      _fittedOnce = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _fitTo(rows, navInset);
+        if (!mounted) return;
+        if (_introPending) {
+          _finishIntro(fix);
+        } else if (_follow) {
+          _map.move(fix, math.max(_map.camera.zoom, 14));
+        }
       });
     }
+
+    // Country badges carry the board while zoomed out; the ones with a
+    // selected country step aside so its pins can be seen.
+    final badgeCountries = _badges && _country == null
+        ? countryRows.where((c) => c.total > 0).toList()
+        : const <MapCountry>[];
+    final showPins = !_badges || _country != null;
 
     return Scaffold(
       backgroundColor: QuestColors.osBg,
@@ -142,16 +250,25 @@ class _MapPageState extends ConsumerState<MapPage> {
             child: FlutterMap(
               mapController: _map,
               options: MapOptions(
-                initialCenter: _home,
-                initialZoom: 8,
-                minZoom: 2,
+                initialCenter: _world,
+                initialZoom: _worldZoom,
+                minZoom: 1,
                 maxZoom: 18,
                 backgroundColor: QuestColors.osSurface,
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                 ),
                 onPositionChanged: (camera, hasGesture) {
-                  if (hasGesture && _follow) setState(() => _follow = false);
+                  if (hasGesture) {
+                    if (_fly.isAnimating) _fly.stop();
+                    if (_follow) setState(() => _follow = false);
+                    if (_introPending) {
+                      _introPending = false;
+                      _introTimer?.cancel();
+                    }
+                  }
+                  final badges = camera.zoom < _badgeZoom;
+                  if (badges != _badges) setState(() => _badges = badges);
                 },
               ),
               children: [
@@ -161,58 +278,66 @@ class _MapPageState extends ConsumerState<MapPage> {
                     userAgentPackageName: _userAgent,
                     maxNativeZoom: 19,
                   ),
-                // ── Fog of war ────────────────────────────────────────
-                if (geometry.hasValue && countryRows.isNotEmpty)
+                // ── The grey world and its grids ──────────────────────
+                // One veil over the whole planet; countries with quests get
+                // a grid, cells with an approved quest are cut out of the
+                // veil (colour comes back), and a finished country is cut
+                // out whole.
+                if (geometry.hasValue)
                   PolygonLayer(
-                    polygons: _fogPolygons(
+                    polygons: _boardPolygons(
                       geometry.value!,
                       countryRows,
-                      confirmedPoints,
+                      everyPlace,
                     ),
                   ),
-                CircleLayer(
-                  circles: [
-                    for (final point in confirmedPoints)
-                      CircleMarker(
-                        point: point,
-                        radius: _revealRadiusM,
-                        useRadiusInMeter: true,
-                        color: QuestColors.osSuccess.withAlpha(28),
-                        borderColor: QuestColors.osSuccess.withAlpha(140),
-                        borderStrokeWidth: 1.5,
-                      ),
-                    for (final p in rows)
-                      if (!p.locked)
+                if (showPins && !_badges)
+                  CircleLayer(
+                    circles: [
+                      for (final p in rows)
+                        if (!p.locked)
+                          CircleMarker(
+                            point: LatLng(p.latitude, p.longitude),
+                            radius: p.radiusM.toDouble(),
+                            useRadiusInMeter: true,
+                            color: QuestColors.osPrimary.withAlpha(30),
+                            borderColor: QuestColors.osPrimary.withAlpha(150),
+                            borderStrokeWidth: 1.5,
+                          ),
+                      if (fix != null && (live.accuracyM ?? 0) > 20)
                         CircleMarker(
-                          point: LatLng(p.latitude, p.longitude),
-                          radius: p.radiusM.toDouble(),
+                          point: fix,
+                          radius: live.accuracyM!,
                           useRadiusInMeter: true,
-                          color: QuestColors.osPrimary.withAlpha(30),
-                          borderColor: QuestColors.osPrimary.withAlpha(150),
-                          borderStrokeWidth: 1.5,
+                          color: QuestColors.osCool.withAlpha(35),
+                          borderColor: QuestColors.osCool.withAlpha(90),
+                          borderStrokeWidth: 1,
                         ),
-                    if (fix != null && (live.accuracyM ?? 0) > 20)
-                      CircleMarker(
-                        point: fix,
-                        radius: live.accuracyM!,
-                        useRadiusInMeter: true,
-                        color: QuestColors.osCool.withAlpha(35),
-                        borderColor: QuestColors.osCool.withAlpha(90),
-                        borderStrokeWidth: 1,
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
                 for (final journey in journeys) JourneyRouteLayer(run: journey),
                 MarkerLayer(
                   markers: [
-                    for (final p in rows)
+                    for (final c in badgeCountries)
                       Marker(
-                        point: LatLng(p.latitude, p.longitude),
-                        width: 52,
-                        height: 62,
-                        alignment: Alignment.topCenter,
-                        child: _PlacePin(place: p, onTap: () => _openPlace(p)),
+                        point: _countryAnchor(c, everyPlace, geometry.value),
+                        width: 132,
+                        height: 44,
+                        child: _CountryBadge(
+                          country: c,
+                          onTap: () => _travelTo(c, everyPlace, navInset),
+                        ),
                       ),
+                    if (showPins)
+                      for (final p in rows)
+                        Marker(
+                          point: LatLng(p.latitude, p.longitude),
+                          width: 52,
+                          height: 62,
+                          alignment: Alignment.topCenter,
+                          child:
+                              _PlacePin(place: p, onTap: () => _openPlace(p)),
+                        ),
                     if (fix != null)
                       Marker(
                         point: fix,
@@ -336,7 +461,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                           children: [
                             for (final c in countryRows) ...[
                               _CountryChip(
-                                flag: _flags[c.code] ?? '📍',
+                                flag: _flag(c.code),
                                 name: c.name,
                                 selected: _country == c.code,
                                 onTap: () => _setCountry(
@@ -352,7 +477,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                     if (_country != null) ...[
                       const SizedBox(height: 6),
                       _DiscoverButton(
-                        flag: _flags[_country] ?? '📍',
+                        flag: _flag(_country),
                         name: countryRows
                                 .where((c) => c.code == _country)
                                 .map((c) => c.name)
@@ -407,7 +532,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                   return;
                 }
                 setState(() => _follow = true);
-                _map.move(point, math.max(_map.camera.zoom, 15));
+                _flyToPoint(point, math.max(_map.camera.zoom, 15));
               },
             ),
           ),
@@ -455,7 +580,7 @@ class _MapPageState extends ConsumerState<MapPage> {
               left: 14,
               bottom: navInset + 40,
               child: Text(
-                '© OpenStreetMap · © CARTO',
+                '© OpenStreetMap contributors',
                 style: QuestTypography.osLabelSmall.copyWith(
                   fontSize: 8,
                   height: 1.2,
@@ -486,26 +611,43 @@ class _MapPageState extends ConsumerState<MapPage> {
     setState(() {
       _country = code;
       _follow = false;
-      // Frame the country as soon as its places are known.
-      _fittedOnce = false;
     });
+    if (code == null) {
+      _flyToPoint(_world, _worldZoom + 0.6);
+      return;
+    }
+    final everyPlace =
+        ref.read(mapPlacesProvider(mapAllPlacesFilter)).valueOrNull ??
+            const <MapPlace>[];
+    final navInset = MediaQuery.of(context).padding.bottom * 0.30 + 78;
+    _flyToPoints(
+      [
+        for (final p in everyPlace)
+          if (p.countryCode == code) LatLng(p.latitude, p.longitude),
+      ],
+      navInset,
+      maxZoom: 10,
+    );
   }
 
-  void _fitTo(List<MapPlace> places, double navInset) {
-    if (places.isEmpty) {
-      _map.move(_home, 8);
-      return;
+  /// A badge tap: select the country and travel to its places.
+  void _travelTo(MapCountry c, List<MapPlace> everyPlace, double navInset) {
+    HapticFeedback.selectionClick();
+    _introPending = false;
+    _introTimer?.cancel();
+    setState(() {
+      _country = c.code;
+      _follow = false;
+    });
+    final points = [
+      for (final p in everyPlace)
+        if (p.countryCode == c.code) LatLng(p.latitude, p.longitude),
+    ];
+    if (points.isEmpty) {
+      _flyToPoint(_countryAnchor(c, everyPlace, null), 6);
+    } else {
+      _flyToPoints(points, navInset, maxZoom: 10);
     }
-    final points = [for (final p in places) LatLng(p.latitude, p.longitude)];
-    if (points.length == 1) {
-      _map.move(points.first, 13);
-      return;
-    }
-    _map.fitCamera(CameraFit.bounds(
-      bounds: LatLngBounds.fromPoints(points),
-      padding: EdgeInsets.fromLTRB(40, 170, 40, navInset + 60),
-      maxZoom: 15,
-    ));
   }
 
   Future<void> _openFilters() {
@@ -552,7 +694,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         onQuest: (snippet) {
           // Frame the place under the sheet; the quest itself opens through
           // the normal quest details → BSHEEEL flow, like everywhere else.
-          _map.move(LatLng(snippet.latitude, snippet.longitude),
+          _flyToPoint(LatLng(snippet.latitude, snippet.longitude),
               math.max(_map.camera.zoom, 13));
           context.pushNamed(RouteNames.questDetails,
               pathParameters: {'id': snippet.id});
@@ -564,8 +706,9 @@ class _MapPageState extends ConsumerState<MapPage> {
   Future<void> _openPlace(MapPlace place) async {
     HapticFeedback.lightImpact();
     setState(() => _follow = false);
-    _map.move(LatLng(place.latitude, place.longitude),
-        math.max(_map.camera.zoom, place.locked ? 11 : 14));
+    _flyToPoint(LatLng(place.latitude, place.longitude),
+        math.max(_map.camera.zoom, place.locked ? 11 : 14),
+        duration: const Duration(milliseconds: 700));
     await showModalBottomSheet<void>(
         context: context,
         // Above the shell, so the floating nav pill never covers the sheet.
@@ -651,47 +794,262 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 }
 
-// ── Fog of war ───────────────────────────────────────────────────────────────
+// ── The board: grey world, country grids, colour earned back ────────────────
+//
+// The whole planet sits under one grey veil. A country that has quests is
+// divided into a grid of cells drawn over the veil; every cell holding a
+// place where the player has an APPROVED quest is cut out of the veil, so
+// the real map colour shows through there — square by square, the country
+// comes back. Once every place in the country is confirmed, the veil is cut
+// along the country's real border and the grid disappears: the country is
+// won. Nothing here decides anything — `confirmed` comes from the server's
+// exploration model, this only draws it.
 
-List<Polygon> _fogPolygons(
+/// Veil over everything. Cells and finished countries are its holes.
+const _veilRing = [
+  LatLng(-85, -180),
+  LatLng(-85, 180),
+  LatLng(85, 180),
+  LatLng(85, -180),
+];
+
+List<Polygon> _boardPolygons(
   List<CountryGeometry> geometry,
   List<MapCountry> countries,
-  List<LatLng> confirmed,
+  List<MapPlace> everyPlace,
 ) {
   final byGeometryId = {for (final c in countries) c.geometryId: c};
-  final holes = [for (final point in confirmed) _circleRing(point)];
-  final polygons = <Polygon>[];
+  final holes = <List<LatLng>>[];
+  final overlays = <Polygon>[];
+
   for (final shape in geometry) {
     final country = byGeometryId[shape.id];
     if (country == null || country.total == 0) continue;
-    final explored = country.discovered > 0;
-    for (final ring in shape.rings) {
-      if (ring.length < 4) continue;
-      polygons.add(Polygon(
-        points: [for (final o in ring) LatLng(o.dy, o.dx)],
-        holePointsList: explored ? holes : const [],
-        color: QuestColors.osTextPrimary.withAlpha(explored ? 70 : 150),
-        borderColor: QuestColors.osTextPrimary,
-        borderStrokeWidth: 1.5,
+    final rings = [
+      for (final r in shape.rings)
+        if (r.length >= 4) r
+    ];
+    if (rings.isEmpty) continue;
+    final won = country.confirmed >= country.total;
+
+    // The border, always: this is a country in play.
+    for (final ring in rings) {
+      final points = [for (final o in ring) LatLng(o.dy, o.dx)];
+      overlays.add(Polygon(
+        points: points,
+        color: won
+            ? QuestColors.osSuccess.withAlpha(36)
+            : QuestColors.osPrimary.withAlpha(22),
+        borderColor: won ? QuestColors.osSuccess : QuestColors.osTextPrimary,
+        borderStrokeWidth: won ? 2.5 : 1.5,
+      ));
+      if (won) holes.add(points);
+    }
+    if (won) continue;
+
+    // The grid, only for what is still to be won.
+    final places =
+        everyPlace.where((p) => p.countryCode == country.code).toList();
+    for (final cell in _gridCells(rings, places)) {
+      final ring = cell.ring;
+      if (cell.revealed) {
+        holes.add(ring);
+        overlays.add(Polygon(
+          points: ring,
+          color: QuestColors.osSuccess.withAlpha(40),
+          borderColor: QuestColors.osSuccess,
+          borderStrokeWidth: 2,
+        ));
+      } else {
+        overlays.add(Polygon(
+          points: ring,
+          color: QuestColors.osTextPrimary.withAlpha(0),
+          borderColor: QuestColors.osTextPrimary.withAlpha(70),
+          borderStrokeWidth: 0.8,
+        ));
+      }
+    }
+  }
+
+  return [
+    Polygon(
+      points: _veilRing,
+      holePointsList: holes,
+      color: QuestColors.osTextPrimary.withAlpha(120),
+      borderStrokeWidth: 0,
+    ),
+    ...overlays,
+  ];
+}
+
+class _Cell {
+  const _Cell(this.ring, this.revealed);
+  final List<LatLng> ring;
+  final bool revealed;
+}
+
+/// Squares laid over the country's bounding box, kept where they touch the
+/// country (centre inside a ring, or a place inside the square). The step
+/// adapts to the country so Lebanon gets a handful of cells and Egypt does
+/// not get thousands; a cell is revealed when it holds a confirmed place.
+Iterable<_Cell> _gridCells(List<List<Offset>> rings, List<MapPlace> places) {
+  var minX = double.infinity, minY = double.infinity;
+  var maxX = -double.infinity, maxY = -double.infinity;
+  for (final ring in rings) {
+    for (final o in ring) {
+      if (o.dx < minX) minX = o.dx;
+      if (o.dx > maxX) maxX = o.dx;
+      if (o.dy < minY) minY = o.dy;
+      if (o.dy > maxY) maxY = o.dy;
+    }
+  }
+  final span = math.max(maxX - minX, maxY - minY);
+  final step = (span / 6).clamp(0.15, 2.0);
+  final cells = <_Cell>[];
+  final columns = ((maxX - minX) / step).ceil();
+  final rowsCount = ((maxY - minY) / step).ceil();
+  if (columns * rowsCount > 400) return cells;
+
+  for (var i = 0; i < columns; i++) {
+    for (var j = 0; j < rowsCount; j++) {
+      final x0 = minX + i * step, y0 = minY + j * step;
+      final x1 = x0 + step, y1 = y0 + step;
+      bool inCell(MapPlace p) =>
+          p.longitude >= x0 &&
+          p.longitude < x1 &&
+          p.latitude >= y0 &&
+          p.latitude < y1;
+      final hasPlace = places.any(inCell);
+      if (!hasPlace && !_inside(Offset(x0 + step / 2, y0 + step / 2), rings)) {
+        continue;
+      }
+      cells.add(_Cell(
+        [LatLng(y0, x0), LatLng(y0, x1), LatLng(y1, x1), LatLng(y1, x0)],
+        places.any((p) => p.confirmed && inCell(p)),
       ));
     }
   }
-  return polygons;
+  return cells;
 }
 
-List<LatLng> _circleRing(LatLng centre) {
-  const steps = 48;
-  const dLat = _revealRadiusM / 111320.0;
-  final dLng = _revealRadiusM /
-      (111320.0 *
-          math.cos(centre.latitude * math.pi / 180).abs().clamp(0.01, 1));
-  return [
-    for (var i = 0; i < steps; i++)
-      LatLng(
-        centre.latitude + dLat * math.sin(2 * math.pi * i / steps),
-        centre.longitude + dLng * math.cos(2 * math.pi * i / steps),
+/// Even-odd point-in-polygon over every ring, so islands count and lakes do
+/// not.
+bool _inside(Offset point, List<List<Offset>> rings) {
+  var inside = false;
+  for (final ring in rings) {
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      final a = ring[i], b = ring[j];
+      if ((a.dy > point.dy) != (b.dy > point.dy) &&
+          point.dx < (b.dx - a.dx) * (point.dy - a.dy) / (b.dy - a.dy) + a.dx) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
+
+/// Where a country's badge sits: the middle of its places, which is where
+/// the quests are — a bounding-box centre would put Egypt's badge in the
+/// desert. Falls back to the geometry's centre when no places are loaded.
+LatLng _countryAnchor(
+  MapCountry c,
+  List<MapPlace> everyPlace,
+  List<CountryGeometry>? geometry,
+) {
+  var n = 0;
+  var lat = 0.0, lng = 0.0;
+  for (final p in everyPlace) {
+    if (p.countryCode != c.code) continue;
+    n++;
+    lat += p.latitude;
+    lng += p.longitude;
+  }
+  if (n > 0) return LatLng(lat / n, lng / n);
+  final shape = geometry?.where((g) => g.id == c.geometryId).firstOrNull;
+  if (shape == null) return _home;
+  var count = 0;
+  var x = 0.0, y = 0.0;
+  for (final ring in shape.rings) {
+    for (final o in ring) {
+      count++;
+      x += o.dx;
+      y += o.dy;
+    }
+  }
+  return count == 0 ? _home : LatLng(y / count, x / count);
+}
+
+/// One country on the world view: flag, name, and how much of it is won.
+/// Tap to travel there.
+class _CountryBadge extends StatelessWidget {
+  const _CountryBadge({required this.country, required this.onTap});
+  final MapCountry country;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = country;
+    final won = c.total > 0 && c.confirmed >= c.total;
+    final fraction =
+        c.total == 0 ? 0.0 : (c.confirmed / c.total).clamp(0.0, 1.0);
+    return Semantics(
+      button: true,
+      label: '${c.name}, ${c.confirmed} of ${c.total} places explored',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        // Centred in its marker box so a short name and a long one both
+        // sit on the anchor; the name ellipsises rather than overflowing.
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
+            decoration: BoxDecoration(
+              color: won ? QuestColors.osSuccess : QuestColors.osCard,
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
+              border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: QuestSpacing.cardBorderWidth),
+              boxShadow: QuestSpacing.shadowSm,
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(_flag(c.code),
+                  style: const TextStyle(fontSize: 18, height: 1)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: QuestTypography.osLabelMedium.copyWith(
+                        fontSize: 10,
+                        height: 1,
+                        color: won
+                            ? QuestColors.onAccent(QuestColors.osSuccess)
+                            : QuestColors.osTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    SizedBox(
+                      width: 44,
+                      child: ArcadeMeter(
+                        progress: fraction,
+                        fill: won ? QuestColors.osCard : QuestColors.osSuccess,
+                        height: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ),
       ),
-  ];
+    );
+  }
 }
 
 // ── Pins ─────────────────────────────────────────────────────────────────────
@@ -1414,7 +1772,7 @@ class _DiscoverSheet extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
               Row(children: [
-                Text(_flags[d.code] ?? '📍',
+                Text(_flag(d.code),
                     style: const TextStyle(fontSize: 26, height: 1)),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1905,14 +2263,19 @@ class MapLegend extends StatelessWidget {
             Text('HOW THE MAP WORKS', style: QuestTypography.osDisplaySmall),
             const SizedBox(height: 12),
             Text(
-                'Countries with quests start under fog. Finish a quest and get it approved: '
-                'a ${(_revealRadiusM / 1000).round()} km circle clears and the hidden pins inside it unlock.',
+                'The world starts grey. Countries with quests are drawn as a grid: '
+                'finish a quest there and get it approved, and that square gets its '
+                'colour back. Win every place in a country and the whole country '
+                'lights up. Hidden pins within ${(_revealRadiusM / 1000).round()} km '
+                'of an approved quest unlock too.',
                 style: QuestTypography.osBodyMedium),
             const SizedBox(height: 12),
             for (final entry in {
+              '🇱🇧 🇶🇦': 'A country in play — tap to travel there.',
+              '▦': 'A square still grey: nothing approved here yet.',
               '🏰 🎭 🧭 🏛️': 'A place with quests you can start now.',
               '⏳': 'Your proof is in review.',
-              '🏆': 'Approved — the fog around it is gone.',
+              '🏆': 'Approved — its square is in colour again.',
               '🔒': 'Hidden. Reveal it by finishing a quest nearby.',
               '◯': 'The circle the network checks you against for 📡 quests.',
               '🧑':
