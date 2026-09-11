@@ -483,6 +483,11 @@ the owner, grant the subscription. Dry run by default. The fourth step is
 the one people forget, and without it the owner signs in to
 `ANALYTICS_NOT_SUBSCRIBED` with nothing pointing at the cause.
 
+For someone testing this rather than building it,
+`docs/TESTING_THE_BUSINESS_DASHBOARD.md` is the shorter read — including the
+two things that look broken and are not (an empty country panel, and private
+proof absent from the proof wall).
+
 ## High-risk invariants
 
 These are covered by integration tests in `backend/test/`. If you change one,
