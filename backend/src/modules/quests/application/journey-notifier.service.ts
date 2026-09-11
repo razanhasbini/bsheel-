@@ -6,6 +6,7 @@ export const JOURNEY_NOTIFICATION = {
   stageUnlocked: 'journey_stage_unlocked',
   teammateAdvanced: 'journey_teammate_advanced',
   completed: 'journey_completed',
+  hiddenDiscovered: 'hidden_quest_discovered',
 } as const;
 
 /**
@@ -70,6 +71,23 @@ export class JourneyNotifier {
         runId,
       );
     }
+  }
+
+  /**
+   * The discovery moment for a hidden quest.
+   *
+   * References the QUEST rather than a run: a hidden quest is not
+   * necessarily part of a journey, and the tap should land on the thing
+   * that just opened.
+   */
+  async announceHiddenUnlock(userId: string, title: string, questId: string): Promise<void> {
+    await this.insert(
+      userId,
+      'You found something 🔓',
+      `"${title}" just opened for you.`,
+      JOURNEY_NOTIFICATION.hiddenDiscovered,
+      questId,
+    );
   }
 
   private async displayName(userId: string): Promise<string> {

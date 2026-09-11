@@ -311,6 +311,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       // Journey notifications carry the RUN as their reference, so a tap
       // lands on the journey itself. Sending them to Home and throwing a
       // modal is what left people asking what had changed.
+      // A hidden quest that just opened: land on the quest itself, since it
+      // may belong to no journey at all.
+      case NotificationType.hiddenQuestDiscovered:
+        if (refId != null) {
+          context.pushNamed(RouteNames.questDetails,
+              pathParameters: {'id': refId});
+        } else {
+          context.goNamed(RouteNames.home);
+        }
       case NotificationType.journeyStageUnlocked:
       case NotificationType.journeyTeammateAdvanced:
       case NotificationType.journeyCompleted:

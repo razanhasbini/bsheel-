@@ -431,8 +431,33 @@ export class QuestsRepository {
         `SELECT * FROM quests
          WHERE id = $1 AND is_active = true
            AND (available_from IS NULL OR available_from <= now())
-           AND (available_until IS NULL OR available_until > now())`,
-        [questId],
+           AND (available_until IS NULL OR available_until > now())
+           -- A hidden quest is not assignable until it has actually opened
+           -- for THIS user. The roll never offers one, but this endpoint
+           -- takes an id from the client — exactly the reasoning already
+           -- applied to chain steps above, which was never applied here. A
+           -- guessed or leaked id could take a hidden quest straight past
+           -- the unlock mechanism, and nothing would have noticed.
+           --
+           -- Two mechanisms can open one, and they are separate by design:
+           -- discovery owns generic hidden unlocks (quest_unlock_rules →
+           -- user_quest_unlocks), journeys own stage unlocks
+           -- (journey_stage_unlocks). A hidden later step of a chain is
+           -- opened by its journey and has no user_quest_unlocks row, so a
+           -- gate that knew only the first would have locked every
+           -- multi-stage quest out of its own progression.
+           AND (NOT is_hidden
+             OR EXISTS (
+               SELECT 1 FROM user_quest_unlocks u
+               WHERE u.quest_id = quests.id AND u.user_id = $2
+             )
+             OR EXISTS (
+               SELECT 1 FROM journey_stage_unlocks j
+               JOIN quest_chain_runs r ON r.id = j.chain_run_id
+               WHERE j.quest_id = quests.id AND j.target_user_id = $2
+                 AND r.status = 'active'
+             ))`,
+        [questId, userId],
       );
       const quest = questResult.rows[0];
       if (!quest)

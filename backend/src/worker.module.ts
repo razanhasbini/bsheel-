@@ -20,6 +20,7 @@ import { StreakReminderProcessor } from './modules/profiles/application/streak-r
 import { StreakReminderScheduler } from './modules/profiles/application/streak-reminder.scheduler.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { QuestsModule } from './modules/quests/quests.module.js';
+import { DiscoveryModule } from './modules/discovery/discovery.module.js';
 import { QuestMaintenanceProcessor } from './modules/quests/application/quest-maintenance.processor.js';
 import { QuestMaintenanceScheduler } from './modules/quests/application/quest-maintenance.scheduler.js';
 import { AgentModule } from './modules/agent/agent.module.js';
@@ -39,6 +40,10 @@ import { ProofVerificationScheduler } from './modules/submissions/application/pr
     MediaModule,
     ProfilesModule,
     QuestsModule,
+    // Hidden-quest unlocks are evaluated off submission.approved, in the
+    // worker, so a discovery lands while the player is still standing where
+    // they earned it.
+    DiscoveryModule,
     RedisModule,
     TelegramModule,
     AgentModule,
