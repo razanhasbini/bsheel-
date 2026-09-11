@@ -378,12 +378,47 @@ Four rules worth knowing before changing anything here:
   owner-only, so removing the last one would leave it manageable by nobody
   but an admin.
 
+### The dashboard (#50)
+
+Five read-only endpoints under `businesses/:businessId/analytics` —
+`summary`, `daily`, `quests`, `places`, `proof`. **There is no place-id
+parameter anywhere in them**, and that is the design: the place set is
+derived from membership, so no request can widen its own scope. Keep it
+that way.
+
+- **Aggregates are counts of people, never lists of them.** A business
+  learns that eleven people completed a quest at its address, not who.
+  Cohorts below `MIN_REPORTABLE_COHORT` (5) come back flagged
+  `cohortSuppressed`, because "1 visitor" plus one public feed post at the
+  same place is two facts that together name somebody. Zero is *not*
+  suppressed — it identifies nobody.
+- **`proof` returns only what the author published**, on the feed's exact
+  predicate: approved, `show_in_feed`, `visibility = 'visible'`, not
+  deleted, not moderator-removed. It has to be exact, because `media_url`
+  is an object key and `POST /media/sign` does **not** re-check who may see
+  the submission — so the key *is* the access, and a looser predicate here
+  hands over the bytes of proof its author kept private, with their name
+  attached. Everything this endpoint returns is already visible to every
+  signed-in user on the feed, which is the only reason it is defensible.
+- **Starts come from `user_quests`, not submissions.** Someone who took a
+  quest and never submitted is the whole signal; counting submissions would
+  report perfect follow-through by hiding everyone who gave up.
+  `completionRate` is **null, not zero**, when nobody has started — 0%
+  would rank an untested quest as the worst performer.
+- **`daily` fills empty days with `generate_series`.** Grouping the
+  submissions alone omits quiet days, and a chart drawn from that connects
+  last Tuesday to this Friday with a line that reads as steady traffic.
+- Totals exclude anything the product treats as gone (deleted, `visibility
+  = 'deleted'`, moderator-removed), so the dashboard cannot drift from the
+  feed.
+
 `profiles` has **no country column**, so the "country touristic analytics"
-in #50 has no data source — don't go looking for it. `profiles.analytics_consent_at`
-exists and gates per-user analytics. And a business must only ever see
-proof its author already made public (`show_in_feed` and
-`visibility = 'visible'`): private proof is not a business's to read
-because a quest happened at their address.
+in #50 has no data source — don't go looking for it.
+`profiles.analytics_consent_at` exists and gates per-user analytics.
+
+The join path (`business_places` → `quest_destinations.place_id` →
+`user_quests.quest_id` → `submissions.user_quest_id`) is already covered by
+existing indexes; no new ones were added, and none are needed.
 
 ## High-risk invariants
 
