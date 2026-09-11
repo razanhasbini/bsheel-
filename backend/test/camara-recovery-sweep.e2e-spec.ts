@@ -97,6 +97,17 @@ describe('late CAMARA evidence (e2e)', { timeout: 120_000 }, () => {
   });
 
   afterAll(async () => {
+    // `GET /map/places` is capped at 100 rows, so a place left behind here
+    // pushes another suite's fixture off the first page — and the map suite
+    // then fails to find its own place, for a reason that has nothing to do
+    // with the map. One row per run is enough to get there.
+    if (harness && placeId) {
+      await harness.database.query(
+        'DELETE FROM geofencing_subscriptions WHERE place_id = $1',
+        [placeId],
+      );
+      await harness.database.query('DELETE FROM map_places WHERE id = $1', [placeId]);
+    }
     await harness?.close();
   });
 

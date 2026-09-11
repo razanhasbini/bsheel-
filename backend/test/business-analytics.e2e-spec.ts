@@ -114,7 +114,36 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
     stranger = await harness.createUser({ prefix: 'anstranger' });
   });
 
+
+  /// Removes the places this run created.
+  ///
+  /// Not tidiness — correctness for other suites. `GET /map/places` is
+  /// capped at 100 rows, so every place left behind here pushes somebody
+  /// else's fixture off the first page. Against a long-lived database the
+  /// map suite eventually stops finding its own place and fails for a
+  /// reason that has nothing to do with the map. CI never sees it, because
+  /// CI gets a fresh database; a developer's machine does.
+  const removeFixturePlaces = async (): Promise<void> => {
+    if (!harness) return;
+    const scoped = 'SELECT id FROM map_places WHERE name LIKE $1';
+    const pattern = `%${tag}`;
+    for (const table of [
+      'business_places',
+      'quest_destinations',
+      'saved_map_places',
+      'geofencing_subscriptions',
+      'map_location_evidence',
+    ]) {
+      await harness.database.query(
+        `DELETE FROM ${table} WHERE place_id IN (${scoped})`,
+        [pattern],
+      );
+    }
+    await harness.database.query('DELETE FROM map_places WHERE name LIKE $1', [pattern]);
+  };
+
   afterAll(async () => {
+    await removeFixturePlaces();
     await harness?.close();
   });
 
