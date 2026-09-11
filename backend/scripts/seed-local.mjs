@@ -391,6 +391,153 @@ async function main() {
        ON CONFLICT DO NOTHING`,
     );
 
+
+    // ── A business, with enough activity that every dashboard section has
+    //    something to render (#14, #50, #81 §28).
+    //
+    // Without this a teammate seeds, opens the partner dashboard and sees
+    // an empty screen with no way to tell "nothing seeded" from "broken".
+    //
+    // Rebuilt from scratch every run rather than upserted, because this
+    // script promises to be idempotent and the first version of this block
+    // broke that promise: the partner visitors are not in USERS, so
+    // `--reset` left them behind and a second run added a second place, two
+    // more quests and six more submissions. Counts doubled and the fixture
+    // stopped meaning anything.
+    await client.query(
+      `DELETE FROM users WHERE email LIKE 'partner-visitor-%@bsheel.test'`,
+    );
+    await client.query(`DELETE FROM businesses WHERE slug = 'tawlet-mar-mikhael'`);
+    await client.query(
+      `DELETE FROM quests WHERE title IN
+         ('Fold your first manoushe', 'Find the oldest tool in the kitchen')`,
+    );
+    await client.query(`DELETE FROM map_places WHERE name = 'Tawlet Mar Mikhael'`);
+
+    // The counts below are chosen deliberately: five consented visitors is
+    // the minimum reportable cohort, so the country panel shows a real
+    // bucket instead of its suppression notice, and a sixth visitor with no
+    // country exercises the "undisclosed" line.
+    const businessOwner = userIds.layla;
+    const place = (await client.query(
+      `INSERT INTO map_places (country_code, name, description, city, category,
+                               latitude, longitude, is_published)
+       VALUES ('LB', 'Tawlet Mar Mikhael', 'Seeded partner location.', 'Beirut',
+               'culture', 33.8938, 35.5018, true)
+       RETURNING id`,
+    )).rows[0];
+
+    const business = (await client.query(
+      `INSERT INTO businesses (name, slug, description, contact_email,
+                               status, analytics_subscribed_at, created_by)
+       VALUES ('Tawlet Mar Mikhael', 'tawlet-mar-mikhael',
+               'Seeded partner account for local testing.',
+               'partner@bsheel.test', 'active', now(), $1)
+       RETURNING id`,
+      [userIds.admin],
+    )).rows[0];
+
+    await client.query(
+      `INSERT INTO business_members (business_id, user_id, role)
+       VALUES ($1, $2, 'owner')`,
+      [business.id, businessOwner],
+    );
+    // A manager as well, so the read-only role is testable without an admin.
+    await client.query(
+      `INSERT INTO business_members (business_id, user_id, role)
+       VALUES ($1, $2, 'manager')`,
+      [business.id, userIds.omar],
+    );
+    await client.query(
+      `INSERT INTO business_places (business_id, place_id, linked_by)
+       VALUES ($1, $2, $3)`,
+      [business.id, place.id, userIds.admin],
+    );
+
+    // Two quests at the place: one that people finish, one nobody has
+    // started — which is what makes the "no completion rate" case visible
+    // rather than theoretical.
+    const partnerQuests = [];
+    for (const [title, description] of [
+      ['Fold your first manoushe', 'Watch, then try it yourself. Photo of yours.'],
+      ['Find the oldest tool in the kitchen', 'Ask. Then show us what they said.'],
+    ]) {
+      const row = (await client.query(
+        `INSERT INTO quests (title, description, category, difficulty,
+                             xp_reward, duration_hours, is_active, created_by)
+         VALUES ($1, $2, 'learning', 'easy', 25, 24, true, $3)
+         RETURNING id`,
+        [title, description, userIds.admin],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO quest_destinations (quest_id, place_id) VALUES ($1, $2)`,
+        [row.id, place.id],
+      );
+      partnerQuests.push(row.id);
+    }
+
+    // Visitors. Six complete the first quest; five declare a country and
+    // consent, which is exactly the reporting threshold, and the sixth
+    // leaves the origin panel an "undisclosed" figure to state.
+    const visitorCountries = ['LB', 'LB', 'LB', 'LB', 'LB', null];
+    for (const [index, countryCode] of visitorCountries.entries()) {
+      const visitor = (await client.query(
+        `INSERT INTO users (email, password_hash, email_verified_at, status)
+         VALUES ($1, $2, now(), 'active')
+         RETURNING id`,
+        [`partner-visitor-${index}@bsheel.test`, passwordHash],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO profiles (id, username, display_name, country_code, analytics_consent_at)
+         VALUES ($1, $2, $3, $4, CASE WHEN $4::text IS NULL THEN NULL ELSE now() END)`,
+        [visitor.id, `visitor${index}`, `Visitor ${index + 1}`, countryCode],
+      );
+
+      const assignment = (await client.query(
+        `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
+         VALUES ($1, $2, 'approved', now() - interval '3 days',
+                 now() - interval '2 days')
+         RETURNING id`,
+        [visitor.id, partnerQuests[0]],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO submissions
+           (user_quest_id, user_id, media_url, media_type, caption, status,
+            show_in_feed, visibility, submitted_at, reviewed_at, reviewed_by)
+         VALUES ($1, $2, $3, 'image', 'Seeded partner proof.', 'approved',
+                 $4, 'visible', now() - interval '3 days',
+                 now() - interval '3 days' + interval '2 hours', $5)`,
+        [
+          assignment.id,
+          visitor.id,
+          `submissions/${visitor.id}/${randomUUID()}.jpg`,
+          // One kept off the feed, so the proof wall demonstrates that an
+          // approved-but-private submission still counts as a completion
+          // while its media stays private.
+          index !== 0,
+          userIds.moderator,
+        ],
+      );
+
+      // Exposure telemetry, so the funnel's top half is populated. Client-
+      // attested by definition, and labelled as such on the dashboard.
+      for (const [eventType, howMany] of [
+        ['quest_impression', 4],
+        ['quest_detail_view', 2],
+        ['quest_bsheeel', index < 2 ? 1 : 0],
+      ]) {
+        for (let n = 0; n < howMany; n += 1) {
+          await client.query(
+            `INSERT INTO analytics_events
+               (client_event_id, user_id, event_type, quest_id, surface, occurred_at)
+             VALUES ($1, $2, $3, $4, 'feed', now() - make_interval(days => $5))`,
+            [randomUUID(), visitor.id, eventType, partnerQuests[0], (index % 5) + 1],
+          );
+        }
+      }
+    }
+    log(`business: Tawlet Mar Mikhael — owner layla, manager omar`);
+
     const counts = await client.query(
       `SELECT
          (SELECT count(*) FROM profiles) AS profiles,
@@ -402,13 +549,18 @@ async function main() {
          (SELECT count(*) FROM reactions) AS reactions,
          (SELECT count(*) FROM comments) AS comments,
          (SELECT count(*) FROM follows) AS follows,
-         (SELECT count(*) FROM reports WHERE status = 'pending') AS open_reports`,
+         (SELECT count(*) FROM reports WHERE status = 'pending') AS open_reports,
+         (SELECT count(*) FROM businesses) AS businesses,
+         (SELECT count(*) FROM analytics_events) AS analytics_events`,
     );
     log('\nseeded:', counts.rows[0]);
     log(`\nsign in with any of these — password: ${PASSWORD}`);
     for (const [email, username, , , role] of USERS) {
       log(`  ${email.padEnd(22)} ${username.padEnd(11)} ${role ?? 'user'}`);
     }
+    log('\nthe partner dashboard: sign in as layla (owner) or omar (manager)');
+    log('  cd apps/business_web && flutter run -d chrome \\');
+    log('    --dart-define=API_URL=http://127.0.0.1:3010/api/v1');
   } finally {
     client.release();
     await pool.end();

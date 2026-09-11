@@ -166,6 +166,35 @@ because `?business=<id>` is a query string. Only a deep path
 
 ## Running it locally
 
+**One command gets you a populated dashboard.** `seed-local.mjs` now creates
+a partner account with enough activity that every section has something in
+it — which also means an empty section is a bug rather than an empty
+fixture:
+
+```bash
+cd backend
+npm run db:migrate
+DATABASE_URL=… node scripts/seed-local.mjs --reset
+```
+
+It seeds **Tawlet Mar Mikhael** with `layla` as owner and `omar` as manager
+(password printed at the end), one claimed place, two quests — one that six
+people completed and one nobody has started, so the "no completion rate"
+case is visible — five consented visitors from Lebanon plus a sixth who
+declared nothing, and some exposure telemetry so the funnel's top half is
+populated.
+
+The counts are deliberate. Five consented visitors is exactly the reporting
+threshold, so the country panel shows a real bucket rather than its
+suppression notice, and the sixth gives it an "undisclosed" figure to state.
+One submission is kept off the feed, so the proof wall demonstrates an
+approved-but-private submission counting as a completion while its media
+stays private.
+
+It rebuilds the partner fixtures on every run, so it is safe to re-run.
+
+## Running the apps
+
 ```bash
 cd backend && npm run start:dev          # API on :3010
 cd apps/business_web && flutter run -d chrome \

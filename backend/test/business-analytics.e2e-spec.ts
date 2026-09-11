@@ -115,7 +115,7 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
   });
 
 
-  /// Removes the places this run created.
+  /// Removes the businesses and places this run created.
   ///
   /// Not tidiness — correctness for other suites. `GET /map/places` is
   /// capped at 100 rows, so every place left behind here pushes somebody
@@ -123,7 +123,7 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
   /// map suite eventually stops finding its own place and fails for a
   /// reason that has nothing to do with the map. CI never sees it, because
   /// CI gets a fresh database; a developer's machine does.
-  const removeFixturePlaces = async (): Promise<void> => {
+  const removeFixtures = async (): Promise<void> => {
     if (!harness) return;
     // Telemetry for this run's quests, for the same reason places are
     // removed: rows left behind change what another suite measures.
@@ -147,10 +147,15 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
       );
     }
     await harness.database.query('DELETE FROM map_places WHERE name LIKE $1', [pattern]);
+    // Businesses too. They have no list cap to break, so this is not the
+    // same failure the places leak caused — but `GET admin/businesses` is a
+    // real screen, and a thousand fixtures in it is somebody's afternoon.
+    // Cascades to members and place links.
+    await harness.database.query('DELETE FROM businesses WHERE name LIKE $1', [pattern]);
   };
 
   afterAll(async () => {
-    await removeFixturePlaces();
+    await removeFixtures();
     await harness?.close();
   });
 

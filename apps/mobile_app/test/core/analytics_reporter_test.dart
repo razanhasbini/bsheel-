@@ -100,9 +100,13 @@ void main() {
     reporter.dispose();
   });
 
-  // Events queued while a request is in flight belong to the next batch,
-  // not this one — and must be neither lost nor sent twice.
-  test('keeps events queued during a flush', () async {
+  /// An event queued around a flush must be delivered exactly once. Which
+  /// batch it lands in is not a property worth pinning: since sends are
+  /// serialised, an event queued before the send actually runs joins that
+  /// batch, and one queued after it goes in the next. Both are correct, and
+  /// asserting the boundary would pin an implementation detail instead of
+  /// the thing that matters.
+  test('loses nothing and duplicates nothing around a flush', () async {
     final repository = _FakeAnalytics();
     final reporter = reporterFor(repository);
 
@@ -118,9 +122,10 @@ void main() {
     await inFlight;
     await reporter.flush();
 
-    expect(repository.calls, 2);
-    expect(repository.sent[0].single.questId, 'first');
-    expect(repository.sent[1].single.questId, 'second');
+    final delivered =
+        repository.sent.expand((batch) => batch).map((e) => e.questId).toList();
+    expect(delivered, containsAll(['first', 'second']));
+    expect(delivered, hasLength(2));
     reporter.dispose();
   });
 
@@ -130,6 +135,65 @@ void main() {
   // the server contract is complete; nothing should be sending it.
   test('does not pretend to measure impressions', () {
     expect(AnalyticsEvents.questImpression, 'quest_impression');
+  });
+
+  /// The bug this pins. A boolean "already flushing" guard returned
+  /// immediately *and* left the queue with nothing scheduled, so a burst
+  /// past the batch size stranded the remainder until something else
+  /// happened to flush it. Measured: 25 of 500 events delivered.
+  ///
+  /// It matters most for the highest-volume event. Impressions are not
+  /// emitted yet; when they are, this is the path they take.
+  test('delivers every event in a burst far larger than the batch', () async {
+    final repository = _FakeAnalytics();
+    final reporter = reporterFor(repository);
+
+    for (var i = 0; i < 500; i += 1) {
+      reporter.report(
+          eventType: AnalyticsEvents.questDetailView,
+          questId: 'q$i',
+          surface: AnalyticsSurfaces.feed);
+    }
+    await reporter.flush();
+
+    final delivered = repository.sent.expand((batch) => batch).toList();
+    expect(delivered, hasLength(500));
+    // Every one exactly once: a duplicate would be dropped by the server's
+    // idempotency key, so duplication here hides real loss.
+    expect(delivered.map((e) => e.questId).toSet(), hasLength(500));
+    reporter.dispose();
+  });
+
+  /// The server validates with @IsUUID, so a malformed id 400s the whole
+  /// batch — and nothing in the e2e suite would catch it, because that
+  /// suite generates ids with Node's randomUUID rather than this
+  /// generator.
+  test('generates ids the server will accept, and no duplicates', () async {
+    final repository = _FakeAnalytics();
+    final reporter = reporterFor(repository);
+
+    for (var i = 0; i < 500; i += 1) {
+      reporter.report(
+          eventType: AnalyticsEvents.questBsheeel,
+          questId: 'q',
+          surface: AnalyticsSurfaces.feed);
+    }
+    await reporter.flush();
+
+    final v4 = RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
+    final ids = repository.sent
+        .expand((batch) => batch)
+        .map((e) => e.clientEventId)
+        .toList();
+    expect(ids, hasLength(500));
+    for (final id in ids) {
+      expect(v4.hasMatch(id), isTrue, reason: 'not a v4 UUID: $id');
+    }
+    // A collision is silently dropped by the idempotency key, which loses a
+    // real event rather than duplicating one.
+    expect(ids.toSet(), hasLength(500));
+    reporter.dispose();
   });
 }
 
