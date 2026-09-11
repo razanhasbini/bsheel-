@@ -14,6 +14,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../../../../core/providers/auth_session_provider.dart';
+import '../../../quests/presentation/providers/journey_providers.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/providers/connectivity_provider.dart';
 import '../../../../core/router/route_names.dart';
@@ -416,8 +417,11 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
         ..clearSnackBars()
         ..showSnackBar(const SnackBar(
             content: Text('The timer ran out. This quest has expired.')));
-      // Trigger a refresh so the home page flips to expired state.
+      // Trigger a refresh so the home page flips to expired state — and
+      // the journey with it, since an expired checkpoint changes what the
+      // timeline should be offering.
       ref.invalidate(activeQuestProvider);
+      ref.invalidate(activeJourneysProvider);
       return;
     }
 
@@ -488,6 +492,11 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
           .proofSubmitted(widget.userQuestId, urls.length);
       ref.invalidate(userSubmissionsProvider);
       ref.invalidate(activeQuestProvider);
+      // The journey has to hear about this too. Without it the checkpoint
+      // timeline keeps painting whatever it painted before the submission,
+      // so a checkpoint that is now awaiting review still shows as the one
+      // you can act on — or worse, as done.
+      ref.invalidate(activeJourneysProvider);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context)

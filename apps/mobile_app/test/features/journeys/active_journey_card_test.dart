@@ -24,6 +24,7 @@ Future<void> pump(WidgetTester tester, JourneyRun journey) async {
 }
 
 void main() {
+  underReviewNeverLooksDone();
   testWidgets('a journey survives its first checkpoint being approved',
       (tester) async {
     await pump(
@@ -137,5 +138,56 @@ void main() {
     // server would refuse.
     expect(find.text('WAITING FOR @TAYSEER'), findsOneWidget);
     expect(find.text('CONTINUE JOURNEY'), findsNothing);
+  });
+}
+
+/// A checkpoint awaiting a decision must never look finished.
+///
+/// The rule the product asks for: submitted is YELLOW and says pending; only
+/// an approval turns it green. Getting this wrong tells somebody their quest
+/// was accepted when a moderator has not looked at it yet, and they stop
+/// waiting for the answer.
+void underReviewNeverLooksDone() {
+  testWidgets('a submitted checkpoint is pending, not a green tick',
+      (tester) async {
+    await pump(
+      tester,
+      JourneyRun.fromJson(run(
+        completed: 1,
+        stages: [
+          stage(1, 'COMPLETED', title: 'Old Souk'),
+          stage(2, 'UNDER_REVIEW', yours: true, title: 'Byblos Castle'),
+          stage(3, 'LOCKED'),
+        ],
+      )),
+    );
+
+    // The card says it in words…
+    expect(find.text('UNDER REVIEW'), findsOneWidget);
+    // …and offers nothing to press, because there is nothing to do yet.
+    expect(find.text('CONTINUE JOURNEY'), findsNothing);
+
+    // And the rail carries the real state through rather than flattening
+    // it — one completed, one pending, one locked.
+    final rail = tester.widget<CheckpointRail>(find.byType(CheckpointRail));
+    expect(rail.stages[0].state, StageState.completed);
+    expect(rail.stages[1].state, StageState.underReview);
+    expect(rail.stages[2].state, StageState.locked);
+  });
+
+  testWidgets('progress does not count a checkpoint still under review',
+      (tester) async {
+    final journey = JourneyRun.fromJson(run(
+      completed: 1,
+      stages: [
+        stage(1, 'COMPLETED', title: 'Old Souk'),
+        stage(2, 'UNDER_REVIEW', yours: true, title: 'Byblos Castle'),
+        stage(3, 'LOCKED'),
+      ],
+    ));
+    await pump(tester, journey);
+    // One of three, not two: submitting is not finishing.
+    expect(journey.completedSteps, 1);
+    expect(find.text('STAGE 2 OF 3'), findsOneWidget);
   });
 }
