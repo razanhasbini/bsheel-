@@ -245,7 +245,7 @@ export class JourneyRepository {
       requires_verification: boolean | null;
       difficulty: string; duration_hours: number;
       completed_at: Date | null; submission_id: string | null;
-      approved: boolean; submitted: boolean;
+      approved: boolean; submitted: boolean; assigned: boolean;
       unlocked_for: string | null; unlock_seen: boolean;
       target_username: string | null;
     }>(
@@ -264,6 +264,8 @@ export class JourneyRepository {
                         AND (uq.user_id = $2 OR EXISTS (
                           SELECT 1 FROM quest_chain_run_participants pp
                           WHERE pp.chain_run_id = $1 AND pp.user_id = uq.user_id))) AS submitted,
+              EXISTS (SELECT 1 FROM user_quests uq WHERE uq.quest_id = q.id
+                        AND uq.status = 'assigned' AND uq.user_id = $2) AS assigned,
               u.target_user_id::text AS unlocked_for,
               (u.seen_at IS NOT NULL) AS unlock_seen,
               pr.username::text AS target_username
@@ -296,11 +298,15 @@ export class JourneyRepository {
         ? 'COMPLETED'
         : row.submitted
           ? 'UNDER_REVIEW'
+          // Already started by this viewer, timer running. Distinct from
+          // AVAILABLE because "start" is the wrong verb for it.
+          : row.assigned
+            ? 'IN_PROGRESS'
           // Step 1 is the entry point; an any-order chain gates nothing.
-          : row.unlocked_for !== null || row.step_order === 1 ||
-            run.completion_rule === 'all_steps_any_order'
-            ? 'AVAILABLE'
-            : 'LOCKED';
+            : row.unlocked_for !== null || row.step_order === 1 ||
+              run.completion_rule === 'all_steps_any_order'
+              ? 'AVAILABLE'
+              : 'LOCKED';
 
       if (isYours && !row.unlock_seen && state === 'AVAILABLE') {
         unseenUnlock = { stepOrder: row.step_order, questId: row.quest_id };
@@ -310,7 +316,11 @@ export class JourneyRepository {
       // safe to show; anything still to come is only theirs to read if it is
       // not hidden, or if it has opened for them specifically.
       const mayReadContent =
-        state === 'COMPLETED' || (!row.is_hidden && state !== 'LOCKED') || (isYours && state === 'AVAILABLE');
+        state === 'COMPLETED' ||
+        state === 'IN_PROGRESS' ||
+        state === 'UNDER_REVIEW' ||
+        (!row.is_hidden && state !== 'LOCKED') ||
+        (isYours && state === 'AVAILABLE');
 
       return {
         stepOrder: row.step_order,
@@ -336,7 +346,12 @@ export class JourneyRepository {
     });
 
     const completedSteps = stages.filter((s) => s.state === 'COMPLETED').length;
-    const nextForViewer = stages.find((s) => s.isYours && s.state === 'AVAILABLE') ?? null;
+    // A checkpoint already under way is what the viewer should be pointed
+    // at, ahead of one merely open — it has a timer running on it.
+    const nextForViewer =
+      stages.find((s) => s.state === 'IN_PROGRESS') ??
+      stages.find((s) => s.isYours && s.state === 'AVAILABLE') ??
+      null;
 
     return {
       runId: run.run_id,

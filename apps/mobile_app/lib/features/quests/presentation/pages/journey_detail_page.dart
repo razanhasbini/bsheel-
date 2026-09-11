@@ -235,6 +235,11 @@ class _VerticalStage extends StatelessWidget {
           QuestColors.osSuccess,
           'COMPLETED'
         ),
+      StageState.inProgress => (
+          Icons.play_arrow_rounded,
+          QuestColors.osPrimary,
+          'IN PROGRESS'
+        ),
       StageState.underReview => (
           Icons.hourglass_top_rounded,
           QuestColors.osAccent,
@@ -467,8 +472,12 @@ class _CurrentCheckpoint extends StatelessWidget {
           ],
           const SizedBox(height: QuestSpacing.md),
           ArcadeButton(
-            label: starting ? 'STARTING…' : 'START CHECKPOINT',
-            isLoading: starting,
+            label: stage.state == StageState.inProgress
+                ? 'GO TO CHECKPOINT'
+                : starting
+                    ? 'STARTING…'
+                    : 'START CHECKPOINT',
+            isLoading: starting && stage.state != StageState.inProgress,
             onTap: starting ? null : onStart,
           ),
           if (stage.hasCoordinates) ...[

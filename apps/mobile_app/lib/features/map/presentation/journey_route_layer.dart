@@ -89,6 +89,9 @@ class _CheckpointMarker extends StatelessWidget {
     final tint = switch (state) {
       StageState.completed => QuestColors.osSuccess,
       StageState.underReview => QuestColors.osAccent,
+      // A checkpoint under way is the one to walk to, so it reads like the
+      // next one rather than like a pin you have not reached.
+      StageState.inProgress => QuestColors.osPrimary,
       StageState.available =>
         isNext ? QuestColors.osPrimary : QuestColors.osTextMuted,
       StageState.locked => QuestColors.osTextMuted,

@@ -1,5 +1,13 @@
 /** A checkpoint's state for one viewer, resolved server-side. */
-export type StageState = 'COMPLETED' | 'UNDER_REVIEW' | 'AVAILABLE' | 'LOCKED';
+/// `IN_PROGRESS` is distinct from `AVAILABLE` on purpose: a checkpoint you
+/// have already started has a timer running, and offering to start it again
+/// produces a button that fails. The app needs to say "return to it".
+export type StageState =
+  | 'COMPLETED'
+  | 'UNDER_REVIEW'
+  | 'IN_PROGRESS'
+  | 'AVAILABLE'
+  | 'LOCKED';
 
 export type RunStatus = 'forming' | 'active' | 'completed' | 'abandoned' | 'expired';
 

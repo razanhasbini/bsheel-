@@ -185,13 +185,24 @@ class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
       return _Secondary(label: 'VIEW COMPLETED JOURNEY', onTap: widget.onOpen);
     }
     if (run.canContinue) {
+      // Already started, timer running. Offering START here is what made
+      // the button fail — the server has nothing left to assign.
+      final resume = run.isInProgress;
       return Row(
         children: [
           Expanded(
             child: ArcadeButton(
-              label: _starting ? 'STARTING…' : 'CONTINUE JOURNEY',
-              isLoading: _starting,
-              onTap: _starting ? null : () => _continue(run.nextForViewer!),
+              label: resume
+                  ? 'RETURN TO CHECKPOINT'
+                  : _starting
+                      ? 'STARTING…'
+                      : 'CONTINUE JOURNEY',
+              isLoading: _starting && !resume,
+              onTap: _starting
+                  ? null
+                  : resume
+                      ? widget.onOpen
+                      : () => _continue(run.nextForViewer!),
             ),
           ),
           if (widget.onOpenMap != null &&
@@ -308,6 +319,7 @@ class _AnyOrderSummary extends StatelessWidget {
               Icon(
                 switch (stage.state) {
                   StageState.completed => Icons.check_circle_rounded,
+                  StageState.inProgress => Icons.play_circle_fill_rounded,
                   StageState.underReview => Icons.hourglass_top_rounded,
                   StageState.available => Icons.radio_button_checked,
                   StageState.locked => Icons.lock_rounded,
@@ -315,6 +327,7 @@ class _AnyOrderSummary extends StatelessWidget {
                 size: 14,
                 color: switch (stage.state) {
                   StageState.completed => QuestColors.osSuccess,
+                  StageState.inProgress => QuestColors.osPrimary,
                   StageState.underReview => QuestColors.osAccent,
                   StageState.available => QuestColors.osPrimary,
                   StageState.locked => QuestColors.osTextMuted,

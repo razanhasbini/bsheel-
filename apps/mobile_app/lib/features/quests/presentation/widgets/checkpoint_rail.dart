@@ -200,6 +200,7 @@ class _RailPainter extends CustomPainter {
     final tint = switch (state) {
       StageState.completed => QuestColors.osSuccess,
       StageState.underReview => QuestColors.osAccent,
+      StageState.inProgress => QuestColors.osPrimary,
       StageState.available => QuestColors.osPrimary,
       StageState.locked => QuestColors.osSurface,
     };
@@ -225,6 +226,7 @@ class _RailPainter extends CustomPainter {
     final glyph = switch (state) {
       StageState.completed => Icons.check_rounded,
       StageState.underReview => Icons.hourglass_top_rounded,
+      StageState.inProgress => Icons.play_arrow_rounded,
       StageState.available => Icons.play_arrow_rounded,
       StageState.locked => Icons.lock_rounded,
     };

@@ -1,9 +1,13 @@
 /// Where a checkpoint stands for the person looking at it.
-enum StageState { completed, underReview, available, locked }
+/// `inProgress` is deliberately separate from `available`: a checkpoint you
+/// already started has a timer running, so "start" is the wrong verb and
+/// pressing it fails.
+enum StageState { completed, underReview, inProgress, available, locked }
 
 StageState _stageStateFrom(String raw) => switch (raw) {
       'COMPLETED' => StageState.completed,
       'UNDER_REVIEW' => StageState.underReview,
+      'IN_PROGRESS' => StageState.inProgress,
       'AVAILABLE' => StageState.available,
       _ => StageState.locked,
     };
@@ -153,6 +157,10 @@ class JourneyRun {
   bool get orderMatters => completionRule == 'sequential';
   bool get isCompleted => status == 'completed';
   bool get canContinue => nextForViewer != null;
+
+  /// True when the viewer's checkpoint is already under way — the action is
+  /// to go back to it, not to start it.
+  bool get isInProgress => nextForViewer?.state == StageState.inProgress;
 
   /// True while a checkpoint of this viewer's is waiting on a decision.
   bool get isUnderReview =>
