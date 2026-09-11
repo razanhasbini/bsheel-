@@ -244,6 +244,25 @@ Then serve `build/web` at `/business/` on the admin host, with the fallback
 described above. No `CORS_ORIGINS` change and no DNS record: it is the same
 origin as the admin console.
 
+**Done on production, 2026-09-11.** The bundle lives in the admin doc root
+(`/root/supabase-docker/volumes/admin/business/`, `/srv/admin` inside the
+Caddy container) and two handles were added to the `admin.bsheel.app` block,
+reproduced in `deploy/caddy-bsheel.caddy`:
+
+- `handle /business/*` — `caddy_insert_admin.py` with
+  `ADMIN_SUBPATH=/business ADMIN_DOC_ROOT=/srv/admin`, the same script that
+  mounted `/v2`.
+- `handle /business` (exact) — serves `/business/index.html` in place. Needed
+  because `DASHBOARD_URL` is `https://admin.bsheel.app/business` with no
+  trailing slash, so the mobile card opens `/business?business=<id>`; without
+  this handle that request fell through to the legacy admin's basic auth and
+  answered 401. A redirect was rejected in favour of a rewrite so the query
+  string survives.
+
+Probe: `/business`, `/business/`, `/business/login` and
+`/business?business=x` must all be `200`; `/v2/` must still be `200` and `/`
+still `401`.
+
 ### Acceptance, without opening a browser
 
 ```bash

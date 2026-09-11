@@ -111,3 +111,28 @@ media.bsheel.app {
 # /.well-known/assetlinks.json and /.well-known/apple-app-site-association
 # already cover Bsheel. They need no change. Verify rather than assume:
 #   curl -s https://admin.bsheel.app/.well-known/assetlinks.json
+
+# ---------------------------------------------------------------------------
+# Business / partner dashboard at admin.bsheel.app/business/  (live 2026-09-11)
+#
+# Same doc root as the admin panel (/srv/admin in the container). Two handles,
+# because the mobile card links to /business with NO trailing slash and a
+# ?business=<id> query: `/business/*` alone let that request fall through to
+# the legacy admin's basic auth (401). The exact-match handle serves the
+# bundle's index in place — a rewrite, not a redirect, so the query survives.
+# The /business/* block is what `caddy_insert_admin.py` writes with
+# ADMIN_SUBPATH=/business ADMIN_DOC_ROOT=/srv/admin.
+# ---------------------------------------------------------------------------
+#
+#   admin.bsheel.app {
+#       handle /business {
+#           root * /srv/admin
+#           rewrite * /business/index.html
+#           file_server
+#       }
+#       handle /business/* {
+#           root * /srv/admin
+#           try_files {path} /business/index.html
+#           file_server
+#       }
+#   }
