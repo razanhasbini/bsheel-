@@ -155,3 +155,75 @@ export function completionRate(starts: number, completions: number): number | nu
   // earlier window; an uncapped ratio would print 120% follow-through.
   return Math.min(1, Math.round((completions / starts) * 1000) / 1000);
 }
+
+/// The longest span the daily series will draw.
+///
+/// The window is a `generate_series` of one row per day, so an unbounded
+/// span builds an arbitrarily large table on the server to answer one
+/// chart request. A year and a day covers "the last twelve months" without
+/// an off-by-one argument.
+export const MAX_DAILY_SPAN_DAYS = 366;
+
+export interface DailyWindow {
+  /// Inclusive, `YYYY-MM-DD` in UTC.
+  readonly from: string;
+  readonly to: string;
+}
+
+export type DailyWindowError =
+  | 'INVALID_DATE'
+  | 'RANGE_REVERSED'
+  | 'RANGE_TOO_LONG';
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+const isRealDate = (value: string): boolean => {
+  if (!DATE_ONLY.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  // Round-tripping catches the dates that parse but do not exist —
+  // 2026-02-30 becomes March 2nd rather than failing.
+  return !Number.isNaN(parsed.getTime())
+    && parsed.toISOString().slice(0, 10) === value;
+};
+
+const daysBetween = (from: string, to: string): number =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000,
+  ) + 1;
+
+/// Turns a request into the window the chart will draw.
+///
+/// An explicit `from`/`to` wins over `days`: a caller that sent both meant
+/// the range, and silently using the rolling window instead would draw a
+/// chart for dates they did not ask about. `days` alone is the rolling
+/// window ending today, which is what the preset buttons send.
+///
+/// Returns an error rather than throwing so the caller decides the status
+/// code, and so the reason survives into the message — "reversed" and "too
+/// long" have different fixes and a bare 400 has neither.
+export function resolveDailyWindow(
+  input: { days?: number; from?: string; to?: string },
+  today: Date,
+): { window: DailyWindow } | { error: DailyWindowError } {
+  const stamp = today.toISOString().slice(0, 10);
+
+  if (input.from !== undefined || input.to !== undefined) {
+    const from = input.from ?? input.to!;
+    const to = input.to ?? input.from!;
+    if (!isRealDate(from) || !isRealDate(to)) return { error: 'INVALID_DATE' };
+    if (Date.parse(from) > Date.parse(to)) return { error: 'RANGE_REVERSED' };
+    if (daysBetween(from, to) > MAX_DAILY_SPAN_DAYS) {
+      return { error: 'RANGE_TOO_LONG' };
+    }
+    return { window: { from, to } };
+  }
+
+  const days = Math.min(
+    Math.max(input.days ?? 30, 1),
+    MAX_DAILY_SPAN_DAYS,
+  );
+  const from = new Date(Date.parse(`${stamp}T00:00:00Z`) - (days - 1) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  return { window: { from, to: stamp } };
+}

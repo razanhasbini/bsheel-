@@ -4,6 +4,7 @@ import 'package:app_repositories/app_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_ui/shared_ui.dart';
 import 'package:business_web/core/providers/analytics_providers.dart';
 import 'package:business_web/core/providers/session_providers.dart';
 import 'package:business_web/features/dashboard/dashboard_page.dart';
@@ -58,6 +59,8 @@ void main() {
     required BusinessSummary business,
     BusinessAnalyticsSummary? analytics,
     List<BusinessQuestPerformance> quests = const [],
+    List<BusinessPlacePerformance> places = const [],
+    BusinessDailySeries? series,
     BusinessVisitorOrigins? origins,
   }) async {
     useTallSurface(tester);
@@ -69,9 +72,12 @@ void main() {
               .overrideWithValue(_FakeRepository([business])),
           analyticsSummaryProvider
               .overrideWith((ref, arg) async => analytics ?? stats()),
-          dailyProvider.overrideWith((ref, arg) async => const []),
+          dailyProvider.overrideWith((ref, arg) async =>
+              series ??
+              const BusinessDailySeries(
+                  from: '2026-09-01', to: '2026-09-07', points: [])),
           questPerformanceProvider.overrideWith((ref, arg) async => quests),
-          placePerformanceProvider.overrideWith((ref, arg) async => const []),
+          placePerformanceProvider.overrideWith((ref, arg) async => places),
           visitorOriginsProvider.overrideWith((ref, arg) async =>
               origins ??
               const BusinessVisitorOrigins(
@@ -235,6 +241,116 @@ void main() {
 
     expect(find.textContaining('2 more countries'), findsOneWidget);
     expect(find.textContaining('too few people to name'), findsOneWidget);
+  });
+
+  BusinessPlacePerformance placeRow(String name,
+          {int completions = 0, bool published = true}) =>
+      BusinessPlacePerformance(
+        placeId: 'p-$name',
+        name: name,
+        city: 'Beirut',
+        countryCode: 'LB',
+        quests: 1,
+        starts: 1,
+        completions: completions,
+        visitors: completions,
+        saves: 0,
+        isPublished: published,
+        cohortSuppressed: false,
+      );
+
+  group('the places section', () {
+    // Controls on a list of three are furniture; finding one of three is
+    // not work.
+    testWidgets('offers no filter for a handful of places', (tester) async {
+      await pump(tester, business: summary(), places: [
+        placeRow('Mar Mikhael'),
+        placeRow('Gemmayze'),
+      ]);
+
+      expect(find.text('Mar Mikhael'), findsOneWidget);
+      expect(
+          find.widgetWithText(
+              ArcadeTextField, 'Filter by place, city or country'),
+          findsNothing);
+    });
+
+    testWidgets('filters once there are enough places to search',
+        (tester) async {
+      await pump(tester, business: summary(), places: [
+        placeRow('Mar Mikhael'),
+        placeRow('Gemmayze'),
+        placeRow('Hamra'),
+        placeRow('Badaro'),
+      ]);
+
+      final field = find.byType(ArcadeTextField);
+      expect(field, findsWidgets);
+      await tester.enterText(field.first, 'hamra');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hamra'), findsOneWidget);
+      expect(find.text('Mar Mikhael'), findsNothing);
+    });
+
+    testWidgets('says so when a filter matches nothing', (tester) async {
+      await pump(tester, business: summary(), places: [
+        placeRow('Mar Mikhael'),
+        placeRow('Gemmayze'),
+        placeRow('Hamra'),
+        placeRow('Badaro'),
+      ]);
+
+      await tester.enterText(find.byType(ArcadeTextField).first, 'nowhere');
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('No places match'), findsOneWidget);
+    });
+
+    // An unpublished place reports nothing at all, which otherwise reads as
+    // a broken dashboard rather than a place that is not live yet.
+    testWidgets('flags a place that is not published', (tester) async {
+      await pump(tester,
+          business: summary(),
+          places: [placeRow('Draft Spot', published: false)]);
+
+      expect(find.textContaining('Not published'), findsOneWidget);
+    });
+  });
+
+  /// The chart's window controls must never claim a preset while a range is
+  /// being charted — a highlighted "30D" over a February chart is a lie the
+  /// reader has no way to catch.
+  group('the chart window', () {
+    /// The dates come from the response, never recomputed here: a client
+    /// deriving "today" itself disagrees by a day for anyone west of UTC,
+    /// and a chart mislabelled by one day is not detectable by reading it.
+    testWidgets('labels the window the server actually drew', (tester) async {
+      await pump(
+        tester,
+        business: summary(),
+        series: const BusinessDailySeries(
+          from: '2026-02-01',
+          to: '2026-02-03',
+          points: [
+            BusinessDailyPoint(date: '2026-02-01', completions: 1, visitors: 1),
+            BusinessDailyPoint(date: '2026-02-02', completions: 0, visitors: 0),
+            BusinessDailyPoint(date: '2026-02-03', completions: 2, visitors: 1),
+          ],
+        ),
+      );
+
+      expect(find.text('2026-02-01 → 2026-02-03'), findsOneWidget);
+      // And the chart totals what the server sent rather than recounting.
+      expect(find.text('3 completed'), findsOneWidget);
+    });
+
+    testWidgets('shows a preset as selected by default', (tester) async {
+      await pump(tester, business: summary());
+
+      expect(find.text('30D'), findsOneWidget);
+      expect(find.text('DATES'), findsOneWidget);
+    });
   });
 }
 

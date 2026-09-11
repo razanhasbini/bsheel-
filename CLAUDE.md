@@ -469,13 +469,24 @@ suspension, an unsubscribed account and a missing `DASHBOARD_URL` are three
 separate messages because each has a different fix, and every section loads
 and fails on its own so one endpoint cannot blank the other five.
 
-Two client rules worth keeping. The proof wall **accumulates pages** through
-the keyset cursor and says "that is all N posts" when the cursor comes back
-null — a single-page read hid a business's own content behind nothing. And
-the quest filter runs on the client over rows already fetched, which is only
-honest because the fetch asks for the server's cap of 100 *and* the section
-says so when it hit it; a client-side filter over a partial list would
-answer "no quests match" about quests it never received.
+Three client rules worth keeping. The proof wall **accumulates pages**
+through the keyset cursor and says "that is all N posts" when the cursor
+comes back null — a single-page read hid a business's own content behind
+nothing. The quest filter runs on the client over rows already fetched,
+which is only honest because the fetch asks for the server's cap of 100
+*and* the section says so when it hit it; a client-side filter over a
+partial list would answer "no quests match" about quests it never received.
+(The places filter needs no such warning — that endpoint returns every
+place the business owns.)
+
+And the chart draws **explicit pixel heights measured from its own box**,
+never `FractionallySizedBox`. A Row does not constrain its children on the
+cross axis, so a fractional box inside one is handed an infinite height and
+throws — which crashed the chart for any business that actually had data,
+while every test passed empty point lists and the web bundle compiled
+happily. `daily` also returns the **window it drew** alongside the points;
+the chart labels those dates rather than deriving "today" itself, which
+disagrees by a day for anyone west of UTC.
 
 **Setting one up:** `npm run business:provision` (in `backend/`) does all
 four steps through the audited admin endpoints — create, claim places, add

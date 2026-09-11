@@ -108,7 +108,10 @@ export class BusinessAnalyticsRepository {
   /// quiet days entirely, and a chart drawn from that connects last
   /// Tuesday to this Friday with a straight line that reads as steady
   /// traffic through a week when nobody came.
-  async daily(businessId: string, days: number): Promise<readonly BusinessDailyPoint[]> {
+  async daily(
+    businessId: string,
+    window: { from: string; to: string },
+  ): Promise<readonly BusinessDailyPoint[]> {
     const result = await this.database.query<{
       date: string;
       completions: number;
@@ -116,11 +119,7 @@ export class BusinessAnalyticsRepository {
     }>(
       `WITH activity AS (${ACTIVITY}),
        window_days AS (
-         SELECT generate_series(
-           (now() AT TIME ZONE 'UTC')::date - make_interval(days => $2::int - 1),
-           (now() AT TIME ZONE 'UTC')::date,
-           interval '1 day'
-         )::date AS day
+         SELECT generate_series($2::date, $3::date, interval '1 day')::date AS day
        )
        SELECT to_char(w.day, 'YYYY-MM-DD') AS date,
               count(a.id)::int AS completions,
@@ -131,7 +130,7 @@ export class BusinessAnalyticsRepository {
         AND a.status = 'approved'
        GROUP BY w.day
        ORDER BY w.day ASC`,
-      [businessId, days],
+      [businessId, window.from, window.to],
     );
     return result.rows;
   }
