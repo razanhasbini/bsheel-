@@ -68,6 +68,17 @@ abstract final class NotificationType {
   /// This user entered the top 10 on the leaderboard.
   static const String top10Entry = 'top_10_entry';
 
+  // ── Multi-stage journeys ────────────────────────────────────
+  /// A checkpoint opened for this user. References the chain RUN, so a tap
+  /// lands on the journey rather than on a bare quest.
+  static const String journeyStageUnlocked = 'journey_stage_unlocked';
+
+  /// Somebody cleared their checkpoint on a relay and the baton moved on.
+  static const String journeyTeammateAdvanced = 'journey_teammate_advanced';
+
+  /// Every checkpoint on a journey is verified.
+  static const String journeyCompleted = 'journey_completed';
+
   /// 30-minute warning before a quest expires.
   static const String questTimerWarning = 'quest_timer_warning';
 

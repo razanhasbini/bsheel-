@@ -19,6 +19,7 @@ import '../../features/auth/presentation/pages/verify_phone_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_walkthrough_page.dart';
 import '../../features/quests/presentation/pages/home_page.dart';
 import '../../features/quests/presentation/pages/quest_details_page.dart';
+import '../../features/quests/presentation/pages/journey_detail_page.dart';
 import '../../features/quests/presentation/pages/quest_history_page.dart';
 import '../../features/submissions/presentation/pages/submit_proof_page.dart';
 import '../../features/submissions/presentation/pages/submission_status_page.dart';
@@ -284,6 +285,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.camaraDemo,
         name: RouteNames.camaraDemo,
         builder: (context, state) => const CamaraDemoPage(),
+      ),
+      // Outside the shell, like quest details: a journey opened from a
+      // notification gets its own back stack rather than replacing a tab.
+      GoRoute(
+        path: RoutePaths.journeyDetail,
+        name: RouteNames.journeyDetail,
+        builder: (context, state) => JourneyDetailPage(
+          runId: state.pathParameters['runId'] ?? '',
+        ),
       ),
       GoRoute(
         path: RoutePaths.verifyPhone,

@@ -23,6 +23,13 @@ export interface JourneyStage {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly requiresLocationVerification: boolean;
+  /** Shown on the current checkpoint, so a player knows what they are taking on. */
+  readonly difficulty: string | null;
+  readonly durationHours: number | null;
+  /** When this checkpoint was approved. Null unless it is completed. */
+  readonly completedAt: string | null;
+  /** The proof that cleared it, so a finished checkpoint can be revisited. */
+  readonly submissionId: string | null;
   /** Whose checkpoint this is, on a relay. Null on a solo run. */
   readonly targetUsername: string | null;
   /** True when the viewer is the one who may start it. */

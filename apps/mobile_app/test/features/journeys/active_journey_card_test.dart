@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/features/quests/presentation/widgets/active_journey_card.dart';
+import 'package:mobile_app/features/quests/presentation/widgets/checkpoint_rail.dart';
 
 import 'journey_model_test.dart' show run, stage;
 
@@ -39,21 +40,47 @@ void main() {
     );
     expect(find.text('BYBLOS JOURNEY'), findsOneWidget);
     expect(find.text('STAGE 2 OF 3'), findsOneWidget);
-    expect(find.text('Old Souk'), findsOneWidget);
-    expect(find.text('Byblos Castle'), findsOneWidget);
+    // A summary, not the whole journey: the current checkpoint by name,
+    // and one action. The rest lives on the detail page.
+    expect(find.text('BYBLOS CASTLE'), findsOneWidget);
     expect(find.text('CONTINUE JOURNEY'), findsOneWidget);
   });
 
-  testWidgets('a hidden checkpoint is named as a mystery, not invented',
+  testWidgets('a hidden current checkpoint is named as a mystery',
       (tester) async {
     await pump(
       tester,
       JourneyRun.fromJson(run(
         completed: 1,
-        stages: [stage(1, 'COMPLETED', title: 'Old Souk'), stage(3, 'LOCKED')],
+        stages: [
+          stage(1, 'COMPLETED', title: 'Old Souk'),
+          stage(2, 'AVAILABLE', yours: true)
+        ],
+        next: stage(2, 'AVAILABLE', yours: true),
       )),
     );
-    expect(find.text('A checkpoint waiting to be found'), findsOneWidget);
+    expect(find.text('A CHECKPOINT WAITING TO BE FOUND'), findsOneWidget);
+  });
+
+  testWidgets('three stages draw three checkpoints, not a progress bar',
+      (tester) async {
+    await pump(
+      tester,
+      JourneyRun.fromJson(run(
+        completed: 2,
+        stages: [
+          stage(1, 'COMPLETED', title: 'One'),
+          stage(2, 'COMPLETED', title: 'Two'),
+          stage(3, 'AVAILABLE', yours: true, title: 'Three'),
+        ],
+        next: stage(3, 'AVAILABLE', yours: true, title: 'Three'),
+      )),
+    );
+    // The rail is the visual language; a percentage bar cannot say which
+    // checkpoint you are standing on.
+    expect(find.byType(CheckpointRail), findsOneWidget);
+    final rail = tester.widget<CheckpointRail>(find.byType(CheckpointRail));
+    expect(rail.stages.length, 3);
   });
 
   testWidgets('under review shows the wait, not a Continue button',
@@ -68,7 +95,7 @@ void main() {
         ],
       )),
     );
-    expect(find.text('CHECKPOINT UNDER REVIEW'), findsOneWidget);
+    expect(find.text('UNDER REVIEW'), findsOneWidget);
     // Offering CONTINUE here would be a button the server refuses.
     expect(find.text('CONTINUE JOURNEY'), findsNothing);
   });
@@ -106,7 +133,9 @@ void main() {
       )),
     );
     expect(find.text('RELAY'), findsOneWidget);
-    expect(find.text('@tayseer is up next.'), findsOneWidget);
+    // The button says whose turn it is rather than offering something the
+    // server would refuse.
+    expect(find.text('WAITING FOR @TAYSEER'), findsOneWidget);
     expect(find.text('CONTINUE JOURNEY'), findsNothing);
   });
 }

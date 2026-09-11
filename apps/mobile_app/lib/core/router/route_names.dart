@@ -22,6 +22,7 @@ abstract final class RouteNames {
 
   // Quest
   static const String questDetails = 'questDetails';
+  static const String journeyDetail = 'journeyDetail';
   static const String questHistory = 'questHistory';
 
   // Submissions
@@ -69,6 +70,7 @@ abstract final class RoutePaths {
   static const String leaderboard = '/leaderboard';
   static const String profile = '/profile';
   static const String questDetails = '/quest/:id';
+  static const String journeyDetail = '/journey/:runId';
   static const String questHistory = '/quest-history';
   static const String submitProof = '/submit/:userQuestId';
   static const String submissionStatus = '/submission/:id';

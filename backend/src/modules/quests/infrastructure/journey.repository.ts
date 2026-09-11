@@ -243,13 +243,19 @@ export class JourneyRepository {
       place_name: string | null; country_name: string | null;
       latitude: number | null; longitude: number | null;
       requires_verification: boolean | null;
+      difficulty: string; duration_hours: number;
+      completed_at: Date | null; submission_id: string | null;
       approved: boolean; submitted: boolean;
       unlocked_for: string | null; unlock_seen: boolean;
       target_username: string | null;
     }>(
       `SELECT cs.step_order, q.id AS quest_id, q.title, q.description, q.xp_reward, q.is_hidden,
+              q.difficulty, q.duration_hours,
               p.name AS place_name, c.name AS country_name, p.latitude, p.longitude,
               d.requires_verification,
+              -- The run's own attempt, so a completed checkpoint can show
+              -- when it cleared and link to the proof that cleared it.
+              mine.completed_at, mine.submission_id,
               EXISTS (SELECT 1 FROM user_quests uq WHERE uq.quest_id = q.id AND uq.status = 'approved'
                         AND (uq.user_id = $2 OR EXISTS (
                           SELECT 1 FROM quest_chain_run_participants pp
@@ -266,6 +272,16 @@ export class JourneyRepository {
        LEFT JOIN quest_destinations d ON d.quest_id = q.id
        LEFT JOIN map_places p ON p.id = d.place_id AND p.is_published
        LEFT JOIN map_countries c ON c.code = p.country_code
+       LEFT JOIN LATERAL (
+         SELECT uq.completed_at, s.id AS submission_id
+         FROM user_quests uq
+         LEFT JOIN submissions s ON s.user_quest_id = uq.id AND s.status = 'approved'
+         WHERE uq.quest_id = q.id AND uq.status = 'approved'
+           AND (uq.user_id = $2 OR EXISTS (
+             SELECT 1 FROM quest_chain_run_participants pp
+             WHERE pp.chain_run_id = $1 AND pp.user_id = uq.user_id))
+         ORDER BY uq.completed_at DESC LIMIT 1
+       ) mine ON true
        LEFT JOIN journey_stage_unlocks u ON u.chain_run_id = $1 AND u.step_order = cs.step_order
        LEFT JOIN profiles pr ON pr.id = u.target_user_id
        WHERE cs.chain_id = $3
@@ -310,6 +326,10 @@ export class JourneyRepository {
         latitude: mayReadContent ? row.latitude : null,
         longitude: mayReadContent ? row.longitude : null,
         requiresLocationVerification: row.requires_verification ?? false,
+        difficulty: mayReadContent ? row.difficulty : null,
+        durationHours: mayReadContent ? row.duration_hours : null,
+        completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+        submissionId: row.submission_id,
         targetUsername: run.run_kind === 'group' ? row.target_username : null,
         isYours,
       };

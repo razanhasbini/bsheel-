@@ -26,7 +26,6 @@ import '../widgets/home_extras.dart';
 import '../widgets/discovery_shelves.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../widgets/active_journey_card.dart';
-import '../widgets/checkpoint_reached.dart';
 import '../providers/journey_providers.dart';
 
 /// ──────────────────────────────────────────────────────────────────────────
@@ -127,30 +126,37 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  /// Plays a checkpoint celebration the server says is still owed.
+  /// The completed-count a journey card should animate from, if the server
+  /// still owes this player an unlock moment.
   ///
-  /// Driven by `journey_stage_unlocks.seen_at`, so a checkpoint approved
-  /// while the app was closed still gets its moment when the player returns
-  /// — and only once, because the acknowledgement is a server write rather
-  /// than a local flag.
-  void _playOwedUnlock(JourneyRun run) {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final shown = await CheckpointPresenter.presentIfOwed(
-        context,
-        run,
-        () => AppBackend.repositories.journeys.acknowledgeUnlock(run.runId),
-      );
-      // Refresh only after it played: the animation describes state that is
-      // already committed, and re-reading proves the card now agrees with it.
-      if (shown && mounted) ref.invalidate(activeJourneysProvider);
-    });
+  /// Captured once per run: the server stops reporting the unlock as soon as
+  /// it is acknowledged, and the transition must not vanish halfway through
+  /// because its own trigger was cleared.
+  final Map<String, int> _advanceFrom = {};
+
+  int? _captureAdvance(JourneyRun run) {
+    if (run.unseenUnlock == null) return _advanceFrom[run.runId];
+    return _advanceFrom.putIfAbsent(run.runId, () => run.completedSteps);
+  }
+
+  /// Marks the unlock seen once the card has actually shown the transition.
+  ///
+  /// Show first, acknowledge after: if the app dies mid-animation the server
+  /// should still owe the moment rather than having forgotten it. The
+  /// richer celebration lives on the journey page — here the card simply
+  /// moves from the old state to the new one and stays there, which is the
+  /// part that was missing when this was a modal that appeared and left.
+  Future<void> _acknowledge(String runId) async {
+    try {
+      await AppBackend.repositories.journeys.acknowledgeUnlock(runId);
+      if (mounted) ref.invalidate(activeJourneysProvider);
+    } catch (_) {
+      // Worst case the moment is offered again.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final owed = ref.watch(unseenUnlockProvider);
-    if (owed != null) _playOwedUnlock(owed);
     final activeQuestAsync = ref.watch(activeQuestProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final profile = profileAsync.valueOrNull;
@@ -406,6 +412,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 if (journey != null) ...[
                                   ActiveJourneyCard(
                                     run: journey,
+                                    advanceFrom: _captureAdvance(journey),
+                                    onUnlockShown: () =>
+                                        _acknowledge(journey.runId),
+                                    onOpen: () => context.pushNamed(
+                                      RouteNames.journeyDetail,
+                                      pathParameters: {'runId': journey.runId},
+                                    ),
                                     onOpenMap: () =>
                                         context.pushNamed(RouteNames.map),
                                   ),

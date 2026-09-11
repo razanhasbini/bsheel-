@@ -6,6 +6,7 @@ import 'package:shared_ui/shared_ui.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../providers/journey_providers.dart';
+import 'checkpoint_rail.dart';
 
 /// A journey in progress, on Home.
 ///
@@ -20,16 +21,33 @@ import '../providers/journey_providers.dart';
 /// such position, so counting down what is left is the honest framing and
 /// "next stage" would be a lie.
 class ActiveJourneyCard extends ConsumerStatefulWidget {
-  const ActiveJourneyCard({super.key, required this.run, this.onOpenMap});
+  const ActiveJourneyCard({
+    super.key,
+    required this.run,
+    this.onOpenMap,
+    this.onOpen,
+    this.onUnlockShown,
+    this.advanceFrom,
+  });
 
   final JourneyRun run;
   final VoidCallback? onOpenMap;
+
+  /// Opens the journey detail page. The card is tappable as a whole.
+  final VoidCallback? onOpen;
+
+  /// Called once the rail's unlock transition has finished playing.
+  final VoidCallback? onUnlockShown;
+
+  /// Completed-count to animate from, when an unlock is still unseen.
+  final int? advanceFrom;
 
   @override
   ConsumerState<ActiveJourneyCard> createState() => _ActiveJourneyCardState();
 }
 
 class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
+  int? get _advanceFrom => widget.advanceFrom;
   bool _starting = false;
   String? _error;
 
@@ -71,135 +89,198 @@ class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
   @override
   Widget build(BuildContext context) {
     final run = widget.run;
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: QuestSpacing.sm),
-      padding: const EdgeInsets.all(QuestSpacing.md),
-      decoration: BoxDecoration(
-        color: QuestColors.cardBg(context),
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusHero),
-        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-        boxShadow: const [
-          BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 5)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  run.title.toUpperCase(),
-                  style: QuestTypography.osHeadlineSmall.copyWith(
-                    fontSize: 17,
-                    color: QuestColors.text(context),
+    final current = run.nextForViewer ??
+        run.stages
+            .where((s) => s.state == StageState.underReview)
+            .firstOrNull ??
+        run.stages.where((s) => s.state == StageState.available).firstOrNull;
+    // The whole card opens the journey, not just the button: somebody with
+    // nothing to tap still wants to know what is going on.
+    return GestureDetector(
+      onTap: widget.onOpen,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: QuestSpacing.sm),
+        padding: const EdgeInsets.all(QuestSpacing.md),
+        decoration: BoxDecoration(
+          color: QuestColors.cardBg(context),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusHero),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 5)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    run.title.toUpperCase(),
+                    style: QuestTypography.osHeadlineSmall.copyWith(
+                      fontSize: 17,
+                      color: QuestColors.text(context),
+                    ),
                   ),
                 ),
-              ),
-              if (run.isRelay)
-                const _Chip(label: 'RELAY', tint: QuestColors.osAccent),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            run.orderMatters
-                ? 'STAGE ${run.completedSteps + 1} OF ${run.totalSteps}'
-                : '${run.remaining} CHECKPOINT${run.remaining == 1 ? '' : 'S'} REMAINING',
-            style: QuestTypography.osLabelSmall.copyWith(
-              fontSize: 10,
-              letterSpacing: 1.0,
-              color: QuestColors.osPrimary,
+                if (run.isRelay)
+                  const _Chip(label: 'RELAY', tint: QuestColors.osAccent),
+              ],
             ),
-          ),
-          const SizedBox(height: QuestSpacing.sm),
-          _ProgressBar(progress: run.progress),
-          const SizedBox(height: QuestSpacing.md),
-          for (final stage in run.stages) _StageRow(stage: stage, run: run),
-          if (_error != null) ...[
-            const SizedBox(height: QuestSpacing.sm),
+            const SizedBox(height: 3),
             Text(
-              _error!,
-              style: QuestTypography.osBodySmall.copyWith(
-                fontSize: 12,
-                color: QuestColors.osRedText,
+              run.orderMatters
+                  ? 'STAGE ${run.completedSteps + 1} OF ${run.totalSteps}'
+                  : '${run.remaining} CHECKPOINT${run.remaining == 1 ? '' : 'S'} REMAINING',
+              style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 10,
+                letterSpacing: 1.0,
+                color: QuestColors.osPrimary,
               ),
             ),
+            const SizedBox(height: QuestSpacing.sm),
+            // Three stages means three checkpoints, evenly spaced. A
+            // percentage bar at 66% says nothing about which one you are
+            // standing on, which is the only thing a player needs from a
+            // glance at Home.
+            if (run.orderMatters)
+              CheckpointRail(
+                stages: run.stages,
+                advanceFrom: _advanceFrom,
+                height: 52,
+                onFinished: widget.onUnlockShown,
+              )
+            else
+              _AnyOrderSummary(run: run),
+            const SizedBox(height: QuestSpacing.md),
+            // Only the checkpoint that matters right now. The rest of the
+            // journey lives on the detail page, where there is room for it.
+            if (current != null) _CurrentSummary(stage: current, run: run),
+            if (_error != null) ...[
+              const SizedBox(height: QuestSpacing.sm),
+              Text(
+                _error!,
+                style: QuestTypography.osBodySmall.copyWith(
+                  fontSize: 12,
+                  color: QuestColors.osRedText,
+                ),
+              ),
+            ],
+            const SizedBox(height: QuestSpacing.sm),
+            _action(run),
           ],
-          const SizedBox(height: QuestSpacing.sm),
-          _action(run),
-        ],
+        ),
       ),
     );
   }
 
+  /// The button says what is actually true of this journey right now.
+  ///
+  /// A single CONTINUE label lies in most of these states: it would offer to
+  /// start something a moderator is still holding, or something that belongs
+  /// to a teammate, and the server would refuse either.
   Widget _action(JourneyRun run) {
-    // Waiting on a decision is a real state and deserves saying so. Showing
-    // CONTINUE here would offer something the server will refuse.
-    if (run.isUnderReview && !run.canContinue) {
+    if (run.isCompleted) {
+      return _Secondary(label: 'VIEW COMPLETED JOURNEY', onTap: widget.onOpen);
+    }
+    if (run.canContinue) {
       return Row(
         children: [
-          const Icon(Icons.hourglass_top_rounded,
-              size: 15, color: QuestColors.osAccentText),
-          const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              'CHECKPOINT UNDER REVIEW',
-              style: QuestTypography.osLabelSmall.copyWith(
-                fontSize: 10,
-                letterSpacing: 0.9,
-                color: QuestColors.osAccentText,
-              ),
+            child: ArcadeButton(
+              label: _starting ? 'STARTING…' : 'CONTINUE JOURNEY',
+              isLoading: _starting,
+              onTap: _starting ? null : () => _continue(run.nextForViewer!),
             ),
           ),
+          if (widget.onOpenMap != null &&
+              (run.nextForViewer?.hasCoordinates ?? false)) ...[
+            const SizedBox(width: QuestSpacing.sm),
+            GestureDetector(
+              onTap: widget.onOpenMap,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: QuestColors.osSurface,
+                  borderRadius:
+                      BorderRadius.circular(QuestSpacing.radiusControl),
+                  border:
+                      Border.all(color: QuestColors.osTextPrimary, width: 2),
+                ),
+                child: const Icon(Icons.map_rounded,
+                    size: 20, color: QuestColors.osTextPrimary),
+              ),
+            ),
+          ],
         ],
       );
     }
-
-    final next = run.nextForViewer;
-    if (next == null) {
-      // A relay whose ball is in somebody else's court. Naming them is the
-      // difference between "nothing is happening" and "it is Tayseer's turn".
-      final waitingOn = run.stages
-          .where((s) => s.state == StageState.available && !s.isYours)
-          .map((s) => s.targetUsername)
-          .whereType<String>()
-          .toList();
-      return Text(
-        waitingOn.isEmpty
-            ? 'Nothing to do on this journey right now.'
-            : '@${waitingOn.first} is up next.',
-        style: QuestTypography.osBodySmall.copyWith(
-          fontSize: 12,
-          color: QuestColors.textDim(context),
-        ),
+    if (run.isUnderReview) {
+      return _Secondary(
+        label: 'UNDER REVIEW',
+        icon: Icons.hourglass_top_rounded,
+        tint: QuestColors.osAccentText,
+        onTap: widget.onOpen,
       );
     }
+    // A relay waiting on somebody else. Naming them is the difference
+    // between "nothing is happening" and "it is Tayseer's turn".
+    final waiting = run.stages
+        .where((s) => s.state == StageState.available && !s.isYours)
+        .map((s) => s.targetUsername)
+        .whereType<String>()
+        .toList();
+    return _Secondary(
+      label: waiting.isEmpty
+          ? 'VIEW JOURNEY'
+          : 'WAITING FOR @${waiting.first.toUpperCase()}',
+      onTap: widget.onOpen,
+    );
+  }
+}
 
-    return Row(
+/// The one checkpoint that matters right now, on Home.
+class _CurrentSummary extends StatelessWidget {
+  const _CurrentSummary({required this.stage, required this.run});
+
+  final JourneyStage stage;
+  final JourneyRun run;
+
+  @override
+  Widget build(BuildContext context) {
+    final context_ = <String>[
+      if (stage.placeName != null) stage.placeName!,
+      if (run.isRelay && stage.targetUsername != null)
+        '@${stage.targetUsername}',
+      if (stage.stepOrder == run.totalSteps) 'Final checkpoint',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: ArcadeButton(
-            label: _starting ? 'STARTING…' : 'CONTINUE JOURNEY',
-            isLoading: _starting,
-            onTap: _starting ? null : () => _continue(next),
+        Text(
+          // Null means the server withheld it; the card names the mystery
+          // rather than inventing a title for it.
+          (stage.title ?? 'A checkpoint waiting to be found').toUpperCase(),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: QuestTypography.osLabelLarge.copyWith(
+            fontSize: 14,
+            color: QuestColors.text(context),
           ),
         ),
-        if (widget.onOpenMap != null && next.hasCoordinates) ...[
-          const SizedBox(width: QuestSpacing.sm),
-          GestureDetector(
-            onTap: widget.onOpenMap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 52,
-              height: 52,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: QuestColors.osSurface,
-                borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
-                border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-              ),
-              child: const Icon(Icons.map_rounded,
-                  size: 20, color: QuestColors.osTextPrimary),
+        if (context_.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            context_.join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osBodySmall.copyWith(
+              fontSize: 12,
+              color: QuestColors.textDim(context),
             ),
           ),
         ],
@@ -208,101 +289,91 @@ class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
   }
 }
 
-/// One checkpoint on the card: ✓ done, ● yours, ○ locked or somebody else's.
-class _StageRow extends StatelessWidget {
-  const _StageRow({required this.stage, required this.run});
+/// An any-order journey has no rail to draw, because it has no order.
+class _AnyOrderSummary extends StatelessWidget {
+  const _AnyOrderSummary({required this.run});
 
-  final JourneyStage stage;
   final JourneyRun run;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, tint) = switch (stage.state) {
-      StageState.completed => (
-          Icons.check_circle_rounded,
-          QuestColors.osSuccess
-        ),
-      StageState.underReview => (
-          Icons.hourglass_top_rounded,
-          QuestColors.osAccent
-        ),
-      StageState.available => (
-          stage.isYours
-              ? Icons.play_circle_fill_rounded
-              : Icons.circle_outlined,
-          stage.isYours ? QuestColors.osPrimary : QuestColors.osTextMuted,
-        ),
-      StageState.locked => (Icons.lock_rounded, QuestColors.osTextMuted),
-    };
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: tint),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  // Null means the server withheld it, so the card says the
-                  // checkpoint exists without inventing what it is.
-                  stage.title ?? 'A checkpoint waiting to be found',
-                  style: QuestTypography.osBodySmall.copyWith(
-                    fontSize: 13,
-                    fontStyle: stage.title == null
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                    color: stage.state == StageState.locked
-                        ? QuestColors.textDim(context)
-                        : QuestColors.text(context),
-                  ),
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final stage in run.stages)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                switch (stage.state) {
+                  StageState.completed => Icons.check_circle_rounded,
+                  StageState.underReview => Icons.hourglass_top_rounded,
+                  StageState.available => Icons.radio_button_checked,
+                  StageState.locked => Icons.lock_rounded,
+                },
+                size: 14,
+                color: switch (stage.state) {
+                  StageState.completed => QuestColors.osSuccess,
+                  StageState.underReview => QuestColors.osAccent,
+                  StageState.available => QuestColors.osPrimary,
+                  StageState.locked => QuestColors.osTextMuted,
+                },
+              ),
+              const SizedBox(width: 4),
+              Text(
+                stage.title ?? 'Mystery',
+                style: QuestTypography.osBodySmall.copyWith(
+                  fontSize: 12,
+                  color: QuestColors.textDim(context),
                 ),
-                if (stage.placeName != null || stage.targetUsername != null)
-                  Text(
-                    [
-                      if (stage.placeName != null) stage.placeName!,
-                      if (run.isRelay && stage.targetUsername != null)
-                        '@${stage.targetUsername}',
-                    ].join(' · '),
-                    style: QuestTypography.osLabelSmall.copyWith(
-                      fontSize: 10,
-                      color: QuestColors.textDim(context),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
-          if (stage.requiresLocationVerification &&
-              stage.state != StageState.completed)
-            const Icon(Icons.cell_tower_rounded,
-                size: 12, color: QuestColors.osCool),
-        ],
-      ),
+      ],
     );
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.progress});
+/// A non-primary action: a state to read, and a way into the journey.
+class _Secondary extends StatelessWidget {
+  const _Secondary({required this.label, this.onTap, this.icon, this.tint});
 
-  final double progress;
+  final String label;
+  final VoidCallback? onTap;
+  final IconData? icon;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
+    final colour = tint ?? QuestColors.osPrimary;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 8,
-        color: QuestColors.textDim(context).withAlpha(40),
-        alignment: Alignment.centerLeft,
-        child: AnimatedFractionallySizedBox(
-          duration: const Duration(milliseconds: 520),
-          curve: Curves.easeOutCubic,
-          widthFactor: progress.clamp(0.0, 1.0),
-          child: Container(color: QuestColors.osSuccess),
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: QuestColors.osSurface,
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: colour),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 11,
+                letterSpacing: 0.9,
+                color: colour,
+              ),
+            ),
+          ],
         ),
       ),
     );

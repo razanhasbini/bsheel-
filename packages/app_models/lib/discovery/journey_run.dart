@@ -30,6 +30,10 @@ class JourneyStage {
     this.latitude,
     this.longitude,
     this.targetUsername,
+    this.difficulty,
+    this.durationHours,
+    this.completedAt,
+    this.submissionId,
   });
 
   final int stepOrder;
@@ -51,6 +55,15 @@ class JourneyStage {
   /// Whose checkpoint this is, on a relay. Null on a solo journey.
   final String? targetUsername;
 
+  final String? difficulty;
+  final int? durationHours;
+
+  /// When this checkpoint was approved. Null unless it is completed.
+  final DateTime? completedAt;
+
+  /// The proof that cleared it, so a finished checkpoint can be revisited.
+  final String? submissionId;
+
   /// Enough to draw it on the map. Absent for a hidden checkpoint, which is
   /// why a route is only ever drawn between two places we were told about.
   bool get hasCoordinates => latitude != null && longitude != null;
@@ -70,6 +83,12 @@ class JourneyStage {
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         targetUsername: json['targetUsername'] as String?,
+        difficulty: json['difficulty'] as String?,
+        durationHours: (json['durationHours'] as num?)?.toInt(),
+        completedAt: json['completedAt'] == null
+            ? null
+            : DateTime.tryParse(json['completedAt'] as String),
+        submissionId: json['submissionId'] as String?,
       );
 }
 
