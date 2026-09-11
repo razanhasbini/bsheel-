@@ -397,6 +397,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                         : countryRows.where((c) => c.code == _country).toList(),
                     onTap: () => showModalBottomSheet<void>(
                         context: context,
+                        // Above the shell, so the floating nav pill never covers the sheet.
+                        useRootNavigator: true,
                         useSafeArea: true,
                         backgroundColor: QuestColors.osBg,
                         builder: (_) => Padding(
@@ -481,6 +483,8 @@ class _MapPageState extends ConsumerState<MapPage> {
     HapticFeedback.selectionClick();
     return showModalBottomSheet<void>(
       context: context,
+      // Above the shell, so the floating nav pill never covers the sheet.
+      useRootNavigator: true,
       useSafeArea: true,
       backgroundColor: QuestColors.osBg,
       builder: (sheetContext) => _FilterSheet(
@@ -492,6 +496,8 @@ class _MapPageState extends ConsumerState<MapPage> {
           Navigator.pop(sheetContext);
           showModalBottomSheet<void>(
               context: context,
+              // Above the shell, so the floating nav pill never covers the sheet.
+              useRootNavigator: true,
               isScrollControlled: true,
               useSafeArea: true,
               backgroundColor: QuestColors.osBg,
@@ -508,6 +514,8 @@ class _MapPageState extends ConsumerState<MapPage> {
         math.max(_map.camera.zoom, place.locked ? 11 : 14));
     await showModalBottomSheet<void>(
         context: context,
+        // Above the shell, so the floating nav pill never covers the sheet.
+        useRootNavigator: true,
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: QuestColors.osBg,
@@ -523,6 +531,8 @@ class _MapPageState extends ConsumerState<MapPage> {
   Future<void> _openList(List<MapPlace> rows, bool loading) {
     return showModalBottomSheet<void>(
         context: context,
+        // Above the shell, so the floating nav pill never covers the sheet.
+        useRootNavigator: true,
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: QuestColors.osBg,

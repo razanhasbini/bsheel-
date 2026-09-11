@@ -116,6 +116,8 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
     if (!mounted) return;
     final choice = await showModalBottomSheet<_MediaChoice>(
       context: context,
+      // Above the shell, so the floating nav pill never covers the sheet.
+      useRootNavigator: true,
       backgroundColor: QuestColors.osBg,
       barrierColor: QuestColors.pureBlack.withAlpha(QuestColors.alphaInkWeak),
       shape: const RoundedRectangleBorder(

@@ -1375,6 +1375,8 @@ class _LockedCard extends StatelessWidget {
 Future<void> showRollPicker(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the shell, so the floating nav pill never covers the sheet.
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: QuestColors.osBg,
@@ -2401,6 +2403,8 @@ Future<void> _showQuestPreview(
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the shell, so the floating nav pill never covers the sheet.
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: QuestColors.osTextPrimary.withAlpha(184),
