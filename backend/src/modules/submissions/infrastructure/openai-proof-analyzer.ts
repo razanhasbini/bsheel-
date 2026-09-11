@@ -2,13 +2,19 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { Environment } from '../../../config/environment.js';
-import { buildJudgingPrompt, describeSubmission, verdictJsonSchema } from '../domain/proof-prompt.js';
-import type {
-  ProofAnalysis,
-  ProofAnalysisRequest,
-  ProofAnalyzer,
-  ProofTier,
-  ProofVerdict,
+import {
+  buildJudgingPrompt,
+  describeSubmission,
+  parseVerdictPayload,
+  verdictJsonSchema,
+  type VerdictPayload,
+} from '../domain/proof-prompt.js';
+import {
+  escalatedAnalysis,
+  type ProofAnalysis,
+  type ProofAnalysisRequest,
+  type ProofAnalyzer,
+  type ProofTier,
 } from '../domain/proof-verification.types.js';
 
 /// Vision analysis via OpenAI's Responses API (#47).
@@ -124,48 +130,34 @@ export class OpenAiProofAnalyzer implements ProofAnalyzer {
         { model, tier, status: response.status, reason: response.incomplete_details?.reason },
         'Proof analysis did not complete',
       );
-      return {
+      return escalatedAnalysis({
         tier,
-        verdict: 'unclear',
-        confidence: null,
-        rationale: '',
-        escalationReason: 'The agent did not finish analysing this proof. A human decision is required.',
         model,
         ...usage,
-      };
+        reason: 'The agent did not finish analysing this proof. A human decision is required.',
+      });
     }
 
-    let parsed: { verdict: ProofVerdict; confidence: number; rationale: string; escalation_reason: string };
+    let parsed: VerdictPayload;
     try {
-      parsed = JSON.parse(response.output_text);
+      parsed = JSON.parse(response.output_text) as VerdictPayload;
     } catch {
       // Should be unreachable under strict schema, which is grammar-
       // constrained. Handled anyway rather than trusted, because the failure
       // mode of trusting it is an exception in a queue worker.
       this.logger.error({ model, tier }, 'Structured output was not valid JSON');
-      return {
+      return escalatedAnalysis({
         tier,
-        verdict: 'unclear',
-        confidence: null,
-        rationale: '',
-        escalationReason: 'The agent returned an unreadable verdict. A human decision is required.',
         model,
         ...usage,
-      };
+        reason: 'The agent returned an unreadable verdict. A human decision is required.',
+      });
     }
 
     // The schema guarantees the shape; the values still come from a model, so
-    // clamp and bound them before they reach columns with CHECK constraints.
-    return {
-      tier,
-      verdict: parsed.verdict,
-      confidence: Number.isFinite(parsed.confidence)
-        ? Math.min(1, Math.max(0, parsed.confidence))
-        : null,
-      rationale: (parsed.rationale ?? '').trim().slice(0, 4000),
-      escalationReason: (parsed.escalation_reason ?? '').trim().slice(0, 500),
-      model,
-      ...usage,
-    };
+    // the shared parser clamps and bounds them before they reach columns with
+    // CHECK constraints — and clamps them identically for both providers, so
+    // the eval compares judgement rather than post-processing.
+    return parseVerdictPayload(parsed, tier, model, usage);
   }
 }

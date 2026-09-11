@@ -111,13 +111,17 @@ export class SubmissionVerificationService {
         ? await this.runModel(context, networkEvidence, cvEvidence, run.id, phoneNumber)
         : this.humanReviewFallback('The AI agent is disabled; this submission needs a human moderator.');
 
-      const finalized = finalizeDecision(
+      const finalized = finalizeDecision({
         modelDecision,
         isLocationBased,
         mandatoryStatus,
-        cvEvidence.status === 'AVAILABLE',
-        context.policy,
-      );
+        cvAvailable: cvEvidence.status === 'AVAILABLE',
+        cvRelevance: cvEvidence.relevance ?? null,
+        cvBlocksApproval: cvEvidence.integrity?.blocksAutomatedApproval ?? false,
+        contract: context.quest.verification,
+        minRelevance: this.config.get('AI_VERIFICATION_MIN_RELEVANCE', { infer: true }),
+        bounds: context.policy,
+      });
       await this.recommendXp(context, submissionId);
       await this.agentRuns.succeed(run.id, finalized);
       return { runId: run.id, decision: finalized };
@@ -208,6 +212,19 @@ export class SubmissionVerificationService {
         landmarks: [],
         locationDescription: context.quest.destination ? context.quest.title : undefined,
       },
+      // The requirements above are hand-authored and empty on nearly every
+      // quest, so on their own they give a provider nothing to match the media
+      // against — which is how "is this relevant to the quest?" degenerated
+      // into "is a file attached?". The task block is always populated, and
+      // carries the contract that says whether relevance is even a fair
+      // question for this quest.
+      task: {
+        title: context.quest.title,
+        description: context.quest.description,
+        category: context.quest.category,
+        evidenceRubric: context.quest.verification.evidenceRubric,
+        verifiability: context.quest.verification.verifiability,
+      },
       maxKeyFrames: 12,
       idempotencyKey: `${submissionId}:cv:${context.runId}`,
     });
@@ -232,7 +249,12 @@ export class SubmissionVerificationService {
     ];
 
     try {
-      const agent = buildSubmissionVerificationAgent({ model, tools });
+      const agent = buildSubmissionVerificationAgent({
+        model,
+        tools,
+        verifiability: context.quest.verification.verifiability,
+        evidenceRubric: context.quest.verification.evidenceRubric,
+      });
       const raw = await this.runner.run<unknown>(agent, JSON.stringify({ context, networkEvidence, cvEvidence }));
       const parsed = VerificationDecisionSchema.safeParse(raw);
       if (!parsed.success) {

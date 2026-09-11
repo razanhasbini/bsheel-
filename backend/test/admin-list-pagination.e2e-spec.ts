@@ -81,6 +81,99 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
     for (const id of owned) expect(ids).toContain(id);
   });
 
+  /// Rows that share a `submitted_at`, which is the case the tiebreaker
+  /// exists for and the one that was broken.
+  ///
+  /// `ORDER BY s.submitted_at DESC, s.id` sorts ties by ascending id while
+  /// the cursor compares the tuple `(submitted_at, id) < (at, id)`, which is
+  /// a descending order on both columns. The two disagree only inside a tie
+  /// group — so a page boundary falling there repeated rows or skipped them,
+  /// silently, and only when timestamps collided.
+  ///
+  /// They collide readily: `submitted_at` defaults to `now()`, which in
+  /// PostgreSQL is the transaction timestamp, so a batch written by one
+  /// transaction shares it to the microsecond. This first showed up as one
+  /// duplicate in a 51-row walk of the shared list — the kind of intermittent
+  /// result that reads as test flakiness.
+  describe('rows sharing a submitted_at', () => {
+    /// Four submissions stamped with one timestamp unique to this run.
+    ///
+    /// Unique, not a fixed sentinel: a fixed `2000-01-01` would merge with
+    /// whatever a crashed earlier run left behind, and the group would no
+    /// longer be the four rows the assertions reason about. The microsecond
+    /// offset comes from the row ids, so two runs cannot collide.
+    ///
+    /// Four with a page size of three guarantees a boundary falls *inside*
+    /// the group, which is the only place the bug lives.
+    const stampedGroup = async (prefix: string): Promise<{ ids: string[]; at: string }> => {
+      const ids: string[] = [];
+      const user = await harness.createUser({ prefix });
+      for (let index = 0; index < 4; index += 1) {
+        const submission = await harness.createSubmission(user, { caption: `tie ${prefix} ${index}` });
+        ids.push(submission.id);
+      }
+      const stamped = await harness.database.query<{ at: string }>(
+        `UPDATE submissions
+         SET submitted_at = date_trunc('second', now()) + make_interval(secs => $2::numeric)
+         WHERE id = ANY($1::uuid[])
+         RETURNING to_char(submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.USZ') AS at`,
+        [ids, Number.parseInt(ids[0].slice(0, 6), 16) / 1_000_000],
+      );
+      return { ids, at: stamped.rows[0].at };
+    };
+
+    /// Walks the list until every id in `group` has been seen, and reports how
+    /// many times each appeared.
+    ///
+    /// Position-independent on purpose. Asserting "the group is on the first
+    /// two pages" would depend on where the stamp landed relative to whatever
+    /// the other parallel suites are writing, and asserting global uniqueness
+    /// over the whole walk would fail on a concurrent insert that is nobody's
+    /// bug. Counting appearances of *these* ids is the actual property: a
+    /// keyset paginator must return each row it covers exactly once.
+    const countAppearances = async (
+      order: 'asc' | 'desc',
+      group: readonly string[],
+    ): Promise<Map<string, number>> => {
+      const counts = new Map(group.map((id) => [id, 0]));
+      let cursor: string | undefined;
+      for (let page = 0; page < 60; page += 1) {
+        const query = `/submissions/admin?status=all&order=${order}&limit=3`
+          + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+        const response = await harness.get(query, moderator).expect(200);
+        const rows = response.body.data as { id: string; next_cursor: string | null }[];
+        for (const row of rows) {
+          if (counts.has(row.id)) counts.set(row.id, counts.get(row.id)! + 1);
+        }
+        const next = rows.at(-1)?.next_cursor ?? null;
+        // Stop as soon as the whole group has been seen at least once; the
+        // walk only needs to cover the group, not the shared table.
+        if (!next || [...counts.values()].every((count) => count > 0)) break;
+        cursor = next;
+      }
+      return counts;
+    };
+
+    // The direction the bug was in: the sort put ties in ascending id order
+    // while the cursor excluded by descending tuple.
+    it('returns each tied row exactly once when paging descending', async () => {
+      const { ids } = await stampedGroup('tiedesc');
+      const counts = await countAppearances('desc', ids);
+      expect([...counts.values()]).toEqual([1, 1, 1, 1]);
+    });
+
+    // The control case. Ascending already agreed with an ascending id
+    // tiebreaker, so this cannot fail for the original bug — it is here so
+    // that a future "fix" which flips the tiebreaker the other way breaks
+    // something instead of trading one direction's correctness for the
+    // other's.
+    it('returns each tied row exactly once when paging ascending', async () => {
+      const { ids } = await stampedGroup('tieasc');
+      const counts = await countAppearances('asc', ids);
+      expect([...counts.values()]).toEqual([1, 1, 1, 1]);
+    });
+  });
+
   it('returns the same set of rows by cursor as by offset', async () => {
     const byCursor = await walk('/submissions/admin?status=all&order=asc', 3);
     const byOffset: string[] = [];
@@ -123,6 +216,25 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
     // Only the last row of a full page carries one; the rest are null, so a
     // client cannot accidentally page from the middle.
     for (const row of rows.slice(0, -1)) expect(row.next_cursor).toBeNull();
+  });
+
+  // Direction is half of what an ordering is, so a cursor minted ascending
+  // describes a boundary the descending comparison reads backwards — and
+  // returns the rows the client just walked past, with no error.
+  it('refuses a cursor issued for the other sort direction', async () => {
+    const ascending = await harness
+      .get('/submissions/admin?status=all&order=asc&limit=2', moderator)
+      .expect(200);
+    const cursor = ascending.body.data.at(-1)?.next_cursor;
+    expect(cursor).toBeTruthy();
+
+    await harness
+      .get(`/submissions/admin?status=all&order=desc&limit=2&cursor=${encodeURIComponent(cursor)}`, moderator)
+      .expect(400);
+    // And still works in the direction it was issued for.
+    await harness
+      .get(`/submissions/admin?status=all&order=asc&limit=2&cursor=${encodeURIComponent(cursor)}`, moderator)
+      .expect(200);
   });
 
   // The context binding is the reason to prefer keyset-cursor.ts over the

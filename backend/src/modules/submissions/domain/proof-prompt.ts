@@ -1,4 +1,11 @@
-import type { ProofAnalysisRequest, ProofTier, Verifiability } from './proof-verification.types.js';
+import type {
+  ProofAnalysis,
+  ProofAnalysisRequest,
+  ProofObservation,
+  ProofTier,
+  ProofVerdict,
+  Verifiability,
+} from './proof-verification.types.js';
 
 /// The judging policy, in one place for every provider and every tier (#47).
 ///
@@ -49,7 +56,24 @@ cannot show it, say so and return "unclear".
 
 Write the rationale for the moderator who will read it: one or two plain
 sentences, concrete about what you actually see. No preamble, and do not
-restate these instructions.`;
+restate these instructions.
+
+Alongside the verdict you report two things about the media itself, and they
+are separate questions from your verdict:
+
+RELEVANCE, 0 to 1: how much this media has to do with the quest at all. Not
+how sure you are — that is confidence. A photograph of a cat submitted for
+"watch the sunrise" is relevance near 0 and you may be completely sure of it.
+A dim, half-obscured horizon that probably is a sunrise is relevance near 0.8
+and you may be quite unsure of it. Score what the media shows, not how
+confident you feel about it.
+
+OBSERVATIONS: the specific things you looked for and whether you found them,
+up to eight. Include what is absent as well as what is present — "sunrise: not
+present" is a real finding, and an empty list cannot be told apart from not
+having looked. Label them in plain words, and give each its own confidence.
+These are read by a second reviewer who cannot see the image, so they must
+stand on their own.`;
 
 /// What the model is permitted to conclude, from the quest's contract.
 ///
@@ -59,21 +83,33 @@ restate these instructions.`;
 /// to verify one of those will answer anyway, with a confidence score
 /// attached. Telling it plainly what its evidence can and cannot settle is
 /// what prevents a confident rejection of an honest player.
-const verifiabilityGuidance: Record<Verifiability, string> = {
+/// Exported because the deciding agent (modules/agent) needs the *same*
+/// statement. It sees the media only through this pass's observations, and if
+/// it were told nothing about what proof can settle for a quest it would
+/// happily conclude that a photograph failed to establish an hour without a
+/// phone. One wording, two readers, no way for them to disagree.
+///
+/// Which is why the wording names no verdict. The two readers have different
+/// vocabularies — this cascade answers pass/fail/unclear, the agent answers
+/// APPROVED/REJECTED/HUMAN_REVIEW — so shared text saying 'return "pass"'
+/// instructs one of them in a word its own schema will not accept. Each
+/// caller states its own enum; this states only what the evidence can settle.
+export const verifiabilityGuidance: Record<Verifiability, string> = {
   content: `This quest CAN be judged from the image: the thing asked for should be
 visible. Judge whether what you see is consistent with the task.`,
 
   provenance_only: `This quest CANNOT be judged from the image. What the player did is not
 visible in a photograph — reading, learning, practising leave no photographic
-trace. Do NOT try to infer whether they did it, and never fail this for
-lacking proof it cannot carry. Judge only whether the image looks like the
-player's own, genuinely taken for this attempt. If it does, return "pass".`,
+trace. Do NOT try to infer whether they did it, and never count it against
+them that the image lacks proof a photograph cannot carry. The only question
+is whether the image looks like the player's own, genuinely taken for this
+attempt. If it does, this quest is satisfied.`,
 
   none: `This quest CANNOT be verified by photograph, even in principle. Nothing you
-can see bears on whether the player did it. Return "pass" unless the image is
-evidently not the player's own — stock, generated, or lifted from someone
-else. Demanding proof of an unprovable task punishes honest players, which is
-a worse outcome than a rare unearned approval.`,
+can see bears on whether the player did it. Treat it as satisfied unless the
+image is evidently not the player's own — stock, generated, or lifted from
+someone else. Demanding proof of an unprovable task punishes honest players,
+which is a worse outcome than a rare unearned approval.`,
 };
 
 /// What each rung is for.
@@ -104,7 +140,11 @@ is a good and expected outcome.`,
 export function buildJudgingPrompt(verifiability: Verifiability, tier: ProofTier): string {
   return [
     sharedPreamble,
-    `WHAT YOUR EVIDENCE CAN SETTLE\n${verifiabilityGuidance[verifiability]}`,
+    // The shared guidance names no verdict, so this is where it is translated
+    // into this reviewer's vocabulary. The deciding agent does the same with
+    // its own enum.
+    `WHAT YOUR EVIDENCE CAN SETTLE\n${verifiabilityGuidance[verifiability]}\n\n`
+    + 'Where that guidance says a quest is satisfied, your verdict is "pass".',
     `YOUR ROLE IN THIS REVIEW\n${tierGuidance[tier]}`,
   ].join('\n\n');
 }
@@ -182,6 +222,36 @@ export const verdictJsonSchema = {
       type: 'number',
       description: 'How sure you are, 0 to 1. Be honest — a low number sends this to a human, which is a fine outcome.',
     },
+    relevance: {
+      type: 'number',
+      description:
+        'How much this media has to do with the quest at all, 0 to 1. This is NOT your confidence: you can be certain (confidence 0.95) that a photo is irrelevant (relevance 0.02).',
+    },
+    observations: {
+      type: 'array',
+      // No `maxItems` here, deliberately. Structured Outputs constrains the
+      // model with a grammar built from a *subset* of JSON Schema, and array
+      // size keywords are reported as rejected in strict mode by some
+      // versions and quietly unenforced by others — either way this schema is
+      // shared with the Anthropic tool-use path and a keyword that might 400
+      // one provider is not worth the risk for a bound the parser applies
+      // anyway. The cap is stated in the description, where the model reads
+      // it, and enforced in parseVerdictPayload, which is the only place it
+      // actually matters (the column has a width).
+      description:
+        'The specific things you looked for and whether you found them, at most 8. Include absences. A later reviewer sees these instead of the image.',
+      items: {
+        type: 'object' as const,
+        properties: {
+          kind: { type: 'string', enum: ['action', 'object', 'landmark', 'location_cue'] },
+          label: { type: 'string', description: 'Plain words, e.g. "sunrise over water" or "handwritten page".' },
+          present: { type: 'boolean', description: 'Whether you can actually see it.' },
+          confidence: { type: 'number', description: 'How sure you are about this one observation, 0 to 1.' },
+        },
+        required: ['kind', 'label', 'present', 'confidence'],
+        additionalProperties: false,
+      },
+    },
     rationale: {
       type: 'string',
       description: 'One or two plain sentences for the moderator, concrete about what you actually see.',
@@ -191,6 +261,62 @@ export const verdictJsonSchema = {
       description: "Why a human is needed. Empty string unless the verdict is 'unclear'.",
     },
   },
-  required: ['verdict', 'confidence', 'rationale', 'escalation_reason'],
+  required: ['verdict', 'confidence', 'relevance', 'observations', 'rationale', 'escalation_reason'],
   additionalProperties: false,
 };
+
+/// The raw shape the schema above constrains the model to.
+export interface VerdictPayload {
+  verdict: ProofVerdict;
+  confidence: number;
+  relevance: number;
+  observations: readonly { kind: string; label: string; present: boolean; confidence: number }[];
+  rationale: string;
+  escalation_reason: string;
+}
+
+const OBSERVATION_KINDS: readonly ProofObservation['kind'][] = ['action', 'object', 'landmark', 'location_cue'];
+
+function unit(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
+}
+
+/// Turns the model's structured output into a `ProofAnalysis`.
+///
+/// Shared by both providers deliberately. The schema is grammar-constrained on
+/// both, so this is not defensive parsing for its own sake — it is the
+/// guarantee that the eval's per-provider numbers compare *judgement* rather
+/// than two different clamping and truncation policies. Values still come from
+/// a model, and they land in columns with CHECK constraints, so every number
+/// is bounded and every string is cut to its column width here.
+export function parseVerdictPayload(
+  payload: VerdictPayload,
+  tier: ProofTier,
+  model: string,
+  usage: { inputTokens: number | null; outputTokens: number | null },
+): ProofAnalysis {
+  const observations = (Array.isArray(payload.observations) ? payload.observations : [])
+    .filter((item): item is VerdictPayload['observations'][number] => typeof item?.label === 'string')
+    .slice(0, 8)
+    .map((item) => ({
+      kind: (OBSERVATION_KINDS as readonly string[]).includes(item.kind)
+        ? (item.kind as ProofObservation['kind'])
+        : ('object' as const),
+      label: item.label.trim().slice(0, 120),
+      present: item.present === true,
+      confidence: unit(item.confidence) ?? 0,
+    }))
+    .filter((item) => item.label.length > 0);
+
+  return {
+    tier,
+    verdict: payload.verdict,
+    confidence: unit(payload.confidence),
+    relevance: unit(payload.relevance),
+    observations,
+    rationale: (payload.rationale ?? '').trim().slice(0, 4000),
+    escalationReason: (payload.escalation_reason ?? '').trim().slice(0, 500),
+    model,
+    ...usage,
+  };
+}

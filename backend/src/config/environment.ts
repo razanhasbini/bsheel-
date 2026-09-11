@@ -128,6 +128,17 @@ const environmentSchema = z
     // sits higher, and both are set from the eval rather than by taste.
     AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.85),
     AI_VERIFICATION_REJECT_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.95),
+    // Below this, the vision pass is saying the media has little to do with
+    // the quest — and an approval that ignores that is the "we checked a file
+    // was attached" failure this feature exists to prevent. So a proposed
+    // approval under the floor goes to a human instead.
+    //
+    // It is NOT a rejection trigger, and deliberately so: low relevance is the
+    // ordinary state of honest proof for any quest a photograph cannot show,
+    // and it is admissible at all only where the quest contract says
+    // verifiability = content. Set low (0.35) because the job here is to catch
+    // the cat photo submitted for a sunrise quest, not to adjudicate framing.
+    AI_VERIFICATION_MIN_RELEVANCE: z.coerce.number().min(0).max(1).default(0.35),
     // Perceptual-hash distance at or below which two images are the same
     // picture. Exposed so the eval harness can sweep it.
     AI_VERIFICATION_NEAR_DUPLICATE_DISTANCE: z.coerce.number().int().min(0).max(32).default(10),
@@ -337,10 +348,19 @@ const environmentSchema = z
     // only an opaque, short-lived handoff code — never a token.
     PHONE_SIGNIN_MOBILE_REDIRECT_URL: optionalUrl,
 
-    // Computer vision. 'none' is the fail-closed default (NullCvEvidenceProvider);
-    // 'http' calls an external service at CV_SERVICE_BASE_URL implementing
-    // the CvEvidenceSchema contract (see http-cv-evidence.provider.ts).
-    CV_PROVIDER: z.enum(['none', 'http']).default('none'),
+    // Computer vision — what the agent can see of the submitted media.
+    //
+    //   'local' reads the #47 vision cascade's own finding for the submission
+    //           (LocalCvEvidenceProvider). The default: it is the only setting
+    //           that works without a second service existing, and with no
+    //           vision API key configured it degrades to exactly what 'none'
+    //           returns, so defaulting to it cannot turn anything on by
+    //           surprise.
+    //   'http'  calls an external service at CV_SERVICE_BASE_URL implementing
+    //           the CvEvidenceSchema contract (see http-cv-evidence.provider.ts).
+    //   'none'  is fail-closed: UNAVAILABLE for everything, which sends every
+    //           submission to a human. An explicit off switch, not a default.
+    CV_PROVIDER: z.enum(['none', 'http', 'local']).default('local'),
     CV_SERVICE_BASE_URL: optionalUrl,
     CV_SERVICE_AUTH_TOKEN: optionalString,
     CV_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(20_000),

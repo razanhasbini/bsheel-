@@ -56,6 +56,12 @@ export class AgentContextService {
         baseXp: row.base_xp,
         defaultDurationHours: row.default_duration_hours,
         stageCount: 1,
+        verification: {
+          verifiability: row.verifiability,
+          evidenceRubric: row.evidence_rubric,
+          mayAutoApprove: row.may_auto_approve,
+          mayAutoReject: row.may_auto_reject,
+        },
         ...(requirements ? { requirements } : {}),
         ...(destination ? { destination } : {}),
       },

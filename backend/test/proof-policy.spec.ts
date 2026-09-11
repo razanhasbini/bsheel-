@@ -30,6 +30,8 @@ function analysis(
     tier,
     verdict,
     confidence,
+    relevance: verdict === 'pass' ? 0.9 : 0.1,
+    observations: [],
     rationale: 'Rationale.',
     escalationReason: verdict === 'unclear' ? 'Could not tell.' : '',
     model: 'gpt-5.6-sol',

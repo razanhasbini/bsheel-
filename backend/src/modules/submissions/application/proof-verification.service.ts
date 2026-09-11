@@ -168,7 +168,12 @@ export class ProofVerificationService {
     signals: LocationSignals,
     durationMs: number,
   ): Promise<void> {
-    const shadow = this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true });
+    // Exactly the predicate act() uses, so `acted` can never claim an action
+    // that did not happen. `acted = false` is what marks a row as honest eval
+    // data — the agent did not influence the human decision it is scored
+    // against — and a stale true here would quietly poison the eval set that
+    // every authority decision downstream is based on.
+    const willAct = this.willActOnDecisions();
     await this.repository.complete(
       submissionId,
       {
@@ -178,6 +183,14 @@ export class ProofVerificationService {
         tier: analysis?.tier ?? 'triage',
         verdict: outcome.decision === 'approve' ? 'pass' : outcome.decision === 'reject' ? 'fail' : 'unclear',
         confidence: analysis?.confidence ?? null,
+        // Unlike the verdict, these two are the model's own output rather than
+        // the policy's conclusion, and they are stored raw. The policy has no
+        // opinion to substitute: relevance and the observation list are
+        // measurements of the media, and the CAMARA agent reads them back as
+        // its CV evidence — a policy-adjusted number would be a different
+        // thing wearing the same name.
+        relevance: analysis?.relevance ?? null,
+        observations: analysis?.observations ?? [],
         rationale: analysis?.rationale ?? '',
         escalationReason: outcome.decision === 'escalate' ? outcome.reason : '',
         model: analysis?.model ?? '',
@@ -186,11 +199,11 @@ export class ProofVerificationService {
       },
       signals,
       durationMs,
-      { stage: outcome.stage, acted: !shadow && outcome.decision !== 'escalate', provider: this.analyzer.provider },
+      { stage: outcome.stage, acted: willAct && outcome.decision !== 'escalate', provider: this.analyzer.provider },
     );
   }
 
-  /// Carries out the decision, unless shadow mode says otherwise.
+  /// Carries out the decision, unless something more informed will.
   ///
   /// Approval and rejection go through the *same* repository methods a
   /// moderator's click uses, with a null actor. That is deliberate: there is
@@ -199,11 +212,27 @@ export class ProofVerificationService {
   /// decision and an automated one. `admin_audit_log.actor_id` is nullable
   /// and `approve`/`reject` already accepted `string | null`, so the schema
   /// anticipated a non-human decider.
+  ///
+  /// Two independent verifiers fire off `submission.created`, and exactly one
+  /// of them may act. This one steps aside for the other when it is running,
+  /// because the ranking is not arbitrary: the agent pipeline weighs the
+  /// CAMARA location evidence *and* this pass's own findings, read back as CV
+  /// evidence. It is strictly better informed about the same submission. Two
+  /// deciders would mean either a race to `approve`/`reject` on one row or,
+  /// worse, an approval from one and a rejection from the other, with the
+  /// user's notification decided by whichever worker happened to be quicker.
+  ///
+  /// Recording is unaffected: this pass keeps writing its verdict, relevance
+  /// and observations either way. That row is the eval slice and it is also
+  /// what the agent reads — stopping the write to avoid acting twice would
+  /// blind the decider to save it from a conflict.
   private async act(submissionId: string, outcome: PolicyOutcome): Promise<void> {
-    if (this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true })) {
+    if (!this.willActOnDecisions()) {
       this.logger.log(
         { submissionId, decision: outcome.decision, stage: outcome.stage },
-        'Shadow mode: decision recorded, not acted on',
+        this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })
+          ? 'Agent pipeline is the decider for this deployment: proof verdict recorded as evidence, not acted on'
+          : 'Shadow mode: decision recorded, not acted on',
       );
       return;
     }
@@ -216,6 +245,18 @@ export class ProofVerificationService {
       await this.submissions.reject(null, submissionId, outcome.reason, source);
     }
     this.logger.log({ submissionId, decision: outcome.decision, stage: outcome.stage }, 'Agent decided a submission');
+  }
+
+  /// Whether this pass is the one allowed to carry its decisions out.
+  ///
+  /// Two things can take that away, and they are different in kind. Shadow
+  /// mode says nobody has measured this agent yet. The agent pipeline being
+  /// enabled says something better informed will decide instead. Either way
+  /// the verdict is still recorded — and in the second case it is recorded
+  /// *for* that decider, as the CV evidence it reads.
+  private willActOnDecisions(): boolean {
+    if (this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return false;
+    return !this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true });
   }
 
   /// The committee's "unclear" section (#47).
