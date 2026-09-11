@@ -91,6 +91,31 @@ export interface Database {
     "blocked_id": string;
     "created_at": Generated<Timestamp>;
   };
+  "business_members": {
+    "business_id": string;
+    "user_id": string;
+    "role": Generated<string>;
+    "created_at": Generated<Timestamp>;
+  };
+  "business_places": {
+    "business_id": string;
+    "place_id": string;
+    "linked_by": string | null;
+    "linked_at": Generated<Timestamp>;
+  };
+  "businesses": {
+    "id": Generated<string>;
+    "name": string;
+    "slug": string;
+    "description": Generated<string>;
+    "contact_email": string | null;
+    "website_url": string | null;
+    "logo_url": string | null;
+    "status": Generated<string>;
+    "created_by": string | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+  };
   "collab_group_members": {
     "id": Generated<string>;
     "group_id": string;
