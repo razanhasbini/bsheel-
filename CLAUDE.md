@@ -63,7 +63,7 @@ packages/
 backend/
   src/modules/         auth, profiles, quests, submissions, feed, social,
                        collab, notifications, media, admin, account,
-                       public-intake, search, leaderboard, health
+                       public-intake, search, leaderboard, business, health
   src/integrations/    telegram
   migrations/          forward-only, checksummed SQL
   test/                unit (*.spec.ts) + integration (*.e2e-spec.ts)
@@ -330,6 +330,60 @@ both what the map shows and what `assertDestinationAccess` lets a player
 start, so a visible pin can never offer a quest the API refuses. Device
 GPS moves the player's avatar on the map and nothing else — it is never
 evidence.
+
+## Business / destination accounts (#14)
+
+A business is an **ordinary player with extra rights over its own places**.
+Not an admin, not a tier of user, not a variant account: its members roll
+quests, post to the feed and appear on the leaderboard like anyone else,
+and additionally may read the dashboard for the places they speak for.
+
+The thing to not get wrong: **`business` is not a system role.**
+`systemRoles` (`user`, `moderator`, `super_admin`) is the admin ladder —
+every member means "authority over the whole platform", it is carried in
+the access token, and `RolesGuard` reads it as "at least this much". A
+business has no authority over the platform at all. Putting it in that enum
+would force every `@Roles` site and the admin dashboard's route gating to
+reason about a role with no ordering against the others, and would change
+what an already-issued token's `role` claim means. `business.spec.ts` fails
+if someone adds it.
+
+So authority is **membership, not rank**, in three tables:
+`businesses`, `business_places` (which real places it speaks for), and
+`business_members` (who may act for it, `owner` or `manager`, scoped to
+that one business). `BusinessAccessGuard` resolves it **per request from
+the database, never from the token** — access is granted and revoked by a
+person, and a token issued before a revocation would otherwise keep working
+until it expired.
+
+Four rules worth knowing before changing anything here:
+
+- **A non-member gets 404, not 403.** A 403 confirms the business exists,
+  which turns walking the id space into a directory of who is on the
+  platform. A super_admin is *also* a non-member and gets the same 404 on
+  the member routes — managing businesses happens through the audited admin
+  routes, which is what stops "can moderate the platform" from quietly
+  becoming "can read every business's visitors".
+- **A place has at most one owner**, enforced by a UNIQUE constraint on
+  `business_places.place_id` alone. Without it two businesses could both
+  claim a landmark and both read its visitors, which is a leak between
+  competitors dressed up as a modelling mistake.
+- **Claiming a place is super_admin-only and deliberately not self-serve.**
+  A place is a real location whose visitor data the owner gets to read, and
+  there is no ownership proof in the system to check a claim against.
+  Appointing *members*, by contrast, is the owner's own business.
+- **Suspension revokes reads but keeps the place links.** Losing them would
+  destroy the record of what was claimed, which is exactly what a dispute
+  needs. And a business must keep at least one owner: appointing members is
+  owner-only, so removing the last one would leave it manageable by nobody
+  but an admin.
+
+`profiles` has **no country column**, so the "country touristic analytics"
+in #50 has no data source — don't go looking for it. `profiles.analytics_consent_at`
+exists and gates per-user analytics. And a business must only ever see
+proof its author already made public (`show_in_feed` and
+`visibility = 'visible'`): private proof is not a business's to read
+because a quest happened at their address.
 
 ## High-risk invariants
 
