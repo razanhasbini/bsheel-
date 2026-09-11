@@ -64,12 +64,30 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
     expect(owned.size).toBe(7);
   });
 
+  /// Each row this suite owns, exactly once across the whole walk.
+  ///
+  /// Scoped to owned rows on purpose, and this is the third assertion in
+  /// this file to learn the lesson: the list being walked is a shared table
+  /// that other suites are writing to *and reordering* while the walk is in
+  /// flight. `streaks` and `missing-parity` both UPDATE `submitted_at`, and
+  /// moving a row's sort key mid-walk makes any correct keyset paginator
+  /// return that row twice or not at all. A global
+  /// `new Set(ids).size === ids.length` therefore failed without any
+  /// paginator bug — 52 unique ids out of 53 — which is indistinguishable
+  /// from the real thing it was meant to catch.
+  ///
+  /// These fixtures' sort keys are never touched, so counting their
+  /// appearances tests the actual guarantee. It still catches the original
+  /// bug: a cursor that fails to advance either repeats these rows or,
+  /// bounded at 60 pages, never reaches them.
+  const appearancesOfOwned = (ids: readonly string[]): number[] =>
+    [...owned].map((id) => ids.filter((seen) => seen === id).length);
+
   // The bug that matters: a paginator that returns everything exactly once.
   it('covers every row exactly once across pages, ascending', async () => {
     const { ids, pages } = await walk('/submissions/admin?status=all&order=asc', 3);
     expect(pages).toBeGreaterThan(1);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const id of owned) expect(ids).toContain(id);
+    expect(appearancesOfOwned(ids)).toEqual([...owned].map(() => 1));
   });
 
   // The comparison has to follow the sort. Reversing one without the other
@@ -77,8 +95,7 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
   it('covers every row exactly once across pages, descending', async () => {
     const { ids, pages } = await walk('/submissions/admin?status=all&order=desc', 3);
     expect(pages).toBeGreaterThan(1);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const id of owned) expect(ids).toContain(id);
+    expect(appearancesOfOwned(ids)).toEqual([...owned].map(() => 1));
   });
 
   /// Rows that share a `submitted_at`, which is the case the tiebreaker

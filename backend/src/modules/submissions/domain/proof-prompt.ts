@@ -184,10 +184,24 @@ export function describeSubmission(request: ProofAnalysisRequest): string {
   return lines.join('\n');
 }
 
-/// States plainly that presence is unproven when it is.
+/// Says whose job presence is, which is no longer this reviewer's.
 ///
-/// Silence here would let the model assume the image is the whole story,
-/// which is exactly the inference the absent CAMARA adapter (#53) forbids.
+/// The wording here mattered more than it looks. `map_location_evidence` has
+/// no writer, so the absent branch fires on *every* submission — and it used
+/// to end "If the quest depends on physical presence, return 'unclear'".
+/// That was right when this pass was the only reviewer and location evidence
+/// genuinely did not exist. It is wrong now: the CAMARA agent gathers the
+/// three mandatory capabilities per submission and weighs them at
+/// `finalizeDecision`, after this pass has run.
+///
+/// Left as it was, every destination quest was pushed to 'unclear' for want
+/// of evidence that was about to be collected by someone else — which is
+/// harmless for the decision (this pass no longer decides) and not harmless
+/// for the eval, because those pessimistic verdicts are the rows
+/// `npm run proof:eval` scores to decide whether the agent may ever act.
+///
+/// So: state that presence is out of scope rather than unproven, and ask for
+/// a verdict on what this reviewer can actually see.
 function describeSignals(request: ProofAnalysisRequest): string {
   const { locationVerified, locationRetrieved, geofenceVerified } = request.signals;
   if (
@@ -195,7 +209,10 @@ function describeSignals(request: ProofAnalysisRequest): string {
     && locationRetrieved === undefined
     && geofenceVerified === undefined
   ) {
-    return 'Network location signals: NOT AVAILABLE for this submission. You cannot conclude anything about where the player was. If the quest depends on physical presence, return "unclear".';
+    return 'Whether the player was physically at a particular place is NOT your question and is not in your input. '
+      + 'It is established separately from mobile-network evidence, by a reviewer who runs after you. '
+      + 'Do not try to infer presence from the image, do not count its absence against the player, and do not '
+      + 'defer your verdict because you cannot establish it. Judge only what the image shows about the task.';
   }
   const describe = (value: boolean | undefined): string =>
     value === undefined ? 'not available' : value ? 'confirmed' : 'NOT confirmed';
