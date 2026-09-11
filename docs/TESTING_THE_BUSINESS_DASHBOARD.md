@@ -19,7 +19,18 @@ apps/mobile_app        a card on the owner's OWN profile, and nothing else
 Three tables carry it: `businesses`, `business_places` (which real locations
 it speaks for) and `business_members` (`owner` / `manager`).
 
-## Start here: nothing works until a business exists
+## Start here
+
+**Testing locally? One command.** Skip to [Running it
+locally](#running-it-locally): the seed creates a partner account with
+enough activity that every section has something in it, so an empty section
+is a bug rather than an empty fixture.
+
+**Testing against a deployed environment?** Read the next section — nothing
+works until a business exists there, and the step people skip is the fourth
+one.
+
+## Provisioning: nothing works until a business exists
 
 A business needs **four** things, and the fourth is the one that gets
 forgotten because it is NULL by default and is *not* implied by the business
