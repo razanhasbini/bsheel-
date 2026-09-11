@@ -127,6 +127,16 @@ submission the author kept private still counts as a completion and its
 media is never shown. Both facts at once is correct: the visit happened, the
 bytes stay theirs.
 
+## If the dashboard is not deployed yet
+
+The mobile card's button opens `https://admin.bsheel.app/business/?business=<id>`
+and will 404 until the bundle is served there. Everything else works — the
+card itself, the API, and running the dashboard locally against production.
+
+Worth knowing when it *is* deployed: that link needs no SPA fallback,
+because `?business=<id>` is a query string. Only a deep path
+(`/business/login`) does. See `docs/DEPLOYMENT.md` for the checked table.
+
 ## Running it locally
 
 ```bash

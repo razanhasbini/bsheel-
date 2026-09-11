@@ -161,10 +161,25 @@ before someone "tidies it up" onto `business.bsheel.app`:
   shared browser storage, so a shared namespace would have an admin and a
   business owner in one browser silently evict each other's session.
 
-Serving requirements: the path must fall back to `/business/index.html` for
-unknown sub-paths (Flutter web uses path URLs, so a deep link like
-`/business/?business=<id>` must not 404), and the bundle carries no secrets —
-authorisation is the API's, by membership and subscription.
+Serving requirements, checked against the real bundle served under
+`/business/` rather than assumed:
+
+| Request | Without SPA fallback | Needs fallback? |
+|---|---|---|
+| `/business/` | 200 | no |
+| `/business/flutter_bootstrap.js` and the rest of the assets | 200 | no |
+| `/business/?business=<id>` — the link the mobile card opens | **200** | **no** |
+| `/business/login` or any other deep path | **404** | **yes** |
+
+So the mobile card's link works from a plain static mount, because
+`?business=<id>` is a query string rather than a path segment. The fallback
+to `/business/index.html` is still required before anyone bookmarks or
+reloads a deep path — Flutter web uses path URLs (`usePathUrlStrategy`), and
+`<base href="/business/">` is baked into the bundle by `--base-href`, so the
+app itself is correct; it is the server that has to stop 404ing.
+
+The bundle carries no secrets — authorisation is the API's, by membership and
+subscription.
 
 The mobile app links here via `DASHBOARD_URL` in
 `apps/mobile_app/dart_defines.release.json`. It is a build-time value and
