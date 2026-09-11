@@ -115,6 +115,7 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "analytics_subscribed_at": Timestamp | null;
   };
   "collab_group_members": {
     "id": Generated<string>;
@@ -374,6 +375,7 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
     "streak_reminder_sent_on": Timestamp | null;
+    "country_code": string | null;
   };
   "public_deletion_requests": {
     "id": Generated<string>;

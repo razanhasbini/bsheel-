@@ -29,6 +29,10 @@ export class BusinessAnalyticsService {
     return this.analytics.places(businessId);
   }
 
+  visitorOrigins(businessId: string) {
+    return this.analytics.visitorOrigins(businessId);
+  }
+
   /// Publicly published proof at this business's places, newest first.
   ///
   /// The cursor is two fields because the sort is two fields; accepting one

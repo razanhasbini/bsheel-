@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { BusinessAccessGuard } from '../application/business-access.guard.js';
+import { BusinessAnalyticsGuard } from '../application/business-analytics.guard.js';
 import { BusinessAnalyticsService } from '../application/business-analytics.service.js';
 import { BusinessIdDto } from './business.dto.js';
 import {
@@ -17,7 +18,8 @@ import {
 /// derived, never requested, which is what makes it impossible to ask about
 /// somebody else's location.
 @ApiTags('businesses')
-@UseGuards(BusinessAccessGuard)
+// Order matters: access resolves the membership, entitlement reads it.
+@UseGuards(BusinessAccessGuard, BusinessAnalyticsGuard)
 @Controller({ path: 'businesses/:businessId/analytics', version: '1' })
 export class BusinessAnalyticsController {
   constructor(private readonly analytics: BusinessAnalyticsService) {}
@@ -41,6 +43,13 @@ export class BusinessAnalyticsController {
   @Get('places')
   places(@Param() params: BusinessIdDto) {
     return this.analytics.places(params.businessId);
+  }
+
+  /// Where visitors say they are from — aggregate, consented, and above the
+  /// reporting threshold only.
+  @Get('countries')
+  countries(@Param() params: BusinessIdDto) {
+    return this.analytics.visitorOrigins(params.businessId);
   }
 
   /// Proof the author published to the feed, at this business's places.
