@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/route_names.dart';
 import '../data/map_providers.dart';
 import '../domain/map_geometry.dart';
+import 'journey_route_layer.dart';
+import '../../quests/presentation/providers/journey_providers.dart';
 
 final mapGeometryProvider = FutureProvider<List<CountryGeometry>>((ref) async =>
     CountryGeometry.decode(
@@ -174,6 +176,22 @@ class _MapPageState extends ConsumerState<MapPage> {
                                                   projection,
                                                   countryRows,
                                                   _country)),
+                                          // Journey progression over the
+                                          // geography: completed checkpoints,
+                                          // the one that just opened, and the
+                                          // route between them. Drawn only
+                                          // where the server sent
+                                          // coordinates, so a hidden
+                                          // checkpoint stays hidden.
+                                          for (final run in ref
+                                                  .watch(activeJourneysProvider)
+                                                  .valueOrNull ??
+                                              const <JourneyRun>[])
+                                            JourneyRouteLayer(
+                                                run: run,
+                                                projection: projection,
+                                                size: size,
+                                                progress: 1),
                                           for (final p in rows)
                                             Positioned(
                                                 left:

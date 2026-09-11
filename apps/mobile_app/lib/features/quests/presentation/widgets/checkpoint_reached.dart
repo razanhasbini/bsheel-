@@ -3,39 +3,46 @@ import 'dart:math' as math;
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-/// Remembers how far along each chain a player had got the last time they
-/// looked, so the app can tell "a step was approved since you were last
-/// here" from "this is simply where you are".
+/// Plays the unlock moment the server says is still owed.
 ///
-/// It has to be persisted rather than held in memory: approval happens while
-/// the app is closed — a moderator decides at their own pace — so the
-/// comparison that matters spans launches. SharedPreferences, because losing
-/// it costs one missed celebration, not correctness.
+/// The authority is `journey_stage_unlocks.seen_at`, not local storage. A
+/// SharedPreferences watermark could not survive the cases that matter: a
+/// checkpoint approved while the app was closed still deserves its moment,
+/// and reinstalling must not replay one already seen. Only the backend knows
+/// both, so the client asks and then reports back.
 ///
-/// Keyed by chain and not by quest: the same advance is the same event
-/// whichever step of the chain the player opens it from.
-abstract final class CheckpointMemory {
-  static String _key(String chainId) => 'journey_progress_$chainId';
+/// The order is deliberate — show first, acknowledge after. If the app dies
+/// mid-transition the server still owes the moment and will offer it again,
+/// which is the right way round to fail.
+abstract final class CheckpointPresenter {
+  static bool _showing = false;
 
-  /// The advance to celebrate, or null when nothing moved.
+  /// Shows the celebration for [run] if it carries an unseen unlock.
   ///
-  /// Returns null the very first time a chain is seen even if steps are
-  /// already complete — a player who joins a relay mid-way did not just
-  /// clear those steps, and congratulating them for someone else's work is
-  /// worse than saying nothing.
-  static Future<int?> advanceSince(QuestJourney journey) async {
+  /// Returns true when something was shown, so the caller can refresh the
+  /// state the animation was describing.
+  static Future<bool> presentIfOwed(
+    BuildContext context,
+    JourneyRun run,
+    Future<void> Function() acknowledge,
+  ) async {
+    final unseen = run.unseenUnlock;
+    // `_showing` guards the several rebuilds one frame can bring; the
+    // server's seen_at guards everything longer-lived than that.
+    if (unseen == null || _showing) return false;
+    _showing = true;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final seen = prefs.getInt(_key(journey.chainId));
-      await prefs.setInt(_key(journey.chainId), journey.completedSteps);
-      if (seen == null) return null;
-      return journey.completedSteps > seen ? journey.completedSteps : null;
-    } catch (_) {
-      // A device that cannot read prefs still gets a working journey; it
-      // just never gets the fanfare.
-      return null;
+      if (!context.mounted) return false;
+      await CheckpointReachedOverlay.show(
+        context,
+        run: run,
+        reachedStep: run.completedSteps,
+      );
+      await acknowledge();
+      return true;
+    } finally {
+      _showing = false;
     }
   }
 }
@@ -52,11 +59,11 @@ abstract final class CheckpointMemory {
 class CheckpointReachedOverlay extends StatefulWidget {
   const CheckpointReachedOverlay({
     super.key,
-    required this.journey,
+    required this.run,
     required this.reachedStep,
   });
 
-  final QuestJourney journey;
+  final JourneyRun run;
 
   /// How many steps are complete now. The node that just filled.
   final int reachedStep;
@@ -65,7 +72,7 @@ class CheckpointReachedOverlay extends StatefulWidget {
   /// player dismisses it.
   static Future<void> show(
     BuildContext context, {
-    required QuestJourney journey,
+    required JourneyRun run,
     required int reachedStep,
   }) {
     return Navigator.of(context, rootNavigator: true).push(
@@ -75,7 +82,7 @@ class CheckpointReachedOverlay extends StatefulWidget {
         barrierDismissible: true,
         transitionDuration: const Duration(milliseconds: 260),
         pageBuilder: (_, __, ___) => CheckpointReachedOverlay(
-          journey: journey,
+          run: run,
           reachedStep: reachedStep,
         ),
         transitionsBuilder: (_, animation, __, child) =>
@@ -124,14 +131,11 @@ class _CheckpointReachedOverlayState extends State<CheckpointReachedOverlay>
 
   /// The step that just opened, when there is one. Null on the last
   /// checkpoint, where the honest headline is that the journey is finished.
-  JourneyMilestone? get _next {
-    for (final m in widget.journey.milestones) {
-      if (m.stepOrder == widget.reachedStep + 1) return m;
-    }
-    return null;
-  }
+  /// The checkpoint that just opened. On an any-order journey there may be
+  /// several, so this takes the one the server marked as this viewer's.
+  JourneyStage? get _next => widget.run.nextForViewer;
 
-  bool get _isFinale => widget.reachedStep >= widget.journey.totalSteps;
+  bool get _isFinale => widget.run.isCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +158,7 @@ class _CheckpointReachedOverlayState extends State<CheckpointReachedOverlay>
                       child: CustomPaint(
                         size: const Size(double.infinity, 132),
                         painter: _CheckpointPainter(
-                          totalSteps: widget.journey.totalSteps,
+                          totalSteps: widget.run.totalSteps,
                           reachedStep: widget.reachedStep,
                           lineProgress: _line.value,
                           landProgress: _land.value.clamp(0.0, 1.6),
@@ -187,7 +191,7 @@ class _CheckpointReachedOverlayState extends State<CheckpointReachedOverlay>
                           ),
                           const SizedBox(height: QuestSpacing.sm),
                           Text(
-                            widget.journey.name.toUpperCase(),
+                            widget.run.title.toUpperCase(),
                             textAlign: TextAlign.center,
                             style: QuestTypography.osLabelSmall.copyWith(
                               fontSize: 11,

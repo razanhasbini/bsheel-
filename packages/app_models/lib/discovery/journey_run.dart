@@ -165,9 +165,8 @@ class JourneyRun {
           .cast<Map<String, dynamic>>()
           .map(JourneyStage.fromJson)
           .toList(),
-      nextForViewer: next is Map<String, dynamic>
-          ? JourneyStage.fromJson(next)
-          : null,
+      nextForViewer:
+          next is Map<String, dynamic> ? JourneyStage.fromJson(next) : null,
       unseenUnlock:
           unseen is Map<String, dynamic> ? UnseenUnlock.fromJson(unseen) : null,
     );

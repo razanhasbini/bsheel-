@@ -203,7 +203,8 @@ void sessionExpiryTests() {
     final result = await refreshOutcome(
       refreshResponse: failure(500, 'INTERNAL'),
     );
-    expect(result.expired, isFalse, reason: 'a 500 is the server, not the session');
+    expect(result.expired, isFalse,
+        reason: 'a 500 is the server, not the session');
     expect(result.cleared, isFalse);
   });
 

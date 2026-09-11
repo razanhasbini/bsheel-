@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
-import 'checkpoint_reached.dart';
 
 /// The milestone line for a multi-step quest.
 ///
@@ -21,58 +20,21 @@ final journeyProvider =
   return AppBackend.repositories.discovery.journey(questId);
 });
 
-class JourneyTimeline extends ConsumerStatefulWidget {
+class JourneyTimeline extends ConsumerWidget {
   const JourneyTimeline({super.key, required this.questId});
 
   final String questId;
 
   @override
-  ConsumerState<JourneyTimeline> createState() => _JourneyTimelineState();
-}
-
-class _JourneyTimelineState extends ConsumerState<JourneyTimeline> {
-  /// Guards against a rebuild replaying a celebration that is already on
-  /// screen. The persisted watermark handles across-launch duplicates; this
-  /// handles the several rebuilds a single frame can bring.
-  bool _celebrating = false;
-
-  /// Plays the checkpoint moment if the server says a step was approved
-  /// since this player last looked.
-  ///
-  /// The comparison lives on the client because the server has no notion of
-  /// "last seen" — approval is a moderator's action that lands while the app
-  /// is closed, so the only place that can notice the change is the one that
-  /// remembers where the player was.
-  Future<void> _celebrateIfAdvanced(QuestJourney journey) async {
-    if (_celebrating) return;
-    _celebrating = true;
-    final reached = await CheckpointMemory.advanceSince(journey);
-    if (!mounted || reached == null) {
-      _celebrating = false;
-      return;
-    }
-    await CheckpointReachedOverlay.show(
-      context,
-      journey: journey,
-      reachedStep: reached,
-    );
-    if (mounted) _celebrating = false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final journey = ref.watch(journeyProvider(widget.questId));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final journey = ref.watch(journeyProvider(questId));
     return journey.when(
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       // Most quests are not part of a chain, and for those this contributes
       // nothing at all rather than an empty heading.
-      data: (data) {
-        if (data == null) return const SizedBox.shrink();
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _celebrateIfAdvanced(data));
-        return _Timeline(journey: data);
-      },
+      data: (data) =>
+          data == null ? const SizedBox.shrink() : _Timeline(journey: data),
     );
   }
 }

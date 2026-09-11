@@ -638,14 +638,58 @@ class _JourneyCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
+          // A chain has a position on a route; a collection has a tally.
+          // Saying "Stage 2 of 3" about a themed set would be wrong, and
+          // saying "12 of 50" about a journey loses where the player is.
           Text(
-            '${journey.completedQuests} / ${journey.totalQuests}',
+            journey.isChain
+                ? 'STAGE ${journey.completedQuests + 1} OF ${journey.totalQuests}'
+                : '${journey.completedQuests} / ${journey.totalQuests}',
             style: QuestTypography.osBodySmall.copyWith(
               fontSize: 12,
-              color: QuestColors.textDim(context),
+              color: journey.isChain
+                  ? QuestColors.osPrimary
+                  : QuestColors.textDim(context),
             ),
           ),
+          if (journey.nextCheckpointName != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              'NEXT: ${journey.nextCheckpointName!.toUpperCase()}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 9,
+                letterSpacing: 0.7,
+                color: QuestColors.textDim(context),
+              ),
+            ),
+          ],
           const Spacer(),
+          if (journey.isChain && journey.canContinue) ...[
+            Row(
+              children: [
+                if (journey.hasUnseenUnlock) ...[
+                  const Icon(Icons.lock_open_rounded,
+                      size: 12, color: QuestColors.osAccent),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  journey.hasUnseenUnlock
+                      ? 'NEW CHECKPOINT UNLOCKED'
+                      : 'READY TO CONTINUE',
+                  style: QuestTypography.osLabelSmall.copyWith(
+                    fontSize: 9,
+                    letterSpacing: 0.8,
+                    color: journey.hasUnseenUnlock
+                        ? QuestColors.osAccentText
+                        : QuestColors.osPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
           ClipRRect(
             borderRadius: BorderRadius.circular(QuestSpacing.radiusSegment),
             child: LinearProgressIndicator(

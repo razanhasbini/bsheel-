@@ -24,6 +24,10 @@ import '../widgets/arcade_page_chrome.dart';
 import '../widgets/home_arcade_widgets.dart';
 import '../widgets/home_extras.dart';
 import '../widgets/discovery_shelves.dart';
+import '../../../../core/backend/app_backend.dart';
+import '../widgets/active_journey_card.dart';
+import '../widgets/checkpoint_reached.dart';
+import '../providers/journey_providers.dart';
 
 /// ──────────────────────────────────────────────────────────────────────────
 /// HOME — Arcade Pop rebuild (Direction A)
@@ -123,8 +127,30 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  /// Plays a checkpoint celebration the server says is still owed.
+  ///
+  /// Driven by `journey_stage_unlocks.seen_at`, so a checkpoint approved
+  /// while the app was closed still gets its moment when the player returns
+  /// — and only once, because the acknowledgement is a server write rather
+  /// than a local flag.
+  void _playOwedUnlock(JourneyRun run) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final shown = await CheckpointPresenter.presentIfOwed(
+        context,
+        run,
+        () => AppBackend.repositories.journeys.acknowledgeUnlock(run.runId),
+      );
+      // Refresh only after it played: the animation describes state that is
+      // already committed, and re-reading proves the card now agrees with it.
+      if (shown && mounted) ref.invalidate(activeJourneysProvider);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final owed = ref.watch(unseenUnlockProvider);
+    if (owed != null) _playOwedUnlock(owed);
     final activeQuestAsync = ref.watch(activeQuestProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final profile = profileAsync.valueOrNull;
@@ -359,12 +385,29 @@ class _HomePageState extends ConsumerState<HomePage> {
                             // what is in review — see migration 0021, which
                             // narrowed the unique index to 'assigned' only.
 
+                            // A journey outlives its checkpoints. Approving
+                            // stage 1 clears the assigned quest, and before
+                            // this the whole journey vanished with it —
+                            // leaving the player to rediscover stage 2 on
+                            // Home as if it were a stranger. The card sits
+                            // above the hero so the parent stays visible
+                            // whatever the child quest is doing.
+                            final journey = ref.watch(featuredJourneyProvider);
+
                             return Column(
                               children: [
                                 if (pendingList.isNotEmpty) ...[
                                   _PendingReviewCard(
                                     pending: pendingList,
                                     onOpen: () => _showPendingList(pendingList),
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
+                                if (journey != null) ...[
+                                  ActiveJourneyCard(
+                                    run: journey,
+                                    onOpenMap: () =>
+                                        context.pushNamed(RouteNames.map),
                                   ),
                                   const SizedBox(height: 14),
                                 ],
@@ -384,7 +427,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                                       },
                                     ),
                                   )
-                                else
+                                else if (journey == null ||
+                                    !journey.canContinue)
+                                  // Offered only when there is nothing else
+                                  // to do. Rolling a fresh quest while a
+                                  // checkpoint waits would pull the player
+                                  // off a journey they already started.
                                   _SlotMachineZone(onGenerate: _rollWheel),
                               ],
                             );

@@ -13,6 +13,7 @@ import '../public_config/api_public_config_repository.dart';
 import '../quest_campaigns/api_quest_campaigns_repository.dart';
 import '../quests/api_quests_repository.dart';
 import '../quest_authoring/api_quest_authoring_repository.dart';
+import '../journeys/api_journeys_repository.dart';
 import '../discovery/api_discovery_repository.dart';
 import '../reactions/api_reactions_repository.dart';
 import '../realtime/api_realtime_client.dart';
@@ -70,6 +71,7 @@ class ApiRepositoryBundle {
   late final ApiQuestAuthoringRepository questAuthoring =
       ApiQuestAuthoringRepository(client);
   late final ApiDiscoveryRepository discovery = ApiDiscoveryRepository(client);
+  late final ApiJourneysRepository journeys = ApiJourneysRepository(client);
   late final ApiQuestCampaignsRepository questCampaigns =
       ApiQuestCampaignsRepository(client);
   late final ApiReactionsRepository reactions = ApiReactionsRepository(client);

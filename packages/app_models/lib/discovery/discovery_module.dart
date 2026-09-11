@@ -105,13 +105,34 @@ class DiscoveryModule {
 
 class JourneyProgress {
   const JourneyProgress({
+    required this.kind,
     required this.id,
     required this.name,
     required this.description,
     required this.totalQuests,
     required this.completedQuests,
     this.countryName,
+    this.runId,
+    this.canContinue = false,
+    this.nextCheckpointName,
+    this.hasUnseenUnlock = false,
   });
+
+  /// Which backend concept this card came from.
+  ///
+  /// 'chain' is ordered progression with dependencies; 'collection' is a
+  /// themed grouping with no ordering. They stay separate tables and are
+  /// merged only for this shelf, so the card has to say which it is to be
+  /// rendered honestly — a chain offers CONTINUE, a collection EXPLORE.
+  final String kind;
+
+  /// Chain only: the run to continue, and whether this viewer may.
+  final String? runId;
+  final bool canContinue;
+  final String? nextCheckpointName;
+  final bool hasUnseenUnlock;
+
+  bool get isChain => kind == 'chain';
 
   final String id;
   final String name;
@@ -122,6 +143,11 @@ class JourneyProgress {
 
   factory JourneyProgress.fromJson(Map<String, dynamic> json) =>
       JourneyProgress(
+        kind: json['kind'] as String? ?? 'collection',
+        runId: json['runId'] as String?,
+        canContinue: json['canContinue'] as bool? ?? false,
+        nextCheckpointName: json['nextCheckpointName'] as String?,
+        hasUnseenUnlock: json['hasUnseenUnlock'] as bool? ?? false,
         id: json['id'] as String,
         name: json['name'] as String? ?? '',
         description: json['description'] as String? ?? '',
