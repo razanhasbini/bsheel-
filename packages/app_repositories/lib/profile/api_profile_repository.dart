@@ -79,6 +79,11 @@ class ApiProfileRepository implements ProfileRepository {
           'avatarUrl': _media.storageReference(profile.avatarUrl),
           'bio': profile.bio,
           if (profile.profileCompleted) 'profileCompleted': true,
+          // Sent unconditionally so clearing it is possible. The server
+          // treats an absent key as "leave alone" and an explicit null as
+          // "remove", and this projection always carries the current value
+          // because the own-profile read includes it.
+          'countryCode': profile.countryCode,
         },
       ),
     );

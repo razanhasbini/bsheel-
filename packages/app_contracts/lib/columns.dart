@@ -19,6 +19,11 @@ abstract final class ProfileColumns {
   /// Migration 0142: timestamp the user accepted analytics opt-in.
   /// NULL = no consent yet — Mixpanel must stay disabled until set.
   static const String analyticsConsentAt = 'analytics_consent_at';
+
+  /// Migration 0039: self-declared ISO 3166-1 alpha-2 home country.
+  /// Optional, never shown on a public profile, and surfaced to a business
+  /// only in aggregate and only alongside [analyticsConsentAt].
+  static const String countryCode = 'country_code';
 }
 
 abstract final class QuestColumns {

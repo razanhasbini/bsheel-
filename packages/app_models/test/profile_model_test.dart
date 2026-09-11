@@ -192,10 +192,14 @@ void main() {
   });
 
   group('ProfileModel.toJson', () {
-    test('emits all 13 columns with ISO-8601 timestamps', () {
+    // 14 since migration 0039 added country_code. The count is asserted on
+    // purpose: a column added to the model and forgotten in toJson is a
+    // field that silently stops being sent on every profile save.
+    test('emits all 14 columns with ISO-8601 timestamps', () {
       final json = parse().toJson();
 
-      expect(json.keys, hasLength(13));
+      expect(json.keys, hasLength(14));
+      expect(json.keys, contains(ProfileColumns.countryCode));
       expect(json[ProfileColumns.createdAt], '2026-01-01T00:00:00.000Z');
       expect(json[ProfileColumns.updatedAt], '2026-05-03T12:00:00.000Z');
       expect(
@@ -313,6 +317,53 @@ void main() {
     test('any differing field breaks equality', () {
       expect(parse().copyWith(xp: 1), isNot(parse()));
       expect(parse().copyWith(avatarUrl: null), isNot(parse()));
+    });
+  });
+
+  /// Migration 0039: the self-declared home country, and the one thing
+  /// about it that is easy to get wrong.
+  group('country code', () {
+    ProfileModel base() => ProfileModel(
+          id: 'u1',
+          username: 'player',
+          displayName: 'Player',
+          createdAt: DateTime.utc(2026, 1, 1),
+          countryCode: 'LB',
+        );
+
+    test('round-trips through JSON', () {
+      final decoded = ProfileModel.fromJson(base().toJson());
+      expect(decoded.countryCode, 'LB');
+    });
+
+    test('is absent rather than empty when never set', () {
+      final decoded = ProfileModel.fromJson(ProfileModel(
+        id: 'u1',
+        username: 'player',
+        displayName: 'Player',
+        createdAt: DateTime.utc(2026, 1, 1),
+      ).toJson());
+      expect(decoded.countryCode, isNull);
+    });
+
+    test('survives a public projection that omits it', () {
+      // A public profile read does not carry country_code at all; decoding
+      // one must not throw.
+      final json = base().toJson()..remove('country_code');
+      expect(ProfileModel.fromJson(json).countryCode, isNull);
+    });
+
+    // The sentinel case. `copyWith(countryCode: null)` has to mean "clear
+    // it" — with a `?? this` fallback it would silently mean "keep it", and
+    // a user could never take their country back.
+    test('clears on an explicit null, and is kept when omitted', () {
+      expect(base().copyWith(countryCode: null).countryCode, isNull);
+      expect(base().copyWith(displayName: 'Renamed').countryCode, 'LB');
+    });
+
+    test('participates in equality', () {
+      expect(base(), isNot(base().copyWith(countryCode: 'QA')));
+      expect(base(), base().copyWith(countryCode: 'LB'));
     });
   });
 }

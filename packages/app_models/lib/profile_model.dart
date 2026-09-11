@@ -22,6 +22,13 @@ class ProfileModel {
   /// NULL = no consent yet — keep Mixpanel disabled until non-null.
   final DateTime? analyticsConsentAt;
 
+  /// Migration 0039: self-declared home country, ISO 3166-1 alpha-2.
+  ///
+  /// Only ever present on the signed-in user's own profile — the public
+  /// projection does not carry it. Reaches a business only as part of an
+  /// aggregate, and only when [analyticsConsentAt] is also set.
+  final String? countryCode;
+
   const ProfileModel({
     required this.id,
     required this.username,
@@ -36,6 +43,7 @@ class ProfileModel {
     this.profileCompleted = false,
     this.ageVerified = false,
     this.analyticsConsentAt,
+    this.countryCode,
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
@@ -61,6 +69,7 @@ class ProfileModel {
       analyticsConsentAt: coerceNullableTimestamp(
         json[ProfileColumns.analyticsConsentAt],
       ),
+      countryCode: json[ProfileColumns.countryCode] as String?,
     );
   }
 
@@ -79,6 +88,7 @@ class ProfileModel {
       ProfileColumns.profileCompleted: profileCompleted,
       ProfileColumns.ageVerified: ageVerified,
       ProfileColumns.analyticsConsentAt: analyticsConsentAt?.toIso8601String(),
+      ProfileColumns.countryCode: countryCode,
     };
   }
 
@@ -98,6 +108,7 @@ class ProfileModel {
     bool? profileCompleted,
     bool? ageVerified,
     Object? analyticsConsentAt = _sentinel,
+    Object? countryCode = _sentinel,
   }) {
     return ProfileModel(
       id: id ?? this.id,
@@ -116,6 +127,11 @@ class ProfileModel {
       analyticsConsentAt: analyticsConsentAt == _sentinel
           ? this.analyticsConsentAt
           : analyticsConsentAt as DateTime?,
+      // Sentinel rather than `?? this`, so clearing a country is possible:
+      // `copyWith(countryCode: null)` means "remove it", and omitting it
+      // means "leave it alone". Those are different requests.
+      countryCode:
+          countryCode == _sentinel ? this.countryCode : countryCode as String?,
     );
   }
 
@@ -135,7 +151,8 @@ class ProfileModel {
         other.updatedAt == updatedAt &&
         other.profileCompleted == profileCompleted &&
         other.ageVerified == ageVerified &&
-        other.analyticsConsentAt == analyticsConsentAt;
+        other.analyticsConsentAt == analyticsConsentAt &&
+        other.countryCode == countryCode;
   }
 
   @override

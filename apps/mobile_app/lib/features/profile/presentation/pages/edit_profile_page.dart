@@ -14,6 +14,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../../core/router/safe_back.dart';
 import '../../../../core/security/exif_stripper.dart';
 import '../../../auth/presentation/password_policy.dart';
+import '../widgets/country_picker_field.dart';
 
 /// Edit profile — built to the EDIT PROFILE block in
 /// `export/panels/panel-04.jpg`: one white `r18` card holding the avatar with
@@ -30,6 +31,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   final _displayNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
+
+  /// Self-declared home country, or null. Optional by design.
+  String? _countryCode;
   final _currentPasswordController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -58,6 +62,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     _displayNameController.text = profile.displayName;
     _usernameController.text = profile.username;
     _bioController.text = profile.bio ?? '';
+    _countryCode = profile.countryCode;
     _avatarUrl = profile.avatarUrl;
     _initialized = true;
   }
@@ -237,6 +242,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                   : _bioController.text.trim(),
               avatarUrl:
                   _avatarDeleted ? null : (_avatarUrl ?? profile.avatarUrl),
+              countryCode: _countryCode,
             ),
           );
 
@@ -267,6 +273,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         _displayNameController.text = profile.displayName;
         _usernameController.text = profile.username;
         _bioController.text = profile.bio ?? '';
+        _countryCode = profile.countryCode;
         _avatarUrl = profile.avatarUrl;
         _initialized = true;
         if (mounted) setState(() {});
@@ -280,6 +287,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       final dirty = _displayNameController.text.trim() != profile.displayName ||
           _usernameController.text.trim() != profile.username ||
           (_bioController.text.trim()) != (profile.bio ?? '') ||
+          _countryCode != profile.countryCode ||
           _passwordController.text.isNotEmpty ||
           _currentPasswordController.text.isNotEmpty ||
           _avatarDeleted ||
@@ -445,6 +453,11 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       label: l.bio,
                       hint: l.maxFourWords,
                       inputFormatters: [_MaxWordsFormatter(4)],
+                    ),
+                    const SizedBox(height: 12),
+                    CountryPickerField(
+                      value: _countryCode,
+                      onChanged: (code) => setState(() => _countryCode = code),
                     ),
                     const SizedBox(height: 12),
                     _Field(
