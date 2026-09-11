@@ -50,6 +50,14 @@ abstract class ProfileRepository {
   Future<ProfileModel> createProfile(ProfileModel profile);
   Future<ProfileModel> updateProfile(ProfileModel profile);
 
+  /// The signed-in user's own profile, from `profiles/me`.
+  ///
+  /// Not the same read as [getProfile] with the caller's own id: that is
+  /// the public projection, which deliberately omits `age_verified`,
+  /// `analytics_consent_at` and `country_code`. Anything that needs one of
+  /// those about the current user reads it here.
+  Future<ProfileModel> getOwnProfile();
+
   /// Records the one-time 13+ confirmation for the signed-in account.
   ///
   /// Its own call rather than an [updateProfile] round-trip on purpose:

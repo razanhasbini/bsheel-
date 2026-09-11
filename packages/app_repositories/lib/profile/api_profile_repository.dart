@@ -91,6 +91,10 @@ class ApiProfileRepository implements ProfileRepository {
   }
 
   @override
+  Future<ProfileModel> getOwnProfile() async => _signed(
+      ProfileModel.fromJson(apiObject(await _client.get('profiles/me'))));
+
+  @override
   Future<void> confirmAge() async {
     // The server accepts only `true` here; the flag never moves back.
     await _client.patch('profiles/me', body: {'ageVerified': true});
