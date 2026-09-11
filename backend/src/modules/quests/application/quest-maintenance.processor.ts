@@ -15,8 +15,13 @@ export class QuestMaintenanceProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     if (job.name === 'quest.expire-and-warn') {
       const outcome = await this.maintenance.expireAndWarn();
+      // Journeys are swept on the same tick as quest expiry, and for the
+      // same reason: both are about a player's board going stale while they
+      // are not looking at it. Kept a separate transaction so a failure in
+      // one does not roll back the other's notifications.
+      const journeysAbandoned = await this.maintenance.abandonUnansweredJourneys();
       this.logger.debug(
-        { jobId: job.id, ...outcome },
+        { jobId: job.id, ...outcome, journeysAbandoned },
         'Quest maintenance sweep finished',
       );
       return;

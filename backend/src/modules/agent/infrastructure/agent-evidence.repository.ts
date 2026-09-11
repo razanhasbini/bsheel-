@@ -13,6 +13,16 @@ export interface VerificationDossier {
   readonly mayAutoReject: boolean;
   readonly needsLocation: boolean;
   readonly placeName: string | null;
+  /**
+   * Where the quest actually was, and how close counts as there.
+   *
+   * Sent so the console can say how far off a network fix landed rather
+   * than printing a pair of raw coordinates — "3,180 km away" is a fact a
+   * reader can weigh; "47.486, 19.079" is one they have to look up.
+   */
+  readonly placeLatitude: number | null;
+  readonly placeLongitude: number | null;
+  readonly placeRadiusMeters: number | null;
   readonly decision: string | null;
   readonly confidence: number | null;
   readonly reasons: readonly string[];
@@ -103,6 +113,9 @@ export class AgentEvidenceRepository {
       mayAutoReject: row.may_auto_reject ?? false,
       needsLocation: row.needs_location ?? false,
       placeName: row.place_name,
+      placeLatitude: row.place_latitude,
+      placeLongitude: row.place_longitude,
+      placeRadiusMeters: row.place_radius_meters,
       decision: typeof output.decision === 'string' ? output.decision : null,
       confidence: typeof output.confidence === 'number' ? output.confidence : null,
       reasons: Array.isArray(output.reasons) ? (output.reasons as string[]) : [],
@@ -150,6 +163,8 @@ interface Row {
   submitted_at: Date | null; submission_status: string | null;
   verifiability: string | null; may_auto_approve: boolean | null; may_auto_reject: boolean | null;
   needs_location: boolean | null; place_name: string | null;
+  place_latitude: number | null; place_longitude: number | null;
+  place_radius_meters: number | null;
   xp_awarded_amount: number | null; recommended_xp: number | null; quest_xp: number | null;
 }
 
@@ -160,7 +175,12 @@ const SELECT_DOSSIER = `
          s.submitted_at, s.status::text AS submission_status,
          s.xp_awarded_amount, s.recommended_xp,
          c.verifiability, c.may_auto_approve, c.may_auto_reject,
-         (d.place_id IS NOT NULL) AS needs_location, mp.name AS place_name
+         (d.place_id IS NOT NULL) AS needs_location, mp.name AS place_name,
+         -- Where the quest actually was, so the console can say how far off
+         -- a network fix landed instead of printing raw coordinates and
+         -- leaving the reader to do the geography.
+         mp.latitude::float8 AS place_latitude, mp.longitude::float8 AS place_longitude,
+         mp.radius_m::float8 AS place_radius_meters
   FROM agent_runs r
   LEFT JOIN submissions s ON s.id = r.subject_id
   LEFT JOIN profiles p ON p.id = s.user_id

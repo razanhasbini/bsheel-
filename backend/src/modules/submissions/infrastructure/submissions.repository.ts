@@ -85,10 +85,37 @@ interface ReviewRow extends SubmissionRecord {
 export class SubmissionsRepository {
   constructor(private readonly database: DatabaseService) {}
 
+  /**
+   * Whether this quest is a checkpoint of a live run the player chose to
+   * publish as a single route post.
+   *
+   * A read against the run rather than the chain: two players can be walking
+   * the same chain under different choices, and the answer belongs to the
+   * run they are actually on. Anything else — no chain, no live run, no
+   * choice made yet — is "post it", which is what every run did before the
+   * column existed.
+   */
+  private async withheldForJourney(
+    questId: string, userId: string, transaction: DatabaseTransaction,
+  ): Promise<boolean> {
+    const result = await transaction.query<{ feed_mode: string | null }>(
+      `SELECT r.feed_mode
+       FROM quest_chain_steps s
+       JOIN quest_chain_runs r ON r.chain_id = s.chain_id
+       WHERE s.quest_id = $1 AND r.status IN ('forming', 'active')
+         AND (r.owner_user_id = $2 OR EXISTS (
+           SELECT 1 FROM quest_chain_run_participants p
+           WHERE p.chain_run_id = r.id AND p.user_id = $2))
+       LIMIT 1`,
+      [questId, userId],
+    );
+    return result.rows[0]?.feed_mode === 'one_post';
+  }
+
   async create(userId: string, input: CreateSubmissionDto): Promise<SubmissionRecord> {
     return this.database.transaction(async (transaction) => {
-      const userQuest = await transaction.query<{ status: string; expires_at: Date }>(
-        'SELECT status::text, expires_at FROM user_quests WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      const userQuest = await transaction.query<{ status: string; expires_at: Date; quest_id: string }>(
+        'SELECT status::text, expires_at, quest_id FROM user_quests WHERE id = $1 AND user_id = $2 FOR UPDATE',
         [input.userQuestId, userId],
       );
       const assignment = userQuest.rows[0];
@@ -121,10 +148,21 @@ export class SubmissionsRepository {
         throw new BadRequestException({ code: 'MEDIA_TYPE_MISMATCH', message: `mediaType must be ${expectedType}` });
       }
 
+      // A checkpoint of a journey the player chose to post as one route is
+      // held back from the feed here, whatever the client sent (0047).
+      //
+      // Enforced server-side and not by hiding the switch, for the ordinary
+      // reason: the switch is a request and this is the rule. A stop that
+      // leaked into the feed on its own could not be pulled back into the
+      // route later — the post would already have its comments and its
+      // reactions — so the one place that must not get this wrong is the
+      // insert, not the screen.
+      const withheld = await this.withheldForJourney(assignment.quest_id, userId, transaction);
       const result = await transaction.query<SubmissionRecord>(
         `INSERT INTO submissions (user_quest_id, user_id, media_url, media_type, caption, show_in_feed)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [input.userQuestId, userId, input.mediaUrl, input.mediaType, input.caption?.trim() || null, input.showInFeed],
+        [input.userQuestId, userId, input.mediaUrl, input.mediaType, input.caption?.trim() || null,
+         withheld ? false : input.showInFeed],
       );
       await transaction.query(
         `INSERT INTO media_submission_links (media_object_id, submission_id)
@@ -285,8 +323,11 @@ export class SubmissionsRepository {
               -- *because* the agent could not decide was the one screen that
               -- could not show what it concluded.
               verification.verdict::text AS ai_verdict,
-              verification.confidence AS ai_confidence,
-              verification.relevance AS ai_relevance,
+              -- ::float8 because the driver hands back numeric(4,3) as the
+              -- text '0.990', and a JSON string where a client's model
+              -- declares a number crashes the page that reads it.
+              verification.confidence::float8 AS ai_confidence,
+              verification.relevance::float8 AS ai_relevance,
               verification.content_evidence AS ai_content_evidence,
               verification.rationale AS ai_rationale,
               verification.escalation_reason AS ai_escalation_reason,
@@ -352,12 +393,12 @@ export class SubmissionsRepository {
               -- AI proof verification (#47). Null for anything the agent has
               -- not finished; advisory, so a moderator can ignore it.
               verification.verdict::text AS ai_verdict,
-              verification.confidence AS ai_confidence,
+              verification.confidence::float8 AS ai_confidence,
               -- How much the media had to do with the quest, separately from
               -- how sure the analysis was of its verdict (#47). Null where no
               -- content analysis ran, which is correct for a quest no
               -- photograph can show — and must not be read as "irrelevant".
-              verification.relevance AS ai_relevance,
+              verification.relevance::float8 AS ai_relevance,
               verification.content_evidence AS ai_content_evidence,
               verification.rationale AS ai_rationale,
               verification.escalation_reason AS ai_escalation_reason,

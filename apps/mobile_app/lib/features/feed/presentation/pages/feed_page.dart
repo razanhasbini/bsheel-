@@ -289,6 +289,8 @@ class _ReelsPostHost extends ConsumerWidget {
       caption: post.caption,
       mediaUrls: post.mediaUrls.where((u) => u.isNotEmpty).toList(),
       mediaType: post.mediaType,
+      journeyStops: post.journeyStops,
+      journeyTitle: post.journeyTitle,
       collabGroupId: post.collabGroupId,
       collabMode: post.collabMode,
       collabMembers: post.collabMembers,

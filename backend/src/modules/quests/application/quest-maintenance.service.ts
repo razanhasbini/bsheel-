@@ -9,6 +9,7 @@ import {
 export interface QuestMaintenanceOutcome {
   readonly expired: number;
   readonly warned: number;
+  readonly journeysAbandoned: number;
 }
 
 @Injectable()
@@ -85,7 +86,72 @@ export class QuestMaintenanceService {
       return {
         expired: expired.rowCount ?? 0,
         warned: warned.rowCount ?? 0,
+        journeysAbandoned: 0,
       };
+    });
+  }
+
+  /**
+   * Closes journeys left standing on a rejection nobody answered.
+   *
+   * A rejected checkpoint does not end a journey — the player can retake it
+   * or appeal, and both are the point. But if they do neither, the run sat
+   * in their active quests for good: `unapprovedSteps` still had something
+   * to do, so nothing ever completed it, and Home kept showing a journey
+   * whose only news was weeks-old bad news.
+   *
+   * So silence gets a deadline. The clock starts at the rejection and is
+   * cleared by any answer to it: a retake makes an assigned attempt exist,
+   * an appeal flips `appealed`, and either one takes the run out of this
+   * query entirely. Abandoned rather than expired, because expiry is what
+   * the timer does and this is a decision the player made by not making one.
+   */
+  async abandonUnansweredJourneys(): Promise<number> {
+    const graceHours = this.config.get('JOURNEY_REJECTION_GRACE_HOURS', { infer: true });
+    const batchSize = this.config.get('QUEST_MAINTENANCE_BATCH_SIZE', { infer: true });
+    return this.database.transaction(async (transaction) => {
+      const abandoned = await transaction.query<{ id: string; owner_user_id: string; name: string }>(
+        `WITH stale AS (
+           SELECT r.id
+           FROM quest_chain_runs r
+           WHERE r.status = 'active' AND r.run_kind = 'solo'
+             -- Every remaining checkpoint is blocked behind an unanswered
+             -- rejection. A run with anything else still open is a run the
+             -- player can get on with, and is none of this sweep's business.
+             AND NOT EXISTS (
+               SELECT 1 FROM quest_chain_steps cs
+               WHERE cs.chain_id = r.chain_id
+                 AND EXISTS (
+                   SELECT 1 FROM user_quests uq
+                   WHERE uq.quest_id = cs.quest_id AND uq.user_id = r.owner_user_id
+                     AND uq.status IN ('assigned', 'submitted'))
+             )
+             AND EXISTS (
+               SELECT 1 FROM quest_chain_steps cs
+               JOIN user_quests uq ON uq.quest_id = cs.quest_id AND uq.user_id = r.owner_user_id
+               JOIN submissions s ON s.user_quest_id = uq.id
+               WHERE cs.chain_id = r.chain_id AND uq.status = 'rejected'
+                 AND s.status = 'rejected' AND NOT s.appealed AND s.deleted_at IS NULL
+                 AND s.reviewed_at < now() - make_interval(hours => $2))
+           ORDER BY r.started_at, r.id LIMIT $1 FOR UPDATE SKIP LOCKED
+         )
+         UPDATE quest_chain_runs r
+            SET status = 'abandoned', updated_at = now()
+           FROM stale WHERE r.id = stale.id
+         RETURNING r.id, r.owner_user_id, (SELECT name FROM quest_chains WHERE id = r.chain_id) AS name`,
+        [batchSize, graceHours],
+      );
+      for (const run of abandoned.rows) {
+        await this.notify(
+          run.owner_user_id,
+          'Journey closed. 🚪',
+          `"${run.name}" stopped where the rejected checkpoint was. Start it again whenever you want — nothing you finished is lost.`,
+          'journey_abandoned',
+          run.id,
+          transaction,
+        );
+      }
+      return abandoned.rowCount ?? 0;
     });
   }
 

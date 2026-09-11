@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { JourneyService } from '../application/journey.service.js';
@@ -19,6 +19,15 @@ export class ContinueDto {
    * the normal case.
    */
   @IsOptional() @IsUUID() questId?: string;
+}
+
+export class FeedModeDto {
+  /**
+   * 'per_stop': every checkpoint posts as it is approved, which is what a
+   * journey has always done. 'one_post': the stops are withheld and the
+   * whole route reaches the feed as one post when the last one clears.
+   */
+  @IsIn(['per_stop', 'one_post']) mode!: 'per_stop' | 'one_post';
 }
 
 export class CreateGroupRunDto {
@@ -62,6 +71,19 @@ export class JourneysController {
     @Body() body: ContinueDto,
   ) {
     return this.service.continueJourney(param.runId, user.id, body.questId);
+  }
+
+  @HttpCode(200)
+  @Post(':runId/feed-mode')
+  @ApiOperation({
+    summary: 'Choose how this journey reaches the feed. Only before the first checkpoint is submitted.',
+  })
+  feedMode(
+    @CurrentUser() user: AuthUser,
+    @Param() param: RunIdParam,
+    @Body() body: FeedModeDto,
+  ): Promise<{ applied: boolean }> {
+    return this.service.chooseFeedMode(param.runId, user.id, body.mode);
   }
 
   @HttpCode(204)

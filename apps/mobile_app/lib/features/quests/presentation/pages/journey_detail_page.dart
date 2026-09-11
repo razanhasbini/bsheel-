@@ -45,6 +45,7 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
   int? _advanceFrom;
   bool _captured = false;
   bool _starting = false;
+  bool _choosingFeedMode = false;
   String? _error;
   int? _expandedStep;
 
@@ -55,6 +56,28 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
     // Rewind by one: the rail draws the state before this checkpoint opened
     // and then runs forward into the present.
     setState(() => _advanceFrom = run.completedSteps);
+  }
+
+  /// Records how the route should reach the feed, once.
+  ///
+  /// Asked on this page rather than at the moment of posting, because by the
+  /// time a player is staring at a submit screen the question is already too
+  /// late for the checkpoints behind it — and the server refuses the change
+  /// then for exactly that reason.
+  Future<void> _chooseFeedMode(JourneyRun run, {required bool oneRoutePost}) async {
+    setState(() => _choosingFeedMode = true);
+    try {
+      await AppBackend.repositories.journeys
+          .chooseFeedMode(run.runId, oneRoutePost: oneRoutePost);
+    } catch (_) {
+      // The run is re-read either way: whatever the server decided is what
+      // the page should show, including "too late".
+    } finally {
+      ref
+        ..invalidate(journeyDetailProvider(widget.runId))
+        ..invalidate(activeJourneysProvider);
+      if (mounted) setState(() => _choosingFeedMode = false);
+    }
   }
 
   Future<void> _acknowledge() async {
@@ -173,6 +196,20 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
           ),
         if (!run.orderMatters && run.unseenUnlock != null)
           _UnlockBanner(onShown: _acknowledge),
+        // Asked once, before anything has been submitted, and then never
+        // again — `needsFeedModeChoice` is false the moment it is answered
+        // or the moment answering stops changing anything.
+        if (run.needsFeedModeChoice) ...[
+          const SizedBox(height: QuestSpacing.lg),
+          _FeedModeChoice(
+            busy: _choosingFeedMode,
+            onChoose: (oneRoutePost) =>
+                _chooseFeedMode(run, oneRoutePost: oneRoutePost),
+          ),
+        ] else if (run.postsAsOneRoute && !run.isCompleted) ...[
+          const SizedBox(height: QuestSpacing.lg),
+          const _FeedModeNote(),
+        ],
         const SizedBox(height: QuestSpacing.lg),
         const BlockLabel('JOURNEY TIMELINE'),
         const SizedBox(height: QuestSpacing.sm),
@@ -195,6 +232,17 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
             error: _error,
             onStart: () => _continue(run),
             onMap: () => context.pushNamed(RouteNames.map),
+            // The appeal composer already exists on the submission screen.
+            // Sending the player there rather than growing a second one
+            // keeps one place where an appeal is written and reviewed.
+            onAppeal: () {
+              final submissionId = run.nextForViewer?.rejectedSubmissionId;
+              if (submissionId == null) return;
+              context.pushNamed(
+                RouteNames.submissionStatus,
+                pathParameters: {'id': submissionId},
+              );
+            },
           ),
         ],
         if (run.isCompleted) ...[
@@ -209,6 +257,96 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
       ],
     );
   }
+}
+
+/// How this route reaches the feed, asked before the first checkpoint.
+///
+/// Two buttons rather than a switch because there is no default worth
+/// pre-selecting: a player who walked a route may well want the three stops
+/// as they happen, and a player collecting a country may well want the route.
+/// A switch would make one of those an opinion the app already had.
+class _FeedModeChoice extends StatelessWidget {
+  const _FeedModeChoice({required this.busy, required this.onChoose});
+
+  final bool busy;
+  final void Function(bool oneRoutePost) onChoose;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(QuestSpacing.lg),
+        decoration: BoxDecoration(
+          color: QuestColors.cardBg(context),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusHero),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+          boxShadow: const [
+            BoxShadow(color: QuestColors.osTextPrimary, offset: Offset(0, 5)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const BlockLabel('HOW SHOULD THIS POST?'),
+            const SizedBox(height: 6),
+            Text(
+              'Pick now — it applies to the whole route, and it cannot change '
+              'once you have submitted a checkpoint.',
+              style: QuestTypography.osBodySmall.copyWith(
+                  fontSize: 12, color: QuestColors.osTextSecondary),
+            ),
+            const SizedBox(height: QuestSpacing.md),
+            ArcadeButton(
+              label: 'ONE POST FOR THE ROUTE',
+              isLoading: busy,
+              onTap: busy ? null : () => onChoose(true),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Nothing shows in the feed until the last checkpoint clears, '
+              'then the whole route posts together.',
+              style: QuestTypography.osBodySmall.copyWith(
+                  fontSize: 11, color: QuestColors.osTextSecondary),
+            ),
+            const SizedBox(height: QuestSpacing.md),
+            ArcadeButton(
+              label: 'A POST PER STOP',
+              variant: ArcadeButtonVariant.secondary,
+              onTap: busy ? null : () => onChoose(false),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Each checkpoint posts on its own as it is approved.',
+              style: QuestTypography.osBodySmall.copyWith(
+                  fontSize: 11, color: QuestColors.osTextSecondary),
+            ),
+          ],
+        ),
+      );
+}
+
+/// The standing reminder, for a route already set to post as one.
+///
+/// Worth saying plainly on every visit: a player who submits a checkpoint
+/// and then cannot find it in the feed should not have to wonder whether it
+/// failed. It is being held, on purpose, and this says so.
+class _FeedModeNote extends StatelessWidget {
+  const _FeedModeNote();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: QuestSpacing.md, vertical: QuestSpacing.sm),
+        decoration: BoxDecoration(
+          color: QuestColors.osSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+        ),
+        child: Text(
+          'POSTING AS ONE ROUTE — your checkpoints stay out of the feed until '
+          'the last one clears, then post together.',
+          style: QuestTypography.osBodySmall
+              .copyWith(fontSize: 11, color: QuestColors.osTextSecondary),
+        ),
+      );
 }
 
 /// One checkpoint on the vertical timeline, with room for what happened.
@@ -243,7 +381,15 @@ class _VerticalStage extends StatelessWidget {
       StageState.underReview => (
           Icons.hourglass_top_rounded,
           QuestColors.osAccent,
-          'UNDER REVIEW'
+          // An appeal is a different wait from a first review, and the one
+          // the player is anxious about. Saying only "under review" left
+          // them unsure the appeal had been sent at all.
+          stage.appealed ? 'APPEAL UNDER REVIEW' : 'UNDER REVIEW',
+        ),
+      StageState.rejected => (
+          Icons.refresh_rounded,
+          QuestColors.osRed,
+          stage.appealed ? 'APPEAL SENT' : 'REJECTED',
         ),
       StageState.available => (
           Icons.play_arrow_rounded,
@@ -381,6 +527,51 @@ class _VerticalStage extends StatelessWidget {
 }
 
 /// What the player actually has to go and do.
+/// Why the last attempt was rejected, in the words the player was given.
+class _RejectionBlock extends StatelessWidget {
+  const _RejectionBlock({required this.stage});
+
+  final JourneyStage stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final note = stage.rejectionNote?.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(QuestSpacing.md),
+      decoration: BoxDecoration(
+        color: QuestColors.osRed.withAlpha(30),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: QuestColors.osRed, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            stage.appealed ? 'APPEAL SENT' : 'THIS CHECKPOINT WAS REJECTED',
+            style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 10,
+                letterSpacing: 1.0,
+                color: QuestColors.osRedText),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            note != null && note.isNotEmpty
+                ? note
+                // A rejection with no reason recorded is rare and is still
+                // not a blank space: say that plainly rather than leaving
+                // the player to guess what they did wrong.
+                : 'No reason was recorded. If that seems wrong, appeal it and '
+                    'a person will look again.',
+            style: QuestTypography.osBodySmall
+                .copyWith(fontSize: 13, color: QuestColors.text(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CurrentCheckpoint extends StatelessWidget {
   const _CurrentCheckpoint({
     required this.stage,
@@ -388,6 +579,7 @@ class _CurrentCheckpoint extends StatelessWidget {
     required this.error,
     required this.onStart,
     required this.onMap,
+    required this.onAppeal,
   });
 
   final JourneyStage stage;
@@ -395,6 +587,7 @@ class _CurrentCheckpoint extends StatelessWidget {
   final String? error;
   final VoidCallback onStart;
   final VoidCallback onMap;
+  final VoidCallback onAppeal;
 
   @override
   Widget build(BuildContext context) {
@@ -470,16 +663,38 @@ class _CurrentCheckpoint extends StatelessWidget {
                 style: QuestTypography.osBodySmall
                     .copyWith(fontSize: 12, color: QuestColors.osRedText)),
           ],
+          // What actually happened, before what to do about it. A player
+          // looking at a rejected checkpoint has one question, and a button
+          // is not the answer to it.
+          if (stage.state == StageState.rejected) ...[
+            const SizedBox(height: QuestSpacing.md),
+            _RejectionBlock(stage: stage),
+          ],
           const SizedBox(height: QuestSpacing.md),
           ArcadeButton(
-            label: stage.state == StageState.inProgress
-                ? 'GO TO CHECKPOINT'
-                : starting
-                    ? 'STARTING…'
-                    : 'START CHECKPOINT',
+            label: switch (stage.state) {
+              StageState.inProgress => 'GO TO CHECKPOINT',
+              // Not "start": the player has been here, and the word that
+              // matters is that the attempt is not spent.
+              StageState.rejected => starting ? 'STARTING…' : 'TRY THIS AGAIN',
+              _ => starting ? 'STARTING…' : 'START CHECKPOINT',
+            },
             isLoading: starting && stage.state != StageState.inProgress,
             onTap: starting ? null : onStart,
           ),
+          // Offered only while it is still possible. An appeal already sent
+          // is reported by the state above, and a second one is refused by
+          // the server — a button that can only fail is worse than none.
+          if (stage.state == StageState.rejected &&
+              !stage.appealed &&
+              stage.rejectedSubmissionId != null) ...[
+            const SizedBox(height: 8),
+            ArcadeButton(
+              label: 'APPEAL THIS DECISION',
+              variant: ArcadeButtonVariant.secondary,
+              onTap: onAppeal,
+            ),
+          ],
           if (stage.hasCoordinates) ...[
             const SizedBox(height: QuestSpacing.sm),
             GestureDetector(

@@ -2,10 +2,16 @@
 /// `IN_PROGRESS` is distinct from `AVAILABLE` on purpose: a checkpoint you
 /// have already started has a timer running, and offering to start it again
 /// produces a button that fails. The app needs to say "return to it".
+/// `REJECTED` is a state of its own rather than a flag on `AVAILABLE`. The
+/// checkpoint genuinely is available again — a rejection does not consume the
+/// attempt — but a timeline that says only "available" about a checkpoint the
+/// player just failed tells them nothing about what happened, and a journey
+/// whose first checkpoint was rejected read as a journey with nothing to do.
 export type StageState =
   | 'COMPLETED'
   | 'UNDER_REVIEW'
   | 'IN_PROGRESS'
+  | 'REJECTED'
   | 'AVAILABLE'
   | 'LOCKED';
 
@@ -38,6 +44,18 @@ export interface JourneyStage {
   readonly completedAt: string | null;
   /** The proof that cleared it, so a finished checkpoint can be revisited. */
   readonly submissionId: string | null;
+  /**
+   * Why the last attempt was rejected, in the words the player was shown.
+   *
+   * Null unless the state is REJECTED. Carried on the stage because the
+   * timeline is where a player finds out — "rejected" with no reason
+   * attached is the version of this screen that sends people to support.
+   */
+  readonly rejectionNote: string | null;
+  /** The rejected proof, so the player can appeal it from here. */
+  readonly rejectedSubmissionId: string | null;
+  /** Whether that rejection has already been appealed. */
+  readonly appealed: boolean;
   /** Whose checkpoint this is, on a relay. Null on a solo run. */
   readonly targetUsername: string | null;
   /** True when the viewer is the one who may start it. */
@@ -63,4 +81,12 @@ export interface JourneyRun {
   readonly nextForViewer: JourneyStage | null;
   /** An unlock this viewer has not been shown yet — drives the animation. */
   readonly unseenUnlock: { readonly stepOrder: number; readonly questId: string } | null;
+  /**
+   * How this journey reaches the feed (0047). Null means the player has not
+   * been asked — a different state from having chosen per-stop, and the one
+   * the client uses to decide whether to ask.
+   */
+  readonly feedMode: 'per_stop' | 'one_post' | null;
+  /** Whether the choice is still open: nothing submitted, run not finished. */
+  readonly canChooseFeedMode: boolean;
 }

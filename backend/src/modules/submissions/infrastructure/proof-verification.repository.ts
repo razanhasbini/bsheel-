@@ -578,11 +578,15 @@ export class ProofVerificationRepository {
   /// Backed by submission_verifications_unclear_idx.
   async unclearQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
     const result = await this.database.query(
-      `SELECT v.submission_id, v.escalation_reason, v.rationale, v.confidence,
+      `SELECT v.submission_id, v.escalation_reason, v.rationale,
+              -- ::float8 for the same reason contentEvidenceFor parses with
+              -- Number(): numeric arrives as text, and these rows go out to
+              -- the console unparsed.
+              v.confidence::float8 AS confidence,
               -- Relevance beside confidence, never instead of it: one is how
               -- much the media has to do with the quest, the other how sure
               -- the analysis was. A moderator triaging this queue wants both.
-              v.relevance, v.content_evidence,
+              v.relevance::float8 AS relevance, v.content_evidence,
               v.model, v.queued_at, v.completed_at,
               v.location_verified, v.location_retrieved, v.geofence_verified,
               s.user_id, s.media_type::text AS media_type, s.caption,

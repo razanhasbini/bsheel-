@@ -13,16 +13,23 @@ Map<String, dynamic> stage(
   String? title,
   double? lat,
   String? target,
+  String? rejectionNote,
+  String? rejectedSubmissionId,
+  bool appealed = false,
 }) =>
     {
       'stepOrder': order,
       'state': state,
       'isYours': yours,
       'requiresLocationVerification': false,
+      'appealed': appealed,
       if (title != null) 'title': title,
       if (lat != null) 'latitude': lat,
       if (lat != null) 'longitude': 35.5,
       if (target != null) 'targetUsername': target,
+      if (rejectionNote != null) 'rejectionNote': rejectionNote,
+      if (rejectedSubmissionId != null)
+        'rejectedSubmissionId': rejectedSubmissionId,
     };
 
 Map<String, dynamic> run({

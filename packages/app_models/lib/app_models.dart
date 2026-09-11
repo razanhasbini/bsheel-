@@ -1,5 +1,16 @@
 library;
 
+/// Shared JSON coercions.
+///
+/// Exported because they are not an app_models private concern: Postgres
+/// sends `numeric` as TEXT, so anything reading this API has to parse it.
+/// The admin console hit that with a hard `as num?` on a verification
+/// confidence and crashed the page — a bug this file had already solved for
+/// hot_score and simply could not be reached to reuse.
+export 'src/json_coercions.dart'
+    show coerceInt, coerceNullableInt, coerceDouble, coerceNullableDouble, coerceBool;
+
+export 'journey_post_stop.dart';
 export 'profile_model.dart';
 export 'quest_model.dart';
 export 'user_quest_model.dart';

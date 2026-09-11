@@ -48,6 +48,8 @@ class ReelsCard extends ConsumerStatefulWidget {
     required this.caption,
     required this.mediaUrls,
     required this.mediaType,
+    this.journeyStops = const [],
+    this.journeyTitle,
     required this.upvoteCount,
     required this.downvoteCount,
     required this.commentCount,
@@ -78,6 +80,16 @@ class ReelsCard extends ConsumerStatefulWidget {
   final int xpReward;
   final String? caption;
   final List<String> mediaUrls;
+
+  /// The stops of a journey posted as one route (0047).
+  ///
+  /// When present the carousel walks the route instead of the post's own
+  /// media: one slot per stop, in step order, each labelled with what that
+  /// checkpoint asked for. Empty on every ordinary post.
+  final List<JourneyPostStop> journeyStops;
+
+  /// The route's name, shown in place of a single quest title.
+  final String? journeyTitle;
   final String mediaType; // 'image' | 'video' | 'mixed' (applies to all items)
   final int upvoteCount;
   final int downvoteCount;
@@ -216,6 +228,15 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
           }
         }
       }
+    } else if (widget.journeyStops.length > 1) {
+      // The route, in step order. One slot per file so a checkpoint that
+      // needed two photographs still reads as one stop with two slides
+      // rather than as two stops.
+      slots = [
+        for (final stop in widget.journeyStops)
+          for (final url in stop.mediaUrls.where((u) => u.trim().isNotEmpty))
+            _CarouselSlot(member: null, url: url, stop: stop),
+      ];
     } else {
       slots = [for (final u in urls) _CarouselSlot(member: null, url: u)];
     }
@@ -385,9 +406,17 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
             displayName: activeMember?.displayName ?? widget.displayName,
             username: activeMember?.username ?? widget.username,
             avatarUrl: activeMember?.avatarUrl ?? widget.avatarUrl,
-            questTitle: widget.questTitle,
+            // On a route the title names the route and the caption names
+            // the stop you are looking at — otherwise three photographs
+            // from three different places all carry the last one's title.
+            questTitle: activeSlot?.stop != null
+                ? '${widget.journeyTitle ?? widget.questTitle}'
+                    ' · ${activeSlot!.stop!.placeName ?? activeSlot.stop!.questTitle ?? 'STOP ${activeSlot.stop!.stepOrder}'}'
+                : widget.questTitle,
             xpReward: widget.xpReward,
-            caption: isCollab ? activeMember?.caption : widget.caption,
+            caption: isCollab
+                ? activeMember?.caption
+                : activeSlot?.stop?.caption ?? widget.caption,
             timeAgo: widget.timeAgo,
             modeBadge: widget.modeBadge,
             mediaCount: slots.length,
@@ -1392,10 +1421,15 @@ class _CarouselSlot {
     required this.member,
     required this.url,
     this.isWaiting = false,
+    this.stop,
   });
   final CollabFeedMember? member;
   final String url;
   final bool isWaiting;
+
+  /// The journey checkpoint this slot came from, when the post is a route.
+  /// Null for every ordinary and collab slot.
+  final JourneyPostStop? stop;
 }
 
 // ── Waiting-for-member placeholder ──────────────────────────────────────────

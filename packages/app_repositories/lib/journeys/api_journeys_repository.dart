@@ -39,6 +39,20 @@ class ApiJourneysRepository {
     );
   }
 
+  /// Records how this journey should reach the feed.
+  ///
+  /// Returns whether it applied. The server refuses once a checkpoint has
+  /// been submitted, and that is a "no" rather than an error: the player may
+  /// have submitted from another device while the sheet was open. The caller
+  /// re-reads the run and shows what is actually true rather than insisting.
+  Future<bool> chooseFeedMode(String runId, {required bool oneRoutePost}) async {
+    final data = apiObject(await _client.post(
+      'journeys/$runId/feed-mode',
+      body: {'mode': oneRoutePost ? 'one_post' : 'per_stop'},
+    ));
+    return data['applied'] == true;
+  }
+
   /// Marks the unlock seen, so the celebration plays exactly once.
   ///
   /// Called after the animation has actually been shown, never before: if

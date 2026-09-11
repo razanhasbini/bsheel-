@@ -259,6 +259,17 @@ const environmentSchema = z
     QUEST_MAINTENANCE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(300_000),
     PENDING_REVIEW_REMINDER_INTERVAL_MS: z.coerce.number().int().min(60_000).default(3_600_000),
     QUEST_MAINTENANCE_BATCH_SIZE: z.coerce.number().int().min(1).max(5000).default(500),
+    /**
+     * How long a journey waits on an unanswered rejection before it is
+     * abandoned and leaves the player's active quests.
+     *
+     * Long enough to be a real chance rather than a trap — a rejection that
+     * arrives overnight must still be there in the morning — and short
+     * enough that a journey nobody is coming back to stops occupying the one
+     * card Home has for journeys. Retrying or appealing clears it instantly;
+     * only silence runs the clock out.
+     */
+    JOURNEY_REJECTION_GRACE_HOURS: z.coerce.number().int().min(1).max(720).default(72),
     MEDIA_RECLAIM_ENABLED: z
       .enum(['true', 'false'])
       .default('true')

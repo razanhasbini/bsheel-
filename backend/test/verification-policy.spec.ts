@@ -250,3 +250,85 @@ describe('media relevance', () => {
     expect(result.humanReviewReason).toBeUndefined();
   });
 });
+
+/// What the agent is now expected to decide on its own.
+///
+/// The gates below used to send these to a human, and the cost of that was
+/// not theoretical: a submission the agent was 99% sure was a desktop
+/// screenshot, 1% relevant to the quest, sat in a moderator queue carrying
+/// the agent's own correct conclusion for a person to reach again by hand.
+/// Escalation is now for evidence that genuinely cannot settle the question,
+/// not for every question whose answer is unwelcome.
+describe('the agent decides what the evidence can settle', () => {
+  // The one case where no vision pass is needed to reject: the geofence was
+  // live for the whole quest window and the device never entered it. That is
+  // a measurement about where the device was, reached without looking at any
+  // photograph, so a missing look at the photograph cannot undermine it.
+  it('rejects on a contradicted geofence even with no vision pass', () => {
+    const result = finalize({
+      modelDecision: decision('REJECTED'),
+      isLocationBased: true,
+      mandatoryStatus: 'CONTRADICTED',
+      cvAvailable: false,
+      cvRelevance: null,
+    });
+    expect(result.decision).toBe('REJECTED');
+  });
+
+  // The carve-out is exactly that narrow. Without network evidence saying so,
+  // a rejection with nobody having looked at the media is still a human's.
+  it('keeps the carve-out narrow: no CV and no contradiction is still human review', () => {
+    expect(
+      finalize({
+        modelDecision: decision('REJECTED'),
+        isLocationBased: false,
+        cvAvailable: false,
+        cvRelevance: null,
+      }).decision,
+    ).toBe('HUMAN_REVIEW');
+    // An approval never rides on it either — the carve-out is a measurement
+    // that someone was absent, which is not evidence that anyone succeeded.
+    expect(
+      finalize({ isLocationBased: true, mandatoryStatus: 'CONTRADICTED', cvAvailable: false }).decision,
+    ).toBe('HUMAN_REVIEW');
+  });
+
+  // A rejection on a content quest is a claim about what the media shows, so
+  // it has to rest on the media having been assessed. This is the backstop
+  // under the model's instruction to escalate an unassessable image: a
+  // confident-sounding rejection can never rest on its unassisted impression.
+  it('will not reject a content quest on an unassessed image', () => {
+    const result = finalize({ modelDecision: decision('REJECTED'), cvRelevance: null });
+    expect(result.decision).toBe('HUMAN_REVIEW');
+    expect(result.humanReviewReason).toContain('unassessed image');
+  });
+
+  // The submission that started this. Content quest, vision pass ran, the
+  // media has essentially nothing to do with the quest, and the agent is
+  // sure. Nothing here needs a person.
+  it('rejects the screenshot case end to end', () => {
+    const result = finalize({
+      modelDecision: {
+        ...decision('REJECTED', 0.99),
+        reasons: ['This is a screenshot of the Bsheel app, not a photograph of a sea gate.'],
+      },
+      cvRelevance: 0.01,
+    });
+    expect(result.decision).toBe('REJECTED');
+    expect(result.reasons[0]).toContain('screenshot');
+  });
+
+  // Rejection authority follows verifiability, because that is the column
+  // that says whether the media can answer the question at all. Where it
+  // cannot, a low-relevance image is what honest proof looks like.
+  it('still refuses to reject where a photograph cannot settle the quest', () => {
+    for (const verifiability of ['provenance_only', 'none'] as const) {
+      const result = finalize({
+        modelDecision: decision('REJECTED'),
+        cvRelevance: 0.01,
+        contract: { verifiability, mayAutoApprove: true, mayAutoReject: false },
+      });
+      expect(result.decision, verifiability).toBe('HUMAN_REVIEW');
+    }
+  });
+});

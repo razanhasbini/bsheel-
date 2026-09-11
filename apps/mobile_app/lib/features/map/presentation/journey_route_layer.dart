@@ -92,6 +92,10 @@ class _CheckpointMarker extends StatelessWidget {
       // A checkpoint under way is the one to walk to, so it reads like the
       // next one rather than like a pin you have not reached.
       StageState.inProgress => QuestColors.osPrimary,
+      // A rejected checkpoint is still somewhere you have to go back to, so
+      // the pin stays live on the map — coloured as the problem it is
+      // rather than greyed out like a stop you have not reached.
+      StageState.rejected => QuestColors.osRed,
       StageState.available =>
         isNext ? QuestColors.osPrimary : QuestColors.osTextMuted,
       StageState.locked => QuestColors.osTextMuted,
