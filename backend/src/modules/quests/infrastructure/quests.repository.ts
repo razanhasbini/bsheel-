@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -198,6 +199,75 @@ export class QuestsRepository {
     }
   }
 
+  /**
+   * Ensures a chain step being assigned belongs to a live run, and records
+   * that this checkpoint has been started.
+   *
+   * A solo chain opens its run lazily here, because there is no roster to
+   * gather. A group chain must NOT: coercing it into a solo run would
+   * produce a run whose kind disagrees with its chain, and would hand one
+   * person a relay meant for several. It is refused instead.
+   */
+  private async openJourneyForStep(
+    userId: string,
+    questId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<void> {
+    const step = await transaction.query<{
+      chain_id: string; mode: string; step_order: number; completion_rule: string;
+    }>(
+      `SELECT cs.chain_id, ch.mode, cs.step_order, ch.completion_rule
+       FROM quest_chain_steps cs JOIN quest_chains ch ON ch.id = cs.chain_id
+       WHERE cs.quest_id = $1 AND ch.is_active`,
+      [questId],
+    );
+    const row = step.rows[0];
+    if (!row) return;
+    // An all_steps_any_order chain has no baton to pass and nothing to
+    // sequence, so it needs no run and must not be made to wait for one.
+    // Runs exist to carry ORDERED progression.
+    if (row.completion_rule !== 'sequential') return;
+
+    const live = await transaction.query<{ id: string }>(
+      `SELECT r.id FROM quest_chain_runs r
+       WHERE r.chain_id = $2 AND r.status IN ('forming', 'active')
+         AND (r.owner_user_id = $1 OR EXISTS (
+           SELECT 1 FROM quest_chain_run_participants p
+           WHERE p.chain_run_id = r.id AND p.user_id = $1))
+       LIMIT 1`,
+      [userId, row.chain_id],
+    );
+
+    if (live.rows.length === 0) {
+      if (row.mode !== 'solo') {
+        // Only refuse here when somebody is trying to BEGIN a relay. A
+        // request for a later step is a different mistake and deserves the
+        // more precise answer: that checkpoint is locked, not that the
+        // journey needs starting. Returning lets the eligibility gate say
+        // so, which is also what keeps a non-member out.
+        if (row.step_order !== 1) return;
+        throw new BadRequestException({
+          code: 'CHAIN_RUN_REQUIRED',
+          message: 'This journey is a relay — it has to be started as a group run',
+        });
+      }
+      await transaction.query(
+        `INSERT INTO quest_chain_runs (chain_id, run_kind, owner_user_id, created_by_user_id, status, started_at)
+         VALUES ($1, 'solo', $2, $2, 'active', now()) ON CONFLICT DO NOTHING`,
+        [row.chain_id, userId],
+      );
+    }
+
+    // Audit only. Deliberately not a gate: an expired or rejected checkpoint
+    // stays retryable under the ordinary quest rules, so a journey cannot
+    // strand itself on a stage somebody started and ran out of time on.
+    await transaction.query(
+      `UPDATE journey_stage_unlocks SET started_at = COALESCE(started_at, now())
+       WHERE quest_id = $1 AND target_user_id = $2`,
+      [questId, userId],
+    );
+  }
+
   async findActiveForUser(userId: string): Promise<UserQuestRecord | null> {
     const result = await this.database.query<
       UserQuestRecord & { quests: QuestRecord }
@@ -273,6 +343,10 @@ export class QuestsRepository {
   ): Promise<UserQuestRecord> {
     await this.assertDestinationAccess(userId, questId, true);
     return this.database.transaction(async (transaction) => {
+      // Starting a chain step is what opens the journey, and the timer
+      // starts HERE — never at unlock. An approval that landed while the
+      // user was asleep must not have been quietly burning their clock.
+      await this.openJourneyForStep(userId, questId, transaction);
       await this.assignmentPolicy.lockUser(userId, transaction);
       await this.expireOverdueForUser(userId, transaction);
       if (displaceActive) {

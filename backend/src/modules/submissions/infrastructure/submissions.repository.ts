@@ -63,6 +63,8 @@ function withNextCursor(
 
 interface ReviewRow extends SubmissionRecord {
   quest_xp: number;
+  /// The quest behind this submission, so the approval event can name it.
+  quest_id: string;
   /// Quest-of-the-Day bonus for this attempt, or 0. Earned only when the
   /// quest was the QOTD on the UTC day the user took it on, so yesterday's
   /// ticket rolled randomly today does not pay the bonus.
@@ -529,7 +531,7 @@ export class SubmissionsRepository {
       await this.audit(actorId, 'submission.approve', id, {
         previous_status: 'pending', note_chars: reviewNote?.trim().length ?? 0, ...source,
       }, transaction);
-      await this.emit('submission', id, 'submission.approved', { submissionId: id, userId: submission.user_id, xpAwarded: updated.rows[0].xp_awarded_amount }, transaction);
+      await this.emit('submission', id, 'submission.approved', { submissionId: id, userId: submission.user_id, questId: submission.quest_id, xpAwarded: updated.rows[0].xp_awarded_amount }, transaction);
       await this.emit('profile', submission.user_id, 'profile.updated', {
         profileId: submission.user_id,
         reason: 'xp_awarded',
@@ -691,6 +693,10 @@ export class SubmissionsRepository {
       // to the quest's flat reward, so an unconfigured agent — or a
       // moderator faster than the async pipeline — behaves exactly as before.
       `SELECT s.*, COALESCE(s.recommended_xp, q.xp_reward) AS quest_xp,
+              -- Carried so the approval event can name the quest. Journey
+              -- progression needs it to find the chain step, and deriving it
+              -- again downstream would read a row this one already holds.
+              q.id AS quest_id,
               COALESCE(d.bonus_xp, 0) AS qotd_bonus_xp
        FROM submissions s
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id

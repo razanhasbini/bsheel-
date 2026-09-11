@@ -58,7 +58,11 @@ const int _throughputDays = 14;
 /// same fetch — the chart buckets it by day, the actions list takes the
 /// head of it — so the dashboard does not issue two overlapping reads for
 /// the same rows.
-const int _decidedLimit = 400;
+///
+/// It asked for 400 and the endpoint caps `limit` at 100, so every request
+/// came back 400 Bad Request and both panels rendered empty — indistinguishable
+/// from a quiet fortnight. The cap is the contract; ask for exactly it.
+const int _decidedLimit = adminSubmissionListMaxLimit;
 
 /// Decided submissions, newest decision first.
 ///

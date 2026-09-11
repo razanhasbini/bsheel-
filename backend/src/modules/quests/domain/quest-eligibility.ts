@@ -98,34 +98,39 @@ export function hiddenVisibleToUser({ alias, userParam }: EligibilityOptions): s
  */
 export function chainStepUnlocked({ alias, userParam }: EligibilityOptions): string {
   if (!userParam) {
-    // No viewer to attribute an approval to, so no later step can be shown.
+    // No viewer to attribute an unlock to, so no later step can be shown.
     return `NOT EXISTS (
       SELECT 1 FROM quest_chain_steps cs
       WHERE cs.quest_id = ${alias}.id AND cs.step_order > 1
     )`;
   }
-  return `NOT EXISTS (
-    SELECT 1
-    FROM quest_chain_steps cs
-    JOIN quest_chains ch ON ch.id = cs.chain_id
-    WHERE cs.quest_id = ${alias}.id
-      AND cs.step_order > 1
-      AND ch.completion_rule = 'sequential'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM quest_chain_steps prev
-        JOIN user_quests uq ON uq.quest_id = prev.quest_id
-        WHERE prev.chain_id  = cs.chain_id
-          AND prev.step_order = cs.step_order - 1
-          AND uq.status = 'approved'
-          AND (
-            ch.mode = 'solo' AND uq.user_id = ${userParam}
-            OR ch.mode = 'group' AND EXISTS (
-              SELECT 1 FROM collab_group_members m
-              WHERE m.group_id = ch.collab_group_id AND m.user_id = uq.user_id
-            )
-          )
-      )
+  // Step 1 is the entry point and needs no unlock, and an
+  // all_steps_any_order chain gates NOTHING — a cross-country challenge has
+  // no reason to make Palestine wait for Lebanon. Only a later step of a
+  // SEQUENTIAL chain needs a durable unlock naming THIS user and THIS run.
+  //
+  // This replaces the old derived test — "is the previous step approved?" —
+  // which could not express either half of what a relay needs. It admitted
+  // any user whose group contained an approver, so a teammate could start a
+  // checkpoint that belonged to somebody else; and it was scoped to the
+  // chain rather than to a playthrough, so an approval in an unrelated run
+  // opened a step here. The unlock row answers both, because it names the
+  // run and the person.
+  return `(
+    NOT EXISTS (
+      SELECT 1 FROM quest_chain_steps cs
+      JOIN quest_chains ch ON ch.id = cs.chain_id
+      WHERE cs.quest_id = ${alias}.id AND cs.step_order > 1
+        AND ch.completion_rule = 'sequential'
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM journey_stage_unlocks u
+      JOIN quest_chain_runs r ON r.id = u.chain_run_id
+      WHERE u.quest_id = ${alias}.id
+        AND u.target_user_id = ${userParam}
+        AND r.status = 'active'
+    )
   )`;
 }
 

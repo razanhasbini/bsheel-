@@ -265,11 +265,14 @@ const environmentSchema = z
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
 
     // AI agent phase — submission verification only. Every flag below
-    // defaults to disabled, so the pipeline is fully inert until turned on
-    // deliberately. QoS on Demand / Emergency Mode is out of scope here.
+    // Enabled by default: verifying that a device was where a quest required
+    // is the product, not an optional extra, and a deployment that simply
+    // forgot the variable should get the verification rather than silently
+    // skip it. Turning it off is a deliberate act — set it to 'false'.
+    // QoS on Demand / Emergency Mode is out of scope here.
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     OPENAI_AGENT_ENABLED: z
       .enum(['true', 'false'])
