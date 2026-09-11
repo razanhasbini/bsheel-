@@ -8,6 +8,7 @@ There are three separate deliverables with three different paths:
 |---|---|---|
 | API + worker (`backend/`) | container image → your host | **not yet wired** |
 | Admin dashboard (`apps/admin_web`) | Flutter web build → static hosting | **not yet wired** |
+| Business dashboard (`apps/business_web`) | Flutter web build → static hosting under the admin origin at `/business` | **not yet wired** |
 | Mobile app | App Store / Play Store via `scripts/ios_release.sh` | manual, see `PUBLISHING.md` |
 
 > **Status, stated plainly.** This repository has a complete, working local
@@ -126,6 +127,156 @@ defence in depth is cheap here.
 Serve `/.well-known/assetlinks.json` and
 `/.well-known/apple-app-site-association` from the same origin if deep links
 are in use — see `docs/deep_links/README.md`.
+
+## Business dashboard
+
+A second static Flutter web bundle (`apps/business_web`), served **under the
+admin origin at `/business`** rather than on its own subdomain:
+
+```bash
+cd apps/business_web
+flutter build web \
+  --base-href=/business/ \
+  --dart-define=API_URL=https://api.bsheel.app/api/v1
+# → build/web  (serve at https://admin.bsheel.app/business/)
+```
+
+Three things make that placement the right one, and they are worth knowing
+before someone "tidies it up" onto `business.bsheel.app`:
+
+- **It needs no CORS change.** `CORS_ORIGINS` is an exact-match allowlist
+  (`src/main.ts`) that gates HTTP *and* the WebSocket adapter, and production
+  carries `https://admin.bsheel.app` alone. An origin is scheme + host +
+  port, so a bundle at `/business` on that host is already allowed. A new
+  subdomain would load perfectly and fail every API call until someone adds
+  the origin and restarts the API. If you do want the subdomain, add it
+  first: `CORS_ORIGINS=https://admin.bsheel.app,https://business.bsheel.app`.
+- **It is a separate app, not a route in the admin console.** `SEC-027` in
+  `admin_router.dart` bounces every signed-in non-admin to the login gate so
+  feature pages never run their reads for one. A business member is an
+  ordinary user with no admin role, so putting the dashboard inside
+  `admin_web` would mean carving an exception into that control. A separate
+  bundle keeps it untouched, and businesses never reach the console.
+- **Its token store namespace is `bsheel.business`.** Same origin means
+  shared browser storage, so a shared namespace would have an admin and a
+  business owner in one browser silently evict each other's session.
+
+Serving requirements, checked against the real bundle served under
+`/business/` rather than assumed:
+
+| Request | Without SPA fallback | Needs fallback? |
+|---|---|---|
+| `/business/` | 200 | no |
+| `/business/flutter_bootstrap.js` and the rest of the assets | 200 | no |
+| `/business/?business=<id>` — the link the mobile card opens | **200** | **no** |
+| `/business/login` or any other deep path | **404** | **yes** |
+
+So the mobile card's link works from a plain static mount, because
+`?business=<id>` is a query string rather than a path segment. The fallback
+to `/business/index.html` is still required before anyone bookmarks or
+reloads a deep path — Flutter web uses path URLs (`usePathUrlStrategy`), and
+`<base href="/business/">` is baked into the bundle by `--base-href`, so the
+app itself is correct; it is the server that has to stop 404ing.
+
+The bundle carries no secrets — authorisation is the API's, by membership and
+subscription.
+
+The mobile app links here via `DASHBOARD_URL` in
+`apps/mobile_app/dart_defines.release.json`. It is a build-time value and
+deliberately not derived from `API_URL`: guessing a host produces a link that
+looks right, ships, and 404s for every owner who taps it.
+
+## Taking the business feature live
+
+Three steps, and **the order matters** — each one is useless before the one
+above it. Checked against production on 2026-09-11, where step 1 had not
+happened.
+
+### 1. Deploy the API
+
+The business endpoints only exist in a build that includes
+`modules/business` and `modules/analytics`. Until the API is redeployed from
+`main`, nothing else in this list can work: the dashboard loads and every
+call 404s, and `business:provision` fails on its first write.
+
+**How to tell, in one request:**
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' https://api.bsheel.app/api/v1/businesses/me
+```
+
+- `401` — the route exists and wants a token. Deployed. Go to step 2.
+- `404` — the route is not there. The build predates the business module.
+
+The distinction matters because both look like failure from the client. Sanity-check
+the probe itself against a route you know needs auth (`profiles/me` should
+be `401`); if *that* 404s too, something else is wrong.
+
+### 2. Provision a business
+
+```bash
+cd backend
+npm run business:provision -- \
+  --api https://api.bsheel.app/api/v1 \
+  --admin-email <a super_admin> --admin-password '...' \
+  --name '<business name>' --owner '<their Bsheel username>' \
+  --place '<an existing published place>' \
+  --apply          # omit for a dry run
+```
+
+Dry run first: it resolves the owner and the places before writing anything,
+so a mistyped handle leaves nothing behind. The fourth thing it does — the
+analytics subscription — is the one that gets skipped by hand, and without
+it the owner signs in to `ANALYTICS_NOT_SUBSCRIBED`.
+
+Places must already exist and be published (admin console → Destinations).
+
+### 3. Serve the dashboard bundle
+
+```bash
+cd apps/business_web
+flutter build web \
+  --base-href=/business/ \
+  --dart-define=API_URL=https://api.bsheel.app/api/v1
+```
+
+Then serve `build/web` at `/business/` on the admin host, with the fallback
+described above. No `CORS_ORIGINS` change and no DNS record: it is the same
+origin as the admin console.
+
+**Done on production, 2026-09-11.** The bundle lives in the admin doc root
+(`/root/supabase-docker/volumes/admin/business/`, `/srv/admin` inside the
+Caddy container) and two handles were added to the `admin.bsheel.app` block,
+reproduced in `deploy/caddy-bsheel.caddy`:
+
+- `handle /business/*` — `caddy_insert_admin.py` with
+  `ADMIN_SUBPATH=/business ADMIN_DOC_ROOT=/srv/admin`, the same script that
+  mounted `/v2`.
+- `handle /business` (exact) — serves `/business/index.html` in place. Needed
+  because `DASHBOARD_URL` is `https://admin.bsheel.app/business` with no
+  trailing slash, so the mobile card opens `/business?business=<id>`; without
+  this handle that request fell through to the legacy admin's basic auth and
+  answered 401. A redirect was rejected in favour of a rewrite so the query
+  string survives.
+
+Probe: `/business`, `/business/`, `/business/login` and
+`/business?business=x` must all be `200`; `/v2/` must still be `200` and `/`
+still `401`.
+
+### Acceptance, without opening a browser
+
+```bash
+TOKEN=<the owner's access token>
+for r in summary daily funnel quests places countries proof; do
+  curl -s -o /dev/null -w "$r %{http_code}\n" \
+    -H "authorization: Bearer $TOKEN" \
+    "https://api.bsheel.app/api/v1/businesses/<id>/analytics/$r"
+done
+```
+
+Seven `200`s means the account is provisioned *and* subscribed. A `403` on
+all seven means step 2's subscription was skipped; a `404` means the caller
+is not a member of that business.
 
 ## Mobile app
 

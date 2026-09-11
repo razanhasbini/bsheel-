@@ -13,6 +13,7 @@ import { DatabaseModule } from './infrastructure/database/database.module.js';
 import { RedisModule } from './infrastructure/redis/redis.module.js';
 import { MessagingQueueModule } from './infrastructure/messaging/messaging-queue.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { BusinessModule } from './modules/business/business.module.js';
 import { MapModule } from './modules/map/map.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
@@ -129,6 +130,7 @@ function prettyLoggingAvailable(): boolean {
     HealthModule,
     MapModule,
     BusinessModule,
+    AnalyticsModule,
     // Only the CAMARA geofence callback endpoint — the rest of the agent
     // stack lives in the worker.
     GeofencingModule,

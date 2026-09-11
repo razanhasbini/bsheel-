@@ -54,6 +54,7 @@ inline in an HTTP handler.
 apps/
   mobile_app/          user-facing app
   admin_web/           admin dashboard
+  business_web/        partner dashboard (#50), served at admin.bsheel.app/business
 packages/
   app_core/            design tokens (QuestColors/Spacing/Typography), logger, utils
   app_models/          shared data models
@@ -63,7 +64,8 @@ packages/
 backend/
   src/modules/         auth, profiles, quests, submissions, feed, social,
                        collab, notifications, media, admin, account,
-                       public-intake, search, leaderboard, business, health
+                       public-intake, search, leaderboard, business,
+                       analytics, health
   src/integrations/    telegram
   migrations/          forward-only, checksummed SQL
   test/                unit (*.spec.ts) + integration (*.e2e-spec.ts)
@@ -378,12 +380,178 @@ Four rules worth knowing before changing anything here:
   owner-only, so removing the last one would leave it manageable by nobody
   but an admin.
 
-`profiles` has **no country column**, so the "country touristic analytics"
-in #50 has no data source — don't go looking for it. `profiles.analytics_consent_at`
-exists and gates per-user analytics. And a business must only ever see
-proof its author already made public (`show_in_feed` and
-`visibility = 'visible'`): private proof is not a business's to read
-because a quest happened at their address.
+### The dashboard (#50)
+
+Five read-only endpoints under `businesses/:businessId/analytics` —
+`summary`, `daily`, `quests`, `places`, `proof`. **There is no place-id
+parameter anywhere in them**, and that is the design: the place set is
+derived from membership, so no request can widen its own scope. Keep it
+that way.
+
+- **Aggregates are counts of people, never lists of them.** A business
+  learns that eleven people completed a quest at its address, not who.
+  Cohorts below `MIN_REPORTABLE_COHORT` (5) come back flagged
+  `cohortSuppressed`, because "1 visitor" plus one public feed post at the
+  same place is two facts that together name somebody. Zero is *not*
+  suppressed — it identifies nobody.
+- **`proof` returns only what the author published**, on the feed's exact
+  predicate: approved, `show_in_feed`, `visibility = 'visible'`, not
+  deleted, not moderator-removed. It has to be exact, because `media_url`
+  is an object key and `POST /media/sign` does **not** re-check who may see
+  the submission — so the key *is* the access, and a looser predicate here
+  hands over the bytes of proof its author kept private, with their name
+  attached. Everything this endpoint returns is already visible to every
+  signed-in user on the feed, which is the only reason it is defensible.
+- **Starts come from `user_quests`, not submissions.** Someone who took a
+  quest and never submitted is the whole signal; counting submissions would
+  report perfect follow-through by hiding everyone who gave up.
+  `completionRate` is **null, not zero**, when nobody has started — 0%
+  would rank an untested quest as the worst performer.
+- **`daily` fills empty days with `generate_series`.** Grouping the
+  submissions alone omits quiet days, and a chart drawn from that connects
+  last Tuesday to this Friday with a line that reads as steady traffic.
+- Totals exclude anything the product treats as gone (deleted, `visibility
+  = 'deleted'`, moderator-removed), so the dashboard cannot drift from the
+  feed.
+
+**Analytics is a separate entitlement from standing.** `businesses.status`
+is a *moderation* state; `businesses.analytics_subscribed_at` is #50's
+whitelist, NULL by default and never granted by merely existing.
+`BusinessAnalyticsGuard` runs after `BusinessAccessGuard` (it reads the
+membership that guard resolved, so it costs no extra query) and refuses with
+**403 `ANALYTICS_NOT_SUBSCRIBED`** — 403 and not 404 here, the opposite of
+the non-member case, because a member knows the business exists and hiding
+the reason leaves an owner staring at an empty dashboard. The subscription
+gates *only* the analytics routes: an unsubscribed member must still reach
+`/businesses/me` and their own account. Suspending a business does not
+cancel its subscription, and re-granting does not move
+`analytics_subscribed_at`, so a billing period's start survives it.
+
+**Where visitors come from** (`analytics/countries`) is self-declared
+`profiles.country_code` — ISO 3166-1 alpha-2, optional, uppercase by CHECK,
+set through `PATCH /profiles/me`. Deliberately **not** an FK to
+`map_countries` (that is the game board — currently two rows — and a player
+can be from anywhere), and deliberately **not** derived from CAMARA, which
+would be inferring someone's residence from telecom data they gave us to
+verify one quest. A visitor reaches a country bucket only with a declared
+country **and** `analytics_consent_at`: completing a quest at a place is not
+consent to be counted by its owner. The response carries `visitors`,
+`disclosed` and `undisclosed` separately, and sub-threshold buckets collapse
+into `suppressedCountries`/`suppressedVisitors` rather than vanishing —
+because "Lebanon 100%" over five disclosed visitors when forty came would be
+read as all of the traffic instead of an eighth of it.
+
+The join path (`business_places` → `quest_destinations.place_id` →
+`user_quests.quest_id` → `submissions.user_quest_id`) is already covered by
+existing indexes; no new ones were added, and none are needed.
+
+### The two client surfaces
+
+**In the app**, a business is an ordinary player. The only difference is a
+card on their *own* profile (`business_card.dart`) naming the business and
+linking to the dashboard — nothing for anyone else, nothing on another
+person's profile, and nothing while the read is loading or failed, because
+the card is an addition to somebody's page rather than the page.
+
+**The dashboard is `apps/business_web`**, a separate Flutter web app served
+at `admin.bsheel.app/business`. It is *not* a route inside `admin_web`, and
+that is deliberate: `SEC-027` in `admin_router.dart` bounces every signed-in
+non-admin to the login gate, and a business member is an ordinary user with
+no admin role — so putting it there would mean carving an exception into
+that control. Same origin means no `CORS_ORIGINS` change is needed (an
+origin is scheme + host + port), and the token namespace is
+`bsheel.business` so an admin and a business owner in one browser cannot
+evict each other's session. `docs/DEPLOYMENT.md` has the build and serving
+requirements.
+
+The dashboard is not an authority boundary — the API refuses a non-member
+with a 404 whatever the client does — so its job is to *explain*: a
+suspension, an unsubscribed account and a missing `DASHBOARD_URL` are three
+separate messages because each has a different fix, and every section loads
+and fails on its own so one endpoint cannot blank the other five.
+
+Three client rules worth keeping. The proof wall **accumulates pages**
+through the keyset cursor and says "that is all N posts" when the cursor
+comes back null — a single-page read hid a business's own content behind
+nothing. The quest filter runs on the client over rows already fetched,
+which is only honest because the fetch asks for the server's cap of 100
+*and* the section says so when it hit it; a client-side filter over a
+partial list would answer "no quests match" about quests it never received.
+(The places filter needs no such warning — that endpoint returns every
+place the business owns.)
+
+And the chart draws **explicit pixel heights measured from its own box**,
+never `FractionallySizedBox`. A Row does not constrain its children on the
+cross axis, so a fractional box inside one is handed an infinite height and
+throws — which crashed the chart for any business that actually had data,
+while every test passed empty point lists and the web bundle compiled
+happily. `daily` also returns the **window it drew** alongside the points;
+the chart labels those dates rather than deriving "today" itself, which
+disagrees by a day for anyone west of UTC.
+
+**Setting one up:** `npm run business:provision` (in `backend/`) does all
+four steps through the audited admin endpoints — create, claim places, add
+the owner, grant the subscription. Dry run by default. The fourth step is
+the one people forget, and without it the owner signs in to
+`ANALYTICS_NOT_SUBSCRIBED` with nothing pointing at the cause.
+
+For someone testing this rather than building it,
+`docs/TESTING_THE_BUSINESS_DASHBOARD.md` is the shorter read — including the
+two things that look broken and are not (an empty country panel, and private
+proof absent from the proof wall).
+
+## The exposure event store (#81 §28)
+
+`analytics_events` exists for one reason: nothing in the schema recorded
+that a quest was ever **seen**. Everything from activation down already has
+an owner — `user_quests` says who started, `submissions` who finished,
+`network_evidence` whether the network agreed — so impressions, detail
+views, BSHEEEL presses and shares were not "not built yet", they were **not
+computable**.
+
+Two rules decide everything about it:
+
+**It stores only what has no other source.** There is no `quest_assigned`
+or `quest_approved` event, because a second source for a fact a table
+already owns drifts from the first. `business-analytics/funnel` assembles
+the funnel from both halves — the top from here, the bottom from the tables
+that own it — and `analytics-events.spec.ts` fails if someone adds an event
+type that duplicates a table.
+
+**What is in here is client-attested.** A phone reports that it drew a quest
+card; nothing server-side can confirm it. Completions are
+server-authoritative. Those are not the same kind of number, so they never
+merge: the funnel response keeps `exposure` and `participation` in separate
+objects, carries an explicit `attestation`, and the dashboard labels the
+reported half *on the figures* rather than in a footnote. `exposure` is
+**null**, not zeroed, when nothing was reported — "nothing was reported" is
+a statement about Bsheel, "nobody saw it" would be a claim about the
+business.
+
+Three smaller things that are load-bearing:
+
+- **Ingest is idempotent** on `(user_id, client_event_id)`, with the id
+  generated client-side. A phone that loses its connection mid-flush
+  resends the same ids, and a resend must not inflate the one figure nobody
+  can audit.
+- **Client clocks are clamped, not trusted** — `clampOccurredAt` pulls a
+  timestamp into ±2h/1min of receipt, and both values are stored so the
+  clamp is visible. A device years out would otherwise put real activity on
+  a day nobody is looking at, which is worse than losing it because it looks
+  like data.
+- **`AnalyticsReporter` never retries and never awaits.** A dropped batch
+  costs a rounding error; a retry queue costs the user battery and
+  eventually replays stale events into the wrong day.
+
+**Impressions are deliberately not emitted yet.** The event type and the
+aggregation exist, but accurate counting needs visibility detection, and an
+over-counted impression is worse than an absent one because a business is
+shown it as a measurement. The dashboard shows reach, opens and BSHEEELs —
+every number on it is one somebody actually reported.
+
+Retention is not implemented. Raw per-user telemetry has no reason to
+outlive the aggregates drawn from it; a rollup plus a delete is the obvious
+next step and should land before this table is large.
 
 ## High-risk invariants
 

@@ -20,8 +20,9 @@ docker compose up --build
 ```bash
 # Flutter monorepo
 ./scripts/bootstrap.sh          # installs melos, pub get everywhere
-cd apps/mobile_app && flutter run
-cd apps/admin_web  && flutter run -d chrome
+cd apps/mobile_app   && flutter run
+cd apps/admin_web    && flutter run -d chrome
+cd apps/business_web && flutter run -d chrome
 ```
 
 Debug builds default to `http://127.0.0.1:3010/api/v1`, so a local backend
@@ -70,6 +71,8 @@ needs no extra flags.
 apps/
   mobile_app/            user-facing Flutter app
   admin_web/             admin dashboard (Flutter web)
+  business_web/          partner dashboard (Flutter web), served at
+                         admin.bsheel.app/business
 packages/
   app_core/              design tokens, logger, utils
   app_models/            shared data models
@@ -250,6 +253,13 @@ cd apps/mobile_app && flutter build appbundle --release \
 
 # Admin web
 cd apps/admin_web && flutter build web \
+  --dart-define=API_URL=https://api.bsheel.app/api/v1
+
+# Business dashboard — served under the admin origin, so --base-href is
+# required; without it every asset resolves against `/` and the page is
+# blank with no error worth reading.
+cd apps/business_web && flutter build web \
+  --base-href=/business/ \
   --dart-define=API_URL=https://api.bsheel.app/api/v1
 ```
 

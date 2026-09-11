@@ -22,6 +22,8 @@ import '../saved_quests/api_saved_quests_repository.dart';
 import '../search/api_search_repository.dart';
 import '../submissions/api_submissions_repository.dart';
 import 'api_client.dart';
+import '../analytics/analytics_repository.dart';
+import '../business/business_repository.dart';
 import '../map/map_repository.dart';
 
 /// One composition object for the Flutter mobile and admin applications.
@@ -53,6 +55,14 @@ class ApiRepositoryBundle {
   );
   late final ApiAccountRepository account = ApiAccountRepository(client);
   late final MapRepository map = ApiMapRepository(client);
+
+  /// Business accounts and their analytics. Resolves to an empty list for
+  /// almost every user; see BusinessRepository.mine().
+  late final BusinessRepository business = ApiBusinessRepository(client);
+
+  /// Exposure telemetry (#81 §28). Fire-and-forget: see AnalyticsReporter
+  /// in the mobile app for the batching and the failure policy.
+  late final AnalyticsRepository analytics = ApiAnalyticsRepository(client);
   late final ApiAdminRepository admin = ApiAdminRepository(client);
   late final ApiCollabRepository collab = ApiCollabRepository(client);
   late final ApiCommentsRepository comments = ApiCommentsRepository(client);

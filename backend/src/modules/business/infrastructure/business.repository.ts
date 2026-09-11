@@ -18,6 +18,7 @@ interface BusinessRow {
   readonly website_url: string | null;
   readonly logo_url: string | null;
   readonly status: BusinessStatus;
+  readonly analytics_subscribed_at: Date | null;
   readonly created_at: Date;
 }
 
@@ -30,19 +31,22 @@ const toBusiness = (row: BusinessRow): Business => ({
   websiteUrl: row.website_url,
   logoUrl: row.logo_url,
   status: row.status,
+  analyticsSubscribedAt: row.analytics_subscribed_at,
   createdAt: row.created_at,
 });
 
 // citext columns come back as their own type through pg's parser, so both
 // are cast to text for a plain string in the row.
 const BUSINESS_COLUMNS = `id, name, slug::text AS slug, description,
-  contact_email::text AS contact_email, website_url, logo_url, status, created_at`;
+  contact_email::text AS contact_email, website_url, logo_url, status,
+  analytics_subscribed_at, created_at`;
 
 /// The same columns qualified for a join. Written out rather than derived
 /// from the string above: a split-and-prefix would silently produce
 /// nonsense the day someone adds a column containing a comma.
 const JOINED_BUSINESS_COLUMNS = `b.id, b.name, b.slug::text AS slug, b.description,
-  b.contact_email::text AS contact_email, b.website_url, b.logo_url, b.status, b.created_at`;
+  b.contact_email::text AS contact_email, b.website_url, b.logo_url, b.status,
+  b.analytics_subscribed_at, b.created_at`;
 
 export interface CreateBusinessInput {
   readonly name: string;
@@ -60,6 +64,7 @@ export interface UpdateBusinessInput {
   readonly websiteUrl?: string | null;
   readonly logoUrl?: string | null;
   readonly status?: BusinessStatus;
+  readonly analyticsSubscribed?: boolean;
 }
 
 @Injectable()
@@ -74,15 +79,23 @@ export class BusinessRepository {
       business_id: string;
       role: BusinessMemberRole;
       status: BusinessStatus;
+      analytics_subscribed_at: Date | null;
     }>(
-      `SELECT m.business_id, m.role, b.status
+      `SELECT m.business_id, m.role, b.status, b.analytics_subscribed_at
        FROM business_members m
        JOIN businesses b ON b.id = m.business_id
        WHERE m.user_id = $1 AND m.business_id = $2`,
       [userId, businessId],
     );
     const row = result.rows[0];
-    return row ? { businessId: row.business_id, role: row.role, status: row.status } : null;
+    return row
+      ? {
+          businessId: row.business_id,
+          role: row.role,
+          status: row.status,
+          analyticsSubscribedAt: row.analytics_subscribed_at,
+        }
+      : null;
   }
 
   /// Every business the caller belongs to, with its places.
@@ -248,6 +261,14 @@ export class BusinessRepository {
            website_url   = CASE WHEN $6::boolean THEN $7::text   ELSE website_url   END,
            logo_url      = CASE WHEN $8::boolean THEN $9::text   ELSE logo_url      END,
            status        = COALESCE($10, status),
+           -- Absent leaves it alone; true stamps now only if not already
+           -- subscribed, so re-granting does not reset the start date a
+           -- billing period would be measured from.
+           analytics_subscribed_at = CASE
+             WHEN $11::boolean IS NULL THEN analytics_subscribed_at
+             WHEN $11::boolean THEN COALESCE(analytics_subscribed_at, now())
+             ELSE NULL
+           END,
            updated_at    = now()
          WHERE id = $1
          RETURNING ${BUSINESS_COLUMNS}`,
@@ -262,6 +283,7 @@ export class BusinessRepository {
           input.logoUrl !== undefined,
           input.logoUrl ?? null,
           input.status ?? null,
+          input.analyticsSubscribed ?? null,
         ],
       );
       const after = toBusiness(updated.rows[0]);

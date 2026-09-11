@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   businessMemberRoles,
   canManageMembers,
+  canReadAnalytics,
   canReadDashboard,
   suggestSlug,
 } from '../src/modules/business/domain/business.js';
@@ -44,6 +45,39 @@ describe('business domain rules', () => {
       for (const role of businessMemberRoles) {
         expect(canReadDashboard({ businessId: 'b', role, status: 'suspended' }), role).toBe(false);
       }
+    });
+  });
+
+  /// #50's whitelist. `status` is a moderation state, not an entitlement;
+  /// conflating them gave every business that existed the full dashboard.
+  describe('who may read analytics', () => {
+    const membership = (
+      status: 'active' | 'suspended',
+      analyticsSubscribedAt: Date | null,
+    ) => ({ businessId: 'b', role: 'owner' as const, status, analyticsSubscribedAt });
+
+    it('lets an active, subscribed business read them', () => {
+      expect(canReadAnalytics(membership('active', new Date('2026-09-01')))).toBe(true);
+    });
+
+    it('refuses an active business that is not subscribed', () => {
+      expect(canReadAnalytics(membership('active', null))).toBe(false);
+    });
+
+    // Both conditions, not either: a paid-up business under suspension reads
+    // nothing, and neither does an unsuspended one that never subscribed.
+    it('refuses a suspended business even while subscribed', () => {
+      expect(canReadAnalytics(membership('suspended', new Date('2026-09-01')))).toBe(false);
+    });
+
+    it('refuses a suspended, unsubscribed business', () => {
+      expect(canReadAnalytics(membership('suspended', null))).toBe(false);
+    });
+
+    // The dashboard is one feature. Losing it must not lock a member out of
+    // their own account, or the app cannot tell them what they are missing.
+    it('does not gate the rest of the business on the subscription', () => {
+      expect(canReadDashboard(membership('active', null))).toBe(true);
     });
   });
 

@@ -513,6 +513,34 @@ export class E2eHarness {
     return result.rows;
   }
 
+  /// Waits for notifications the outbox worker produces, then returns them.
+  ///
+  /// `notificationsFor` is a single read, but every cross-domain
+  /// notification arrives through `outbox_events` and a BullMQ consumer —
+  /// so reading immediately after the HTTP call that triggered it is a race
+  /// the worker usually wins. It loses when the queue is busy, which is
+  /// exactly why such a failure only ever appears in a full run and never
+  /// when the suite is run on its own.
+  ///
+  /// This changes no assertion: a notification that never arrives still
+  /// fails the test, just after the timeout instead of instantly. Use
+  /// `notificationsFor` directly when asserting a notification is *absent*
+  /// — waiting for something that should never come is only a slow pass.
+  async awaitNotificationTypes(
+    userId: string,
+    types: readonly string[],
+    timeoutMs = 15_000,
+  ): Promise<Awaited<ReturnType<E2eHarness['notificationsFor']>>> {
+    const deadline = Date.now() + timeoutMs;
+    let rows = await this.notificationsFor(userId);
+    const present = () => types.every((type) => rows.some((row) => row.type === type));
+    while (!present() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      rows = await this.notificationsFor(userId);
+    }
+    return rows;
+  }
+
   async auditRows(action: string, targetId: string) {
     const result = await this.database.query<{
       actor_id: string | null;

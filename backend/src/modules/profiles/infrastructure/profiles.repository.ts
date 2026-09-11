@@ -21,6 +21,7 @@ export interface PublicProfileRecord {
 export interface OwnProfileRecord extends PublicProfileRecord {
   readonly age_verified: boolean;
   readonly analytics_consent_at: Date | null;
+  readonly country_code: string | null;
 }
 
 export interface UserXpStatsRecord {
@@ -69,7 +70,7 @@ export class ProfilesRepository {
 
   async findOwn(id: string): Promise<OwnProfileRecord | null> {
     const result = await this.database.query<OwnProfileRecord>(
-      `SELECT ${publicColumns}, age_verified, analytics_consent_at FROM profiles WHERE id = $1`,
+      `SELECT ${publicColumns}, age_verified, analytics_consent_at, country_code FROM profiles WHERE id = $1`,
       [id],
     );
     return result.rows[0] ?? null;
@@ -183,9 +184,10 @@ export class ProfilesRepository {
            avatar_url = CASE WHEN $4 THEN $5 ELSE avatar_url END,
            bio = CASE WHEN $6 THEN $7 ELSE bio END,
            profile_completed = CASE WHEN $8 = true THEN true ELSE profile_completed END,
+           country_code = CASE WHEN $9 THEN $10 ELSE country_code END,
            updated_at = now()
          WHERE id = $1
-         RETURNING ${publicColumns}, age_verified, analytics_consent_at`,
+         RETURNING ${publicColumns}, age_verified, analytics_consent_at, country_code`,
         [
           id,
           input.username?.trim().toLowerCase(),
@@ -195,6 +197,10 @@ export class ProfilesRepository {
           Object.hasOwn(input, 'bio'),
           input.bio?.trim() || null,
           input.profileCompleted,
+          Object.hasOwn(input, 'countryCode'),
+          // Uppercased to match the column's CHECK, so aggregation never has
+          // to fold case and 'lb' and 'LB' cannot become two countries.
+          input.countryCode ? input.countryCode.toUpperCase() : null,
         ],
         );
         if (result.rows[0]) await this.emitUpdated(id, 'profile_edit', transaction);

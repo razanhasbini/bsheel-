@@ -30,6 +30,7 @@ import '../../../submissions/data/submission_providers.dart';
 import '../../domain/badge_definitions.dart';
 import '../../domain/player_class.dart';
 import '../providers/profile_realtime_provider.dart';
+import '../widgets/business_card.dart';
 
 /// Profile — the tabbed layout the legacy Bsheel app shipped.
 ///
@@ -378,6 +379,17 @@ class ProfilePage extends ConsumerWidget {
                           if (isViewingOther) ...[
                             const SizedBox(height: 16),
                             FollowButton(targetUserId: userId!),
+                          ],
+
+                          // ── Business account ──────────────────────
+                          // #14: the only thing being a business changes in
+                          // this app. Own profile only — a business account
+                          // is not public information here — and the widget
+                          // renders nothing for everyone else, which is
+                          // almost everyone.
+                          if (!isViewingOther) ...[
+                            const SizedBox(height: 16),
+                            const BusinessCard(),
                           ],
                           const SizedBox(height: 14),
                           ref

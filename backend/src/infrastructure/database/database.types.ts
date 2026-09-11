@@ -59,6 +59,16 @@ export interface Database {
     "completed_at": Timestamp | null;
     "created_at": Generated<Timestamp>;
   };
+  "analytics_events": {
+    "id": Generated<string>;
+    "client_event_id": string;
+    "user_id": string;
+    "event_type": string;
+    "quest_id": string;
+    "surface": string;
+    "occurred_at": Timestamp;
+    "received_at": Generated<Timestamp>;
+  };
   "app_config": {
     "key": string;
     "value": Json;
@@ -115,6 +125,7 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "analytics_subscribed_at": Timestamp | null;
   };
   "collab_group_members": {
     "id": Generated<string>;
@@ -385,6 +396,7 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
     "streak_reminder_sent_on": Timestamp | null;
+    "country_code": string | null;
   };
   "public_deletion_requests": {
     "id": Generated<string>;
