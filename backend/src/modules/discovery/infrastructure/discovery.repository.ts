@@ -347,15 +347,25 @@ export class DiscoveryRepository {
       [userId, head.mode, await this.chainGroupId(head.chain_id), head.chain_id],
     );
 
-    // Exactly one step is CURRENT on a sequential chain: the first that is
-    // neither approved nor awaiting a decision. An any-order chain has no
-    // such thing — every unfinished step is available at once, which is what
-    // makes a cross-country challenge work.
+    // At most one step is CURRENT on a sequential chain, and a step awaiting
+    // a decision CLAIMS that position rather than passing it along.
+    //
+    // Skipping over an in-review step marked the next one CURRENT — "YOU ARE
+    // HERE" — while `chainStepUnlocked` refused to assign it, because the
+    // gate needs the previous step APPROVED and a pending submission is not
+    // an approval. The line promised a step the API then rejected with
+    // QUEST_STEP_LOCKED, which is the precise failure this whole engine
+    // exists to prevent. While a decision is outstanding there is nowhere
+    // else to be, so nothing after it is current.
+    //
+    // An any-order chain has no such position at all — every unfinished step
+    // is available at once, which is what makes a cross-country challenge
+    // work.
     let currentAssigned = head.completion_rule === 'all_steps_any_order';
     const milestones = steps.rows.map((row) => {
       let state: QuestJourney['milestones'][number]['state'];
       if (row.approved) state = 'COMPLETE';
-      else if (row.in_review) state = 'IN_REVIEW';
+      else if (row.in_review) { state = 'IN_REVIEW'; currentAssigned = true; }
       else if (head.completion_rule === 'all_steps_any_order') state = 'CURRENT';
       else if (!currentAssigned) { state = 'CURRENT'; currentAssigned = true; }
       else state = 'LOCKED';
