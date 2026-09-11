@@ -31,7 +31,7 @@ export class BusinessAnalyticsController {
 
   @Get('daily')
   daily(@Param() params: BusinessIdDto, @Query() query: BusinessDailyQueryDto) {
-    return this.analytics.daily(params.businessId, query.days);
+    return this.analytics.daily(params.businessId, query);
   }
 
   /// Which quests attract people, and which of those people follow through.

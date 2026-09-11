@@ -42,8 +42,19 @@ class CompletionChart extends StatelessWidget {
           height: 90,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Bars share the width evenly; a 365-day window makes them
-              // hairlines rather than overflowing the card.
+              // Bar heights are computed in pixels from the box we were
+              // given, rather than with FractionallySizedBox.
+              //
+              // That is not a style choice: a fractional box inside this Row
+              // is handed an unbounded height (a Row does not constrain its
+              // children on the cross axis unless told to stretch), and
+              // `heightFactor` against infinity throws. The chart therefore
+              // crashed for any business that actually had data — which no
+              // test caught while they all passed empty point lists, and
+              // which compiling the web bundle cannot catch either.
+              final available = constraints.maxHeight;
+              // A 365-day window makes the bars hairlines; dropping the gap
+              // keeps them visible rather than letting padding eat them.
               final gap = points.length > 90 ? 0.0 : 2.0;
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -54,11 +65,14 @@ class CompletionChart extends StatelessWidget {
                         padding: EdgeInsets.symmetric(horizontal: gap / 2),
                         child: _Bar(
                           // A day with activity always draws something: a
-                          // sub-pixel bar rounds to nothing and reads as a
-                          // day when nobody came.
-                          fraction: peak == 0
-                              ? 0
-                              : (point.completions / peak).clamp(0.0, 1.0),
+                          // sub-pixel bar rounds away and reads as a day
+                          // when nobody came.
+                          height: point.completions > 0
+                              ? (peak == 0
+                                      ? available
+                                      : available * (point.completions / peak))
+                                  .clamp(3.0, available)
+                              : 2.0,
                           hasActivity: point.completions > 0,
                           tooltip:
                               '${point.date}: ${point.completions} completed, '
@@ -91,12 +105,16 @@ class CompletionChart extends StatelessWidget {
 
 class _Bar extends StatelessWidget {
   const _Bar({
-    required this.fraction,
+    required this.height,
     required this.hasActivity,
     required this.tooltip,
   });
 
-  final double fraction;
+  /// An explicit pixel height, already clamped by the caller against the box
+  /// it measured. See the note at the call site for why this is not a
+  /// fraction: a fractional box here is handed an unbounded height and
+  /// throws.
+  final double height;
   final bool hasActivity;
   final String tooltip;
 
@@ -104,22 +122,13 @@ class _Bar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FractionallySizedBox(
-            heightFactor: hasActivity ? fraction.clamp(0.04, 1.0) : 0.02,
-            child: Container(
-              decoration: BoxDecoration(
-                color: hasActivity
-                    ? QuestColors.osAccent
-                    : QuestColors.borderC(context),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(2)),
-              ),
-            ),
-          ),
-        ],
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color:
+              hasActivity ? QuestColors.osAccent : QuestColors.borderC(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+        ),
       ),
     );
   }

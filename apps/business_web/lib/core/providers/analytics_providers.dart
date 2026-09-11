@@ -10,14 +10,37 @@ final analyticsSummaryProvider = FutureProvider.autoDispose
   return ref.watch(businessRepositoryProvider).analyticsSummary(businessId);
 });
 
-/// The window the completion chart covers. 30 days by default; the server
-/// bounds it at 365 because the series is generated per day.
-final dailyWindowProvider = StateProvider<int>((ref) => 30);
+/// What the completion chart covers: a rolling preset, or an explicit
+/// range once someone picks dates.
+///
+/// One provider for both so the chart cannot end up showing a range while
+/// a preset button looks selected.
+class DailyWindowSelection {
+  const DailyWindowSelection.preset(this.days)
+      : from = null,
+        to = null;
+  const DailyWindowSelection.range(String this.from, String this.to)
+      : days = 30;
+
+  final int days;
+  final String? from;
+  final String? to;
+
+  bool get isRange => from != null && to != null;
+}
+
+final dailyWindowProvider = StateProvider<DailyWindowSelection>(
+    (ref) => const DailyWindowSelection.preset(30));
 
 final dailyProvider = FutureProvider.autoDispose
-    .family<List<BusinessDailyPoint>, String>((ref, businessId) {
-  final days = ref.watch(dailyWindowProvider);
-  return ref.watch(businessRepositoryProvider).daily(businessId, days: days);
+    .family<BusinessDailySeries, String>((ref, businessId) {
+  final selection = ref.watch(dailyWindowProvider);
+  return ref.watch(businessRepositoryProvider).daily(
+        businessId,
+        days: selection.days,
+        from: selection.from,
+        to: selection.to,
+      );
 });
 
 /// The server caps this at 100 per request. Asking for the cap means the
@@ -50,6 +73,18 @@ final placePerformanceProvider = FutureProvider.autoDispose
     .family<List<BusinessPlacePerformance>, String>((ref, businessId) {
   return ref.watch(businessRepositoryProvider).placePerformance(businessId);
 });
+
+/// Free-text filter over the place cards — name, city, country.
+///
+/// Unlike the quest list this needs no cap warning: the endpoint returns
+/// every place the business owns, with no limit, so the filter always sees
+/// all of them.
+final placeFilterProvider = StateProvider<String>((ref) => '');
+
+enum PlaceSort { completions, visitors, saves, name }
+
+final placeSortProvider =
+    StateProvider<PlaceSort>((ref) => PlaceSort.completions);
 
 final visitorOriginsProvider = FutureProvider.autoDispose
     .family<BusinessVisitorOrigins, String>((ref, businessId) {

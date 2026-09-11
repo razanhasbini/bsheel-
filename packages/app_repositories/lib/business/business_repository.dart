@@ -22,7 +22,11 @@ abstract class BusinessRepository {
   Future<void> removeMember(String businessId, String userId);
 
   Future<BusinessAnalyticsSummary> analyticsSummary(String businessId);
-  Future<List<BusinessDailyPoint>> daily(String businessId, {int days = 30});
+
+  /// The completion series. [days] is a rolling window ending today;
+  /// [from]/[to] request an explicit range and override it.
+  Future<BusinessDailySeries> daily(String businessId,
+      {int days = 30, String? from, String? to});
   Future<List<BusinessQuestPerformance>> questPerformance(String businessId,
       {int limit = 50, int offset = 0});
   Future<List<BusinessPlacePerformance>> placePerformance(String businessId);
@@ -68,12 +72,16 @@ class ApiBusinessRepository implements BusinessRepository {
           apiObject(await _client.get(_analytics(businessId, 'summary'))));
 
   @override
-  Future<List<BusinessDailyPoint>> daily(String businessId,
-          {int days = 30}) async =>
-      apiObjectList(await _client
-              .get(_analytics(businessId, 'daily'), query: {'days': days}))
-          .map(BusinessDailyPoint.fromJson)
-          .toList();
+  Future<BusinessDailySeries> daily(String businessId,
+          {int days = 30, String? from, String? to}) async =>
+      BusinessDailySeries.fromJson(
+          apiObject(await _client.get(_analytics(businessId, 'daily'), query: {
+        // `days` is still sent alongside a range: the server prefers the
+        // range, and sending both keeps one code path here.
+        'days': days,
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      })));
 
   @override
   Future<List<BusinessQuestPerformance>> questPerformance(String businessId,

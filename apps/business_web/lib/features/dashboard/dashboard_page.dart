@@ -290,10 +290,49 @@ class _DailySection extends ConsumerWidget {
 
   final String businessId;
 
+  /// Opens a date-range picker and applies the choice.
+  ///
+  /// Bounded to the server's own span limit so the picker cannot offer a
+  /// range the API will refuse — being told "too long" after choosing is
+  /// worse than not being able to choose it.
+  Future<void> _pickRange(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now.subtract(const Duration(days: 365 * 5)),
+      lastDate: now,
+      initialDateRange: DateTimeRange(
+        start: now.subtract(const Duration(days: 29)),
+        end: now,
+      ),
+    );
+    if (picked == null) return;
+    if (picked.duration.inDays >= _maxSpanDays) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Pick a range of a year or less.'),
+        ));
+      }
+      return;
+    }
+    ref.read(dailyWindowProvider.notifier).state = DailyWindowSelection.range(
+      _stamp(picked.start),
+      _stamp(picked.end),
+    );
+  }
+
+  /// Matches the server's MAX_DAILY_SPAN_DAYS.
+  static const _maxSpanDays = 366;
+
+  static String _stamp(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final daily = ref.watch(dailyProvider(businessId));
-    final window = ref.watch(dailyWindowProvider);
+    final selection = ref.watch(dailyWindowProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,21 +345,30 @@ class _DailySection extends ConsumerWidget {
                 subtitle: 'Every day in the window, including the quiet ones.',
               ),
             ),
-            // Plain buttons rather than a segmented control: ArcadeSegments
-            // is a progress meter, not a picker.
+            // A preset is highlighted only while a preset is in use, so the
+            // controls can never claim 30 days while a range is charted.
             for (final days in const [7, 30, 90]) ...[
               ArcadeButton(
                 label: '${days}D',
-                variant: days == window
+                variant: !selection.isRange && days == selection.days
                     ? ArcadeButtonVariant.primary
                     : ArcadeButtonVariant.ghost,
                 size: ArcadeButtonSize.small,
                 expand: false,
-                onTap: () =>
-                    ref.read(dailyWindowProvider.notifier).state = days,
+                onTap: () => ref.read(dailyWindowProvider.notifier).state =
+                    DailyWindowSelection.preset(days),
               ),
               const SizedBox(width: 6),
             ],
+            ArcadeButton(
+              label: 'DATES',
+              variant: selection.isRange
+                  ? ArcadeButtonVariant.primary
+                  : ArcadeButtonVariant.ghost,
+              size: ArcadeButtonSize.small,
+              expand: false,
+              onTap: () => _pickRange(context, ref),
+            ),
           ],
         ),
         ArcadeCard(
@@ -330,9 +378,21 @@ class _DailySection extends ConsumerWidget {
             error: (_, __) => SectionError(
               onRetry: () => ref.invalidate(dailyProvider(businessId)),
             ),
-            data: (points) => points.isEmpty
+            data: (series) => series.points.isEmpty
                 ? const EmptyNote(text: 'No days to show.')
-                : CompletionChart(points: points),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // The window the server drew, not one recomputed here:
+                      // a client deriving "today" itself disagrees by a day
+                      // for anyone west of UTC.
+                      Text('${series.from} → ${series.to}',
+                          style: QuestTypography.osBodySmall
+                              .copyWith(color: QuestColors.textDim(context))),
+                      const SizedBox(height: 8),
+                      CompletionChart(points: series.points),
+                    ],
+                  ),
           ),
         ),
       ],
@@ -560,14 +620,58 @@ class _Figure extends StatelessWidget {
   }
 }
 
-class _PlaceSection extends ConsumerWidget {
+class _PlaceSection extends ConsumerStatefulWidget {
   const _PlaceSection({required this.businessId});
 
   final String businessId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final places = ref.watch(placePerformanceProvider(businessId));
+  ConsumerState<_PlaceSection> createState() => _PlaceSectionState();
+}
+
+class _PlaceSectionState extends ConsumerState<_PlaceSection> {
+  final _filter = TextEditingController();
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  /// Filter then sort, over every place the business owns — the endpoint
+  /// has no limit, so unlike the quest list this never needs to warn that
+  /// it only saw part of the set.
+  List<BusinessPlacePerformance> _visible(
+      List<BusinessPlacePerformance> rows, String query, PlaceSort sort) {
+    final needle = query.trim().toLowerCase();
+    final filtered = needle.isEmpty
+        ? [...rows]
+        : rows
+            .where((row) =>
+                row.name.toLowerCase().contains(needle) ||
+                row.city.toLowerCase().contains(needle) ||
+                row.countryCode.toLowerCase().contains(needle))
+            .toList();
+    filtered.sort((left, right) {
+      switch (sort) {
+        case PlaceSort.completions:
+          return right.completions.compareTo(left.completions);
+        case PlaceSort.visitors:
+          return right.visitors.compareTo(left.visitors);
+        case PlaceSort.saves:
+          return right.saves.compareTo(left.saves);
+        case PlaceSort.name:
+          return left.name.toLowerCase().compareTo(right.name.toLowerCase());
+      }
+    });
+    return filtered;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final places = ref.watch(placePerformanceProvider(widget.businessId));
+    final query = ref.watch(placeFilterProvider);
+    final sort = ref.watch(placeSortProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,60 +680,116 @@ class _PlaceSection extends ConsumerWidget {
         places.when(
           loading: () => const LinearProgressIndicator(),
           error: (_, __) => SectionError(
-            onRetry: () => ref.invalidate(placePerformanceProvider(businessId)),
+            onRetry: () =>
+                ref.invalidate(placePerformanceProvider(widget.businessId)),
           ),
-          data: (rows) => rows.isEmpty
-              ? const EmptyNote(
-                  text: 'No places are claimed for this business yet. Bsheel '
-                      'links them for you.',
-                )
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final row in rows)
+          data: (rows) {
+            if (rows.isEmpty) {
+              return const EmptyNote(
+                text: 'No places are claimed for this business yet. Bsheel '
+                    'links them for you.',
+              );
+            }
+            final visible = _visible(rows, query, sort);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Only worth the controls once there are enough places for
+                // finding one to be work; below that they are furniture.
+                if (rows.length > 3) ...[
+                  Row(
+                    children: [
                       SizedBox(
                         width: 260,
-                        child: ArcadeCard(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(row.name,
-                                  style: QuestTypography.osBodyMedium,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                              Text(
-                                row.city.isEmpty
-                                    ? row.countryCode
-                                    : '${row.city} · ${row.countryCode}',
-                                style: QuestTypography.osBodySmall.copyWith(
-                                    color: QuestColors.textDim(context)),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                  '${row.completions} completed · '
-                                  '${row.visitors} visitors',
-                                  style: QuestTypography.osBodySmall),
-                              Text('${row.quests} quests · ${row.saves} saves',
-                                  style: QuestTypography.osBodySmall.copyWith(
-                                      color: QuestColors.textDim(context))),
-                              // An unpublished place reports nothing at all,
-                              // which otherwise reads as a broken dashboard.
-                              if (!row.isPublished) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                    'Not published — it shows no activity '
-                                    'until it is on the map',
-                                    style: QuestTypography.osBodySmall
-                                        .copyWith(color: QuestColors.osRed)),
-                              ],
-                            ],
-                          ),
+                        child: ArcadeTextField(
+                          controller: _filter,
+                          hint: 'Filter by place, city or country',
+                          onChanged: (value) => ref
+                              .read(placeFilterProvider.notifier)
+                              .state = value,
                         ),
                       ),
-                  ],
-                ),
+                      const SizedBox(width: 12),
+                      DropdownButton<PlaceSort>(
+                        value: sort,
+                        underline: const SizedBox.shrink(),
+                        items: const [
+                          DropdownMenuItem(
+                              value: PlaceSort.completions,
+                              child: Text('Most completed')),
+                          DropdownMenuItem(
+                              value: PlaceSort.visitors,
+                              child: Text('Most visitors')),
+                          DropdownMenuItem(
+                              value: PlaceSort.saves,
+                              child: Text('Most saved')),
+                          DropdownMenuItem(
+                              value: PlaceSort.name, child: Text('By name')),
+                        ],
+                        onChanged: (value) => value == null
+                            ? null
+                            : ref.read(placeSortProvider.notifier).state =
+                                value,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (visible.isEmpty)
+                  EmptyNote(text: 'No places match "${query.trim()}".')
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final row in visible)
+                        SizedBox(
+                          width: 260,
+                          child: ArcadeCard(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(row.name,
+                                    style: QuestTypography.osBodyMedium,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                                Text(
+                                  row.city.isEmpty
+                                      ? row.countryCode
+                                      : '${row.city} · ${row.countryCode}',
+                                  style: QuestTypography.osBodySmall.copyWith(
+                                      color: QuestColors.textDim(context)),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                    '${row.completions} completed · '
+                                    '${row.visitors} visitors',
+                                    style: QuestTypography.osBodySmall),
+                                Text(
+                                    '${row.quests} quests · ${row.saves} saves',
+                                    style: QuestTypography.osBodySmall.copyWith(
+                                        color: QuestColors.textDim(context))),
+                                // An unpublished place reports no activity at
+                                // all, which otherwise reads as a broken
+                                // dashboard rather than a place not yet live.
+                                if (!row.isPublished) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                      'Not published — it shows no activity '
+                                      'until it is on the map',
+                                      style: QuestTypography.osBodySmall
+                                          .copyWith(color: QuestColors.osRed)),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );
