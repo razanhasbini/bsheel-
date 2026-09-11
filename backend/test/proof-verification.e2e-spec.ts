@@ -16,17 +16,37 @@ describe('AI proof verification (e2e)', { timeout: 120_000 }, () => {
   const recordVerdict = async (
     submissionId: string,
     verdict: 'pass' | 'fail' | 'unclear',
-    options: { confidence?: number; escalationReason?: string } = {},
+    options: {
+      confidence?: number;
+      escalationReason?: string;
+      relevance?: number | null;
+      observations?: unknown[];
+    } = {},
   ): Promise<void> => {
     await harness.database.query(
       `INSERT INTO submission_verifications
-         (submission_id, state, verdict, confidence, rationale, escalation_reason, model, completed_at)
-       VALUES ($1, 'complete', $2::proof_verdict, $3, 'fixture rationale', $4, 'claude-opus-5', now())
+         (submission_id, state, verdict, confidence, relevance, content_evidence,
+          rationale, escalation_reason, model, completed_at)
+       VALUES ($1, 'complete', $2::proof_verdict, $3, $5, $6::jsonb,
+               'fixture rationale', $4, 'claude-opus-5', now())
        ON CONFLICT (submission_id) DO UPDATE
          SET state = 'complete', verdict = EXCLUDED.verdict, confidence = EXCLUDED.confidence,
+             relevance = EXCLUDED.relevance, content_evidence = EXCLUDED.content_evidence,
+             -- rationale too: createSubmission's own consumer has already
+             -- inserted a row carrying this column's empty-string default by
+             -- the time the fixture runs, so an UPDATE list that omits it
+             -- silently keeps that empty string and the rationale never lands.
+             rationale = EXCLUDED.rationale,
              escalation_reason = EXCLUDED.escalation_reason, completed_at = now(),
              resolved_by = NULL, resolved_at = NULL`,
-      [submissionId, verdict, options.confidence ?? 0.5, options.escalationReason ?? 'Could not judge the image.'],
+      [
+        submissionId,
+        verdict,
+        options.confidence ?? 0.5,
+        options.escalationReason ?? 'Could not judge the image.',
+        options.relevance ?? null,
+        options.observations ? JSON.stringify({ observations: options.observations }) : null,
+      ],
     );
   };
 
@@ -77,6 +97,67 @@ describe('AI proof verification (e2e)', { timeout: 120_000 }, () => {
     // never as false, which would be an assertion the user was not there.
     expect(row!.location_verified).toBeNull();
     expect(row!.geofence_verified).toBeNull();
+  });
+
+  /// Shadow mode is only worth anything if a person can see what the agent
+  /// would have done while deciding independently. These assert the verdict
+  /// reaches the two screens a moderator actually works from — it used to
+  /// exist only in SQL.
+  describe("the agent's read reaches the moderator", () => {
+    it('carries the verdict, both scores and the observations into the review detail', async () => {
+      const user = await harness.createUser({ prefix: 'pvdetail' });
+      const submission = await harness.createSubmission(user, { caption: 'visible to the moderator' });
+      await recordVerdict(submission.id, 'unclear', {
+        confidence: 0.4,
+        relevance: 0.81,
+        observations: [{ kind: 'action', label: 'sunrise over water', present: true, confidence: 0.88 }],
+      });
+
+      const response = await harness.get(`/submissions/admin/${submission.id}`, moderator).expect(200);
+      const row = response.body.data;
+      expect(row.ai_verdict).toBe('unclear');
+      // Relevance and confidence are different questions and both must
+      // survive the trip: a reader who sees only one of them cannot tell a
+      // confident "this is a cat, not a sunrise" from a confident approval.
+      expect(Number(row.ai_confidence)).toBeCloseTo(0.4, 2);
+      expect(Number(row.ai_relevance)).toBeCloseTo(0.81, 2);
+      expect(row.ai_content_evidence.observations[0].label).toBe('sunrise over water');
+      expect(row.ai_rationale).toBe('fixture rationale');
+    });
+
+    it('carries relevance into the escalation queue, for triage', async () => {
+      const user = await harness.createUser({ prefix: 'pvrel' });
+      const submission = await harness.createSubmission(user, { caption: 'barely related' });
+      await recordVerdict(submission.id, 'unclear', { relevance: 0.04 });
+
+      const row = await inQueue(submission.id);
+      expect(Number(row!.relevance)).toBeCloseTo(0.04, 2);
+    });
+
+    // Null is "not assessed", which is the correct and common state — no
+    // photograph can show "spend an hour with no phone". It must not arrive
+    // as 0, which the console would render as a damning number about an
+    // honest player.
+    it('keeps an unassessed relevance null rather than zero', async () => {
+      const user = await harness.createUser({ prefix: 'pvnorel' });
+      const submission = await harness.createSubmission(user, { caption: 'not photo-judgeable' });
+      await recordVerdict(submission.id, 'unclear', { relevance: null });
+
+      expect((await inQueue(submission.id))!.relevance).toBeNull();
+      const detail = await harness.get(`/submissions/admin/${submission.id}`, moderator).expect(200);
+      expect(detail.body.data.ai_relevance).toBeNull();
+    });
+
+    // A submission the agent has not finished with must not draw an empty
+    // agent panel, so the fields have to be absent rather than blank.
+    it('reports no verdict at all for a submission the agent has not judged', async () => {
+      const user = await harness.createUser({ prefix: 'pvnone' });
+      const submission = await harness.createSubmission(user, { caption: 'unjudged' });
+
+      const detail = await harness.get(`/submissions/admin/${submission.id}`, moderator).expect(200);
+      expect(detail.body.data.ai_verdict).toBeNull();
+      expect(detail.body.data.ai_relevance).toBeNull();
+    });
   });
 
   it('keeps pass and fail verdicts out of the queue — only escalations need a human', async () => {

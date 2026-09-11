@@ -149,6 +149,7 @@ class _UnclearRow extends StatelessWidget {
     final rationale = '${row['rationale'] ?? ''}';
     final category = '${row['quest_category'] ?? ''}';
     final appealed = row['appealed'] == true;
+    final relevance = (row['relevance'] as num?)?.toDouble();
     final findings = _findings;
 
     return BsheelCard(
@@ -174,9 +175,36 @@ class _UnclearRow extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              name,
-              style: BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    style:
+                        BsheelType.bodyMd.copyWith(color: BsheelColors.inkSoft),
+                  ),
+                ),
+                // Relevance, and only relevance, because this queue is for
+                // triage: the one number that tells a moderator whether to
+                // open this row first is how much the media had to do with
+                // the quest. The verdict is already "could not tell" for
+                // everything here, so showing its confidence would order the
+                // queue by how unsure the agent was rather than by how
+                // suspicious the submission is.
+                if (relevance != null)
+                  BsheelPill(
+                    'RELEVANCE ${(relevance * 100).round()}%',
+                    tone: relevance < 0.35
+                        ? BsheelPillTone.coral
+                        : BsheelPillTone.ghost,
+                    small: true,
+                  )
+                else
+                  // Absent is not low. Two thirds of the catalogue cannot be
+                  // judged from a photograph at all, and those rows are
+                  // waiting on authenticity, not on content.
+                  const BsheelPill.muted('NOT PHOTO-JUDGEABLE', small: true),
+              ],
             ),
             if (reason.isNotEmpty) ...[
               const SizedBox(height: 12),

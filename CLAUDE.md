@@ -283,7 +283,17 @@ cause a rejection, and it is admissible only where the contract says
 honest proof looks like.
 
 Escalations surface at `/moderation/unclear` with a sidebar badge, and
-deciding there clears the escalation in the same transaction.
+deciding there clears the escalation in the same transaction. The review
+screen carries an **Agent's read** panel — verdict, verdict confidence, media
+relevance, and the typed observations with absences — because a shadow-mode
+verdict is only worth recording if a person can see it while deciding
+independently.
+
+Turning any of this on is a sequence, and the order matters:
+`docs/PROOF_VERIFICATION_RUNBOOK.md`. Note in particular that
+`AGENT_SUBMISSION_VERIFICATION_ENABLED=true` is necessary and **not
+sufficient** — the agent pipeline also checks an `app_config` row seeded
+`false` by migration 0026, toggled at Settings → AI SUBMISSION VERIFICATION.
 
 Two traps worth knowing. EXIF `DateTimeOriginal` is local wall-clock
 with **no timezone**, so the capture-window check is widened by the
