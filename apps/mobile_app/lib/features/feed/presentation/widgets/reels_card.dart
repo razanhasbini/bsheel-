@@ -179,10 +179,10 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
     // Shared mute state — flips persist across every card the user sees.
     final muted = ref.watch(feedVideoMutedProvider);
 
-    // The shell docks the nav bar below this page as an opaque bar, so the
-    // card's bottom edge is the real bottom of the viewport; the rail and
-    // meta only need a breathing margin, not room for a floating pill.
-    const navInset = QuestSpacing.md;
+    // The nav pill floats over the bottom of the reel, so the rail and the
+    // meta block sit above it: pill height plus the slice of the home
+    // indicator inset the pill itself leaves.
+    final navInset = MediaQuery.of(context).padding.bottom * 0.30 + 80;
 
     // ── Collab carousel ──────────────────────────────────────────────
     // For versus / coop posts the swipe iterates over a flat list of
@@ -273,12 +273,12 @@ class _ReelsCardState extends ConsumerState<ReelsCard> {
         // Sits ABOVE the media but BEHIND the bottom-meta + action rail: a
         // long soft fade from clear at the top to ~85% black at the bottom,
         // so type always reads regardless of what's behind it.
-        const Positioned(
+        Positioned(
           left: 0,
           right: 0,
           bottom: 0,
           height: navInset + 240,
-          child: IgnorePointer(
+          child: const IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(

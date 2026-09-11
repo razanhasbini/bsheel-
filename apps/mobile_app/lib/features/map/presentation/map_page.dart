@@ -10,7 +10,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
+// `hide Path`: latlong2's Path<LatLng> would shadow dart:ui's Path, which
+// the pin stem painter draws with.
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_ui/shared_ui.dart';
 
 import '../../../core/providers/current_profile_provider.dart';
@@ -19,26 +21,29 @@ import '../data/live_location_provider.dart';
 import '../data/map_providers.dart';
 import '../domain/map_geometry.dart';
 
-/// Natural Earth country outlines, decoded once. Still used — not to draw the
-/// map any more, but to cut the fog of war along real borders.
+/// Natural Earth country outlines, decoded once — they cut the fog of war
+/// along real borders.
 final mapGeometryProvider = FutureProvider<List<CountryGeometry>>((ref) async =>
     CountryGeometry.decode(
         jsonDecode(await rootBundle.loadString('assets/map/countries-50m.json'))
             as Map<String, dynamic>));
 
-/// Free tiles from OpenStreetMap. Their usage policy asks for a real
-/// User-Agent (the package name below) and attribution, which the map shows;
-/// heavy production traffic should move to a keyed provider.
-const _osmTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+/// CARTO Voyager without labels: soft colours, no street names, so the pins
+/// and the fog carry the screen. Free with attribution; heavy production
+/// traffic should move to a keyed plan.
+const _tiles =
+    'https://basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png';
 const _userAgent = 'com.questapp.mobileApp';
 
-/// An approved quest at one place uncovers the hidden places within this
-/// distance — the same number the server uses to decide what is locked, so
-/// the cleared circle on the map is exactly the area that is really open.
+/// An approved quest uncovers the hidden places within this distance — the
+/// same number the server uses, so the cleared circle is exactly the area
+/// that is really open.
 const double _revealRadiusM = 10000;
 
-/// Where the map opens before anything is known: Beirut, the home market.
+/// Beirut, before anything is known.
 const _home = LatLng(33.8938, 35.5018);
+
+const _flags = <String, String>{'LB': '🇱🇧', 'QA': '🇶🇦'};
 
 class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
@@ -54,7 +59,7 @@ class _MapPageState extends ConsumerState<MapPage> {
   final _searchController = TextEditingController();
   final _map = MapController();
 
-  /// Snapchat-style: the camera rides along with the player until they pan.
+  /// Snapchat-style: the camera rides with the player until they pan.
   bool _follow = false;
   bool _fittedOnce = false;
   LatLng? _lastFix;
@@ -75,12 +80,13 @@ class _MapPageState extends ConsumerState<MapPage> {
         savedOnly: _savedOnly
       );
 
+  bool get _filtered => _category != null || _savedOnly;
+
   @override
   Widget build(BuildContext context) {
     final countries = ref.watch(mapCountriesProvider);
     final geometry = ref.watch(mapGeometryProvider);
     final places = ref.watch(mapPlacesProvider(_filter));
-    // The fog and the totals follow every place, whatever the filters say.
     final allPlaces = ref.watch(mapPlacesProvider(mapAllPlacesFilter));
     final live =
         ref.watch(liveLocationProvider).valueOrNull ?? LiveLocation.pending;
@@ -96,8 +102,8 @@ class _MapPageState extends ConsumerState<MapPage> {
       for (final p in everyPlace)
         if (p.confirmed) LatLng(p.latitude, p.longitude),
     ];
+    final navInset = MediaQuery.of(context).padding.bottom * 0.30 + 78;
 
-    // Follow the player: move the camera on each new fix while following.
     final fix = live.point;
     if (fix != null && fix != _lastFix) {
       _lastFix = fix;
@@ -107,11 +113,10 @@ class _MapPageState extends ConsumerState<MapPage> {
         });
       }
     }
-    // First load: frame every pin once, so the player sees the whole board.
     if (!_fittedOnce && rows.isNotEmpty) {
       _fittedOnce = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _fitTo(rows);
+        if (mounted) _fitTo(rows, navInset);
       });
     }
 
@@ -132,21 +137,17 @@ class _MapPageState extends ConsumerState<MapPage> {
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                 ),
                 onPositionChanged: (camera, hasGesture) {
-                  // A pan or pinch takes the camera away from the player.
                   if (hasGesture && _follow) setState(() => _follow = false);
                 },
               ),
               children: [
                 if (tiles)
                   TileLayer(
-                    urlTemplate: _osmTiles,
+                    urlTemplate: _tiles,
                     userAgentPackageName: _userAgent,
                     maxNativeZoom: 19,
                   ),
                 // ── Fog of war ────────────────────────────────────────
-                // Countries that hold quests start under ink. A confirmed
-                // quest cuts a clear circle out of the fog around its place,
-                // and once a country has any discovery its fog thins.
                 if (geometry.hasValue && countryRows.isNotEmpty)
                   PolygonLayer(
                     polygons: _fogPolygons(
@@ -157,7 +158,6 @@ class _MapPageState extends ConsumerState<MapPage> {
                   ),
                 CircleLayer(
                   circles: [
-                    // The cleared zone reads as a soft jade halo.
                     for (final point in confirmedPoints)
                       CircleMarker(
                         point: point,
@@ -167,8 +167,6 @@ class _MapPageState extends ConsumerState<MapPage> {
                         borderColor: QuestColors.osSuccess.withAlpha(140),
                         borderStrokeWidth: 1.5,
                       ),
-                    // Each open place's geofence — the circle the network
-                    // checks the player against.
                     for (final p in rows)
                       if (!p.locked)
                         CircleMarker(
@@ -195,17 +193,18 @@ class _MapPageState extends ConsumerState<MapPage> {
                     for (final p in rows)
                       Marker(
                         point: LatLng(p.latitude, p.longitude),
-                        width: 48,
-                        height: 58,
+                        width: 52,
+                        height: 62,
                         alignment: Alignment.topCenter,
                         child: _PlacePin(place: p, onTap: () => _openPlace(p)),
                       ),
                     if (fix != null)
                       Marker(
                         point: fix,
-                        width: 60,
-                        height: 60,
-                        child: _PlayerMarker(
+                        width: 64,
+                        height: 76,
+                        alignment: Alignment.topCenter,
+                        child: _PlayerPin(
                           avatarUrl: me?.avatarUrl,
                           username: me?.username ?? '',
                         ),
@@ -216,28 +215,7 @@ class _MapPageState extends ConsumerState<MapPage> {
             ),
           ),
 
-          // OSM's tile policy requires attribution on the map. Drawn here
-          // rather than with flutter_map's own widget, whose row cannot
-          // shrink on a narrow screen.
-          if (tiles)
-            Positioned(
-              left: 14,
-              bottom: 78,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: QuestColors.osCard.withAlpha(210),
-                  borderRadius: BorderRadius.circular(QuestSpacing.radiusBadge),
-                ),
-                child: Text(
-                  '© OpenStreetMap contributors',
-                  style: QuestTypography.osLabelSmall
-                      .copyWith(fontSize: 9, height: 1.2),
-                ),
-              ),
-            ),
-
-          // ── Header overlay ────────────────────────────────────────────
+          // ── Header: EXPLORE · filter, search, countries ──────────────
           Positioned(
             top: 0,
             left: 0,
@@ -245,121 +223,125 @@ class _MapPageState extends ConsumerState<MapPage> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        _Panel(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
-                          child: Text(
-                            'EXPLORE',
-                            style: QuestTypography.osDisplaySmall
-                                .copyWith(fontSize: 22, height: 1),
+                        Text(
+                          'EXPLORE',
+                          style: QuestTypography.osLabelMedium.copyWith(
+                            fontSize: 12,
+                            letterSpacing: 2.4,
+                            shadows: const [
+                              Shadow(
+                                  color: QuestColors.osBg,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 1)),
+                            ],
                           ),
                         ),
                         const Spacer(),
-                        _RoundButton(
-                          icon: Icons.info_outline,
-                          tooltip: 'Map legend',
-                          onTap: () => showModalBottomSheet<void>(
-                              context: context,
-                              isScrollControlled: true,
-                              useSafeArea: true,
-                              backgroundColor: QuestColors.osBg,
-                              builder: (_) => const MapLegend()),
-                        ),
-                        const SizedBox(width: 8),
-                        _RoundButton(
-                          icon: Icons.person_search_outlined,
-                          tooltip: 'Search people and quests',
-                          onTap: () => context.pushNamed(RouteNames.search),
+                        _SmallButton(
+                          icon: Icons.tune_rounded,
+                          tooltip: 'Filters',
+                          badge: _filtered,
+                          onTap: _openFilters,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    _Panel(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: TextField(
-                        controller: _searchController,
-                        style: QuestTypography.osBodyMedium,
-                        decoration: InputDecoration(
-                          hintText: 'Search a place, city or country',
-                          hintStyle: QuestTypography.osBodyMedium
-                              .copyWith(color: QuestColors.osTextMuted),
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onChanged: (value) {
-                          _debounce?.cancel();
-                          _debounce =
-                              Timer(const Duration(milliseconds: 300), () {
-                            if (mounted) setState(() => _search = value);
-                          });
-                        },
+                    const SizedBox(height: 6),
+                    // One border only: the field draws none of its own.
+                    Container(
+                      height: 40,
+                      padding: const EdgeInsets.only(left: 10),
+                      decoration: BoxDecoration(
+                        color: QuestColors.osCard,
+                        borderRadius:
+                            BorderRadius.circular(QuestSpacing.radiusButton),
+                        border: Border.all(
+                            color: QuestColors.osTextPrimary,
+                            width: QuestSpacing.cardBorderWidth),
+                        boxShadow: QuestSpacing.shadowSm,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _FilterChip(
-                            label: 'WORLD',
-                            selected: _country == null,
-                            onTap: () => _setCountry(null, rows),
+                          const Icon(Icons.search, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              style: QuestTypography.osBodySmall,
+                              decoration: InputDecoration(
+                                hintText: 'Find a place…',
+                                hintStyle: QuestTypography.osBodySmall
+                                    .copyWith(color: QuestColors.osTextMuted),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                filled: false,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              onChanged: (value) {
+                                _debounce?.cancel();
+                                _debounce = Timer(
+                                    const Duration(milliseconds: 300), () {
+                                  if (mounted) {
+                                    setState(() => _search = value);
+                                  }
+                                });
+                              },
+                            ),
                           ),
-                          for (final c in countryRows) ...[
-                            const SizedBox(width: 6),
-                            _FilterChip(
-                              label: c.name.toUpperCase(),
-                              selected: _country == c.code,
-                              onTap: () => _setCountry(c.code, rows),
+                          // People & quests search rides inside the field.
+                          Semantics(
+                            button: true,
+                            label: 'Search people and quests',
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => context.pushNamed(RouteNames.search),
+                              child: const SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Icon(Icons.person_search_outlined,
+                                    size: 18),
+                              ),
                             ),
-                          ],
-                          const SizedBox(width: 14),
-                          for (final entry in <String?, String>{
-                            null: 'ALL',
-                            'landmark': 'LANDMARKS',
-                            'culture': 'CULTURE',
-                            'pilgrimage': 'ROUTES',
-                            'heritage': 'HERITAGE',
-                            'hidden': 'HIDDEN'
-                          }.entries) ...[
-                            _FilterChip(
-                              label: entry.value,
-                              selected: _category == entry.key,
-                              accent: true,
-                              onTap: () =>
-                                  setState(() => _category = entry.key),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          _FilterChip(
-                            label: 'SAVED PLACES',
-                            selected: _savedOnly,
-                            accent: true,
-                            icon: Icons.bookmark,
-                            onTap: () =>
-                                setState(() => _savedOnly = !_savedOnly),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    if (countryRows.isNotEmpty)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final c in countryRows) ...[
+                              _CountryChip(
+                                flag: _flags[c.code] ?? '📍',
+                                name: c.name,
+                                selected: _country == c.code,
+                                onTap: () => _setCountry(
+                                    _country == c.code ? null : c.code),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                          ],
+                        ),
+                      ),
                     if (live.status != LiveLocationStatus.live &&
                         live.status != LiveLocationStatus.pending &&
                         live.status != LiveLocationStatus.unavailable) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _LocationBanner(status: live.status),
                     ],
                     if (places.hasError) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _Panel(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
                         child: Row(children: [
                           Expanded(
                               child: Text('Places could not be loaded.',
@@ -377,96 +359,82 @@ class _MapPageState extends ConsumerState<MapPage> {
             ),
           ),
 
-          // ── Right rail: locate + fit ──────────────────────────────────
+          // ── Right: locate me ─────────────────────────────────────────
           Positioned(
             right: 14,
-            bottom: 14,
-            child: Column(
+            bottom: navInset,
+            child: _SmallButton(
+              icon: _follow
+                  ? Icons.my_location
+                  : Icons.location_searching_rounded,
+              tooltip: 'Show me on the map',
+              active: _follow,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                final point = live.point;
+                if (point == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_locationHint(live.status))));
+                  return;
+                }
+                setState(() => _follow = true);
+                _map.move(point, math.max(_map.camera.zoom, 15));
+              },
+            ),
+          ),
+
+          // ── Left: progress + places count ────────────────────────────
+          Positioned(
+            left: 14,
+            bottom: navInset,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _RoundButton(
-                  icon: _follow
-                      ? Icons.my_location
-                      : Icons.location_searching_rounded,
-                  tooltip: 'Show me on the map',
-                  active: _follow,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    final point = live.point;
-                    if (point == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_locationHint(live.status))));
-                      return;
-                    }
-                    setState(() => _follow = true);
-                    _map.move(point, math.max(_map.camera.zoom, 15));
-                  },
-                ),
-                const SizedBox(height: 8),
-                _RoundButton(
-                  icon: Icons.center_focus_strong,
-                  tooltip: 'Show every quest place',
-                  onTap: () {
-                    setState(() => _follow = false);
-                    _fitTo(rows);
-                  },
+                if (countryRows.isNotEmpty)
+                  _ProgressChip(
+                    countries: _country == null
+                        ? countryRows
+                        : countryRows.where((c) => c.code == _country).toList(),
+                    onTap: () => showModalBottomSheet<void>(
+                        context: context,
+                        useSafeArea: true,
+                        backgroundColor: QuestColors.osBg,
+                        builder: (_) => Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: DiscoveryProgress(
+                                countries: _country == null
+                                    ? countryRows
+                                    : countryRows
+                                        .where((c) => c.code == _country)
+                                        .toList()))),
+                  ),
+                const SizedBox(width: 6),
+                _CountChip(
+                  icon: Icons.place_rounded,
+                  count: rows.length,
+                  tooltip: 'Places list',
+                  onTap: () => _openList(rows, places.isLoading),
                 ),
               ],
             ),
           ),
 
-          // ── Bottom: progress + places list ────────────────────────────
-          Positioned(
-            left: 14,
-            right: 78,
-            bottom: 14,
-            child: Row(
-              children: [
-                if (countryRows.isNotEmpty)
-                  Expanded(
-                    child: _ProgressPill(
-                      countries: _country == null
-                          ? countryRows
-                          : countryRows
-                              .where((c) => c.code == _country)
-                              .toList(),
-                      onTap: () => showModalBottomSheet<void>(
-                          context: context,
-                          useSafeArea: true,
-                          backgroundColor: QuestColors.osBg,
-                          builder: (_) => Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: DiscoveryProgress(
-                                  countries: _country == null
-                                      ? countryRows
-                                      : countryRows
-                                          .where((c) => c.code == _country)
-                                          .toList()))),
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                _Panel(
-                  padding: EdgeInsets.zero,
-                  child: Semantics(
-                    button: true,
-                    label: 'Places list',
-                    child: InkWell(
-                      onTap: () => _openList(rows, places.isLoading),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.list_rounded, size: 18),
-                          const SizedBox(width: 6),
-                          Text('${rows.length}',
-                              style: QuestTypography.osHeadlineSmall),
-                        ]),
-                      ),
-                    ),
-                  ),
+          if (tiles)
+            Positioned(
+              left: 14,
+              bottom: navInset + 40,
+              child: Text(
+                '© OpenStreetMap · © CARTO',
+                style: QuestTypography.osLabelSmall.copyWith(
+                  fontSize: 8,
+                  height: 1.2,
+                  color: QuestColors.osTextSecondary,
+                  shadows: const [
+                    Shadow(color: QuestColors.osBg, blurRadius: 4),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -483,16 +451,16 @@ class _MapPageState extends ConsumerState<MapPage> {
         LiveLocationStatus.pending || LiveLocationStatus.live => 'Finding you…',
       };
 
-  void _setCountry(String? code, List<MapPlace> current) {
+  void _setCountry(String? code) {
     setState(() {
       _country = code;
       _follow = false;
+      // Frame the country as soon as its places are known.
+      _fittedOnce = false;
     });
-    // Frame the country as soon as its places are known.
-    _fittedOnce = false;
   }
 
-  void _fitTo(List<MapPlace> places) {
+  void _fitTo(List<MapPlace> places, double navInset) {
     if (places.isEmpty) {
       _map.move(_home, 8);
       return;
@@ -504,9 +472,33 @@ class _MapPageState extends ConsumerState<MapPage> {
     }
     _map.fitCamera(CameraFit.bounds(
       bounds: LatLngBounds.fromPoints(points),
-      padding: const EdgeInsets.fromLTRB(40, 200, 40, 160),
+      padding: EdgeInsets.fromLTRB(40, 170, 40, navInset + 60),
       maxZoom: 15,
     ));
+  }
+
+  Future<void> _openFilters() {
+    HapticFeedback.selectionClick();
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: QuestColors.osBg,
+      builder: (sheetContext) => _FilterSheet(
+        category: _category,
+        savedOnly: _savedOnly,
+        onCategory: (value) => setState(() => _category = value),
+        onSavedOnly: (value) => setState(() => _savedOnly = value),
+        onLegend: () {
+          Navigator.pop(sheetContext);
+          showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              backgroundColor: QuestColors.osBg,
+              builder: (_) => const MapLegend());
+        },
+      ),
+    );
   }
 
   Future<void> _openPlace(MapPlace place) async {
@@ -553,7 +545,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                         child: Text(
                             _category == 'hidden'
                                 ? 'Hidden places show as locked pins until an approved quest nearby reveals them.'
-                                : 'No matching published places yet. Try another country or filter.',
+                                : 'No published places here yet.',
                             style: QuestTypography.osBodyMedium),
                       ),
                     for (final p in rows)
@@ -564,9 +556,9 @@ class _MapPageState extends ConsumerState<MapPage> {
                             Navigator.pop(sheetContext);
                             _openPlace(p);
                           },
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.all(12),
                           child: Row(children: [
-                            _PinGlyph(place: p, size: 36),
+                            _PinGlyph(place: p, size: 40),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -576,8 +568,8 @@ class _MapPageState extends ConsumerState<MapPage> {
                                       style: QuestTypography.osHeadlineSmall),
                                   Text(
                                     p.locked
-                                        ? 'HIDDEN · COMPLETE A QUEST NEARBY TO REVEAL'
-                                        : '${p.category.toUpperCase()}${p.city.isEmpty ? '' : ' · ${p.city}'} · ${p.questCount} QUESTS${p.confirmed ? ' · CONFIRMED' : p.discovered ? ' · IN REVIEW' : ''}',
+                                        ? 'LOCKED'
+                                        : '${p.questCount} QUESTS${p.confirmed ? ' · DONE' : p.discovered ? ' · IN REVIEW' : ''}',
                                     style: QuestTypography.osLabelSmall
                                         .copyWith(
                                             color: QuestColors.osTextSecondary),
@@ -597,9 +589,6 @@ class _MapPageState extends ConsumerState<MapPage> {
 
 // ── Fog of war ───────────────────────────────────────────────────────────────
 
-/// One polygon per country ring. Undiscovered countries sit under heavy ink;
-/// once a country has a discovery its fog thins and every confirmed place
-/// punches a clear circle through it.
 List<Polygon> _fogPolygons(
   List<CountryGeometry> geometry,
   List<MapCountry> countries,
@@ -610,7 +599,6 @@ List<Polygon> _fogPolygons(
   final polygons = <Polygon>[];
   for (final shape in geometry) {
     final country = byGeometryId[shape.id];
-    // Only countries with quests are part of the game board.
     if (country == null || country.total == 0) continue;
     final explored = country.discovered > 0;
     for (final ring in shape.rings) {
@@ -627,7 +615,6 @@ List<Polygon> _fogPolygons(
   return polygons;
 }
 
-/// A 48-point ring [_revealRadiusM] around [centre], in degrees.
 List<LatLng> _circleRing(LatLng centre) {
   const steps = 48;
   const dLat = _revealRadiusM / 111320.0;
@@ -652,20 +639,21 @@ Color _pinColor(MapPlace p) {
   return QuestColors.osPrimary;
 }
 
-IconData _pinIcon(MapPlace p) {
-  if (p.locked) return Icons.lock_outline_rounded;
-  if (p.confirmed) return Icons.check_rounded;
-  if (p.discovered) return Icons.hourglass_bottom_rounded;
+/// Illustrated, not iconised: one emoji per state and category, so the
+/// board reads at a glance without a word on it.
+String _pinEmoji(MapPlace p) {
+  if (p.locked) return '🔒';
+  if (p.confirmed) return '🏆';
+  if (p.discovered) return '⏳';
   return switch (p.category) {
-    'landmark' => Icons.flag_rounded,
-    'culture' => Icons.theater_comedy_rounded,
-    'pilgrimage' => Icons.route_rounded,
-    'heritage' => Icons.account_balance_rounded,
-    _ => Icons.place_rounded,
+    'landmark' => '🏰',
+    'culture' => '🎭',
+    'pilgrimage' => '🧭',
+    'heritage' => '🏛️',
+    _ => '⭐',
   };
 }
 
-/// The chunky square glyph shared by the pin and the list rows.
 class _PinGlyph extends StatelessWidget {
   const _PinGlyph({required this.place, required this.size});
   final MapPlace place;
@@ -679,21 +667,23 @@ class _PinGlyph extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: tint,
-        borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
         border: Border.all(
             color: QuestColors.osTextPrimary,
             width: QuestSpacing.cardBorderWidth),
         boxShadow: QuestSpacing.shadowSm,
       ),
       alignment: Alignment.center,
-      child: Icon(_pinIcon(place),
-          size: size * 0.55, color: QuestColors.onAccent(tint)),
+      child: Text(
+        _pinEmoji(place),
+        style: TextStyle(fontSize: size * 0.5, height: 1),
+      ),
     );
   }
 }
 
-/// A place on the map: the glyph on a stem, with a bookmark badge when saved
-/// and a quest count when there is more than one quest to do there.
+/// A place: the emoji badge on a stem, bookmark when saved, a count when
+/// more than one quest waits there.
 class _PlacePin extends StatelessWidget {
   const _PlacePin({required this.place, required this.onTap});
   final MapPlace place;
@@ -717,11 +707,11 @@ class _PlacePin extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  _PinGlyph(place: place, size: 40),
+                  _PinGlyph(place: place, size: 44),
                   if (place.saved)
                     const Positioned(
-                      top: -6,
-                      right: -6,
+                      top: -7,
+                      right: -7,
                       child: Icon(Icons.bookmark,
                           size: 16, color: QuestColors.osAccent),
                     ),
@@ -730,33 +720,31 @@ class _PlacePin extends StatelessWidget {
                       top: -8,
                       left: -8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
+                        width: 20,
+                        height: 20,
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: QuestColors.osCard,
-                          borderRadius:
-                              BorderRadius.circular(QuestSpacing.radiusFull),
+                          shape: BoxShape.circle,
                           border: Border.all(
                               color: QuestColors.osTextPrimary, width: 1.5),
                         ),
                         child: Text('${place.questCount}',
                             style: QuestTypography.osLabelSmall
-                                .copyWith(fontSize: 10, height: 1.2)),
+                                .copyWith(fontSize: 10, height: 1)),
                       ),
                     ),
                 ],
               ),
-              // Stem
-              Container(
-                width: 3,
-                height: 10,
-                color: QuestColors.osTextPrimary,
+              const CustomPaint(
+                size: Size(14, 9),
+                painter: _StemPainter(),
               ),
               Container(
                 width: 8,
-                height: 4,
+                height: 3,
                 decoration: BoxDecoration(
-                  color: QuestColors.osTextPrimary.withAlpha(120),
+                  color: QuestColors.osTextPrimary.withAlpha(110),
                   borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
                 ),
               ),
@@ -768,18 +756,35 @@ class _PlacePin extends StatelessWidget {
   }
 }
 
-/// The player: their avatar in a ring, with a slow pulse so it reads as
-/// live rather than as another pin.
-class _PlayerMarker extends StatefulWidget {
-  const _PlayerMarker({required this.avatarUrl, required this.username});
+/// The little ink triangle that turns a badge into a pin.
+class _StemPainter extends CustomPainter {
+  const _StemPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = QuestColors.osTextPrimary);
+  }
+
+  @override
+  bool shouldRepaint(_StemPainter oldDelegate) => false;
+}
+
+/// The player: their avatar as a pin — round photo in a sky ring on an ink
+/// stem, with a slow pulse underneath so it reads as live.
+class _PlayerPin extends StatefulWidget {
+  const _PlayerPin({required this.avatarUrl, required this.username});
   final String? avatarUrl;
   final String username;
 
   @override
-  State<_PlayerMarker> createState() => _PlayerMarkerState();
+  State<_PlayerPin> createState() => _PlayerPinState();
 }
 
-class _PlayerMarkerState extends State<_PlayerMarker>
+class _PlayerPinState extends State<_PlayerPin>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
@@ -796,37 +801,48 @@ class _PlayerMarkerState extends State<_PlayerMarker>
   Widget build(BuildContext context) {
     return Semantics(
       label: 'You are here',
-      child: AnimatedBuilder(
-        animation: _pulse,
-        builder: (context, child) {
-          final t = _pulse.value;
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 28 + 32 * t,
-                height: 28 + 32 * t,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: QuestColors.osCool.withAlpha((120 * (1 - t)).round()),
-                ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: QuestColors.osCool,
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: QuestSpacing.cardBorderWidth),
+              boxShadow: QuestSpacing.shadowSm,
+            ),
+            child: ClipOval(
+              child: PixelAvatar(
+                imageUrl: widget.avatarUrl,
+                username: widget.username,
+                size: 40,
               ),
-              child!,
-            ],
-          );
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: QuestColors.osCard, width: 3),
-            boxShadow: QuestSpacing.shadowSm,
+            ),
           ),
-          child: PixelAvatar(
-            imageUrl: widget.avatarUrl,
-            username: widget.username,
-            size: 36,
+          const CustomPaint(
+            size: Size(16, 10),
+            painter: _StemPainter(),
           ),
-        ),
+          AnimatedBuilder(
+            animation: _pulse,
+            builder: (context, _) {
+              final t = _pulse.value;
+              return Container(
+                width: 10 + 26 * t,
+                height: 4 + 8 * t,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
+                  color: QuestColors.osCool.withAlpha((150 * (1 - t)).round()),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -834,8 +850,6 @@ class _PlayerMarkerState extends State<_PlayerMarker>
 
 // ── Chrome ───────────────────────────────────────────────────────────────────
 
-/// A cream panel with the design's ink outline and hard shadow, for anything
-/// floating over the map.
 class _Panel extends StatelessWidget {
   const _Panel({required this.child, this.padding = const EdgeInsets.all(12)});
   final Widget child;
@@ -859,17 +873,20 @@ class _Panel extends StatelessWidget {
   }
 }
 
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
+/// 36pt square button — the whole map chrome uses this one size.
+class _SmallButton extends StatelessWidget {
+  const _SmallButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
     this.active = false,
+    this.badge = false,
   });
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final bool active;
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -881,23 +898,52 @@ class _RoundButton extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          child: Container(
+          // 44pt hit box around a 36pt paint.
+          child: SizedBox(
             width: QuestSpacing.minTouchTarget,
             height: QuestSpacing.minTouchTarget,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active ? QuestColors.osPrimary : QuestColors.osCard,
-              borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
-              border: Border.all(
-                  color: QuestColors.osTextPrimary,
-                  width: QuestSpacing.cardBorderWidth),
-              boxShadow: QuestSpacing.shadowSm,
+            child: Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color:
+                          active ? QuestColors.osPrimary : QuestColors.osCard,
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusSm),
+                      border: Border.all(
+                          color: QuestColors.osTextPrimary,
+                          width: QuestSpacing.cardBorderWidth),
+                      boxShadow: QuestSpacing.shadowSm,
+                    ),
+                    child: Icon(icon,
+                        size: 18,
+                        color: active
+                            ? QuestColors.onAccent(QuestColors.osPrimary)
+                            : QuestColors.osTextPrimary),
+                  ),
+                  if (badge)
+                    Positioned(
+                      top: -3,
+                      right: -3,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: QuestColors.osRed,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: QuestColors.osTextPrimary, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            child: Icon(icon,
-                size: 20,
-                color: active
-                    ? QuestColors.onAccent(QuestColors.osPrimary)
-                    : QuestColors.osTextPrimary),
           ),
         ),
       ),
@@ -905,34 +951,25 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
+/// Flag + name, ink when selected.
+class _CountryChip extends StatelessWidget {
+  const _CountryChip({
+    required this.flag,
+    required this.name,
     required this.selected,
     required this.onTap,
-    this.accent = false,
-    this.icon,
   });
-  final String label;
+  final String flag;
+  final String name;
   final bool selected;
   final VoidCallback onTap;
-  final bool accent;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    final ground = selected
-        ? (accent ? QuestColors.osPrimary : QuestColors.osTextPrimary)
-        : QuestColors.osCard;
-    final ink = selected
-        ? (accent
-            ? QuestColors.onAccent(QuestColors.osPrimary)
-            : QuestColors.osBg)
-        : QuestColors.osTextPrimary;
     return Semantics(
       button: true,
       selected: selected,
-      label: label,
+      label: name,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
@@ -940,25 +977,27 @@ class _FilterChip extends StatelessWidget {
           onTap();
         },
         child: Container(
-          constraints:
-              const BoxConstraints(minHeight: QuestSpacing.minTouchTarget - 10),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: ground,
-            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
+            color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
             border: Border.all(
                 color: QuestColors.osTextPrimary,
                 width: QuestSpacing.cardBorderWidth),
             boxShadow: QuestSpacing.shadowSm,
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: ink),
-              const SizedBox(width: 4),
-            ],
-            Text(label,
-                style: QuestTypography.osLabelMedium
-                    .copyWith(fontSize: 11, color: ink, height: 1)),
+            Text(flag, style: const TextStyle(fontSize: 13, height: 1)),
+            const SizedBox(width: 6),
+            Text(
+              name.toUpperCase(),
+              style: QuestTypography.osLabelMedium.copyWith(
+                fontSize: 11,
+                height: 1,
+                color: selected ? QuestColors.osBg : QuestColors.osTextPrimary,
+              ),
+            ),
           ]),
         ),
       ),
@@ -966,8 +1005,9 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _ProgressPill extends StatelessWidget {
-  const _ProgressPill({required this.countries, required this.onTap});
+/// Trophy, `3/10`, a short meter. Tap for the full breakdown.
+class _ProgressChip extends StatelessWidget {
+  const _ProgressChip({required this.countries, required this.onTap});
   final List<MapCountry> countries;
   final VoidCallback onTap;
 
@@ -978,36 +1018,63 @@ class _ProgressPill extends StatelessWidget {
     final fraction = total == 0 ? 0.0 : (discovered / total).clamp(0.0, 1.0);
     return Semantics(
       button: true,
-      label: 'Discovery progress',
+      label: 'Discovery progress, $discovered of $total',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: _Panel(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${countries.length == 1 ? countries.first.name.toUpperCase() : 'WORLD'} · $discovered / $total DISCOVERED',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.osLabelSmall,
-                  ),
-                  const SizedBox(height: 6),
-                  ArcadeMeter(
-                      progress: fraction,
-                      fill: QuestColors.osSuccess,
-                      height: 8),
-                ],
-              ),
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('🏆', style: TextStyle(fontSize: 14, height: 1)),
+            const SizedBox(width: 6),
+            Text('$discovered/$total',
+                style: QuestTypography.osHeadlineSmall
+                    .copyWith(fontSize: 13, height: 1)),
             const SizedBox(width: 8),
-            Text('${(fraction * 100).round()}%',
-                style: QuestTypography.osHeadlineMedium),
+            SizedBox(
+              width: 56,
+              child: ArcadeMeter(
+                  progress: fraction, fill: QuestColors.osSuccess, height: 8),
+            ),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _CountChip extends StatelessWidget {
+  const _CountChip({
+    required this.icon,
+    required this.count,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final int count;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: '$tooltip, $count',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: _Panel(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 4),
+              Text('$count',
+                  style: QuestTypography.osHeadlineSmall
+                      .copyWith(fontSize: 13, height: 1)),
+            ]),
+          ),
         ),
       ),
     );
@@ -1022,15 +1089,13 @@ class _LocationBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final serviceOff = status == LiveLocationStatus.serviceOff;
     return _Panel(
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
       child: Row(children: [
-        const Icon(Icons.location_off_outlined, size: 18),
-        const SizedBox(width: 8),
+        const Icon(Icons.location_off_outlined, size: 16),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
-            serviceOff
-                ? 'Location is off. Turn it on to see yourself on the map.'
-                : 'Allow location to see yourself and your distance to each quest.',
+            serviceOff ? 'Location is off.' : 'Allow location to see yourself.',
             style: QuestTypography.osBodySmall,
           ),
         ),
@@ -1038,7 +1103,7 @@ class _LocationBanner extends StatelessWidget {
           onPressed: () => serviceOff
               ? Geolocator.openLocationSettings()
               : Geolocator.openAppSettings(),
-          child: const Text('SETTINGS'),
+          child: const Text('FIX'),
         ),
       ]),
     );
@@ -1046,6 +1111,138 @@ class _LocationBanner extends StatelessWidget {
 }
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
+
+/// Category, saved-only, and the legend — everything that used to crowd the
+/// map header.
+class _FilterSheet extends StatefulWidget {
+  const _FilterSheet({
+    required this.category,
+    required this.savedOnly,
+    required this.onCategory,
+    required this.onSavedOnly,
+    required this.onLegend,
+  });
+  final String? category;
+  final bool savedOnly;
+  final ValueChanged<String?> onCategory;
+  final ValueChanged<bool> onSavedOnly;
+  final VoidCallback onLegend;
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  late String? _category = widget.category;
+  late bool _savedOnly = widget.savedOnly;
+
+  static const _categories = <String?, String>{
+    null: '⭐ ALL',
+    'landmark': '🏰 LANDMARKS',
+    'culture': '🎭 CULTURE',
+    'pilgrimage': '🧭 ROUTES',
+    'heritage': '🏛️ HERITAGE',
+    'hidden': '🔒 HIDDEN',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+                child: Text('FILTERS', style: QuestTypography.osDisplaySmall)),
+            IconButton(
+                tooltip: 'Close filters',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close)),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in _categories.entries)
+                _OptionChip(
+                  label: entry.value,
+                  selected: _category == entry.key,
+                  onTap: () {
+                    setState(() => _category = entry.key);
+                    widget.onCategory(entry.key);
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _OptionChip(
+            label: '🔖 SAVED PLACES ONLY',
+            selected: _savedOnly,
+            onTap: () {
+              setState(() => _savedOnly = !_savedOnly);
+              widget.onSavedOnly(_savedOnly);
+            },
+          ),
+          const SizedBox(height: 18),
+          ArcadeButton(
+            label: 'How the map works',
+            variant: ArcadeButtonVariant.secondary,
+            icon: Icons.info_outline,
+            onTap: widget.onLegend,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionChip extends StatelessWidget {
+  const _OptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+          ),
+          child: Text(
+            label,
+            style: QuestTypography.osLabelMedium.copyWith(
+              fontSize: 12,
+              height: 1,
+              color: selected ? QuestColors.osBg : QuestColors.osTextPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class DiscoveryProgress extends StatelessWidget {
   const DiscoveryProgress({super.key, required this.countries});
@@ -1078,7 +1275,6 @@ class DiscoveryProgress extends StatelessWidget {
   }
 }
 
-/// A hidden place the player has not uncovered yet.
 class _LockedSheet extends StatelessWidget {
   const _LockedSheet({required this.place});
   final MapPlace place;
@@ -1090,12 +1286,11 @@ class _LockedSheet extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         _PinGlyph(place: place, size: 64),
         const SizedBox(height: 16),
-        Text('LOCKED LOCATION', style: QuestTypography.osDisplaySmall),
+        Text('LOCKED', style: QuestTypography.osDisplaySmall),
         const SizedBox(height: 8),
         Text(
-          'Something is hidden around here. Complete a quest at any place '
-          'within ${(_revealRadiusM / 1000).round()} km and get it approved to '
-          'reveal this part of the map.',
+          'Something is hidden around here. Finish a quest within '
+          '${(_revealRadiusM / 1000).round()} km and get it approved to reveal it.',
           textAlign: TextAlign.center,
           style: QuestTypography.osBodyMedium,
         ),
@@ -1109,9 +1304,6 @@ class _LockedSheet extends StatelessWidget {
 class _PlaceSheet extends ConsumerStatefulWidget {
   const _PlaceSheet({required this.place, this.from});
   final MapPlace place;
-
-  /// The player's last fix, for the distance line. Device GPS, so it only
-  /// informs — it never counts as having been there.
   final LatLng? from;
 
   @override
@@ -1164,22 +1356,11 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
                   ),
                   if (place.confirmed || place.discovered) ...[
                     const SizedBox(height: 8),
-                    Row(children: [
-                      Icon(
-                          place.confirmed
-                              ? Icons.check_circle
-                              : Icons.hourglass_bottom_rounded,
-                          size: 16,
-                          color: place.confirmed
-                              ? QuestColors.osSuccess
-                              : QuestColors.osAccentInk),
-                      const SizedBox(width: 6),
-                      Text(
-                          place.confirmed
-                              ? 'DISCOVERED · REVEALED THE MAP AROUND HERE'
-                              : 'PROOF SUBMITTED · AWAITING REVIEW',
-                          style: QuestTypography.osLabelSmall),
-                    ]),
+                    Text(
+                        place.confirmed
+                            ? '🏆 DONE · MAP REVEALED AROUND HERE'
+                            : '⏳ PROOF IN REVIEW',
+                        style: QuestTypography.osLabelSmall),
                   ],
                   const SizedBox(height: 12),
                   if (place.description.isNotEmpty)
@@ -1224,8 +1405,7 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (detail.quests.isEmpty)
-                                  Text(
-                                      'No active quests published at this place yet.',
+                                  Text('No active quests here yet.',
                                       style: QuestTypography.osBodyMedium),
                                 for (final q in detail.quests)
                                   Padding(
@@ -1249,8 +1429,8 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
                                                       .osHeadlineSmall),
                                               const SizedBox(height: 4),
                                               Text(
-                                                '${q.category.toUpperCase()} · ${q.hours}H · ${q.xp} XP'
-                                                '${q.requiresVerification ? ' · NETWORK-VERIFIED' : ''}',
+                                                '${q.hours}H · ${q.xp} XP'
+                                                '${q.requiresVerification ? ' · 📡 NETWORK-VERIFIED' : ''}',
                                                 style: QuestTypography
                                                     .osLabelSmall
                                                     .copyWith(
@@ -1270,8 +1450,8 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 8),
                                     child: Text(
-                                      'NETWORK-VERIFIED quests ask your mobile network to confirm you were inside the '
-                                      '${place.radiusM} m circle when you submit proof. Phone GPS is only for the map.',
+                                      'Network-verified quests ask your mobile network to confirm you were inside the '
+                                      '${place.radiusM} m circle when you submit. Phone GPS only moves the map.',
                                       style: QuestTypography.osBodySmall
                                           .copyWith(
                                               color:
@@ -1317,34 +1497,28 @@ class MapLegend extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('MAP LEGEND', style: QuestTypography.osDisplayMedium),
-            const SizedBox(height: 16),
+            Text('HOW THE MAP WORKS', style: QuestTypography.osDisplaySmall),
+            const SizedBox(height: 12),
             Text(
-                'A real OpenStreetMap map. Countries with quests start under fog; '
-                'an approved quest clears a ${(_revealRadiusM / 1000).round()} km circle around its place and reveals the hidden pins inside it.',
+                'Countries with quests start under fog. Finish a quest and get it approved: '
+                'a ${(_revealRadiusM / 1000).round()} km circle clears and the hidden pins inside it unlock.',
                 style: QuestTypography.osBodyMedium),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             for (final entry in {
-              'VIOLET PIN': 'A place with quests you can start now.',
-              'GOLD PIN': 'You submitted proof here; it is awaiting review.',
-              'GREEN PIN':
-                  'Approved — discovered, and the fog around it is gone.',
-              'GREY LOCK':
-                  'A hidden place. Its exact spot and name stay secret until you reveal it.',
-              'CIRCLE AROUND A PIN':
-                  'The geofence the network checks you against for NETWORK-VERIFIED quests.',
-              'YOUR AVATAR':
-                  'Your live position from phone GPS. It moves the map; it never counts as proof.',
-              'SAVED': 'Bookmarks for future travel, not visits.',
+              '🏰 🎭 🧭 🏛️': 'A place with quests you can start now.',
+              '⏳': 'Your proof is in review.',
+              '🏆': 'Approved — the fog around it is gone.',
+              '🔒': 'Hidden. Reveal it by finishing a quest nearby.',
+              '◯': 'The circle the network checks you against for 📡 quests.',
+              '🧑':
+                  'You, from phone GPS. Moves the map, never counts as proof.',
             }.entries)
               ListTile(
+                  dense: true,
                   contentPadding: EdgeInsets.zero,
-                  title: Text(entry.key, style: QuestTypography.osLabelMedium),
-                  subtitle:
-                      Text(entry.value, style: QuestTypography.osBodySmall)),
-            Text(
-                'Percentages count published quest locations, not geographic surface area. Rejected or removed proof does not count.',
-                style: QuestTypography.osBodySmall),
+                  leading: Text(entry.key,
+                      style: const TextStyle(fontSize: 18, height: 1)),
+                  title: Text(entry.value, style: QuestTypography.osBodySmall)),
             TextButton(
                 onPressed: () => showLicensePage(context: context),
                 child: const Text('MAP & GEOGRAPHY LICENSES')),

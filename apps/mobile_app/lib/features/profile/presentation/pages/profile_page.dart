@@ -466,7 +466,8 @@ class ProfilePage extends ConsumerWidget {
                   children: [
                     // Posts — own pull-to-refresh.
                     refreshable(ListView(
-                      padding: const EdgeInsets.all(20),
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
                         _UserPostsGrid(submissions: submissions),
@@ -475,7 +476,8 @@ class ProfilePage extends ConsumerWidget {
 
                     // Activity — heatmap + completed quests.
                     refreshable(ListView(
-                      padding: const EdgeInsets.all(20),
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
                         _ActivityHeatmap(activeDays: activeDays),
@@ -516,7 +518,8 @@ class ProfilePage extends ConsumerWidget {
 
                     // Badges — every badge with its progress.
                     refreshable(ListView.separated(
-                      padding: const EdgeInsets.all(20),
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                       physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: badges.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -1569,7 +1572,7 @@ class _FollowListTabState extends ConsumerState<_FollowListTab> {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _users.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -1654,7 +1657,7 @@ class _SavedPostsTab extends ConsumerWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: savedPosts.length,
           itemBuilder: (context, index) => _SavedPostTile(

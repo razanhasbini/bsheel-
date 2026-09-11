@@ -148,7 +148,8 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
                       ),
                     // Fewer than three players: no podium, everyone is a row.
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      // Clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                       sliver: SliverToBoxAdapter(
                         child: _RankList(
                           users: top3.length >= 3 ? rest : users,
