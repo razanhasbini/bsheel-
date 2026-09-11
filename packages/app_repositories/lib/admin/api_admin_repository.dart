@@ -387,6 +387,16 @@ class ApiAdminRepository implements AdminRepository {
   /// also carries `country_name` and `geometry_id`. Unlike the public
   /// `map/places` list this one includes unpublished and `hidden` places
   /// and does **not** carry a `quest_count`.
+  /// What the verification agent decided, and the evidence behind it.
+  ///
+  /// Rows stay maps: this is a diagnostic surface whose shape follows the
+  /// agent's output, and modelling every nested signal would mean changing
+  /// three files each time the agent learns to record one more.
+  Future<List<Map<String, dynamic>>> agentEvidence({int limit = 25}) async =>
+      apiObjectList(
+        await _client.get('agent/evidence', query: {'limit': '$limit'}),
+      );
+
   Future<List<Map<String, dynamic>>> adminMapPlaces() async =>
       apiObjectList(await _client.get('map/admin/places'));
 

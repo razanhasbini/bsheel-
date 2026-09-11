@@ -33,6 +33,7 @@ import { RealtimeModule } from './infrastructure/realtime/realtime.module.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
 import { GeofencingModule } from './modules/agent/geofencing.module.js';
 import { CamaraDemoModule } from './modules/agent/camara-demo.module.js';
+import { AgentEvidenceModule } from './modules/agent/agent-evidence.module.js';
 import { DiscoveryModule } from './modules/discovery/discovery.module.js';
 import { createRequire } from 'node:module';
 
@@ -134,6 +135,8 @@ function prettyLoggingAvailable(): boolean {
     // The hackathon demo surface: a person taps and waits, so it answers
     // from the API rather than the queue.
     CamaraDemoModule,
+    // Read-only: what the agent decided and what it decided from.
+    AgentEvidenceModule,
     DiscoveryModule,
   ],
   providers: [

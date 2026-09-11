@@ -18,6 +18,7 @@ import '../../features/moderation/presentation/pages/submission_history_page.dar
 import '../../features/feed_management/presentation/pages/feed_management_page.dart';
 import '../../features/quest_management/presentation/pages/quest_management_page.dart';
 import '../../features/quest_authoring/presentation/pages/quest_authoring_page.dart';
+import '../../features/agent_evidence/presentation/pages/agent_evidence_page.dart';
 import '../../features/quest_campaigns/presentation/pages/quest_campaigns_page.dart';
 import '../../features/quest_of_day/presentation/pages/qotd_management_page.dart';
 import '../../features/map_places/presentation/pages/map_places_page.dart';
@@ -180,6 +181,11 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
             path: AdminRoutePaths.questAuthoring,
             name: AdminRouteNames.questAuthoring,
             builder: (context, state) => const QuestAuthoringPage(),
+          ),
+          GoRoute(
+            path: AdminRoutePaths.agentEvidence,
+            name: AdminRouteNames.agentEvidence,
+            builder: (context, state) => const AgentEvidencePage(),
           ),
           GoRoute(
             path: AdminRoutePaths.questOfTheDay,
