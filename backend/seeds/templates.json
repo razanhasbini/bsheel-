@@ -43,7 +43,7 @@
     },
     {
       "slug": "frame",
-      "title": "One frame that says {city}",
+      "title": "One frame that says {city} — at {place}",
       "category": "creativity",
       "difficulty": "medium",
       "xp": 50,
@@ -69,7 +69,7 @@
     },
     {
       "slug": "five",
-      "title": "Five things only {city} sells",
+      "title": "Five things only {city} sells — found at {place}",
       "category": "adventure",
       "difficulty": "medium",
       "xp": 55,

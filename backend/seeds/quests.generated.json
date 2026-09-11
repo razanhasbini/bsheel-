@@ -47,7 +47,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-lusail-stadium-frame",
-      "title": "One frame that says Lusail",
+      "title": "One frame that says Lusail — at Lusail Stadium",
       "description": "Take a single photograph at Lusail Stadium that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -80,7 +80,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-souq-waqif-five",
-      "title": "Five things only Doha sells",
+      "title": "Five things only Doha sells — found at Souq Waqif",
       "description": "Find five things at Souq Waqif you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -300,7 +300,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-lb-byblos-port-five",
-      "title": "Five things only Jbeil sells",
+      "title": "Five things only Jbeil sells — found at Byblos Fishing Port",
       "description": "Find five things at Byblos Fishing Port you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -410,7 +410,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-lb-tripoli-souk-five",
-      "title": "Five things only Tripoli sells",
+      "title": "Five things only Tripoli sells — found at Tripoli Old Souks",
       "description": "Find five things at Tripoli Old Souks you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -542,7 +542,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-ps-nablus-old-city-five",
-      "title": "Five things only Nablus sells",
+      "title": "Five things only Nablus sells — found at Nablus Old City",
       "description": "Find five things at Nablus Old City you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -674,7 +674,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-jo-wadi-rum-frame",
-      "title": "One frame that says Aqaba Governorate",
+      "title": "One frame that says Aqaba Governorate — at Wadi Rum",
       "description": "Take a single photograph at Wadi Rum that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -762,7 +762,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-eg-khan-el-khalili-five",
-      "title": "Five things only Cairo sells",
+      "title": "Five things only Cairo sells — found at Khan el-Khalili",
       "description": "Find five things at Khan el-Khalili you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -916,7 +916,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-ae-burj-khalifa-frame",
-      "title": "One frame that says Dubai",
+      "title": "One frame that says Dubai — at Burj Khalifa",
       "description": "Take a single photograph at Burj Khalifa that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -1059,7 +1059,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-tr-grand-bazaar-five",
-      "title": "Five things only Istanbul sells",
+      "title": "Five things only Istanbul sells — found at Grand Bazaar",
       "description": "Find five things at Grand Bazaar you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1136,7 +1136,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-es-sagrada-familia-frame",
-      "title": "One frame that says Barcelona",
+      "title": "One frame that says Barcelona — at Sagrada Família",
       "description": "Take a single photograph at Sagrada Família that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -1279,7 +1279,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-it-venice-rialto-five",
-      "title": "Five things only Venice sells",
+      "title": "Five things only Venice sells — found at Rialto Market",
       "description": "Find five things at Rialto Market you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1334,7 +1334,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-lb-beirut-corniche-five",
-      "title": "Five things only Beirut sells",
+      "title": "Five things only Beirut sells — found at Beirut Corniche",
       "description": "Find five things at Beirut Corniche you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1411,7 +1411,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-lb-raouche-frame",
-      "title": "One frame that says Beirut",
+      "title": "One frame that says Beirut — at Raouché Pigeon Rocks",
       "description": "Take a single photograph at Raouché Pigeon Rocks that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -1466,7 +1466,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-lb-jeita-frame",
-      "title": "One frame that says Keserwan",
+      "title": "One frame that says Keserwan — at Jeita Grotto",
       "description": "Take a single photograph at Jeita Grotto that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -1741,7 +1741,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-mia-five",
-      "title": "Five things only Doha sells",
+      "title": "Five things only Doha sells — found at Museum of Islamic Art",
       "description": "Find five things at Museum of Islamic Art you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1796,7 +1796,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-katara-five",
-      "title": "Five things only Doha sells",
+      "title": "Five things only Doha sells — found at Katara Cultural Village",
       "description": "Find five things at Katara Cultural Village you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1851,7 +1851,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-national-museum-five",
-      "title": "Five things only Doha sells",
+      "title": "Five things only Doha sells — found at National Museum of Qatar",
       "description": "Find five things at National Museum of Qatar you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -1928,7 +1928,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-qa-pearl-frame",
-      "title": "One frame that says Doha",
+      "title": "One frame that says Doha — at The Pearl",
       "description": "Take a single photograph at The Pearl that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -2258,7 +2258,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-jo-dead-sea-frame",
-      "title": "One frame that says Balqa",
+      "title": "One frame that says Balqa — at Dead Sea shore",
       "description": "Take a single photograph at Dead Sea shore that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -2401,7 +2401,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-jo-aqaba-five",
-      "title": "Five things only Aqaba sells",
+      "title": "Five things only Aqaba sells — found at Aqaba waterfront",
       "description": "Find five things at Aqaba waterfront you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -2621,7 +2621,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-eg-egyptian-museum-five",
-      "title": "Five things only Cairo sells",
+      "title": "Five things only Cairo sells — found at Egyptian Museum",
       "description": "Find five things at Egyptian Museum you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -2676,7 +2676,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-eg-alexandria-library-five",
-      "title": "Five things only Alexandria sells",
+      "title": "Five things only Alexandria sells — found at Bibliotheca Alexandrina",
       "description": "Find five things at Bibliotheca Alexandrina you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -2918,7 +2918,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-ae-louvre-five",
-      "title": "Five things only Abu Dhabi sells",
+      "title": "Five things only Abu Dhabi sells — found at Louvre Abu Dhabi",
       "description": "Find five things at Louvre Abu Dhabi you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -2973,7 +2973,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-ae-dubai-creek-five",
-      "title": "Five things only Dubai sells",
+      "title": "Five things only Dubai sells — found at Dubai Creek",
       "description": "Find five things at Dubai Creek you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -3050,7 +3050,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-ae-qasr-al-watan-frame",
-      "title": "One frame that says Abu Dhabi",
+      "title": "One frame that says Abu Dhabi — at Qasr Al Watan",
       "description": "Take a single photograph at Qasr Al Watan that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3182,7 +3182,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-tr-goreme-frame",
-      "title": "One frame that says Nevşehir",
+      "title": "One frame that says Nevşehir — at Göreme, Cappadocia",
       "description": "Take a single photograph at Göreme, Cappadocia that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3292,7 +3292,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-tr-pamukkale-frame",
-      "title": "One frame that says Denizli",
+      "title": "One frame that says Denizli — at Pamukkale",
       "description": "Take a single photograph at Pamukkale that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3347,7 +3347,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-tr-galata-frame",
-      "title": "One frame that says Istanbul",
+      "title": "One frame that says Istanbul — at Galata Tower",
       "description": "Take a single photograph at Galata Tower that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3402,7 +3402,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-es-park-guell-frame",
-      "title": "One frame that says Barcelona",
+      "title": "One frame that says Barcelona — at Park Güell",
       "description": "Take a single photograph at Park Güell that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3567,7 +3567,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-es-guggenheim-five",
-      "title": "Five things only Bilbao sells",
+      "title": "Five things only Bilbao sells — found at Guggenheim Bilbao",
       "description": "Find five things at Guggenheim Bilbao you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -3622,7 +3622,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-es-plaza-mayor-five",
-      "title": "Five things only Madrid sells",
+      "title": "Five things only Madrid sells — found at Plaza Mayor",
       "description": "Find five things at Plaza Mayor you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",
@@ -3864,7 +3864,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-it-vernazza-frame",
-      "title": "One frame that says La Spezia",
+      "title": "One frame that says La Spezia — at Vernazza, Cinque Terre",
       "description": "Take a single photograph at Vernazza, Cinque Terre that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3919,7 +3919,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-it-trevi-frame",
-      "title": "One frame that says Rome",
+      "title": "One frame that says Rome — at Trevi Fountain",
       "description": "Take a single photograph at Trevi Fountain that could not have been taken anywhere else in the world. Explain what gives it away.",
       "category": "creativity",
       "difficulty": "medium",
@@ -3952,7 +3952,7 @@
     },
     {
       "seedKey": "bsheel:q:gen-it-san-marco-five",
-      "title": "Five things only Venice sells",
+      "title": "Five things only Venice sells — found at St Mark's Square",
       "description": "Find five things at St Mark's Square you could not buy at home, from five different sellers. Show each and say what it is for.",
       "category": "adventure",
       "difficulty": "medium",

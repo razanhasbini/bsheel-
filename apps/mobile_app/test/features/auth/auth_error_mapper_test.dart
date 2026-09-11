@@ -9,11 +9,28 @@ void main() {
         'AuthException: Invalid login credentials',
         'invalid_credentials',
         'Invalid email or password',
+        'Invalid phone number or password',
         'wrong password entered',
         'user not found',
       ]) {
-        expect(mapAuthError(raw), 'Incorrect email or password.', reason: raw);
+        expect(mapAuthError(raw), 'Incorrect phone number or password.',
+            reason: raw);
       }
+    });
+
+    test('an unverified number is not the same as a refused one', () {
+      // PHONE_NUMBER_NOT_VERIFIED contains PHONE_NOT_VERIFIED as a
+      // substring, so order in the mapper is load-bearing: the refusal must
+      // still win. Getting this backwards tells a user whose carrier said
+      // "no" to go and sign up again, which they cannot.
+      expect(
+        mapAuthError('PHONE_NUMBER_NOT_VERIFIED'),
+        contains('could not confirm that number'),
+      );
+      expect(
+        mapAuthError('PHONE_NOT_VERIFIED'),
+        contains('has not been verified yet'),
+      );
     });
 
     test('unconfirmed email tells the user to confirm', () {

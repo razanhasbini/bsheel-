@@ -4,6 +4,19 @@ import { eligibilityFor } from '../../quests/domain/quest-eligibility.js';
 import type { DiscoveryQuestCard, JourneyProgress } from '../domain/discovery.types.js';
 import type { QuestJourney } from '../domain/quest-journey.types.js';
 
+/** Pools GENERATE can reach into, one per shelf that offers the button. */
+export type GenerateChannel =
+  | 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY' | 'MULTI_STAGE';
+
+/**
+ * MULTI_STAGE reaches a pool the other channels do not: the opening step of
+ * a chain. That needs two extra joins and a step filter, and both the
+ * generate query and the remaining-count query have to apply them or the
+ * count promises quests the generator cannot produce.
+ */
+const MULTI_STAGE_JOINS = `
+  JOIN quest_chain_steps cs ON cs.quest_id = q.id AND cs.step_order = 1`;
+
 /** The columns every card needs, plus its destination, as one reusable projection. */
 const CARD_COLUMNS = `
   q.id, q.title, q.description, q.category, q.difficulty,
@@ -159,6 +172,43 @@ export class DiscoveryRepository {
    * Progress is derived from approved submissions rather than a counter, so
    * it cannot drift out of step with the quests that actually count toward it.
    */
+  /**
+   * The opening step of every multi-stage chain this user has not begun.
+   *
+   * Multi-stage quests were reachable only through CONTINUE_JOURNEY, which
+   * by definition lists chains already under way — so a new account could
+   * never see one, and the mechanic did not exist as far as the app was
+   * concerned. This is the way in.
+   *
+   * One row per chain (`DISTINCT ON`), always step 1: showing step 3 of a
+   * chain nobody has started would be an invitation the eligibility gate
+   * refuses. Chains with any approved step for this viewer are excluded
+   * here rather than deduplicated later, so the two shelves can never show
+   * the same journey twice.
+   */
+  async chainOpeners(userId: string, limit: number): Promise<readonly DiscoveryQuestCard[]> {
+    const result = await this.database.query<CardRow>(
+      `SELECT DISTINCT ON (cs.chain_id) ${CARD_COLUMNS}
+       ${CARD_JOINS}
+       JOIN quest_chain_steps cs ON cs.quest_id = q.id
+       JOIN quest_chains ch ON ch.id = cs.chain_id
+       WHERE ${eligibilityFor('MULTI_STAGE', { alias: 'q', userParam: '$1' })}
+         AND cs.step_order = 1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM quest_chain_steps started
+           JOIN user_quests uq ON uq.quest_id = started.quest_id
+           WHERE started.chain_id = cs.chain_id
+             AND uq.user_id = $1
+             AND uq.status IN ('assigned', 'submitted', 'approved')
+         )
+       ORDER BY cs.chain_id, q.created_at DESC
+       LIMIT $2`,
+      [userId, limit],
+    );
+    return result.rows.map(toCard);
+  }
+
   async journeysInProgress(userId: string, limit: number): Promise<readonly JourneyProgress[]> {
     const result = await this.database.query<{
       id: string; name: string; description: string;
@@ -371,7 +421,7 @@ export class DiscoveryRepository {
    */
   async generateFor(
     userId: string,
-    channel: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY',
+    channel: GenerateChannel,
     options: { countryCode?: string; excludeIds?: readonly string[]; count?: number } = {},
   ): Promise<readonly DiscoveryQuestCard[]> {
     const exclude = options.excludeIds ?? [];
@@ -379,13 +429,16 @@ export class DiscoveryRepository {
     // choosing is the mechanic the whole app is built around.
     const count = Math.min(Math.max(options.count ?? 3, 1), 10);
     const result = await this.database.query<CardRow>(
-      `SELECT ${CARD_COLUMNS}
+      // DISTINCT ON keeps one opener per chain; the other channels have no
+      // chain to collapse, so it is a no-op for them.
+      `SELECT DISTINCT ON (q.id) ${CARD_COLUMNS}
        ${CARD_JOINS}
+       ${channel === 'MULTI_STAGE' ? MULTI_STAGE_JOINS : ''}
        WHERE ${eligibilityFor(channel, { alias: 'q', userParam: '$1' })}
          AND q.id <> ALL($2::uuid[])
          AND ($3::text IS NULL OR p.country_code = $3)
          AND ($4::boolean IS NOT TRUE OR q.available_until IS NOT NULL)
-       ORDER BY random()
+       ORDER BY q.id, random()
        LIMIT $5`,
       [userId, exclude, options.countryCode ?? null, channel === 'LIMITED_TIME', count],
     );
@@ -395,12 +448,13 @@ export class DiscoveryRepository {
   /** How much is left in a shelf's pool, so the client can stop asking. */
   async remainingFor(
     userId: string,
-    channel: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY',
+    channel: GenerateChannel,
     options: { countryCode?: string; excludeIds?: readonly string[] } = {},
   ): Promise<number> {
     const result = await this.database.query<{ n: number }>(
-      `SELECT count(*)::int AS n
+      `SELECT count(DISTINCT q.id)::int AS n
        ${CARD_JOINS}
+       ${channel === 'MULTI_STAGE' ? MULTI_STAGE_JOINS : ''}
        WHERE ${eligibilityFor(channel, { alias: 'q', userParam: '$1' })}
          AND q.id <> ALL($2::uuid[])
          AND ($3::text IS NULL OR p.country_code = $3)

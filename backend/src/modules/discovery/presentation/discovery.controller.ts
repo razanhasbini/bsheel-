@@ -5,7 +5,7 @@ import { Type } from 'class-transformer';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { HomeDiscoveryService } from '../application/home-discovery.service.js';
-import { DiscoveryRepository } from '../infrastructure/discovery.repository.js';
+import { DiscoveryRepository, type GenerateChannel } from '../infrastructure/discovery.repository.js';
 import type { HomeModule } from '../domain/discovery.types.js';
 
 export class QuestIdParam {
@@ -24,8 +24,8 @@ export class DiscoveryLimitQuery {
 
 export class GenerateQuery {
   /** Which shelf's pool to reach into. */
-  @IsIn(['WORTH_THE_TRIP', 'TRENDING', 'LIMITED_TIME', 'COUNTRY'])
-  channel!: 'WORTH_THE_TRIP' | 'TRENDING' | 'LIMITED_TIME' | 'COUNTRY';
+  @IsIn(['WORTH_THE_TRIP', 'TRENDING', 'LIMITED_TIME', 'COUNTRY', 'MULTI_STAGE'])
+  channel!: GenerateChannel;
 
   @IsOptional() @Matches(/^[A-Z]{2}$/) country?: string;
 

@@ -11,6 +11,7 @@ import '../../../../core/security/secure_screen.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
 import '../login_credentials.dart';
+import '../password_policy.dart';
 import '../widgets/auth_field.dart';
 import '../widgets/social_sign_in_buttons.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -37,8 +38,12 @@ class _SignupPageState extends ConsumerState<SignupPage>
     with SecureScreenMixin {
   final _phoneController = TextEditingController(text: '+');
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
   final _phoneFocus = FocusNode();
   final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   final _termsTap = TapGestureRecognizer();
   final _privacyTap = TapGestureRecognizer();
 
@@ -48,6 +53,8 @@ class _SignupPageState extends ConsumerState<SignupPage>
   bool _ageConfirmed = false;
   String? _phoneError;
   String? _emailError;
+  String? _passwordError;
+  String? _confirmError;
   String? _ageError;
 
   @override
@@ -61,8 +68,12 @@ class _SignupPageState extends ConsumerState<SignupPage>
   void dispose() {
     _phoneController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
     _phoneFocus.dispose();
     _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     _termsTap.dispose();
     _privacyTap.dispose();
     super.dispose();
@@ -73,6 +84,7 @@ class _SignupPageState extends ConsumerState<SignupPage>
     // breaks E.164 is a real mistake worth surfacing.
     final phone = _phoneController.text.replaceAll(RegExp(r'[\s\-()]'), '');
     final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text;
 
     setState(() {
       _phoneError = e164Pattern.hasMatch(phone)
@@ -81,15 +93,34 @@ class _SignupPageState extends ConsumerState<SignupPage>
       _emailError = email.isEmpty || emailPattern.hasMatch(email)
           ? null
           : 'That email does not look right';
+      // The same policy the reset-password form applies. The number gets the
+      // account in; the password is what gets it back after a new handset,
+      // so it is not optional and it is not exempt from the rules.
+      _passwordError = password.isEmpty
+          ? 'Password is required'
+          : validatePassword(
+              password,
+              emailLocalPart: email.isEmpty ? null : email.split('@').first,
+            );
+      _confirmError = _confirmController.text == password
+          ? null
+          : 'Those two do not match.';
       _ageError = _ageConfirmed ? null : 'You must be 13 or older to sign up.';
     });
-    if (_phoneError != null || _emailError != null || _ageError != null) return;
+    if (_phoneError != null ||
+        _emailError != null ||
+        _passwordError != null ||
+        _confirmError != null ||
+        _ageError != null) {
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      final response = await ref
-          .read(authRepositoryProvider)
-          .signInWithPhone(phone, email: email.isEmpty ? null : email);
+      final response = await ref.read(authRepositoryProvider).signInWithPhone(
+          phone,
+          email: email.isEmpty ? null : email,
+          password: password);
       if (!mounted) return;
       ref.read(analyticsProvider).signup();
       final user = response.user;
@@ -188,6 +219,40 @@ class _SignupPageState extends ConsumerState<SignupPage>
                           autocorrect: false,
                           autofillHints: const [AutofillHints.email],
                           errorText: _emailError,
+                          onSubmitted: (_) => _passwordFocus.requestFocus(),
+                        ),
+                        const SizedBox(height: 14),
+                        AuthField(
+                          controller: _passwordController,
+                          focusNode: _passwordFocus,
+                          label: 'PASSWORD',
+                          hint: 'At least $passwordMinLength characters',
+                          required: true,
+                          obscureText: true,
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.newPassword],
+                          errorText: _passwordError,
+                          onChanged: (_) =>
+                              setState(() => _passwordError = null),
+                          onSubmitted: (_) => _confirmFocus.requestFocus(),
+                        ),
+                        const SizedBox(height: 8),
+                        _StrengthMeter(password: _passwordController.text),
+                        const SizedBox(height: 14),
+                        AuthField(
+                          controller: _confirmController,
+                          focusNode: _confirmFocus,
+                          label: 'CONFIRM PASSWORD',
+                          hint: 'Type it again',
+                          required: true,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.newPassword],
+                          errorText: _confirmError,
+                          onChanged: (_) =>
+                              setState(() => _confirmError = null),
                           onSubmitted: (_) => _createAccount(),
                         ),
                         const SizedBox(height: 14),
@@ -223,6 +288,62 @@ class _SignupPageState extends ConsumerState<SignupPage>
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Password strength ────────────────────────────────────────────────────────
+
+/// Four segments that fill as the password gets stronger.
+///
+/// Presentation only: [validatePassword] is the gate, and a full meter is
+/// not a promise that the form will accept the password. It exists so the
+/// rules are visible while typing instead of arriving as a rejection after
+/// the button is pressed.
+class _StrengthMeter extends StatelessWidget {
+  const _StrengthMeter({required this.password});
+
+  final String password;
+
+  static const _labels = ['', 'WEAK', 'FAIR', 'GOOD', 'STRONG'];
+
+  @override
+  Widget build(BuildContext context) {
+    final score = passwordStrength(password);
+    final colour = switch (score) {
+      0 || 1 => QuestColors.osRed,
+      2 => QuestColors.osAccent,
+      3 => QuestColors.osCool,
+      _ => QuestColors.osSuccess,
+    };
+    return Row(
+      children: [
+        for (var i = 0; i < 4; i++) ...[
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 5,
+              decoration: BoxDecoration(
+                color: i < score
+                    ? colour
+                    : QuestColors.textDim(context).withAlpha(46),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusFull),
+              ),
+            ),
+          ),
+          if (i < 3) const SizedBox(width: 5),
+        ],
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 56,
+          child: Text(
+            _labels[score],
+            textAlign: TextAlign.right,
+            style: authMonoLabel(fontSize: 10, letterSpacingEm: 0.08)
+                .copyWith(color: score == 0 ? Colors.transparent : colour),
+          ),
+        ),
+      ],
     );
   }
 }

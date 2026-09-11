@@ -99,15 +99,41 @@ export class AuthService {
     return verify(storedHash, password);
   }
 
+  /**
+   * Password sign-in by phone number or email.
+   *
+   * Which identifier was used decides which verification gate applies, and
+   * they are not interchangeable. A phone account's email is optional and
+   * usually absent or unconfirmed, so putting it through the
+   * `EMAIL_NOT_CONFIRMED` check would refuse every phone user with the right
+   * password. It gets the check that actually means something for it: the
+   * number the carrier verified.
+   */
   async login(input: LoginDto, request: Request): Promise<TokenPair> {
-    const account = await this.repository.findAccountByEmail(input.email);
+    const byPhone = input.phoneNumber != null;
+    const account = byPhone
+      ? await this.repository.findAccountByPhone(input.phoneNumber!)
+      : await this.repository.findAccountByEmail(input.email!);
     const valid = account?.passwordHash
       ? await this.verifyPassword(account.id, account.passwordHash, input.password)
       : false;
     if (!account || !valid) {
-      throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
+      // One code and one message for "no such account" and "wrong password"
+      // alike, so this endpoint cannot be used to enumerate which numbers
+      // are registered.
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: byPhone ? 'Invalid phone number or password' : 'Invalid email or password',
+      });
     }
-    if (!account.emailVerified) {
+    if (byPhone) {
+      if (!account.phoneVerified) {
+        throw new ForbiddenException({
+          code: 'PHONE_NOT_VERIFIED',
+          message: 'Verify your number before signing in with it',
+        });
+      }
+    } else if (!account.emailVerified) {
       throw new ForbiddenException({
         code: 'EMAIL_NOT_CONFIRMED',
         message: 'Please confirm your email before logging in',
@@ -148,8 +174,21 @@ export class AuthService {
   /// `phoneNumber` is only ever a CLAIM at this point. It is recorded so
   /// Number Verification V1 has something to check the device against, and
   /// it is not trusted for anything until the network says it matches.
-  startPhoneSignIn(phoneNumber: string, ageVerified: true, email?: string): Promise<{ authorizationUrl: string }> {
-    return this.startPhoneFlow('sign_in', phoneNumber, undefined, ageVerified, email);
+  async startPhoneSignIn(
+    phoneNumber: string,
+    ageVerified: true,
+    email?: string,
+    password?: string,
+  ): Promise<{ authorizationUrl: string }> {
+    // Hashed here, before the browser leaves for the operator, because the
+    // account it belongs to does not exist yet and will not until Nokia
+    // answers. Only the hash is persisted; the plaintext dies with this call.
+    let passwordHash: string | undefined;
+    if (password != null) {
+      assertPasswordPolicy(password, undefined, email);
+      passwordHash = await hash(password, { type: 2 });
+    }
+    return this.startPhoneFlow('sign_in', phoneNumber, undefined, ageVerified, email, passwordHash);
   }
 
   /// Same redirect, but to attach a verified phone number to the
@@ -164,6 +203,7 @@ export class AuthService {
     userId?: string,
     ageVerified = false,
     claimedEmail?: string,
+    passwordHash?: string,
   ): Promise<{ authorizationUrl: string }> {
     const redirectUri = this.config.get('CAMARA_NUMBER_VERIFICATION_REDIRECT_URI', { infer: true });
     if (!redirectUri) {
@@ -176,7 +216,7 @@ export class AuthService {
     });
     await this.phoneStates.start({
       state, intent, userId, ageVerified, redirectUri, nonce, claimedPhoneNumber,
-      oauthFlow: flow, claimedEmail, ttlMs: 5 * 60 * 1000,
+      oauthFlow: flow, claimedEmail, passwordHash, ttlMs: 5 * 60 * 1000,
     });
     return { authorizationUrl: url };
   }
@@ -243,7 +283,9 @@ export class AuthService {
       const account = await this.repository.linkPhoneIdentity(pending.userId, phoneNumber);
       resultUserId = account.id;
     } else {
-      const account = await this.repository.findOrCreateByPhone(phoneNumber, pending.ageVerified, pending.claimedEmail);
+      const account = await this.repository.findOrCreateByPhone(
+        phoneNumber, pending.ageVerified, pending.claimedEmail, pending.passwordHash,
+      );
       resultUserId = account.id;
     }
 

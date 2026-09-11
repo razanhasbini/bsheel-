@@ -43,14 +43,22 @@ String mapAuthError(String raw) {
   if (msg.contains('invalid_phone_signin_state')) {
     return 'That verification link expired. Please start again.';
   }
+  // Distinct from the two above: the number on file was never verified, so
+  // there is nothing to sign in against yet. Checked after
+  // `phone_number_not_verified`, which contains this string.
+  if (msg.contains('phone_not_verified')) {
+    return 'That number has not been verified yet. Sign up with it to '
+        'verify it with your carrier.';
+  }
 
   // ── Credentials ──────────────────────────────────────────────
   if (msg.contains('invalid login') ||
       msg.contains('invalid_credentials') ||
       msg.contains('invalid email or password') ||
+      msg.contains('invalid phone number or password') ||
       msg.contains('wrong password') ||
       msg.contains('user not found')) {
-    return 'Incorrect email or password.';
+    return 'Incorrect phone number or password.';
   }
 
   // ── Email confirmation ───────────────────────────────────────

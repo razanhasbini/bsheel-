@@ -232,11 +232,66 @@ describe('quest ecosystem (e2e)', { timeout: 180_000 }, () => {
   it('TEST 17 — Home stays a handful of modules, not a taxonomy screen', async () => {
     const response = await harness.get('/discovery/home', user);
     const modules = (response.body.data as { modules: { type: string; items: unknown[] }[] }).modules;
-    expect(modules.length, 'Home must not grow a row per quest type').toBeLessThanOrEqual(4);
+    // Five, raised from four when MULTI_STAGE landed. The rule this guards
+    // is "Home is not a taxonomy screen", not the literal number — and the
+    // multi-stage shelf earned its place because it is the ONLY way a new
+    // account can discover that chains exist. CONTINUE_JOURNEY lists
+    // journeys already under way, so before this shelf the entire mechanic
+    // was invisible until you had somehow already started one.
+    expect(modules.length, 'Home must not grow a row per quest type').toBeLessThanOrEqual(5);
     for (const module of modules) {
       expect(module.items.length + ((module as { journeys?: unknown[] }).journeys?.length ?? 0),
         `${module.type} rendered empty`).toBeGreaterThan(0);
     }
+  });
+
+  it('TEST 17b — a brand-new account can find a multi-stage quest', async () => {
+    // The regression this pins: multi-stage quests existed, were seeded,
+    // and were completely unreachable, because the only shelf that showed
+    // them was CONTINUE_JOURNEY — which by definition lists journeys the
+    // user has already begun. A fresh account saw none of them ever.
+    //
+    // The chain is built here rather than read from the seed so the claim
+    // is about the MECHANISM. Asserting against seeded content made this
+    // test depend on catalogue state the rest of the suite mutates in
+    // parallel, and it failed on load while the feature was fine.
+    const one = await harness.createQuest({ title: `Opener ${Date.now()}` });
+    const two = await harness.createQuest({ isHidden: true });
+    await harness.createQuestChain([one.id, two.id]);
+
+    const fresh = await harness.createUser({ prefix: 'ms' });
+    const response = await harness.get('/discovery/home', fresh);
+    const modules = (response.body.data as {
+      modules: { type: string; items: { id: string; badges: string[] }[] }[];
+    }).modules;
+    const shelf = modules.find((m) => m.type === 'MULTI_STAGE');
+    expect(shelf, 'a new account must be shown multi-stage quests').toBeDefined();
+    expect(shelf!.items.length).toBeGreaterThan(0);
+    // Every card on it says so, so the mechanic is legible before the tap.
+    for (const item of shelf!.items) {
+      expect(item.badges.some((b) => /STEP JOURNEY/.test(b))).toBe(true);
+    }
+    // And the hidden second step is not on it, however the shelf was filled.
+    expect(shelf!.items.some((i) => i.id === two.id)).toBe(false);
+  });
+
+  it('TEST 17c — the multi-stage shelf offers openings, never later steps', async () => {
+    // The shelf is an invitation to BEGIN. Offering step 2 of a chain
+    // nobody has started would be an invitation the eligibility gate then
+    // refuses — a button that fails when pressed.
+    const fresh = await harness.createUser({ prefix: 'msg' });
+    const response = await harness.get(
+      '/discovery/generate?channel=MULTI_STAGE&count=10', fresh,
+    );
+    expect(response.status).toBe(200);
+    const quests = (response.body.data as { quests: { id: string }[] }).quests;
+    if (quests.length === 0) return;
+    const laterSteps = await harness.database.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM quest_chain_steps
+       WHERE quest_id = ANY($1::uuid[]) AND step_order > 1`,
+      [quests.map((q) => q.id)],
+    );
+    expect(laterSteps.rows[0].n, 'a later step was offered as an opening').toBe(0);
   });
 
   it('TEST 18 — nothing ineligible can leak into the roll', async () => {

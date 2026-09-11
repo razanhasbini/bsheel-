@@ -32,6 +32,7 @@ export interface DiscoveryQuestCard {
 /** The module types Home can render. Empty modules are never serialised. */
 export type HomeModuleType =
   | 'CONTINUE_JOURNEY'
+  | 'MULTI_STAGE'
   | 'HIDDEN_DISCOVERED'
   | 'LIMITED_TIME'
   | 'WORTH_THE_TRIP'
@@ -69,6 +70,10 @@ export interface JourneyProgress {
  */
 export const MODULE_LIMITS: Record<HomeModuleType, { min: number; max: number }> = {
   CONTINUE_JOURNEY: { min: 1, max: 3 },
+  // min 1: a single multi-stage quest is still worth showing. This shelf is
+  // the only place the mechanic is discoverable at all, and dropping it for
+  // thinness is what made multi-level quests invisible to every new account.
+  MULTI_STAGE: { min: 1, max: 5 },
   HIDDEN_DISCOVERED: { min: 1, max: 3 },
   LIMITED_TIME: { min: 1, max: 5 },
   WORTH_THE_TRIP: { min: 2, max: 5 },
@@ -88,6 +93,7 @@ export const MODULE_LIMITS: Record<HomeModuleType, { min: number; max: number }>
  */
 export const MODULE_PRIORITY: readonly HomeModuleType[] = [
   'CONTINUE_JOURNEY',
+  'MULTI_STAGE',
   'HIDDEN_DISCOVERED',
   'LIMITED_TIME',
   'WORTH_THE_TRIP',
@@ -98,4 +104,4 @@ export const MODULE_PRIORITY: readonly HomeModuleType[] = [
 ];
 
 /** Home shows at most this many discovery modules below the roll and QOTD. */
-export const MAX_HOME_MODULES = 4;
+export const MAX_HOME_MODULES = 5;

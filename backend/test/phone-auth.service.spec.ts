@@ -53,7 +53,7 @@ describe('phone authentication orchestration', () => {
     const { service, repository, phoneStates } = build();
     const result = await service.completePhoneCallback('code', 'state');
     expect(repository.findOrCreateByPhone).toHaveBeenCalledWith(
-      '+99999991000', true, 'optional@example.test',
+      '+99999991000', true, 'optional@example.test', undefined,
     );
     expect(phoneStates.markCompleted).toHaveBeenCalledOnce();
     expect(result.redirectUrl).toContain('handoff=');
@@ -100,7 +100,40 @@ describe('phone authentication orchestration', () => {
       },
     });
     await service.completePhoneCallback('code', 'state');
-    expect(repository.findOrCreateByPhone).toHaveBeenCalledWith('+99999991000', true, null);
+    expect(repository.findOrCreateByPhone).toHaveBeenCalledWith('+99999991000', true, null, undefined);
+  });
+
+  it('applies the password chosen at signup once the carrier confirms the number', async () => {
+    // The password is typed before the browser leaves for the operator and
+    // the account does not exist until it comes back, so the hash has to
+    // survive the round trip in the sign-in state. Only the hash — never the
+    // plaintext — and it only reaches the repository on the verified path.
+    const { service, repository } = build({
+      pending: {
+        id: '00000000-0000-4000-8000-000000000011', intent: 'sign_in', userId: null,
+        ageVerified: true, redirectUri: 'https://api.bsheel.app/api/v1/auth/phone/callback',
+        nonce: 'nonce', claimedPhoneNumber: '+99999991000', oauthFlow: 'standard',
+        claimedEmail: null, passwordHash: '$argon2id$fake',
+      },
+    });
+    await service.completePhoneCallback('code', 'state');
+    expect(repository.findOrCreateByPhone).toHaveBeenCalledWith(
+      '+99999991000', true, null, '$argon2id$fake',
+    );
+  });
+
+  it('never reaches the account when the number is refused, password and all', async () => {
+    const { service, repository } = build({
+      outcome: { status: 'NOT_VERIFIED' },
+      pending: {
+        id: '00000000-0000-4000-8000-000000000011', intent: 'sign_in', userId: null,
+        ageVerified: true, redirectUri: 'https://api.bsheel.app/api/v1/auth/phone/callback',
+        nonce: 'nonce', claimedPhoneNumber: '+99999991001', oauthFlow: 'standard',
+        claimedEmail: null, passwordHash: '$argon2id$fake',
+      },
+    });
+    await service.completePhoneCallback('code', 'state');
+    expect(repository.findOrCreateByPhone).not.toHaveBeenCalled();
   });
 
   it('rejects expired or replayed state before contacting Nokia', async () => {

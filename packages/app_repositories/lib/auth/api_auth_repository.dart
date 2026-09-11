@@ -255,8 +255,26 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber,
-      {String? email}) async {
+  Future<AuthResult> signInWithPhonePassword(
+    String phoneNumber,
+    String password,
+  ) async {
+    final data = apiObject(
+      await _client.post(
+        'auth/login',
+        authenticated: false,
+        body: {'phoneNumber': phoneNumber, 'password': password},
+      ),
+    );
+    return _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
+  }
+
+  @override
+  Future<AuthResult> signInWithPhone(
+    String phoneNumber, {
+    String? email,
+    String? password,
+  }) async {
     final start = apiObject(
       await _client.post(
         'auth/phone/start',
@@ -265,6 +283,7 @@ class ApiAuthRepository implements AuthRepository {
           'phoneNumber': phoneNumber,
           'ageVerified': true,
           if (email != null && email.isNotEmpty) 'email': email,
+          if (password != null && password.isNotEmpty) 'password': password,
         },
       ),
     );

@@ -66,7 +66,7 @@ export class AuthController {
   @Post('phone/start')
   @ApiOperation({ summary: 'Start CAMARA Number Verification for a brand-new phone sign-in' })
   startPhone(@Body() body: StartPhoneSignInDto): Promise<{ authorizationUrl: string }> {
-    return this.service.startPhoneSignIn(body.phoneNumber, body.ageVerified, body.email);
+    return this.service.startPhoneSignIn(body.phoneNumber, body.ageVerified, body.email, body.password);
   }
 
   @HttpCode(200)

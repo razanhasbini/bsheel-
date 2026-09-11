@@ -6,7 +6,7 @@ import 'pending_deep_link.dart';
 import 'route_names.dart';
 import 'route_guards.dart';
 import '../providers/auth_repository_provider.dart';
-import '../../features/auth/presentation/auth_error_mapper.dart';
+import '../../features/auth/presentation/pending_auth_error.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/auth_session_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
@@ -254,17 +254,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               final failure = state.uri.queryParameters['error'];
               if (failure != null && failure.isNotEmpty) {
-                // The carrier refused, or we could not reach it. Say so on
-                // the login screen, where the user can act on it.
-                if (!context.mounted) return;
-                context.go(RoutePaths.login);
-                final messenger = ScaffoldMessenger.maybeOf(context);
-                messenger
-                  ?..clearSnackBars()
-                  ..showSnackBar(SnackBar(
-                    content: Text(mapAuthError(failure)),
-                    duration: const Duration(seconds: 8),
-                  ));
+                // Handed to the login page rather than shown from here.
+                // This route is about to be torn down by the `go` below, so
+                // a messenger read from THIS context belongs to a widget
+                // being disposed and the message never appears — which is
+                // why a refused number used to bounce back in silence.
+                cref.read(pendingAuthErrorProvider.notifier).state = failure;
+                if (context.mounted) context.go(RoutePaths.login);
                 return;
               }
               // Awaited, because on web this call is the one that actually

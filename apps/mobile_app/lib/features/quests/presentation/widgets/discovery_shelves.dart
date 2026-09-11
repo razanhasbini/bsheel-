@@ -53,6 +53,10 @@ const _generateChannels = <String, String>{
   'LIMITED_TIME': 'LIMITED_TIME',
   'NEAR_YOU': 'COUNTRY',
   'EXPLORE_COUNTRY': 'COUNTRY',
+  // Its own pool rather than the general one: what this shelf offers is the
+  // OPENING step of a chain, and handing back step 3 of something unstarted
+  // would be an invitation the eligibility gate refuses.
+  'MULTI_STAGE': 'MULTI_STAGE',
 };
 
 class _Shelf extends ConsumerStatefulWidget {

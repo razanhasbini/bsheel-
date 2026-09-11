@@ -31,6 +31,9 @@ abstract final class AdminRouteAccess {
   /// Destinations whose backing endpoints are `@Roles('super_admin')`.
   static const Set<String> superAdminOnly = {
     AdminRoutePaths.questManagement,
+    // Every route behind /authoring is @Roles('super_admin'): authoring
+    // decides what the whole player base sees, which is not moderation.
+    AdminRoutePaths.questAuthoring,
     AdminRoutePaths.mapPlaces,
     AdminRoutePaths.xpManagement,
     AdminRoutePaths.settings,

@@ -11,6 +11,18 @@ abstract class AuthRepository {
 
   Future<AuthResult> signInWithEmail(String email, String password);
 
+  /// Signs in with the number and the password chosen at signup.
+  ///
+  /// This is the ordinary way back into a Bsheel account: the phone number
+  /// is the credential every signup creates, and CAMARA already verified it
+  /// once. Re-verifying on every sign-in would put a carrier round-trip and
+  /// a browser hop in front of a returning user, so this path is a plain
+  /// password check against the number the network already confirmed.
+  ///
+  /// [phoneNumber] must be E.164 (`+96170123456`).
+  Future<AuthResult> signInWithPhonePassword(
+      String phoneNumber, String password);
+
   /// Creates a password account. Returns
   /// [AuthResult.confirmationRequired] when the deployment requires the
   /// user to confirm their email before a session is issued.
@@ -53,7 +65,15 @@ abstract class AuthRepository {
   /// backend hands it to CAMARA Number Verification V1, and the mobile
   /// network decides whether this device is actually using it. A mismatch
   /// throws `PHONE_NUMBER_NOT_VERIFIED`, never a signed-in session.
-  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email});
+  ///
+  /// [password] is the one the user chose on the signup form. It is applied
+  /// to the account only once the carrier confirms the number, so a refused
+  /// verification leaves nothing behind.
+  Future<AuthResult> signInWithPhone(
+    String phoneNumber, {
+    String? email,
+    String? password,
+  });
 
   /// Same redirect, but attaches the verified number to the already
   /// signed-in account instead of creating a session. Still returns an

@@ -28,6 +28,8 @@ export type DiscoveryChannel =
   | 'LIMITED_TIME'
   /** Collections the user has started or could start. */
   | 'JOURNEY'
+  /** The opening step of a multi-stage chain the user has not begun. */
+  | 'MULTI_STAGE'
   /** Hidden quests this user has actually opened. */
   | 'HIDDEN_DISCOVERED'
   /** Everything published in one country. */
@@ -194,6 +196,13 @@ export function eligibilityFor(channel: DiscoveryChannel, options: EligibilityOp
       // Everyone gets the same quest, so it must be doable by anyone: no
       // destination, no travel, no per-user unlock.
       clauses.push(locationIndependent(options));
+      break;
+    case 'MULTI_STAGE':
+      // The shelf is an invitation to begin, so a chain already under way
+      // belongs in CONTINUE_JOURNEY instead and is filtered out by the
+      // caller. What this adds is the same "don't re-offer what I finished"
+      // rule the roll uses.
+      clauses.push(`${options.alias}.is_globally_discoverable`, notAlreadySettled(options));
       break;
     case 'HIDDEN_DISCOVERED':
       // Only what this user actually opened, and only while unseen elsewhere.

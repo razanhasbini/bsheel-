@@ -1,4 +1,15 @@
-import { Equals, IsBoolean, IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
+import { Equals, IsBoolean, IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+
+/**
+ * E.164: a leading '+', a non-zero country code, then digits. Number
+ * Verification V1 requires this exact shape, and Nokia's simulator
+ * identities (+99999991000 / +99999991001) are E.164 too, so there is no
+ * separate test-number carve-out to maintain.
+ *
+ * Validating here keeps a malformed number from ever reaching Nokia, but it
+ * proves nothing about ownership — that is entirely the network's answer.
+ */
+const E164 = /^\+[1-9]\d{6,14}$/;
 
 export class RegisterDto {
   @IsEmail()
@@ -21,12 +32,33 @@ export class RegisterDto {
   ageVerified!: boolean;
 }
 
+/**
+ * Sign in with a password and exactly one identifier.
+ *
+ * Phone is the account's primary credential — it is what CAMARA verified and
+ * what every phone sign-up creates — so `phoneNumber` is what the app sends.
+ * `email` stays accepted because the 180 imported password accounts have no
+ * phone number at all and would otherwise be locked out.
+ *
+ * "Exactly one" is enforced rather than "at least one": accepting both would
+ * leave the service picking a winner, and which identifier was checked is
+ * precisely what decides whether email or phone verification gates the login.
+ */
 export class LoginDto {
-  @IsEmail()
-  email!: string;
+  @IsOptional() @IsEmail() email?: string;
+
+  @IsOptional()
+  @Matches(E164, { message: 'phoneNumber must be in international format, e.g. +96170123456' })
+  phoneNumber?: string;
 
   @IsString()
   password!: string;
+
+  @ValidateIf((dto: LoginDto) => (dto.email == null) === (dto.phoneNumber == null))
+  @Equals('__exactly_one_identifier__', {
+    message: 'Provide either an email or a phone number, not both',
+  })
+  readonly identifierGuard?: never;
 }
 
 export class RefreshTokenDto {
@@ -48,17 +80,6 @@ export class OAuthSignInDto {
   @Equals(true) ageVerified!: true;
 }
 
-/**
- * E.164: a leading '+', a non-zero country code, then digits. Number
- * Verification V1 requires this exact shape, and Nokia's simulator
- * identities (+99999991000 / +99999991001) are E.164 too, so there is no
- * separate test-number carve-out to maintain.
- *
- * Validating here keeps a malformed number from ever reaching Nokia, but it
- * proves nothing about ownership — that is entirely the network's answer.
- */
-const E164 = /^\+[1-9]\d{6,14}$/;
-
 export class StartPhoneSignInDto {
   @Matches(E164, { message: 'phoneNumber must be in international format, e.g. +96170123456' })
   phoneNumber!: string;
@@ -66,6 +87,13 @@ export class StartPhoneSignInDto {
   /// Optional. Phone is the credential; an email is only a contact and
   /// recovery address, and the account is created without one if omitted.
   @IsOptional() @IsEmail() email?: string;
+
+  /// Optional only because `phone/start` also serves an existing account
+  /// signing back in, which already has one. The signup form always sends
+  /// it, and the policy check in the service is what actually rejects a
+  /// weak choice — the length bound here just keeps absurd input out of the
+  /// hasher.
+  @IsOptional() @IsString() @MinLength(10) @MaxLength(200) password?: string;
 
   @Equals(true) ageVerified!: true;
 }

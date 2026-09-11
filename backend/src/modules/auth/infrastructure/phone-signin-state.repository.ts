@@ -27,6 +27,12 @@ export interface PhoneSigninStateRecord {
   readonly oauthFlow: 'fast' | 'standard' | null;
   /** Optional address offered at signup (migration 0034). */
   readonly claimedEmail: string | null;
+  /**
+   * Argon2 hash of the password chosen at signup (migration 0043), applied
+   * to the account the callback creates. Null for a link flow, and for an
+   * existing account signing back in.
+   */
+  readonly passwordHash: string | null;
 }
 
 export interface PhoneSigninHandoff {
@@ -56,11 +62,12 @@ export class PhoneSigninStateRepository {
     claimedPhoneNumber: string;
     oauthFlow: 'fast' | 'standard';
     claimedEmail?: string | null;
+    passwordHash?: string | null;
     ttlMs: number;
   }): Promise<void> {
     await this.database.query(
-      `INSERT INTO phone_signin_states (state, intent, user_id, age_verified, redirect_uri, nonce, claimed_phone_number, oauth_flow, claimed_email, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now() + make_interval(secs => $10))`,
+      `INSERT INTO phone_signin_states (state, intent, user_id, age_verified, redirect_uri, nonce, claimed_phone_number, oauth_flow, claimed_email, password_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now() + make_interval(secs => $11))`,
       [
         input.state,
         input.intent,
@@ -71,6 +78,7 @@ export class PhoneSigninStateRepository {
         input.claimedPhoneNumber,
         input.oauthFlow,
         input.claimedEmail ?? null,
+        input.passwordHash ?? null,
         input.ttlMs / 1000,
       ],
     );
@@ -91,10 +99,11 @@ export class PhoneSigninStateRepository {
       claimed_phone_number: string | null;
       oauth_flow: 'fast' | 'standard' | null;
       claimed_email: string | null;
+      password_hash: string | null;
     }>(
       `UPDATE phone_signin_states SET status = 'failed'
        WHERE state = $1 AND status = 'pending' AND expires_at > now()
-       RETURNING id, intent, user_id, age_verified, redirect_uri, nonce, claimed_phone_number, oauth_flow, claimed_email`,
+       RETURNING id, intent, user_id, age_verified, redirect_uri, nonce, claimed_phone_number, oauth_flow, claimed_email, password_hash`,
       [state],
     );
     const row = result.rows[0];
@@ -109,6 +118,7 @@ export class PhoneSigninStateRepository {
           claimedPhoneNumber: row.claimed_phone_number,
           oauthFlow: row.oauth_flow,
           claimedEmail: row.claimed_email,
+          passwordHash: row.password_hash,
         }
       : null;
   }

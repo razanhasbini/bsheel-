@@ -51,8 +51,9 @@ export class HomeDiscoveryService {
     const signupCountry = verifiedCountry ?? (await this.repository.signupCountry(userId));
     const country = signupCountry ?? (await this.repository.mostPopulatedCountry());
 
-    const [journeys, hidden, limited, flagship, trending, nearby, partner] = await Promise.all([
+    const [journeys, chains, hidden, limited, flagship, trending, nearby, partner] = await Promise.all([
       this.repository.journeysInProgress(userId, MODULE_LIMITS.CONTINUE_JOURNEY.max),
+      this.repository.chainOpeners(userId, MODULE_LIMITS.MULTI_STAGE.max),
       this.repository.hiddenDiscovered(userId, MODULE_LIMITS.HIDDEN_DISCOVERED.max),
       this.repository.limitedTime(userId, MODULE_LIMITS.LIMITED_TIME.max),
       this.repository.worthTheTrip(userId, MODULE_LIMITS.WORTH_THE_TRIP.max),
@@ -73,6 +74,8 @@ export class HomeDiscoveryService {
 
     const candidates: HomeModule[] = [
       module('CONTINUE_JOURNEY', 'CONTINUE YOUR JOURNEY', null, [], journeys),
+      module('MULTI_STAGE', 'MULTI-STAGE QUESTS',
+        'One step opens the next. Each one verified.', chains),
       module('HIDDEN_DISCOVERED', 'HIDDEN QUEST DISCOVERED', 'You found something.', hidden),
       module('LIMITED_TIME', 'LIMITED TIME', 'Gone when the window closes.', limited),
       module('WORTH_THE_TRIP', 'WORTH THE TRIP', 'Experiences you can only have there.', flagship),

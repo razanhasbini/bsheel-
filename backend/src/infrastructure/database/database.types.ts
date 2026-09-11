@@ -328,6 +328,7 @@ export interface Database {
     "claimed_phone_number": string | null;
     "oauth_flow": string | null;
     "claimed_email": string | null;
+    "password_hash": string | null;
   };
   "processed_messages": {
     "consumer": string;
@@ -644,6 +645,7 @@ export interface Database {
     "deleted_at": Timestamp | null;
     "phone_number": string | null;
     "phone_verified_at": Timestamp | null;
+    "signup_country_code": string | null;
   };
   "waitlist": {
     "id": Generated<string>;
