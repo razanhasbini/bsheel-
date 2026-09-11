@@ -106,13 +106,22 @@ describe('restored legacy parity (e2e)', { timeout: 300_000 }, () => {
       .send({})
       .expect(204);
 
-    const followerTypes = (await harness.notificationsFor(blockers[0].id)).map(
-      (row) => row.type,
-    );
+    // All three of these are produced by the outbox worker, not by the
+    // approve request, so the read has to wait for the queue rather than
+    // assume it has already drained. Same assertions; they just no longer
+    // depend on winning a race that a busy queue loses.
+    const followerTypes = (
+      await harness.awaitNotificationTypes(blockers[0].id, [
+        'follow_quest_completed',
+        'leaderboard_overtaken',
+      ])
+    ).map((row) => row.type);
     expect(followerTypes).toContain('follow_quest_completed');
     expect(followerTypes).toContain('leaderboard_overtaken');
     expect(
-      (await harness.notificationsFor(author.id)).map((row) => row.type),
+      (await harness.awaitNotificationTypes(author.id, ['top_10_entry'])).map(
+        (row) => row.type,
+      ),
     ).toContain('top_10_entry');
   });
 
