@@ -131,6 +131,41 @@ than the code's:
 See `docs/CAMARA_TESTING.md` for the live demo surface and the four-outcome
 matrix.
 
+## Before Stage 4 — audit the catalogue
+
+```bash
+cd backend && npm run proof:contract          # read-only
+cd backend && npm run proof:contract -- --sql # with the fixes
+```
+
+Migration 0034 sets the contract per *category*, and says in its own comment
+that a category default cannot be right for every quest in it: "Watch the
+sunrise" and "Spend an hour with no phone" are both `adventure`, and only one
+is checkable from a photograph. Per-quest overrides exist for the other kind,
+and nothing makes anyone author them — on the seeded catalogue, **five of nine
+content quests were mis-marked and none had an override**.
+
+This matters the moment `may_auto_reject` is granted to a category: the agent
+is asked whether a photograph proves something no photograph can, answers
+anyway with a confidence score, and rejects an honest player. The failure
+arrives through the catalogue rather than through the code, which is why no
+test catches it.
+
+The audit separates two problems that look alike and need different fixes:
+
+| | Example | Fix |
+|---|---|---|
+| **Wrong contract** — nothing in any photograph bears on the task | "Spend an hour with no phone" | override `verifiability` |
+| **Rubric gap** — the task *is* photographable but carries a clause that is not | "Draw the view from your window — ten minutes minimum" | amend the rubric, **not** the verifiability |
+
+Overriding the second kind would discard the part a photograph does show. It
+wants a rubric that tells the model to ignore the clause, the way the seeded
+`fitness` rubric already does: *"Counts and durations CANNOT be verified from
+an image — never reject for failing to show a count."*
+
+It is a keyword check, so read the full table it prints rather than only the
+flags — particularly any row where `reject` is already true.
+
 ## Stage 4 — let it act
 
 Only after `npm run proof:eval` reports a precision you are willing to defend
