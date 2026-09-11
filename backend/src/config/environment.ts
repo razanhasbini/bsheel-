@@ -160,6 +160,13 @@ const environmentSchema = z
     AI_VERIFICATION_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
     AI_VERIFICATION_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AI_VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+    // How long one worker's claim on a submission holds before another may
+    // take it. Longer than any legitimate pass — a video sampled to several
+    // frames, escalated to the deep rung, against AI_VERIFICATION_TIMEOUT_MS
+    // per call — and shorter than a person's patience if a worker dies
+    // holding one. Too short double-pays for a vision call; too long strands
+    // the submission in the queue.
+    AI_VERIFICATION_CLAIM_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(600),
     R2_ENDPOINT: optionalUrl,
     R2_REGION: z.string().default('auto'),
     // MinIO (and any self-hosted S3) addresses buckets as a path segment
@@ -287,6 +294,12 @@ const environmentSchema = z
     // seconds per assignment is not a test anyone will run. The shipped
     // default is unchanged.
     QUEST_ASSIGNMENT_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
+    // How long an agent run's claim holds before it is presumed abandoned.
+    //
+    // Without this a run left 'running' by a worker restart was permanent:
+    // start()'s ON CONFLICT only reclaimed 'failed' rows, so the submission
+    // could never be evaluated again and nothing said why.
+    AGENT_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(900),
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
       .default('false')

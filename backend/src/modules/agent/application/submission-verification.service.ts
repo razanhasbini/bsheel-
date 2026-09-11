@@ -67,25 +67,32 @@ export class SubmissionVerificationService {
 
     const promptVersion = this.config.get('OPENAI_AGENT_PROMPT_VERSION', { infer: true });
     const idempotencyKey = `submission:${submissionId}:verification:${promptVersion}`;
-    const existing = await this.agentRuns.findByIdempotencyKey(idempotencyKey);
-    if (existing && existing.status !== 'failed') {
-      return { runId: existing.id, decision: this.humanReviewFallback('Already evaluated.'), skipped: 'ALREADY_RUN' };
-    }
 
-    const run = await this.agentRuns.start({
-      kind: 'submission_verification',
-      subjectType: 'submission',
-      subjectId: submissionId,
-      idempotencyKey,
-      model: this.runner.isEnabled() ? (this.config.get('OPENAI_AGENT_MODEL', { infer: true }) ?? 'unset') : 'disabled',
-      promptVersion,
-      policyVersion: 'v1',
-      inputSnapshot: context,
-    });
+    // `start()` is the claim, and it is the ONLY check. There used to be a
+    // `findByIdempotencyKey` read here that short-circuited on anything not
+    // 'failed' — two predicates for one question, and they disagreed in the
+    // case that matters: a run left 'running' by a killed worker made this
+    // return ALREADY_RUN forever, so the submission could never be
+    // evaluated and the log line said "already evaluated" about a run that
+    // never finished. One atomic statement cannot disagree with itself.
+    const run = await this.agentRuns.start(
+      {
+        kind: 'submission_verification',
+        subjectType: 'submission',
+        subjectId: submissionId,
+        idempotencyKey,
+        model: this.runner.isEnabled() ? (this.config.get('OPENAI_AGENT_MODEL', { infer: true }) ?? 'unset') : 'disabled',
+        promptVersion,
+        policyVersion: 'v1',
+        inputSnapshot: context,
+      },
+      this.config.get('AGENT_RUN_LEASE_SECONDS', { infer: true }),
+    );
     if (!run) {
-      // Lost the idempotency race to a concurrent worker (e.g. a retried
-      // outbox publish); the winner's run already covers this submission.
-      return null;
+      // The key is held: this submission already has a finished run, or
+      // another worker holds a claim that has not expired. Either way there
+      // is nothing for this job to do, and nothing for it to act on.
+      return { runId: '', decision: this.humanReviewFallback('Already evaluated or in flight.'), skipped: 'ALREADY_RUN' };
     }
 
     try {

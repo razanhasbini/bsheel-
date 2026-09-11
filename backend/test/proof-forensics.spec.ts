@@ -33,10 +33,20 @@ describe('differenceHash, against real encoded images', () => {
   let reEncoded: string;
   let unrelated: string;
 
+  /// The fixtures are textured on purpose, so each of these is a real hash
+  /// rather than the null a featureless frame now produces. Asserted here so
+  /// a fixture that lost its structure fails loudly instead of turning every
+  /// assertion below into a comparison against null.
+  const hashOf = async (image: Buffer): Promise<string> => {
+    const hash = differenceHash(await grayscale9x8(image));
+    expect(hash).not.toBeNull();
+    return hash!;
+  };
+
   beforeAll(async () => {
-    original = differenceHash(await grayscale9x8(await cameraPhoto()));
-    reEncoded = differenceHash(await grayscale9x8(await reEncodedCopy()));
-    unrelated = differenceHash(await grayscale9x8(await unrelatedPhoto()));
+    original = await hashOf(await cameraPhoto());
+    reEncoded = await hashOf(await reEncodedCopy());
+    unrelated = await hashOf(await unrelatedPhoto());
   });
 
   it('produces 64 bits', () => {
@@ -67,6 +77,69 @@ describe('differenceHash, against real encoded images', () => {
     const distance = hammingDistance(original, unrelated);
     expect(distance).toBeGreaterThan(nearDuplicateThreshold);
     expect(isNearDuplicate(original, unrelated)).toBe(false);
+  });
+
+  /// The dangerous degeneracy, and the reason a hash can now be absent.
+  ///
+  /// A hash of 64 identical bits is shared by every frame with the same
+  /// property, so two such frames sit at Hamming distance 0 — well inside
+  /// the near-duplicate threshold — on the strength of a fingerprint that
+  /// describes neither. A near duplicate not owned by this user is weighted
+  /// `decisive`, so the outcome is a measurement accusing an honest player
+  /// of submitting stolen proof.
+  ///
+  /// It surfaced as an intermittent e2e failure, because it needed two such
+  /// images to exist in the same database at the same time.
+  describe('a frame whose hash would distinguish nothing', () => {
+    const flat = (level: number) => new Uint8Array(72).fill(level);
+
+    /// A monotonic left-to-right ramp, repeated on every row.
+    const ramp = (from: number, step: number) => {
+      const bitmap = new Uint8Array(72);
+      for (let row = 0; row < 8; row += 1) {
+        for (let column = 0; column < 9; column += 1) {
+          bitmap[row * 9 + column] = from + column * step;
+        }
+      }
+      return bitmap;
+    };
+
+    it('gets no hash at all, rather than one that matches everything', () => {
+      expect(differenceHash(flat(0))).toBeNull();
+      expect(differenceHash(flat(22))).toBeNull();
+      expect(differenceHash(flat(245))).toBeNull();
+    });
+
+    // The collision that broke the build. Before the guard a dark
+    // screenshot, a white wall and a night sky were three different pictures
+    // at distance 0 from one another.
+    it('does not let a dark screen, a white wall and a night sky collide', () => {
+      for (const level of [4, 22, 245]) {
+        expect(differenceHash(flat(level)), `level ${level}`).toBeNull();
+      }
+    });
+
+    // The half a range check would have missed. A sky at dawn has plenty of
+    // dynamic range and still brightens in one direction everywhere, so
+    // every comparison reads the same and the hash is just as degenerate —
+    // for a real reason rather than for want of information.
+    it('refuses a smooth one-directional gradient, however wide its range', () => {
+      expect(differenceHash(ramp(0, 30))).toBeNull();
+      expect(differenceHash(ramp(10, 3))).toBeNull();
+    });
+
+    // And the guard must not swallow a real picture. Structure in more than
+    // one direction produces both bit values, which is all it takes.
+    it('still hashes a frame with structure in it', () => {
+      const textured = new Uint8Array(72);
+      for (let index = 0; index < 72; index += 1) {
+        textured[index] = index % 2 === 0 ? 40 : 90;
+      }
+      const hash = differenceHash(textured);
+      expect(hash).not.toBeNull();
+      expect(hash).toContain('0');
+      expect(hash).toContain('1');
+    });
   });
 
   it('rejects a bitmap that is not 9x8', () => {

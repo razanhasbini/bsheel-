@@ -295,12 +295,24 @@ Turning any of this on is a sequence, and the order matters:
 sufficient** — the agent pipeline also checks an `app_config` row seeded
 `false` by migration 0026, toggled at Settings → AI SUBMISSION VERIFICATION.
 
-Two traps worth knowing. EXIF `DateTimeOriginal` is local wall-clock
+Three traps worth knowing. EXIF `DateTimeOriginal` is local wall-clock
 with **no timezone**, so the capture-window check is widened by the
 maximum UTC offset unless EXIF carries one — without that it accuses
-honest players in other timezones. And `etag` is not a usable content
+honest players in other timezones. `etag` is not a usable content
 hash: it is a hash of part hashes for multipart uploads, which is why
-`media_objects.content_md5` exists.
+`media_objects.content_md5` exists. And a dHash of 64 identical bits
+distinguishes nothing — every flat frame *and* every smooth
+one-directional gradient produces it, so two unrelated blank-ish photos
+sat at Hamming distance 0 and read as each other's stolen proof.
+`differenceHash` returns null for those, `perceptual_hash` is nullable,
+and null means "cannot be fingerprinted" rather than "matches
+everything".
+
+Both claims — the vision pass's and the agent run's — are **leases**,
+not labels. A worker killed holding one used to make the submission
+permanently unprocessable, silently; an expired claim is now taken. The
+vision pass's lease is also what stops the inline consumer and the
+catch-up sweep paying for the same vision call twice.
 
 Location works the other way round from how it first shipped. A
 destination quest is started like any other; the assignment agent then

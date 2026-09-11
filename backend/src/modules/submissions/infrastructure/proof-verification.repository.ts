@@ -71,14 +71,32 @@ export class ProofVerificationRepository {
   /// whose analysis crashes the worker every time must eventually stop being
   /// retried, and an attempt counter that only advances on a clean finish
   /// would loop forever.
-  async claim(submissionId: string, maxAttempts: number): Promise<VerificationSubject | null> {
+  ///
+  /// `claimed_at` is what makes this an actual lease rather than a label.
+  /// Without it the state a row sits in while being analysed was
+  /// indistinguishable from the state it sits in while waiting, so a second
+  /// caller's UPDATE blocked on the row lock, read a row still marked
+  /// 'queued', and claimed it too — two vision calls on the same bytes, at
+  /// the top of a ladder whose rungs differ ~50x in price. Two callers is
+  /// the normal case: the submission.created consumer runs the pass inline
+  /// and the sweep walks everything still queued or failed every 15 minutes.
+  ///
+  /// An expired claim is taken rather than respected, which is what stops a
+  /// worker killed mid-analysis from stranding the submission.
+  async claim(
+    submissionId: string,
+    maxAttempts: number,
+    leaseSeconds: number,
+  ): Promise<VerificationSubject | null> {
     const result = await this.database.query<VerificationSubject>(
       `WITH claimed AS (
          UPDATE submission_verifications v
-         SET attempts = v.attempts + 1, state = 'queued'
+         SET attempts = v.attempts + 1, state = 'queued', claimed_at = now()
          WHERE v.submission_id = $1
            AND v.state IN ('queued', 'failed')
            AND v.attempts < $2
+           AND (v.claimed_at IS NULL
+                OR v.claimed_at < now() - make_interval(secs => $3))
          RETURNING v.submission_id, v.attempts
        )
        SELECT c.submission_id, c.attempts, s.user_id, s.caption, s.media_url,
@@ -89,7 +107,7 @@ export class ProofVerificationRepository {
        JOIN submissions s ON s.id = c.submission_id
        JOIN user_quests uq ON uq.id = s.user_quest_id
        JOIN quests q ON q.id = uq.quest_id`,
-      [submissionId, maxAttempts],
+      [submissionId, maxAttempts, leaseSeconds],
     );
     return result.rows[0] ?? null;
   }
@@ -250,7 +268,9 @@ export class ProofVerificationRepository {
     capturedAt?: Date;
     width: number;
     height: number;
-    perceptualHash: string;
+    /// Null for a frame too flat to fingerprint; the column is nullable and
+    /// findDuplicate skips perceptual matching when it is absent.
+    perceptualHash: string | null;
     contentMd5: string;
     report: Record<string, unknown>;
   }): Promise<void> {
@@ -295,12 +315,15 @@ export class ProofVerificationRepository {
     submissionId: string,
     ownerId: string,
     contentMd5: string,
-    perceptualHash: string,
+    /// Null when this frame could not be perceptually fingerprinted, which
+    /// disables the perceptual half of the search rather than matching
+    /// everything — see `differenceHash`. Exact-byte matching still applies.
+    perceptualHash: string | null,
     threshold: number,
   ): Promise<{ submissionId: string; distance: number; exact: boolean; ownedByThisUser: boolean } | null> {
     const result = await this.database.query<{
       submission_id: string;
-      distance: number;
+      distance: number | null;
       exact: boolean;
       owned_by_this_user: boolean;
     }>(
@@ -315,11 +338,12 @@ export class ProofVerificationRepository {
          AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
          AND (
            m.content_md5 = $3
-           OR (m.perceptual_hash IS NOT NULL
+           OR ($4::bit(64) IS NOT NULL
+               AND m.perceptual_hash IS NOT NULL
                AND bit_count(m.perceptual_hash # $4::bit(64)) <= $5)
          )
        ORDER BY (m.content_md5 = $3) DESC,
-                bit_count(m.perceptual_hash # $4::bit(64)) ASC
+                bit_count(m.perceptual_hash # $4::bit(64)) ASC NULLS LAST
        LIMIT 1`,
       [submissionId, ownerId, contentMd5, perceptualHash, threshold],
     );
@@ -327,7 +351,11 @@ export class ProofVerificationRepository {
     return row
       ? {
           submissionId: row.submission_id,
-          distance: row.distance,
+          // Null only when a hash was absent, which the WHERE above allows
+          // solely on the exact-bytes branch — and distance is meaningless
+          // for an exact match, which the caller reports as such without
+          // consulting it.
+          distance: row.distance ?? 0,
           exact: row.exact,
           ownedByThisUser: row.owned_by_this_user,
         }

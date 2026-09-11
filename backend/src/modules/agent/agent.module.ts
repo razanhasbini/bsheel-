@@ -35,6 +35,11 @@ import { OpenAiAgentRunner } from './infrastructure/openai/openai-agent.runner.j
     XpRecommendationService,
   ],
   exports: [
+    // Exported for SubmissionVerificationProcessor, which is registered on
+    // WorkerModule rather than here: it has to be able to mark a run failed
+    // when applying the decision throws, or the retry finds a 'succeeded'
+    // run and silently does nothing.
+    AgentRunsRepository,
     SubmissionVerificationService,
     QuestAssignmentAgentService,
     QuestTimeRecommendationService,
