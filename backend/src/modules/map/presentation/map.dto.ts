@@ -10,6 +10,7 @@ export class MapQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100000) offset = 0;
 }
 export class MapIdDto { @IsUUID() id!: string; }
+export class MapCountryDto { @Matches(/^[A-Z]{2}$/) code!: string; }
 export class MapPlaceDto {
   @Matches(/^[A-Z]{2}$/) countryCode!: string;
   @IsString() @MinLength(1) @MaxLength(100) countryName!: string;

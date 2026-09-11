@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -57,6 +58,10 @@ class _MapPageState extends ConsumerState<MapPage> {
   String? _country, _category;
   String _search = '';
   bool _savedOnly = false;
+
+  /// 'all' | 'available' | 'completed' — a client-side view over the rows
+  /// the server returned; it never changes what the server decides.
+  String _status = 'all';
   Timer? _debounce;
   final _searchController = TextEditingController();
   final _map = MapController();
@@ -82,7 +87,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         savedOnly: _savedOnly
       );
 
-  bool get _filtered => _category != null || _savedOnly;
+  bool get _filtered => _category != null || _savedOnly || _status != 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +105,11 @@ class _MapPageState extends ConsumerState<MapPage> {
     final countryRows = countries.valueOrNull ?? const <MapCountry>[];
     final rows = (places.valueOrNull ?? const <MapPlace>[])
         .where((p) => !_savedOnly || p.saved)
+        .where((p) => switch (_status) {
+              'available' => !p.locked && !p.confirmed,
+              'completed' => p.confirmed,
+              _ => true,
+            })
         .toList();
     final everyPlace = allPlaces.valueOrNull ?? const <MapPlace>[];
     final confirmedPoints = [
@@ -337,6 +347,20 @@ class _MapPageState extends ConsumerState<MapPage> {
                           ],
                         ),
                       ),
+                    // With a country picked, one tap opens what it has to
+                    // offer — trending, discovery, hidden — from anywhere.
+                    if (_country != null) ...[
+                      const SizedBox(height: 6),
+                      _DiscoverButton(
+                        flag: _flags[_country] ?? '📍',
+                        name: countryRows
+                                .where((c) => c.code == _country)
+                                .map((c) => c.name)
+                                .firstOrNull ??
+                            _country!,
+                        onTap: () => _openDiscover(_country!),
+                      ),
+                    ],
                     if (live.status != LiveLocationStatus.live &&
                         live.status != LiveLocationStatus.pending &&
                         live.status != LiveLocationStatus.unavailable) ...[
@@ -495,8 +519,10 @@ class _MapPageState extends ConsumerState<MapPage> {
       builder: (sheetContext) => _FilterSheet(
         category: _category,
         savedOnly: _savedOnly,
+        status: _status,
         onCategory: (value) => setState(() => _category = value),
         onSavedOnly: (value) => setState(() => _savedOnly = value),
+        onStatus: (value) => setState(() => _status = value),
         onLegend: () {
           Navigator.pop(sheetContext);
           showModalBottomSheet<void>(
@@ -507,6 +533,29 @@ class _MapPageState extends ConsumerState<MapPage> {
               useSafeArea: true,
               backgroundColor: QuestColors.osBg,
               builder: (_) => const MapLegend());
+        },
+      ),
+    );
+  }
+
+  Future<void> _openDiscover(String code) {
+    HapticFeedback.selectionClick();
+    return showModalBottomSheet<void>(
+      context: context,
+      // Above the shell, so the floating nav pill never covers the sheet.
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: QuestColors.osBg,
+      builder: (_) => _DiscoverSheet(
+        code: code,
+        onQuest: (snippet) {
+          // Frame the place under the sheet; the quest itself opens through
+          // the normal quest details → BSHEEEL flow, like everywhere else.
+          _map.move(LatLng(snippet.latitude, snippet.longitude),
+              math.max(_map.camera.zoom, 13));
+          context.pushNamed(RouteNames.questDetails,
+              pathParameters: {'id': snippet.id});
         },
       ),
     );
@@ -677,9 +726,15 @@ class _PinGlyph extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tint = _pinColor(place);
+    final cover = place.locked ? null : place.coverMediaUrl;
+    final emoji = Text(
+      _pinEmoji(place),
+      style: TextStyle(fontSize: size * 0.5, height: 1),
+    );
     return Container(
       width: size,
       height: size,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: tint,
         borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
@@ -689,10 +744,31 @@ class _PinGlyph extends StatelessWidget {
         boxShadow: QuestSpacing.shadowSm,
       ),
       alignment: Alignment.center,
-      child: Text(
-        _pinEmoji(place),
-        style: TextStyle(fontSize: size * 0.5, height: 1),
-      ),
+      // A place someone has actually been to shows their proof as a photo
+      // snippet, with the state emoji tucked in the corner; the rest keep
+      // the emoji badge.
+      child: cover == null
+          ? emoji
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: cover,
+                  fit: BoxFit.cover,
+                  memCacheWidth: (size * 3).round(),
+                  placeholder: (_, __) => Center(child: emoji),
+                  errorWidget: (_, __, ___) => Center(child: emoji),
+                ),
+                Positioned(
+                  right: 1,
+                  bottom: 1,
+                  child: Text(
+                    _pinEmoji(place),
+                    style: TextStyle(fontSize: size * 0.3, height: 1),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -1028,12 +1104,14 @@ class _ProgressChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Approved, unique places only — the same arithmetic as the backend's
+    // exploration model, so this chip, the sheet and the profile agree.
     final total = countries.fold(0, (n, c) => n + c.total);
-    final discovered = countries.fold(0, (n, c) => n + c.discovered);
-    final fraction = total == 0 ? 0.0 : (discovered / total).clamp(0.0, 1.0);
+    final explored = countries.fold(0, (n, c) => n + c.confirmed);
+    final fraction = total == 0 ? 0.0 : (explored / total).clamp(0.0, 1.0);
     return Semantics(
       button: true,
-      label: 'Discovery progress, $discovered of $total',
+      label: 'Exploration progress, $explored of $total',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -1042,7 +1120,7 @@ class _ProgressChip extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const Text('🏆', style: TextStyle(fontSize: 14, height: 1)),
             const SizedBox(width: 6),
-            Text('$discovered/$total',
+            Text('$explored/$total',
                 style: QuestTypography.osHeadlineSmall
                     .copyWith(fontSize: 13, height: 1)),
             const SizedBox(width: 8),
@@ -1133,14 +1211,18 @@ class _FilterSheet extends StatefulWidget {
   const _FilterSheet({
     required this.category,
     required this.savedOnly,
+    required this.status,
     required this.onCategory,
     required this.onSavedOnly,
+    required this.onStatus,
     required this.onLegend,
   });
   final String? category;
   final bool savedOnly;
+  final String status;
   final ValueChanged<String?> onCategory;
   final ValueChanged<bool> onSavedOnly;
+  final ValueChanged<String> onStatus;
   final VoidCallback onLegend;
 
   @override
@@ -1150,6 +1232,13 @@ class _FilterSheet extends StatefulWidget {
 class _FilterSheetState extends State<_FilterSheet> {
   late String? _category = widget.category;
   late bool _savedOnly = widget.savedOnly;
+  late String _status = widget.status;
+
+  static const _statuses = <String, String>{
+    'all': 'EVERYTHING',
+    'available': '🎯 AVAILABLE',
+    'completed': '🏆 COMPLETED',
+  };
 
   static const _categories = <String?, String>{
     null: '⭐ ALL',
@@ -1193,6 +1282,22 @@ class _FilterSheetState extends State<_FilterSheet> {
             ],
           ),
           const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in _statuses.entries)
+                _OptionChip(
+                  label: entry.value,
+                  selected: _status == entry.key,
+                  onTap: () {
+                    setState(() => _status = entry.key);
+                    widget.onStatus(entry.key);
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _OptionChip(
             label: '🔖 SAVED PLACES ONLY',
             selected: _savedOnly,
@@ -1209,6 +1314,288 @@ class _FilterSheetState extends State<_FilterSheet> {
             onTap: widget.onLegend,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "DISCOVER LEBANON" — the door to a country's quests, shown once a country
+/// chip is picked.
+class _DiscoverButton extends StatelessWidget {
+  const _DiscoverButton({
+    required this.flag,
+    required this.name,
+    required this.onTap,
+  });
+  final String flag;
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Discover $name',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: QuestColors.osAccent,
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+            boxShadow: QuestSpacing.shadowSm,
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(flag, style: const TextStyle(fontSize: 14, height: 1)),
+            const SizedBox(width: 6),
+            Text(
+              'DISCOVER ${name.toUpperCase()}',
+              style: QuestTypography.osLabelMedium.copyWith(
+                fontSize: 11,
+                height: 1,
+                letterSpacing: 1,
+                color: QuestColors.onAccent(QuestColors.osAccent),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_forward_rounded,
+                size: 16, color: QuestColors.onAccent(QuestColors.osAccent)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A country as seen from anywhere: its exploration, what is trending, a
+/// few discovery picks, how much is still hidden, and the journeys through
+/// it. Every number here came from the server.
+class _DiscoverSheet extends ConsumerWidget {
+  const _DiscoverSheet({required this.code, required this.onQuest});
+  final String code;
+  final ValueChanged<MapQuestSnippet> onQuest;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(mapDiscoverProvider(code));
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (sheetContext, scroll) => async.when(
+        loading: () => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.all(20),
+          children: const [ArcadeSkeletonList(itemCount: 4, itemHeight: 84)],
+        ),
+        error: (_, __) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.all(20),
+          children: [
+            _Retry(
+                message: 'Could not load this country.',
+                onRetry: () => ref.invalidate(mapDiscoverProvider(code))),
+          ],
+        ),
+        data: (d) {
+          void open(MapQuestSnippet q) {
+            Navigator.pop(sheetContext);
+            onQuest(q);
+          }
+
+          return ListView(
+            controller: scroll,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            children: [
+              Row(children: [
+                Text(_flags[d.code] ?? '📍',
+                    style: const TextStyle(fontSize: 26, height: 1)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text(d.name.toUpperCase(),
+                        style: QuestTypography.osDisplaySmall)),
+                Text('${d.percentage.round()}%',
+                    style: QuestTypography.osDisplaySmall
+                        .copyWith(color: QuestColors.osSuccessText)),
+              ]),
+              const SizedBox(height: 8),
+              ArcadeMeter(
+                  progress: d.totalPlaces == 0
+                      ? 0
+                      : (d.exploredPlaces / d.totalPlaces).clamp(0.0, 1.0),
+                  fill: QuestColors.osSuccess,
+                  height: 10),
+              const SizedBox(height: 6),
+              Text(
+                '${d.exploredPlaces} OF ${d.totalPlaces} PLACES EXPLORED'
+                '${d.hiddenCount > 0 ? ' · 🔒 ${d.hiddenCount} HIDDEN' : ''}',
+                style: QuestTypography.osLabelSmall
+                    .copyWith(color: QuestColors.osTextSecondary),
+              ),
+              if (d.trending.isEmpty && d.discovery.isEmpty) ...[
+                const SizedBox(height: 24),
+                Text(
+                  d.totalPlaces == 0
+                      ? 'No quest places published here yet.'
+                      : 'Nothing to show yet — every quest here is still hidden.',
+                  style: QuestTypography.osBodyMedium,
+                ),
+              ],
+              if (d.trending.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text('🔥 TRENDING', style: QuestTypography.osHeadlineMedium),
+                const SizedBox(height: 8),
+                for (final q in d.trending)
+                  _SnippetCard(
+                      snippet: q, trending: true, onTap: () => open(q)),
+              ],
+              if (d.discovery.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text('🎲 DISCOVER', style: QuestTypography.osHeadlineMedium),
+                const SizedBox(height: 8),
+                for (final q in d.discovery)
+                  _SnippetCard(
+                      snippet: q, trending: false, onTap: () => open(q)),
+              ],
+              if (d.collections.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text('🧭 JOURNEYS', style: QuestTypography.osHeadlineMedium),
+                const SizedBox(height: 8),
+                for (final c in d.collections)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: ArcadeCard(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Expanded(
+                                child: Text(c.name,
+                                    style: QuestTypography.osHeadlineSmall)),
+                            Text('${c.completed}/${c.total}',
+                                style: QuestTypography.osHeadlineSmall),
+                          ]),
+                          if (c.description.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(c.description,
+                                style: QuestTypography.osBodySmall.copyWith(
+                                    color: QuestColors.osTextSecondary)),
+                          ],
+                          const SizedBox(height: 8),
+                          ArcadeMeter(
+                              progress: c.total == 0
+                                  ? 0
+                                  : (c.completed / c.total).clamp(0.0, 1.0),
+                              fill: QuestColors.osPrimary,
+                              height: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+              if (d.hiddenCount > 0) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '🔒 ${d.hiddenCount} hidden quest${d.hiddenCount == 1 ? '' : 's'} in ${d.name}. '
+                  'Finish quests nearby and get them approved to reveal them.',
+                  style: QuestTypography.osBodySmall
+                      .copyWith(color: QuestColors.osTextSecondary),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A quest on the country sheet: proof photo (or the category badge), title,
+/// place, and the social signals that put it there. Tap → quest details.
+class _SnippetCard extends StatelessWidget {
+  const _SnippetCard({
+    required this.snippet,
+    required this.trending,
+    required this.onTap,
+  });
+  final MapQuestSnippet snippet;
+  final bool trending;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final q = snippet;
+    final emoji = q.completed
+        ? '🏆'
+        : switch (q.category) {
+            'landmark' => '🏰',
+            'culture' => '🎭',
+            'pilgrimage' => '🧭',
+            'heritage' => '🏛️',
+            _ => '⭐',
+          };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: ArcadeCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Container(
+            width: 52,
+            height: 52,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: trending ? QuestColors.osRed : QuestColors.osPrimary,
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
+              border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: QuestSpacing.cardBorderWidth),
+            ),
+            alignment: Alignment.center,
+            child: q.coverMediaUrl == null
+                ? Text(emoji, style: const TextStyle(fontSize: 24, height: 1))
+                : CachedNetworkImage(
+                    imageUrl: q.coverMediaUrl!,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 160,
+                    errorWidget: (_, __, ___) => Center(
+                        child: Text(emoji,
+                            style: const TextStyle(fontSize: 24, height: 1))),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(q.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: QuestTypography.osHeadlineSmall),
+                const SizedBox(height: 3),
+                Text(
+                  '📍 ${q.placeName} · ${q.xp} XP'
+                  '${q.completions > 0 ? ' · ${q.completions} done' : ''}'
+                  '${q.saves > 0 ? ' · ${q.saves} saved' : ''}'
+                  '${q.completed ? ' · YOU DID IT' : ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osLabelSmall
+                      .copyWith(color: QuestColors.osTextSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Icon(Icons.chevron_right),
+        ]),
       ),
     );
   }
@@ -1267,7 +1654,10 @@ class DiscoveryProgress extends StatelessWidget {
     final total = countries.fold(0, (n, c) => n + c.total),
         discovered = countries.fold(0, (n, c) => n + c.discovered);
     final confirmed = countries.fold(0, (n, c) => n + c.confirmed);
-    final fraction = total == 0 ? 0.0 : discovered / total;
+    // Approved proof at unique places over every published place — the
+    // backend's `map/progress/me` arithmetic. Pending proof is shown, but it
+    // moves nothing until it is approved.
+    final fraction = total == 0 ? 0.0 : confirmed / total;
     return ArcadeCard(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1278,7 +1668,7 @@ class DiscoveryProgress extends StatelessWidget {
           ArcadeMeter(
               progress: fraction, fill: QuestColors.osSuccess, height: 10),
           const SizedBox(height: 10),
-          Text('$discovered OF $total PUBLISHED LOCATIONS DISCOVERED',
+          Text('$confirmed OF $total PLACES EXPLORED',
               style: QuestTypography.osLabelSmall),
           Text(
               '$confirmed confirmed · ${discovered - confirmed} awaiting review',

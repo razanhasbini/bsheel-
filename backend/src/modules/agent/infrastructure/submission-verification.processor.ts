@@ -1,7 +1,7 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import type { Environment } from '../../../config/environment.js';
 import { SubmissionsService } from '../../submissions/application/submissions.service.js';
 import { SubmissionVerificationService } from '../application/submission-verification.service.js';
@@ -9,6 +9,9 @@ import { AgentRunsRepository } from './agent-runs.repository.js';
 
 interface SubmissionVerifyPayload {
   readonly submissionId: string;
+  /// Present only on a re-run triggered by late evidence (#15); it re-opens
+  /// the idempotency key for exactly that generation of evidence.
+  readonly evidenceGeneration?: string;
 }
 
 // @Processor concurrency must be a literal at decoration time (no DI
@@ -27,6 +30,7 @@ export class SubmissionVerificationProcessor extends WorkerHost {
     private readonly submissions: SubmissionsService,
     private readonly config: ConfigService<Environment, true>,
     private readonly agentRuns: AgentRunsRepository,
+    @InjectQueue('submission-verification') private readonly queue: Queue,
   ) {
     super();
   }
@@ -37,17 +41,37 @@ export class SubmissionVerificationProcessor extends WorkerHost {
     // this queue rather than its own because it produces exactly the work
     // this processor already does.
     if (job.name === 'submission.verify.recovered') {
-      const outcome = await this.service.sweepRecoveredEvidence(
+      // Enqueues rather than verifying inline, so every run — first pass or
+      // re-run — goes through the one branch below that applies the decision
+      // and only then finishes the run. A sweep that did the work itself
+      // would leave its runs 'running' until the lease expired, because
+      // nothing downstream would ever finalise them.
+      const recovered = await this.service.findRecoveredEvidence(
         this.config.get('AGENT_RECOVERY_SWEEP_BATCH_SIZE', { infer: true }),
       );
-      this.logger.debug({ jobId: job.id, ...outcome }, 'Late-evidence sweep finished');
+      for (const { submissionId, evidenceGeneration } of recovered) {
+        await this.queue.add(
+          'submission.verify',
+          { submissionId, evidenceGeneration },
+          {
+            // Keyed on the evidence generation, so the same late event
+            // enqueued twice is one job. BullMQ rejects ':' in a custom id.
+            jobId: `submission-${submissionId}-verification-ev-${evidenceGeneration}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5_000 },
+            removeOnComplete: { age: 86_400, count: 10_000 },
+            removeOnFail: { age: 604_800, count: 50_000 },
+          },
+        );
+      }
+      this.logger.debug({ jobId: job.id, enqueued: recovered.length }, 'Late-evidence sweep finished');
       return;
     }
     if (job.name !== 'submission.verify') {
       throw new Error(`Unknown submission-verification job: ${job.name}`);
     }
     const payload = this.payload(job.data);
-    const outcome = await this.service.verify(payload.submissionId);
+    const outcome = await this.service.verify(payload.submissionId, payload.evidenceGeneration);
     if (!outcome) {
       this.logger.debug({ submissionId: payload.submissionId }, 'No agent context; nothing to verify');
       return;
@@ -76,17 +100,18 @@ export class SubmissionVerificationProcessor extends WorkerHost {
           await this.submissions.reject(null, payload.submissionId, note, source);
         }
       } catch (error) {
-        // The run is already marked 'succeeded' by the time this branch is
-        // reached — the service records its decision before handing it back,
-        // because it is deliberately not allowed to write to submissions
-        // itself. So an apply that throws leaves a succeeded run whose
-        // decision was never carried out, and BullMQ's retry then finds a
-        // held idempotency key and does nothing at all. The decision is
-        // dropped in silence.
+        // The run is still 'running' here, and it must not become
+        // 'succeeded': the service is deliberately not allowed to write to
+        // submissions itself, so a run whose apply threw carries a decision
+        // nobody carried out. Left succeeded, BullMQ's retry would find a
+        // held idempotency key and do nothing at all — the decision dropped
+        // in silence.
         //
         // Marking the run failed is what makes the retry a retry: start()
         // reclaims a failed row, so the next attempt evaluates and applies
-        // again. Rethrowing is what makes BullMQ attempt it.
+        // again. Rethrowing is what makes BullMQ attempt it. (A worker that
+        // dies here instead of throwing leaves the row 'running' and its
+        // lease expiry does the same job.)
         //
         // Failing safe either way — the submission stays pending and a
         // moderator sees it in the ordinary queue — but "safe" and "silent"
@@ -108,6 +133,16 @@ export class SubmissionVerificationProcessor extends WorkerHost {
         throw error;
       }
     }
+
+    // The run is finished only now, once the decision has been carried out —
+    // or established as needing no action, which HUMAN_REVIEW, a skip and
+    // shadow mode all are. Until this line the run is 'running', so a worker
+    // that dies anywhere above leaves a claim the lease reclaims rather than
+    // a 'succeeded' run whose decision nobody ever applied.
+    if (!outcome.skipped) {
+      await this.agentRuns.succeed(outcome.runId, outcome.decision);
+    }
+
     this.logger.log(
       {
         submissionId: payload.submissionId,
@@ -125,6 +160,11 @@ export class SubmissionVerificationProcessor extends WorkerHost {
     if (typeof data.submissionId !== 'string') {
       throw new Error('submission.verify payload is malformed');
     }
-    return { submissionId: data.submissionId };
+    return {
+      submissionId: data.submissionId,
+      ...(typeof data.evidenceGeneration === 'string'
+        ? { evidenceGeneration: data.evidenceGeneration }
+        : {}),
+    };
   }
 }

@@ -4,7 +4,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import { Roles } from '../../../common/auth/roles.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { MapService } from '../application/map.service.js';
-import { MapIdDto, MapLinkParamsDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from './map.dto.js';
+import { MapCountryDto, MapIdDto, MapLinkParamsDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from './map.dto.js';
 
 @ApiTags('map')
 @Controller({ path:'map', version:'1' })
@@ -13,6 +13,10 @@ export class MapController {
   @Get('profiles/:id/countries') profileCountries(@CurrentUser() u: AuthUser,@Param() p: MapIdDto) { return this.repository.profileCountries(u.id,p.id); }
   @Get('countries') countries(@CurrentUser() u: AuthUser) { return this.repository.countries(u.id); }
   @Get('places') places(@CurrentUser() u: AuthUser,@Query() q: MapQueryDto) { return this.repository.places(u.id,q); }
+  // The one exploration model — the map and the profile both read this.
+  @Get('progress/me') progress(@CurrentUser() u: AuthUser) { return this.repository.progress(u.id); }
+  // Any country, from anywhere: being there is never required to look.
+  @Get('countries/:code/discover') discover(@CurrentUser() u: AuthUser,@Param() p: MapCountryDto) { return this.repository.discover(u.id,p.code); }
   @Get('places/:id') detail(@CurrentUser() u: AuthUser,@Param() p: MapIdDto) { return this.repository.detail(u.id,p.id); }
   @Post('places/:id/save') save(@CurrentUser() u: AuthUser,@Param() p: MapIdDto) { return this.repository.save(u.id,p.id,true); }
   @Delete('places/:id/save') unsave(@CurrentUser() u: AuthUser,@Param() p: MapIdDto) { return this.repository.save(u.id,p.id,false); }

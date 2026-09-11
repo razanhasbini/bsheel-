@@ -12,6 +12,8 @@ export class MapService {
     return rows.map(row=>({...row,saved:viewerId===userId?row.saved:0}));
   }
   places(userId:string,query:MapQueryDto){return this.repository.places(userId,query);}
+  progress(userId:string){return this.repository.progress(userId);}
+  discover(userId:string,code:string){return this.repository.discover(userId,code);}
   detail(userId:string,id:string){return this.repository.detail(userId,id);}
   save(userId:string,id:string,value:boolean){return this.repository.save(userId,id,value);}
   adminPlaces(){return this.repository.adminPlaces();}
