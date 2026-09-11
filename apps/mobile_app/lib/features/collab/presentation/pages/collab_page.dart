@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+
+import '../../../../core/config/share_template.dart';
 import 'package:app_core/app_core.dart';
 import 'package:app_models/app_models.dart';
 import 'package:shared_ui/shared_ui.dart';
@@ -88,7 +90,9 @@ class _CollabPageState extends ConsumerState<CollabPage> {
     final link = DeepLinkConfig.collabInviteLink(code);
     final modeLabel = mode == CollabMode.versus ? 'VERSUS' : 'COOP';
     SharePlus.instance.share(
-      ShareParams(text: 'Join my $modeLabel quest on BSHEEL!\n\n$link'),
+      ShareParams(
+        text: ShareTemplate.collabInvite(link: link, modeLabel: modeLabel),
+      ),
     );
     ref.read(analyticsProvider).track('collab_invite_shared', {'code': code});
   }

@@ -373,6 +373,9 @@ class _ReelsPostHost extends ConsumerWidget {
           postId: post.id,
           postUsername: post.username,
           postUserId: post.userId,
+          questTitle: post.questTitle,
+          questCountryName: post.questCountryName,
+          caption: post.caption,
         );
       },
     );

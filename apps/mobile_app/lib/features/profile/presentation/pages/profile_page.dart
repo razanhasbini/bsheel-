@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_ui/shared_ui.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../../core/config/deep_link_config.dart';
+import '../../../../core/config/share_template.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/providers/streak_provider.dart';
@@ -284,8 +284,10 @@ class ProfilePage extends ConsumerWidget {
                                           .read(analyticsProvider)
                                           .profileShared(profile.id);
                                       SharePlus.instance.share(ShareParams(
-                                        text:
-                                            'Check out @${profile.username} on BSHEEL!\n\n${DeepLinkConfig.profileLink(profile.id)}',
+                                        text: ShareTemplate.profile(
+                                          profileId: profile.id,
+                                          username: profile.username,
+                                        ),
                                       ));
                                     },
                                   ),

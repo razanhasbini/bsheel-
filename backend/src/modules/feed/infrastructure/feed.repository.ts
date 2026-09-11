@@ -46,6 +46,11 @@ export class FeedRepository {
          p.id AS user_id, p.username::text, p.display_name, p.avatar_url, p.bio,
          q.id AS quest_id, q.title AS quest_title, q.description AS quest_description,
          q.category AS quest_category, q.xp_reward,
+         -- Where the quest actually is, for the share card. The authoritative
+         -- source is the quest's reviewed destination — never anything a
+         -- caption or a vision model guessed. Null for a quest with no
+         -- destination, which is most of them.
+         dc.name AS quest_country_name, dc.code AS quest_country_code,
          COALESCE(r.total, 0)::bigint AS reaction_count,
          COALESCE(r.ups, 0)::bigint AS upvote_count,
          COALESCE(r.downs, 0)::bigint AS downvote_count,
@@ -102,6 +107,9 @@ export class FeedRepository {
          uq.expires_at
        FROM ranked JOIN submissions s ON s.id = ranked.id JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
+       LEFT JOIN quest_destinations qd ON qd.quest_id = q.id
+       LEFT JOIN map_places dp ON dp.id = qd.place_id AND dp.is_published
+       LEFT JOIN map_countries dc ON dc.code = dp.country_code
        LEFT JOIN LATERAL (
          SELECT count(*) AS total,
            count(*) FILTER (WHERE rx.type = 'upvote') AS ups,

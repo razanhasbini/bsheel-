@@ -19,6 +19,10 @@ class FeedPostModel {
   final String? bio;
   final String questId;
   final String questTitle;
+
+  /// Where the quest is, when it has a reviewed destination. Null for the
+  /// many quests that can be done anywhere.
+  final String? questCountryName;
   final String questDescription;
   final String questCategory;
   final int xpReward;
@@ -69,6 +73,7 @@ class FeedPostModel {
     this.bio,
     required this.questId,
     required this.questTitle,
+    this.questCountryName,
     this.questDescription = '',
     required this.questCategory,
     this.xpReward = 0,
@@ -116,6 +121,7 @@ class FeedPostModel {
       bio: json[ProfileColumns.bio] as String?,
       questId: (json[FeedRpcColumns.questId] ?? '').toString(),
       questTitle: (json[FeedRpcColumns.questTitle] ?? '').toString(),
+      questCountryName: json[FeedRpcColumns.questCountryName]?.toString(),
       questDescription:
           (json[FeedRpcColumns.questDescription] ?? '').toString(),
       questCategory: (json[FeedRpcColumns.questCategory] ?? '').toString(),
@@ -171,6 +177,7 @@ class FeedPostModel {
       bio: bio,
       questId: questId,
       questTitle: questTitle,
+      questCountryName: questCountryName,
       questDescription: questDescription,
       questCategory: questCategory,
       xpReward: xpReward,
@@ -218,6 +225,7 @@ class FeedPostModel {
         other.bio == bio &&
         other.questId == questId &&
         other.questTitle == questTitle &&
+        other.questCountryName == questCountryName &&
         other.questDescription == questDescription &&
         other.questCategory == questCategory &&
         other.xpReward == xpReward &&
@@ -249,6 +257,7 @@ class FeedPostModel {
         bio,
         questId,
         questTitle,
+        questCountryName,
         questDescription,
         questCategory,
         xpReward,

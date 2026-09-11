@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:app_core/app_core.dart';
 
-import '../../../../core/config/deep_link_config.dart';
+import '../../../../core/config/share_template.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_session_provider.dart';
@@ -19,6 +19,9 @@ Future<void> showPostActionsSheet(
   required String postId,
   required String postUsername,
   String? postUserId,
+  String? questTitle,
+  String? questCountryName,
+  String? caption,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -32,6 +35,9 @@ Future<void> showPostActionsSheet(
       postId: postId,
       postUsername: postUsername,
       postUserId: postUserId,
+      questTitle: questTitle,
+      questCountryName: questCountryName,
+      caption: caption,
       pageContext: context,
     ),
   );
@@ -44,11 +50,17 @@ class _PostActionsSheet extends StatelessWidget {
     required this.postUsername,
     required this.pageContext,
     this.postUserId,
+    this.questTitle,
+    this.questCountryName,
+    this.caption,
   });
 
   final WidgetRef ref;
   final String postId;
   final String postUsername;
+  final String? questTitle;
+  final String? questCountryName;
+  final String? caption;
   final String? postUserId;
   final BuildContext pageContext;
 
@@ -91,8 +103,13 @@ class _PostActionsSheet extends StatelessWidget {
     ref.read(analyticsProvider).postShared(postId);
     await SharePlus.instance.share(
       ShareParams(
-        text:
-            'Check out this quest by @$postUsername on BSHEEL!\n\n${DeepLinkConfig.postLink(postId)}',
+        text: ShareTemplate.quest(
+          postId: postId,
+          questTitle: questTitle ?? '',
+          country: questCountryName,
+          caption: caption,
+          username: postUsername,
+        ),
       ),
     );
   }

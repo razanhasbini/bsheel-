@@ -15,7 +15,7 @@ import 'package:shared_ui/shared_ui.dart';
 import 'package:app_contracts/app_contracts.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/backend/app_backend.dart';
-import '../../../../core/config/deep_link_config.dart';
+import '../../../../core/config/share_template.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/providers/current_profile_provider.dart';
@@ -477,8 +477,13 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                     ref.read(analyticsProvider).postShared(post.id);
                     SharePlus.instance.share(
                       ShareParams(
-                        text:
-                            'Check out this quest by @${post.username} on BSHEEL!\n\n${DeepLinkConfig.postLink(post.id)}',
+                        text: ShareTemplate.quest(
+                          postId: post.id,
+                          questTitle: post.questTitle,
+                          country: post.questCountryName,
+                          caption: post.caption,
+                          username: post.username,
+                        ),
                       ),
                     );
                   },
