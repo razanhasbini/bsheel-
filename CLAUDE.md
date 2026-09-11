@@ -290,7 +290,8 @@ verdict is only worth recording if a person can see it while deciding
 independently.
 
 Turning any of this on is a sequence, and the order matters:
-`docs/PROOF_VERIFICATION_RUNBOOK.md`. Note in particular that
+`docs/PROOF_VERIFICATION_RUNBOOK.md`. For someone testing it rather than
+operating it, `docs/TESTING_THE_AI_REVIEWER.md` is the shorter read. Note in particular that
 `AGENT_SUBMISSION_VERIFICATION_ENABLED=true` is necessary and **not
 sufficient** — the agent pipeline also checks an `app_config` row seeded
 `false` by migration 0026, toggled at Settings → AI SUBMISSION VERIFICATION.
