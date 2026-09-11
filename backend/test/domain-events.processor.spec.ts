@@ -442,6 +442,9 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
       fakeQueue(),
       questAssignmentQueue,
+      // Stubbed: this case asserts the assignment-agent enqueue, not the
+      // proof-verification side effect.
+      { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
     );
 
     await processor.process({
@@ -468,6 +471,64 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
     } as Job<Record<string, unknown>, unknown, string>);
 
     expect(repository.markProcessed).toHaveBeenCalledOnce();
+  });
+
+  // The ordering the CV bridge depends on, guarded here because it is the
+  // only thing that makes LocalCvEvidenceProvider a *reader*.
+  //
+  // The agent's CV evidence is the vision pass's own stored finding. If the
+  // agent job were enqueued before that pass completed — or alongside it —
+  // an agent worker could claim the job first, find no finding, report
+  // UNAVAILABLE and escalate. The whole pipeline would go back to sending
+  // every submission to a human, and nothing would be broken enough to
+  // notice: no error, no failed job, just a queue that quietly fills up.
+  //
+  // So: awaited to completion first, enqueued second. A reorder, or an
+  // innocuous-looking Promise.all over the two, fails here.
+  it('finishes the vision pass before the agent job exists, so the agent has something to read', async () => {
+    const order: string[] = [];
+    const repository = {
+      wasProcessed: vi.fn().mockResolvedValue(false),
+      markProcessed: vi.fn().mockResolvedValue(undefined),
+    };
+    const submissionVerificationQueue = {
+      add: vi.fn(async () => {
+        order.push('agent-job-enqueued');
+      }),
+    } as unknown as Queue;
+    const proofVerification = {
+      verify: vi.fn(async () => {
+        // Yields the microtask queue, so a concurrently-started enqueue would
+        // land first and the assertion below would catch it. Without this the
+        // test would pass even on Promise.all.
+        await Promise.resolve();
+        await Promise.resolve();
+        order.push('vision-pass-complete');
+      }),
+    } as unknown as ProofVerificationService;
+
+    const processor = new DomainEventsProcessor(
+      repository as unknown as DomainEventsRepository,
+      {} as DeviceTokenCipher,
+      {} as FirebasePushService,
+      {} as ObjectStorageService,
+      {} as AuthActionTokenCipher,
+      {} as TransactionalEmailService,
+      { publish: vi.fn().mockResolvedValue(undefined) } as unknown as RealtimeEventPublisher,
+      { handle: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramEventService,
+      fakeConfig({ AGENT_SUBMISSION_VERIFICATION_ENABLED: true }),
+      submissionVerificationQueue,
+      fakeQueue(),
+      proofVerification,
+    );
+
+    await processor.process({
+      id: 'a1a1a1a1-0000-0000-0000-000000000004',
+      name: 'submission.created',
+      data: { submissionId: 'submission-id', userId: 'user-id' },
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
+
+    expect(order).toEqual(['vision-pass-complete', 'agent-job-enqueued']);
   });
 
   it('never enqueues verification for a submission.appealed event', async () => {

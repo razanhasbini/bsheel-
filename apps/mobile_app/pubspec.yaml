@@ -54,6 +54,9 @@ dependencies:
   flutter_local_notifications: ^18.0.0
 
   intl: any
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  geolocator: ^14.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

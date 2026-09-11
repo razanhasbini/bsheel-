@@ -51,7 +51,46 @@ export class SubmissionVerificationService {
     @Inject(NETWORK_EVIDENCE_PROVIDER) private readonly networkProvider: NetworkEvidenceProvider,
   ) {}
 
-  async verify(submissionId: string): Promise<SubmissionVerificationOutcome | null> {
+  /// Re-verifies submissions whose geofence evidence arrived after the agent
+  /// had already given up on it (#15).
+  ///
+  /// "fallback to human OR pend them till camara gives results back" — the
+  /// first half has always worked, since every provider failure folds to
+  /// UNAVAILABLE and finalizeDecision turns that into HUMAN_REVIEW rather
+  /// than a rejection. This is the second half, for the one capability where
+  /// "gives results back" is a coherent idea: see
+  /// `submissionsWithLateGeofenceEvidence` for why location verification and
+  /// retrieval are deliberately not retried.
+  async sweepRecoveredEvidence(limit: number): Promise<{ requeued: number }> {
+    if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
+      return { requeued: 0 };
+    }
+    const pending = await this.agentRuns.submissionsWithLateGeofenceEvidence(limit);
+    let requeued = 0;
+    for (const { submissionId, latestEventId } of pending) {
+      // The event id is the evidence generation: one re-verification per
+      // batch of new events, and a redelivered event re-runs nothing because
+      // it produces the same key.
+      const outcome = await this.verify(submissionId, latestEventId);
+      if (outcome && !outcome.skipped) requeued += 1;
+    }
+    if (requeued > 0) {
+      this.logger.log({ candidates: pending.length, requeued }, 'Re-verified submissions on late geofence evidence');
+    }
+    return { requeued };
+  }
+
+  /// `evidenceGeneration` re-opens the idempotency key for one more run.
+  ///
+  /// Without it a submission gets exactly one verification ever, which is
+  /// right while the evidence is fixed and wrong once new evidence lands. It
+  /// is a discriminator, not a bypass: the same generation still collapses
+  /// to one run, so a redelivered webhook cannot spend a second set of
+  /// CAMARA and model calls.
+  async verify(
+    submissionId: string,
+    evidenceGeneration?: string,
+  ): Promise<SubmissionVerificationOutcome | null> {
     if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
       return { runId: '', decision: this.humanReviewFallback('Automated submission verification is disabled for this deployment.'), skipped: 'DISABLED' };
     }
@@ -66,26 +105,35 @@ export class SubmissionVerificationService {
     }
 
     const promptVersion = this.config.get('OPENAI_AGENT_PROMPT_VERSION', { infer: true });
-    const idempotencyKey = `submission:${submissionId}:verification:${promptVersion}`;
-    const existing = await this.agentRuns.findByIdempotencyKey(idempotencyKey);
-    if (existing && existing.status !== 'failed') {
-      return { runId: existing.id, decision: this.humanReviewFallback('Already evaluated.'), skipped: 'ALREADY_RUN' };
-    }
+    const idempotencyKey = evidenceGeneration
+      ? `submission:${submissionId}:verification:${promptVersion}:ev:${evidenceGeneration}`
+      : `submission:${submissionId}:verification:${promptVersion}`;
 
-    const run = await this.agentRuns.start({
-      kind: 'submission_verification',
-      subjectType: 'submission',
-      subjectId: submissionId,
-      idempotencyKey,
-      model: this.runner.isEnabled() ? (this.config.get('OPENAI_AGENT_MODEL', { infer: true }) ?? 'unset') : 'disabled',
-      promptVersion,
-      policyVersion: 'v1',
-      inputSnapshot: context,
-    });
+    // `start()` is the claim, and it is the ONLY check. There used to be a
+    // `findByIdempotencyKey` read here that short-circuited on anything not
+    // 'failed' — two predicates for one question, and they disagreed in the
+    // case that matters: a run left 'running' by a killed worker made this
+    // return ALREADY_RUN forever, so the submission could never be
+    // evaluated and the log line said "already evaluated" about a run that
+    // never finished. One atomic statement cannot disagree with itself.
+    const run = await this.agentRuns.start(
+      {
+        kind: 'submission_verification',
+        subjectType: 'submission',
+        subjectId: submissionId,
+        idempotencyKey,
+        model: this.runner.isEnabled() ? (this.config.get('OPENAI_AGENT_MODEL', { infer: true }) ?? 'unset') : 'disabled',
+        promptVersion,
+        policyVersion: 'v1',
+        inputSnapshot: context,
+      },
+      this.config.get('AGENT_RUN_LEASE_SECONDS', { infer: true }),
+    );
     if (!run) {
-      // Lost the idempotency race to a concurrent worker (e.g. a retried
-      // outbox publish); the winner's run already covers this submission.
-      return null;
+      // The key is held: this submission already has a finished run, or
+      // another worker holds a claim that has not expired. Either way there
+      // is nothing for this job to do, and nothing for it to act on.
+      return { runId: '', decision: this.humanReviewFallback('Already evaluated or in flight.'), skipped: 'ALREADY_RUN' };
     }
 
     try {
@@ -111,13 +159,17 @@ export class SubmissionVerificationService {
         ? await this.runModel(context, networkEvidence, cvEvidence, run.id, phoneNumber)
         : this.humanReviewFallback('The AI agent is disabled; this submission needs a human moderator.');
 
-      const finalized = finalizeDecision(
+      const finalized = finalizeDecision({
         modelDecision,
         isLocationBased,
         mandatoryStatus,
-        cvEvidence.status === 'AVAILABLE',
-        context.policy,
-      );
+        cvAvailable: cvEvidence.status === 'AVAILABLE',
+        cvRelevance: cvEvidence.relevance ?? null,
+        cvBlocksApproval: cvEvidence.integrity?.blocksAutomatedApproval ?? false,
+        contract: context.quest.verification,
+        minRelevance: this.config.get('AI_VERIFICATION_MIN_RELEVANCE', { infer: true }),
+        bounds: context.policy,
+      });
       await this.recommendXp(context, submissionId);
       await this.agentRuns.succeed(run.id, finalized);
       return { runId: run.id, decision: finalized };
@@ -208,6 +260,19 @@ export class SubmissionVerificationService {
         landmarks: [],
         locationDescription: context.quest.destination ? context.quest.title : undefined,
       },
+      // The requirements above are hand-authored and empty on nearly every
+      // quest, so on their own they give a provider nothing to match the media
+      // against — which is how "is this relevant to the quest?" degenerated
+      // into "is a file attached?". The task block is always populated, and
+      // carries the contract that says whether relevance is even a fair
+      // question for this quest.
+      task: {
+        title: context.quest.title,
+        description: context.quest.description,
+        category: context.quest.category,
+        evidenceRubric: context.quest.verification.evidenceRubric,
+        verifiability: context.quest.verification.verifiability,
+      },
       maxKeyFrames: 12,
       idempotencyKey: `${submissionId}:cv:${context.runId}`,
     });
@@ -224,15 +289,27 @@ export class SubmissionVerificationService {
     if (!model) return this.humanReviewFallback('OPENAI_AGENT_MODEL is not configured.');
 
     const allowedAdditional = this.networkProvider.supportedAdditionalCapabilities;
+    // Only offer a tool that can actually answer. The frame tool was
+    // registered unconditionally while no CV provider implements `getFrame`
+    // — and the local one deliberately returns no key frames to ask about —
+    // so the model carried a tool in its schema on every call whose only
+    // possible reply was "unavailable", and could spend a turn discovering
+    // that. This mirrors how the additional-evidence tool below is already
+    // gated on the provider offering something.
     const tools = [
-      buildCvFrameTool(this.cvProvider),
+      ...(this.cvProvider.getFrame ? [buildCvFrameTool(this.cvProvider)] : []),
       ...(context.quest.destination && allowedAdditional.length > 0
         ? [buildAdditionalNetworkEvidenceTool(this.networkProvider, this.locationQuery(context, phoneNumber), allowedAdditional)]
         : []),
     ];
 
     try {
-      const agent = buildSubmissionVerificationAgent({ model, tools });
+      const agent = buildSubmissionVerificationAgent({
+        model,
+        tools,
+        verifiability: context.quest.verification.verifiability,
+        evidenceRubric: context.quest.verification.evidenceRubric,
+      });
       const raw = await this.runner.run<unknown>(agent, JSON.stringify({ context, networkEvidence, cvEvidence }));
       const parsed = VerificationDecisionSchema.safeParse(raw);
       if (!parsed.success) {

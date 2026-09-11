@@ -24,7 +24,7 @@
     "test:all": "npm run lint && npm run test && npm run test:e2e && npm run build",
     "db:migrate": "node scripts/migrate.mjs",
     "db:migrate:check": "node scripts/migrate.mjs --check",
-    "db:types": "node scripts/database-types.mjs > src/infrastructure/database/database.types.ts",
+    "db:types": "node scripts/database-types.mjs",
     "db:types:check": "node scripts/database-types.mjs --check",
     "test:smoke": "node scripts/smoke.mjs",
     "test:auth-confirmation": "node scripts/smoke-auth-confirmation.mjs",
@@ -32,7 +32,10 @@
     "test:telegram": "node scripts/smoke-telegram.mjs",
     "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
     "proof:eval": "node scripts/proof-eval.mjs",
-    "seed:quests": "node scripts/seed-quests.mjs"
+    "seed:quests": "node scripts/seed-quests.mjs",
+    "proof:contract": "node scripts/proof-contract-audit.mjs",
+    "proof:backfill": "node scripts/proof-backfill.mjs",
+    "legacy:media": "node scripts/legacy-import/import-media.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

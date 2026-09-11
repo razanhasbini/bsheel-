@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -42,9 +44,6 @@
                       android:pathPrefix="/reset-password"/>
                 <data android:scheme="https"
                       android:host="admin.bsheel.app"
-                      android:pathPrefix="/phone-signin-callback"/>
-                <data android:scheme="https"
-                      android:host="admin.bsheel.app"
                       android:pathPrefix="/post"/>
                 <data android:scheme="https"
                       android:host="admin.bsheel.app"
@@ -52,6 +51,18 @@
                 <data android:scheme="https"
                       android:host="admin.bsheel.app"
                       android:pathPrefix="/join"/>
+            </intent-filter>
+            <!-- Number Verification returns through the public API host.
+                 Keep this separate from admin.bsheel.app: Android merges
+                 <data> attributes inside one filter, which can accidentally
+                 authorise host/path combinations we did not intend. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="api.bsheel.app"
+                      android:pathPrefix="/phone-signin-callback"/>
             </intent-filter>
             <!-- Custom bitsheel:// scheme (shares, invites, etc.)
                  Note: custom schemes cannot be verified by Android's App Links

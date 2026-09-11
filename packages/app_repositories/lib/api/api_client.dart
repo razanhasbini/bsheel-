@@ -234,7 +234,7 @@ class ApiClient {
     }
     try {
       final streamed = await _http.send(request).timeout(timeout);
-      return http.Response.fromStream(streamed).timeout(timeout);
+      return await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const ApiException(
         statusCode: 0,

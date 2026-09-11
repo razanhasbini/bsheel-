@@ -240,7 +240,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           recoveryToken: state.uri.queryParameters['token'],
         ),
       ),
-      // Landing spot for the verified https://admin.bsheel.app/phone-signin-
+      // Landing spot for the verified https://api.bsheel.app/phone-signin-
       // callback App Link/Universal Link Nokia's browser redirects back to
       // after CAMARA Number Verification consent. Never rendered as a real
       // page — it hands the URL to whichever signInWithPhone()/linkPhone()

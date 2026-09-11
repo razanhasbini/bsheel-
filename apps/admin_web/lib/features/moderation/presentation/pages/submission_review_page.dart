@@ -799,6 +799,7 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
           ],
         ),
       ),
+      ..._agentRead(),
       const SizedBox(height: 16),
       _Block(
         label: 'Reason (optional)',
@@ -826,6 +827,136 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
       ),
     ];
   }
+
+  /// What the verification agent concluded, if it has finished (#47).
+  ///
+  /// Advisory, and the rail says so: a moderator decides. It is here because
+  /// the agent runs in shadow mode by default, and shadow mode is only worth
+  /// anything if a person can see what the agent would have done while they
+  /// decide independently. Without this the verdict existed only in SQL.
+  ///
+  /// Nothing is drawn until there is a verdict. An empty "agent" panel on
+  /// every submission would train reviewers to ignore the region.
+  List<Widget> _agentRead() {
+    final data = widget.data;
+    final verdict = (data['ai_verdict'] ?? '').toString();
+    if (verdict.isEmpty) return const [];
+
+    final confidence = (data['ai_confidence'] as num?)?.toDouble();
+    final relevance = (data['ai_relevance'] as num?)?.toDouble();
+    final rationale = (data['ai_rationale'] ?? '').toString().trim();
+    final escalation = (data['ai_escalation_reason'] ?? '').toString().trim();
+    final observations = _observations(data['ai_content_evidence']);
+
+    return [
+      const SizedBox(height: 16),
+      _Block(
+        label: "Agent's read",
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            BsheelKeyValues(
+              entries: [
+                BsheelKeyValue(
+                  'Verdict',
+                  switch (verdict) {
+                    'pass' => 'CONSISTENT',
+                    'fail' => 'CONTRADICTED',
+                    _ => 'COULD NOT TELL',
+                  },
+                  emphasis: verdict == 'fail' ? BsheelColors.dangerText : null,
+                ),
+                // Labelled as two different questions on purpose. Confidence
+                // is how sure the agent is of its verdict; relevance is how
+                // much the media has to do with the quest. A reader who
+                // conflates them will read a confident "this is a cat, not a
+                // sunrise" as a confident approval.
+                BsheelKeyValue('Verdict confidence', _percent(confidence)),
+                BsheelKeyValue(
+                  'Media relevance',
+                  // "Not assessed" is not zero, and the difference matters:
+                  // no photograph can show "spend an hour with no phone", so
+                  // for those quests the agent deliberately does not score
+                  // relevance and a low number would be a lie about the
+                  // player rather than a fact about the media.
+                  relevance == null ? 'NOT ASSESSED' : _percent(relevance),
+                ),
+              ],
+            ),
+            if (rationale.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(rationale, style: BsheelType.bodySm),
+            ],
+            if (observations.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const BsheelLabel('What it looked for'),
+              const SizedBox(height: 6),
+              for (final observation in observations) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      BsheelPill(
+                        observation.present ? 'SEEN' : 'ABSENT',
+                        tone: observation.present
+                            ? BsheelPillTone.green
+                            : BsheelPillTone.ghost,
+                        small: true,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          observation.label,
+                          style: BsheelType.bodySm,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        _percent(observation.confidence),
+                        style: BsheelType.monoSm,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+            if (escalation.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              BsheelCallout(escalation),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'Advisory. You decide.',
+              style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// Parses the stored observation list, tolerating anything malformed.
+  ///
+  /// The column is jsonb written by the analyzer, so a row from an older
+  /// build or a hand-run fixture must render as "no observations" rather
+  /// than throw inside a moderator's queue.
+  List<_Observation> _observations(Object? raw) {
+    if (raw is! Map) return const [];
+    final list = raw['observations'];
+    if (list is! List) return const [];
+    return [
+      for (final item in list)
+        if (item is Map && (item['label'] as String?)?.isNotEmpty == true)
+          _Observation(
+            label: item['label'].toString(),
+            present: item['present'] == true,
+            confidence: (item['confidence'] as num?)?.toDouble() ?? 0,
+          ),
+    ];
+  }
+
+  static String _percent(double? value) =>
+      value == null ? '—' : '${(value * 100).round()}%';
 
   Widget _decisionBlock() {
     if (!_pending) {
@@ -897,6 +1028,19 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
 // ── Pieces ──────────────────────────────────────────────────────────────
 
 /// Mono label above a block of evidence or a panel.
+/// One thing the agent says it looked for, and whether it found it.
+class _Observation {
+  const _Observation({
+    required this.label,
+    required this.present,
+    required this.confidence,
+  });
+
+  final String label;
+  final bool present;
+  final double confidence;
+}
+
 class _Block extends StatelessWidget {
   const _Block({required this.label, required this.child});
 

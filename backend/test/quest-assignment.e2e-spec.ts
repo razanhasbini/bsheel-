@@ -96,7 +96,7 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
   describe('30-second assignment cooldown and collab parity', () => {
     it('blocks a new personal assignment for 30 seconds after a submitted quest', async () => {
       const user = await harness.createUser({ prefix: 'qc1' });
-      const submitted = await harness.createSubmission(user);
+      const submitted = await harness.createSubmission(user, { keepCooldown: true });
       const next = await harness.createQuest();
       const coolingDown = await harness.post('/quests/assign', user).send({ questId: next.id }).expect(409);
       expect(coolingDown.body.error.code).toBe('QUEST_ASSIGNMENT_COOLDOWN');
@@ -112,10 +112,10 @@ describe('quest assignment limits (e2e)', { timeout: 120_000 }, () => {
       const host = await harness.createUser({ prefix: 'qc2' });
       const joiner = await harness.createUser({ prefix: 'qc3' });
       const collabQuest = await harness.createQuest();
-      const hostAssignment = await harness.assignQuest(host, collabQuest.id);
+      const hostAssignment = await harness.assignQuest(host, collabQuest.id, { keepCooldown: true });
       const group = await harness.post('/collab/groups', host)
         .send({ userQuestId: hostAssignment.id, mode: 'with' }).expect(201);
-      const submitted = await harness.createSubmission(joiner);
+      const submitted = await harness.createSubmission(joiner, { keepCooldown: true });
       const coolingDown = await harness.post('/collab/groups/join', joiner)
         .send({ code: group.body.data.code }).expect(409);
       expect(coolingDown.body.error.code).toBe('QUEST_ASSIGNMENT_COOLDOWN');

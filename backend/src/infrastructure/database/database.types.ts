@@ -200,6 +200,15 @@ export interface Database {
     "expires_at": Timestamp;
     "created_at": Generated<Timestamp>;
   };
+  "journey_stage_unlocks": {
+    "chain_run_id": string;
+    "step_order": number;
+    "quest_id": string;
+    "target_user_id": string;
+    "unlocked_at": Generated<Timestamp>;
+    "seen_at": Timestamp | null;
+    "started_at": Timestamp | null;
+  };
   "map_countries": {
     "code": string;
     "name": string;
@@ -361,10 +370,31 @@ export interface Database {
     "matched_user_id": string | null;
     "created_at": Generated<Timestamp>;
   };
+  "quest_chain_run_participants": {
+    "chain_run_id": string;
+    "user_id": string;
+    "position": number;
+    "joined_at": Generated<Timestamp>;
+  };
+  "quest_chain_runs": {
+    "id": Generated<string>;
+    "chain_id": string;
+    "run_kind": string;
+    "owner_user_id": string | null;
+    "source_collab_group_id": string | null;
+    "created_by_user_id": string | null;
+    "join_code": string | null;
+    "status": Generated<string>;
+    "started_at": Timestamp | null;
+    "completed_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+  };
   "quest_chain_steps": {
     "chain_id": string;
     "quest_id": string;
     "step_order": number;
+    "target_position": number | null;
   };
   "quest_chains": {
     "id": Generated<string>;
@@ -567,6 +597,9 @@ export interface Database {
     "acted": Generated<boolean>;
     "forensics": Json | null;
     "stage": string | null;
+    "relevance": string | null;
+    "content_evidence": Json | null;
+    "claimed_at": Timestamp | null;
   };
   "submissions": {
     "id": Generated<string>;

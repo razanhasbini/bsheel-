@@ -88,8 +88,8 @@ ProviderContainer _container(_RecordingFeedRepository repository) {
 void main() {
   testWidgets('the feed header opens the sort sheet and shows the choice',
       (tester) async {
-    // 320dp wide: the narrowest supported phone, where a fourth chip on the
-    // header row is most likely to overflow.
+    // 320dp wide: the narrowest supported phone, where the overlay row is
+    // most likely to overflow.
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -102,13 +102,13 @@ void main() {
     await tester.pumpWidget(_app(container));
     await tester.pumpAndSettle();
 
-    // The header names the default ordering and offers nothing to clear.
-    expect(find.text('SORTED BY NEWEST'), findsOneWidget);
-    expect(find.text('CLEAR'), findsNothing);
+    // On the default ordering the overlay is the bare legacy one: no sort
+    // pill, nothing to clear, and the sheet-only sorts are not on screen.
+    expect(find.textContaining('SORTED BY'), findsNothing);
     expect(find.text('MOST UPVOTED'), findsNothing);
 
-    // The sheet is reachable: one tap on the header's sort bar.
-    await tester.tap(find.text('SORTED BY NEWEST'));
+    // The sheet is reachable: one tap on the filter glyph.
+    await tester.tap(find.byIcon(Icons.filter_list_rounded));
     await tester.pumpAndSettle();
 
     expect(find.text('FILTER FEED'), findsOneWidget);
@@ -135,16 +135,15 @@ void main() {
     expect(repository.calls.map((call) => call.offset), everyElement(0));
     expect(repository.calls.map((call) => call.cursor), everyElement(isNull));
 
-    // And the header now says which ordering the user is looking at.
+    // And the overlay now says which ordering the user is looking at.
     expect(find.text('SORTED BY MOST UPVOTED'), findsOneWidget);
 
-    // CLEAR drops back to the default sort and the strip disappears.
-    await tester.tap(find.text('CLEAR'));
+    // Tapping the pill drops back to the default sort and the pill goes.
+    await tester.tap(find.text('SORTED BY MOST UPVOTED'));
     await tester.pumpAndSettle();
 
     expect(container.read(feedSortProvider), 'recent');
-    expect(find.text('SORTED BY NEWEST'), findsOneWidget);
-    expect(find.text('CLEAR'), findsNothing);
+    expect(find.textContaining('SORTED BY'), findsNothing);
     expect(repository.calls.last.sort, 'recent');
   });
 }

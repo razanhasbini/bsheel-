@@ -67,8 +67,6 @@ round-trip time, then the four-outcome matrix.
 
 ## What still gates the full matrix
 
-- **CV** — `CV_PROVIDER=none`, so media analysis is absent and content-based
-  decisions fall to HUMAN_REVIEW. This is the main missing piece.
 - **Geofencing events** — Nokia POSTs entry/exit to a public webhook, so
   they cannot arrive at a laptop. Needs the deployed backend and
   `CAMARA_GEOFENCING_SINK_BASE_URL` pointing at it. Subscription creation
@@ -76,9 +74,17 @@ round-trip time, then the four-outcome matrix.
 - **`map_location_evidence`** — still has readers and no writer (#53). The
   hidden-quest geofence unlock stays blocked on it.
 
-So once CV lands you can test good-proof and bad-proof against every
-location outcome **except** the ones that need a real geofence entry event,
-which need the live server regardless of CV.
+CV is no longer on this list. `CV_PROVIDER=local` (the default) binds the
+#47 vision cascade as the agent's CV provider, so media analysis arrives
+with a relevance score and a typed observation list and content-based
+decisions no longer fall to HUMAN_REVIEW for want of eyes. It needs
+`AI_VERIFICATION_ENABLED=true` and an `OPENAI_API_KEY`; without a key it
+degrades to exactly what `CV_PROVIDER=none` returned, which is the honest
+answer rather than a guess.
+
+So you can test good-proof and bad-proof against every location outcome
+**except** the ones that need a real geofence entry event, which need the
+live server regardless of CV.
 
 ## Local stack
 

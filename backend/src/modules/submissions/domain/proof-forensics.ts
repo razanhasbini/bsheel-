@@ -147,7 +147,43 @@ export function declaresGeneratedContent(software: string | undefined): boolean 
 /// an argument for pairing it with exact-byte matching and content analysis,
 /// not for reaching for something heavier — a DCT-based pHash has the same
 /// weakness against crops.
-export function differenceHash(grayscale9x8: Uint8Array): PerceptualHash {
+/// Null when the hash would not distinguish this frame from any other.
+///
+/// This is the failure that makes a perceptual hash dangerous rather than
+/// merely imprecise, and the rule is narrower than it first looks.
+///
+/// `differenceHash` records, for each of 64 positions, whether a pixel is
+/// brighter than its right neighbour. If **every** comparison comes out the
+/// same way the hash is 64 identical bits, and every other frame with that
+/// property produces the identical hash — Hamming distance 0, far inside the
+/// near-duplicate threshold (10 by default). Two frames are then recorded as
+/// near duplicates of each other on the strength of a fingerprint that
+/// describes neither, and a near duplicate not owned by this user is
+/// weighted `decisive`: a measurement accusing an honest player of
+/// submitting someone else's proof.
+///
+/// Two quite different pictures land there. A **flat** frame — a dark
+/// screenshot, a white wall, a night sky — has no variation at all, so every
+/// comparison is a tie and every tie reads '0'. But so does any **smooth
+/// one-directional gradient**, a sky at dawn or a wall lit from one side,
+/// however much dynamic range it has: brightness rises left to right
+/// everywhere, so every comparison is '0' for a real reason rather than for
+/// want of information. Testing the frame's *range* catches only the first
+/// kind. Testing the hash for degeneracy catches both, and states the actual
+/// hazard: a fingerprint every member of a large class shares is not a
+/// fingerprint.
+///
+/// So such a frame gets no hash. `media_objects.perceptual_hash` is nullable
+/// and `findDuplicate` already requires it to be non-null, so null cleanly
+/// means "cannot be perceptually fingerprinted" rather than "matches
+/// everything". Exact-byte matching is unaffected: identical bytes really are
+/// the same file, whatever the picture looks like.
+///
+/// The fixtures have always known half of this — `proof-fixtures.ts` says a
+/// flat colour "would hash to all zeroes and every comparison would be
+/// vacuously equal" — but the knowledge lived in the helper that avoided the
+/// problem rather than in the code that has to survive it.
+export function differenceHash(grayscale9x8: Uint8Array): PerceptualHash | null {
   if (grayscale9x8.length !== 72) {
     throw new Error(`differenceHash expects a 9x8 grayscale bitmap (72 bytes), got ${grayscale9x8.length}`);
   }
@@ -159,7 +195,7 @@ export function differenceHash(grayscale9x8: Uint8Array): PerceptualHash {
       bits += left > right ? '1' : '0';
     }
   }
-  return bits;
+  return bits.includes('0') && bits.includes('1') ? bits : null;
 }
 
 /// Hamming distance between two hashes.

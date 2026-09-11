@@ -9,13 +9,25 @@
 //   node scripts/proof-eval.mjs --sweep         # threshold curves
 //   node scripts/proof-eval.mjs --json          # machine-readable
 //
-// WHY ONLY `acted = false` ROWS COUNT.
+// WHY A HUMAN REVIEWER IS REQUIRED.
 //
 // A verdict that was acted on *caused* the outcome it would be scored
 // against, so including live rows would score the agent against itself and
-// report near-perfect agreement no matter how wrong it is. Only shadow rows —
-// where the agent decided privately and a human decided independently — are
-// evidence. The query enforces that; do not relax it to grow the sample.
+// report near-perfect agreement no matter how wrong it is. Only rows where
+// the agent decided privately and a human decided independently are evidence.
+//
+// `acted = false` is not sufficient on its own, and this is the subtle part.
+// That flag says whether *this* verdict was carried out — but two verifiers
+// run on every submission, and when the CAMARA agent pipeline is the decider
+// the cascade records `acted = false` while the agent may have approved or
+// rejected the submission itself. The row would look like shadow data and the
+// label would be the agent's own decision.
+//
+// So the filter is `reviewed_by IS NOT NULL`: both automated paths call
+// approve/reject with a null actor, deliberately, so a reviewer id on the row
+// is proof a person decided. That holds no matter which component acted or
+// whether its bookkeeping was right. Do not relax either clause to grow the
+// sample.
 //
 // WHAT GROUND TRUTH IS HERE.
 //
@@ -29,12 +41,33 @@
 //     than assumed.
 import process from 'node:process';
 import pg from 'pg';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const args = new Set(process.argv.slice(2));
 const asJson = args.has('--json');
-const DATABASE_URL = process.env.DATABASE_URL;
+
+// Reads backend/.env when the variable is not exported, like migrate.mjs,
+// database-types.mjs and proof-backfill.mjs. Worth the four lines: the
+// backfill's closing line tells you to run this next, and it failed with
+// "DATABASE_URL is not set" for anyone whose URL lives in the file that every
+// other part of the backend reads.
+async function databaseUrlFromEnvFile() {
+  try {
+    const contents = await readFile(resolve('.env'), 'utf8');
+    for (const line of contents.split('\n')) {
+      const match = /^\s*DATABASE_URL\s*=\s*(.*)$/.exec(line);
+      if (match) return match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+    }
+  } catch {
+    // No .env is normal in CI, where the variable is exported instead.
+  }
+  return undefined;
+}
+
+const DATABASE_URL = process.env.DATABASE_URL ?? (await databaseUrlFromEnvFile());
 if (!DATABASE_URL) {
-  console.error('DATABASE_URL is not set');
+  console.error('DATABASE_URL is required (export it, or set it in backend/.env)');
   process.exit(1);
 }
 
@@ -65,6 +98,11 @@ const sampleQuery = `
     -- Decided by a human, so there is something to score against.
     AND s.status IN ('approved', 'rejected')
     AND s.reviewed_at IS NOT NULL
+    -- And decided by a *person*. Both automated deciders pass a null actor,
+    -- so this is what separates ground truth from the agent marking its own
+    -- homework. The legacy importer carries reviewed_by across, so historical
+    -- human decisions still qualify.
+    AND s.reviewed_by IS NOT NULL
 `;
 
 /// Confusion matrix for one decision side.
@@ -208,8 +246,8 @@ try {
     console.log('\nNo scoreable decisions yet.\n');
     console.log('This needs shadow-mode verdicts on submissions a human has since decided:');
     console.log('  - AI_VERIFICATION_ENABLED=true');
-    console.log('  - AI_VERIFICATION_SHADOW_MODE=true   (so `acted` stays false)');
-    console.log('  - and moderators reviewing as normal.');
+    console.log('  - AI_VERIFICATION_SHADOW_MODE=true   (so nothing acts, on either path)');
+    console.log('  - and moderators reviewing as normal, signed in as themselves.');
     console.log('\nUntil then the thresholds in .env.example are placeholders, not measurements,');
     console.log('and may_auto_approve / may_auto_reject should stay off.\n');
   } else {

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/core/providers/auth_session_provider.dart';
+import 'package:mobile_app/features/map/data/live_location_provider.dart';
 import 'package:mobile_app/features/map/data/map_providers.dart';
 import 'package:mobile_app/features/map/domain/map_geometry.dart';
 import 'package:mobile_app/features/map/presentation/map_page.dart';
@@ -121,7 +122,12 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [
       authSessionProvider.overrideWith((ref) => null),
       mapRepositoryProvider.overrideWithValue(repo),
-      mapGeometryProvider.overrideWith((ref) async => geometry)
+      mapGeometryProvider.overrideWith((ref) async => geometry),
+      // No tile fetches and no GPS plugin under test: the fog, pins and
+      // sheets are what this exercises.
+      mapTilesEnabledProvider.overrideWithValue(false),
+      liveLocationProvider.overrideWith((ref) =>
+          Stream.value(const LiveLocation(LiveLocationStatus.unavailable))),
     ], child: MaterialApp(theme: QuestTheme.light, home: const MapPage())));
     await tester.pumpAndSettle();
     expect(find.text('EXPLORE'), findsOneWidget);

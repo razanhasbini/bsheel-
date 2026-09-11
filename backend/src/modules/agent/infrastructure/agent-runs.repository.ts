@@ -22,8 +22,26 @@ export interface StartAgentRunInput {
 export class AgentRunsRepository {
   constructor(private readonly database: DatabaseService) {}
 
-  /** Returns null when a concurrent caller already claimed this idempotency key. */
-  async start(input: StartAgentRunInput): Promise<AgentRunRecord | null> {
+  /**
+   * Claims this idempotency key for one run, atomically.
+   *
+   * This single statement IS the claim — there is deliberately no read-then-
+   * decide in front of it, because a caller that reads the row first and then
+   * starts has two predicates for one question, and the one that loses is
+   * silent. The read method that used to exist for that purpose is gone
+   * rather than left lying around.
+   *
+   * Returns null when the key is held: either a run succeeded, or another
+   * worker holds a claim that has not yet expired.
+   *
+   * `leaseSeconds` is what makes a killed worker recoverable. The reclaim
+   * clause used to read `WHERE agent_runs.status = 'failed'` alone, so a row
+   * left 'running' by a restart or an OOM could never be started again —
+   * the submission was permanently unevaluable, `start()` returned null, and
+   * the processor logged "nothing to verify" and acknowledged the job. A
+   * claim older than the lease is presumed abandoned and taken.
+   */
+  async start(input: StartAgentRunInput, leaseSeconds: number): Promise<AgentRunRecord | null> {
     const result = await this.database.query<AgentRunRecord>(
       `INSERT INTO agent_runs (kind, subject_type, subject_id, idempotency_key, status, model, prompt_version, policy_version, input_snapshot, started_at)
        VALUES ($1, $2, $3, $4, 'running', $5, $6, $7, $8::jsonb, now())
@@ -35,6 +53,9 @@ export class AgentRunsRepository {
          output = NULL, error_code = NULL, error_message = NULL,
          started_at = now(), completed_at = NULL
        WHERE agent_runs.status = 'failed'
+          OR (agent_runs.status IN ('pending', 'running')
+              AND (agent_runs.started_at IS NULL
+                   OR agent_runs.started_at < now() - make_interval(secs => $9)))
        RETURNING id, status`,
       [
         input.kind,
@@ -45,15 +66,8 @@ export class AgentRunsRepository {
         input.promptVersion,
         input.policyVersion,
         JSON.stringify(input.inputSnapshot),
+        leaseSeconds,
       ],
-    );
-    return result.rows[0] ?? null;
-  }
-
-  async findByIdempotencyKey(idempotencyKey: string): Promise<AgentRunRecord | null> {
-    const result = await this.database.query<AgentRunRecord>(
-      'SELECT id, status FROM agent_runs WHERE idempotency_key = $1',
-      [idempotencyKey],
     );
     return result.rows[0] ?? null;
   }
@@ -95,6 +109,71 @@ export class AgentRunsRepository {
         evidence.validUntil ?? null,
       ],
     );
+  }
+
+  /// Submissions whose geofence answer was wrong *at the time* and is not any
+  /// more, because the event arrived late (#15).
+  ///
+  /// The recoverable half of "CAMARA was unavailable". The three mandatory
+  /// capabilities are not equally retryable, and treating them as if they
+  /// were is how a retry becomes a fabrication:
+  ///
+  ///   LOCATION_VERIFICATION and LOCATION_RETRIEVAL ask where the device is
+  ///   **now**, bounded by maxAge. Re-asking tomorrow about a quest that
+  ///   ended yesterday answers a different question, and recording that
+  ///   answer as evidence for the old window would be inventing proof of
+  ///   presence. Those stay with a human, permanently, and that is correct.
+  ///
+  ///   GEOFENCING is the exception, and the only one. Its evidence is not a
+  ///   request at all — it is a replay of entry/exit events the provider
+  ///   POSTed to our webhook and we stored. Those events are *historical*:
+  ///   `occurred_at` is when the device crossed the boundary, `received_at`
+  ///   is when we heard about it. A webhook retry, a provider backlog or an
+  ///   outage on our side separates the two, and an event that lands after
+  ///   the agent ran is genuinely new information about a window that has
+  ///   already closed.
+  ///
+  /// So: a GEOFENCING evidence row that did not support completion, and an
+  /// event for that same assignment received after that evidence was
+  /// observed. The submission must still be pending — once a person has
+  /// decided, late evidence is a matter for an appeal, not a re-run.
+  ///
+  /// Returns the newest event id alongside, which becomes part of the run's
+  /// idempotency key: one re-verification per batch of new evidence, and a
+  /// redelivered event re-runs nothing.
+  async submissionsWithLateGeofenceEvidence(limit: number): Promise<readonly {
+    submissionId: string;
+    latestEventId: string;
+  }[]> {
+    const result = await this.database.query<{ submission_id: string; latest_event_id: string }>(
+      `SELECT ne.submission_id,
+              (SELECT event.id FROM geofencing_events event
+               JOIN geofencing_subscriptions subscription ON subscription.id = event.subscription_id
+               WHERE subscription.user_quest_id = ne.user_quest_id
+                 AND event.received_at > ne.observed_at
+               ORDER BY event.received_at DESC, event.id DESC
+               LIMIT 1) AS latest_event_id
+       FROM network_evidence ne
+       JOIN submissions s ON s.id = ne.submission_id
+       WHERE ne.capability = 'GEOFENCING'
+         AND ne.outcome <> 'SUPPORTED'
+         AND s.status = 'pending'
+         AND s.deleted_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM geofencing_events event
+           JOIN geofencing_subscriptions subscription ON subscription.id = event.subscription_id
+           WHERE subscription.user_quest_id = ne.user_quest_id
+             AND event.received_at > ne.observed_at
+         )
+       GROUP BY ne.submission_id, ne.user_quest_id, ne.observed_at
+       ORDER BY ne.observed_at
+       LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 200)],
+    );
+    return result.rows.map((row) => ({
+      submissionId: row.submission_id,
+      latestEventId: row.latest_event_id,
+    }));
   }
 
   async recordCvEvidence(runId: string, submissionId: string, evidence: CvEvidence): Promise<void> {

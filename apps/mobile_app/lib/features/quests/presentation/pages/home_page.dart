@@ -1,5 +1,6 @@
 import 'package:app_repositories/app_repositories.dart' show ApiException;
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -244,19 +245,37 @@ class _HomePageState extends ConsumerState<HomePage> {
                             0),
                         child: Row(
                           children: [
+                            // The greeting is the whole header: no wordmark,
+                            // no headline — HELLO, then the player's name.
                             Expanded(
-                              child: Text(
-                                displayName.toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: QuestTypography.displayLarge.copyWith(
-                                  // Same navy ink as the bottom nav pill.
-                                  color: QuestColors.osTextPrimary,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1,
-                                  letterSpacing: -0.3,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'HELLO,',
+                                    style:
+                                        QuestTypography.osLabelMedium.copyWith(
+                                      color: QuestColors.osTextSecondary,
+                                      letterSpacing: 1.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    displayName.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        QuestTypography.displayLarge.copyWith(
+                                      // Same navy ink as the bottom nav pill.
+                                      color: QuestColors.osTextPrimary,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -267,25 +286,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                             ),
                           ],
                         ),
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(
-                        child: Padding(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: QuestSpacing.screenPadding),
-                      child: ExpansionTile(
-                          title: Text('GROUP QUESTS'),
-                          subtitle: Text(
-                              'Create a group, invite friends or join by code'),
-                          children: [CollabPage(embedded: true)]),
-                    )),
-                    // ── Hero headline ──
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(QuestSpacing.screenPadding,
-                            0, QuestSpacing.screenPadding, 4),
-                        child: _Headline(),
                       ),
                     ),
 
@@ -454,6 +454,43 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                     ),
 
+                    // ── Group quests — right under the generator, where a
+                    // player deciding what to do next is already looking.
+                    if (!locked)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                              QuestSpacing.screenPadding,
+                              0,
+                              QuestSpacing.screenPadding,
+                              16),
+                          child: ArcadeCard(
+                            padding: EdgeInsets.zero,
+                            borderRadius: QuestSpacing.radiusCard,
+                            shadowOffset: 3,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                  QuestSpacing.inner(QuestSpacing.radiusCard,
+                                      QuestSpacing.cardBorderWidth)),
+                              child: ExpansionTile(
+                                tilePadding:
+                                    const EdgeInsets.symmetric(horizontal: 14),
+                                leading: const Icon(Icons.groups_rounded,
+                                    color: QuestColors.osTextPrimary),
+                                title: Text('GROUP QUESTS',
+                                    style: QuestTypography.osHeadlineSmall),
+                                subtitle: Text(
+                                  'Create a group, invite friends or join by code',
+                                  style: QuestTypography.osBodySmall.copyWith(
+                                      color: QuestColors.osTextSecondary),
+                                ),
+                                children: const [CollabPage(embedded: true)],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
                     // ── Recent quest history (5 latest) ──
                     if (questHistoryLoading)
                       const SliverToBoxAdapter(
@@ -548,46 +585,6 @@ String _fmtXp(int xp) {
     return '${(xp / 1000).toStringAsFixed(xp % 1000 == 0 ? 0 : 1)}k';
   }
   return '$xp';
-}
-
-// ── Headline ──────────────────────────────────────────────────────────────
-
-class _Headline extends StatelessWidget {
-  const _Headline();
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context)!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Syne 800 at 44 with the frame's tight tracking. The coral rule
-        // that used to sit under this is not in the frame; the mono
-        // tagline three pixels below is the whole subhead.
-        Text(
-          l.homeHeadline,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: QuestTypography.osDisplayLarge.copyWith(
-            fontSize: 44,
-            height: 0.95,
-            letterSpacing: -1.76,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          l.homeHeadlineTagline,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: QuestTypography.osLabelSmall.copyWith(
-            color: QuestColors.osTextSecondary,
-            fontSize: 10,
-            letterSpacing: 1,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // ── Pending review card ──────────────────────────────────────────────────
@@ -1449,6 +1446,8 @@ class _LockedCard extends StatelessWidget {
 Future<void> showRollPicker(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the shell, so the floating nav pill never covers the sheet.
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: QuestColors.osBg,
@@ -1469,7 +1468,13 @@ class _RollPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
+  /// The legacy casino spin: "GENERATING" cycles letter by letter and
+  /// settles left to right over this long, whatever the fetch takes. The
+  /// options appear only once both the spin and the fetch are done.
+  static const _spinDuration = Duration(milliseconds: 2200);
+
   List<QuestModel>? _options;
+  bool _spinDone = false;
 
   /// Which of the three is armed. The frame draws the first option on its
   /// own category ground with an ink shadow and the other two white with a
@@ -1518,6 +1523,9 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
     setState(() {
       _rerolling = true;
       _error = null;
+      // Spin again while the new deal is fetched.
+      _spinDone = false;
+      _deckKey++;
     });
     try {
       // The picker itself now spends the reroll, server-side, because gating
@@ -1627,7 +1635,7 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
     final options = _options;
     final budget = ref.watch(rerollBudgetProvider).valueOrNull;
     final busy = _assigning || _rerolling;
-    final ready = options != null && options.isNotEmpty;
+    final ready = options != null && options.isNotEmpty && _spinDone;
 
     return SafeArea(
       top: false,
@@ -1713,15 +1721,17 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                   ),
                 ),
               )
-            else if (options == null)
-              const Column(
-                children: [
-                  ArcadeSkeleton(height: 104, radius: 15),
-                  SizedBox(height: 12),
-                  ArcadeSkeleton(height: 92, radius: 15),
-                  SizedBox(height: 12),
-                  ArcadeSkeleton(height: 92, radius: 15),
-                ],
+            else if (options == null || !_spinDone)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 44),
+                child: _GeneratingText(
+                  // A fresh key per deal restarts the spin on every reroll.
+                  key: ValueKey('spin-$_deckKey'),
+                  duration: _spinDuration,
+                  onDone: () {
+                    if (mounted) setState(() => _spinDone = true);
+                  },
+                ),
               )
             else if (options.isEmpty)
               Padding(
@@ -1794,6 +1804,109 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The legacy casino-style letter-spin reveal. Each column cycles through
+/// random glyphs at ~14 fps and settles on its target letter in staggered
+/// left-to-right order over [duration]. When the last letter lands, [onDone]
+/// is invoked.
+class _GeneratingText extends StatefulWidget {
+  const _GeneratingText({
+    super.key,
+    required this.duration,
+    required this.onDone,
+  });
+
+  final Duration duration;
+  final VoidCallback onDone;
+  final String text = 'GENERATING';
+
+  @override
+  State<_GeneratingText> createState() => _GeneratingTextState();
+}
+
+class _GeneratingTextState extends State<_GeneratingText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac;
+  Timer? _tick;
+  final _rand = math.Random();
+  int _tickCount = 0;
+  bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: widget.duration)
+      ..forward().whenComplete(() {
+        if (!mounted || _done) return;
+        _done = true;
+        widget.onDone();
+      });
+    _tick = Timer.periodic(const Duration(milliseconds: 70), (_) {
+      if (!mounted) return;
+      setState(() => _tickCount++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    _ac.dispose();
+    super.dispose();
+  }
+
+  double _settledAt(int i) => 0.25 + (i / widget.text.length) * 0.72;
+
+  String _charAt(int i) {
+    if (_ac.value >= _settledAt(i)) return widget.text[i];
+    // Cycle through uppercase letters pseudo-randomly per tick.
+    final code = 65 + ((_rand.nextInt(26) + _tickCount + i) % 26);
+    return String.fromCharCode(code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (_, __) {
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(widget.text.length, (i) {
+              final settled = _ac.value >= _settledAt(i);
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: 26,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: settled ? QuestColors.osAccent : QuestColors.osSurface,
+                  borderRadius: BorderRadius.circular(QuestSpacing.radiusBadge),
+                  border: Border.all(
+                    color: settled
+                        ? QuestColors.osTextPrimary
+                        : QuestColors.osTextMuted,
+                    width: 1.5,
+                  ),
+                ),
+                child: Text(
+                  _charAt(i),
+                  style: QuestTypography.osHeadlineMedium.copyWith(
+                    color: settled
+                        ? QuestColors.onAccent(QuestColors.osAccent)
+                        : QuestColors.osTextSecondary,
+                    fontSize: 17,
+                    height: 1,
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 }
@@ -2361,6 +2474,8 @@ Future<void> _showQuestPreview(
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the shell, so the floating nav pill never covers the sheet.
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: QuestColors.osTextPrimary.withAlpha(184),

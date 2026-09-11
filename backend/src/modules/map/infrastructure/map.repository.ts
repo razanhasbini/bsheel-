@@ -1,12 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
+import { confirmedPlaceIds, locked, visible } from './map-visibility.sql.js';
 
-// Bound to the requesting user. Device GPS never grants this predicate.
-const evidence = `EXISTS (SELECT 1 FROM map_location_evidence e WHERE e.user_id=$1
-  AND e.place_id=p.id AND e.location_verified AND e.location_retrieved AND e.geofence_verified
-  AND e.verified_at <= now() AND e.expires_at > now())`;
-const visible = `p.is_published AND (p.category <> 'hidden' OR ${evidence})`;
+// A locked pin still marks the area — that is the invitation to go and earn
+// it — but not the spot: two decimals is roughly a kilometre, wider than
+// any geofence radius the schema allows.
+const blurred = (column: string) => `CASE WHEN ${locked} THEN round(p.${column}::numeric, 2)::double precision ELSE p.${column} END`;
 
 @Injectable()
 export class MapRepository {
@@ -39,34 +39,50 @@ export class MapRepository {
       GROUP BY c.code ORDER BY c.name`, [userId])).rows;
   }
 
+  /// Every published place, locked ones included.
+  ///
+  /// A locked place is a hidden one the user has not uncovered yet. It is
+  /// returned so the map can draw the mystery pin that makes the region worth
+  /// exploring, but with its name, description and city withheld and its
+  /// position blurred, and it never matches a text search — searching for a
+  /// secret by name would otherwise confirm it exists.
   async places(userId: string, query: MapQueryDto) {
-    return (await this.database.query(`SELECT p.*,c.name AS country_name,c.geometry_id,
+    return (await this.database.query(`SELECT p.id,p.country_code,p.category,p.radius_m,p.is_published,p.created_at,
+      c.name AS country_name,c.geometry_id,
+      ${locked} AS locked,
+      CASE WHEN ${locked} THEN 'Locked location' ELSE p.name END AS name,
+      CASE WHEN ${locked} THEN '' ELSE p.description END AS description,
+      CASE WHEN ${locked} THEN '' ELSE p.city END AS city,
+      ${blurred('latitude')} AS latitude,
+      ${blurred('longitude')} AS longitude,
       EXISTS (SELECT 1 FROM saved_map_places b WHERE b.user_id=$1 AND b.place_id=p.id) AS saved,
-      ${evidence} AS location_verified,
-      (SELECT count(*)::int FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
-        WHERE d.place_id=p.id AND q.is_active) AS quest_count,
+      CASE WHEN ${locked} THEN 0 ELSE (SELECT count(*)::int FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
+        WHERE d.place_id=p.id AND q.is_active) END AS quest_count,
       EXISTS (SELECT 1 FROM quest_destinations d JOIN user_quests uq ON uq.quest_id=d.quest_id
         JOIN submissions s ON s.user_quest_id=uq.id WHERE d.place_id=p.id AND s.user_id=$1
         AND s.status IN ('pending','approved') AND s.deleted_at IS NULL AND s.visibility <> 'deleted'
-        AND s.moderation_removed_at IS NULL) AS discovered
+        AND s.moderation_removed_at IS NULL) AS discovered,
+      p.id IN (${confirmedPlaceIds}) AS confirmed
       FROM map_places p JOIN map_countries c ON c.code=p.country_code
-      WHERE ${visible} AND ($2::text IS NULL OR p.country_code=$2)
+      WHERE p.is_published AND ($2::text IS NULL OR p.country_code=$2)
         AND (NOT $7::boolean OR EXISTS(SELECT 1 FROM saved_map_places b WHERE b.user_id=$1 AND b.place_id=p.id))
         AND ($3::text IS NULL OR p.category=$3)
-        AND ($4::text='' OR position(lower($4) in lower(p.name || ' ' || p.city || ' ' || c.name))>0)
+        AND ($4::text='' OR (NOT ${locked} AND position(lower($4) in lower(p.name || ' ' || p.city || ' ' || c.name))>0))
       ORDER BY p.name,p.id LIMIT $5 OFFSET $6`,
     [userId, query.country ?? null, query.category ?? null, query.search?.trim() ?? '', query.limit, query.offset,query.saved==='true'])).rows;
   }
 
   async detail(userId: string, id: string) {
-    const place = (await this.database.query(`SELECT p.*,${evidence} AS location_verified
+    const place = (await this.database.query(`SELECT p.*, p.id IN (${confirmedPlaceIds}) AS confirmed
       FROM map_places p WHERE p.id=$2 AND ${visible}`, [userId,id])).rows[0];
     if (!place) throw new NotFoundException({ code:'PLACE_NOT_FOUND',message:'Place not found' });
+    // Every quest at a visible place can be started. `requires_verification`
+    // says whether the network will be asked to confirm presence when the
+    // proof comes in (migration 0035); it no longer locks the door.
     const quests = (await this.database.query(`SELECT q.id,q.title,q.description,q.category,q.difficulty,
-      q.duration_hours,q.xp_reward,d.requires_verification,
-      (NOT d.requires_verification OR $2::boolean) AS unlocked
+      q.duration_hours,q.xp_reward,d.requires_verification,true AS unlocked
       FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
-      WHERE d.place_id=$1 AND q.is_active ORDER BY q.title,q.id`, [id,place.location_verified])).rows;
+      WHERE d.place_id=$1 AND q.is_active ORDER BY q.title,q.id`, [id])).rows;
     const previews = (await this.database.query(`SELECT s.id,s.user_id,p.username::text,s.media_type,s.submitted_at,s.media_url
       FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
       JOIN quest_destinations d ON d.quest_id=uq.quest_id JOIN profiles p ON p.id=s.user_id

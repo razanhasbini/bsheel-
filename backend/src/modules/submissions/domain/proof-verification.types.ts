@@ -60,17 +60,75 @@ export interface ProofImage {
   readonly base64: string;
 }
 
+/// One thing the analyzer says it can see, typed so the agent pipeline can
+/// read it as `CvEvidence.detections` without a second vision call.
+///
+/// `present: false` is as useful as `present: true` and is the reason this is
+/// not a bare list of labels: "the quest asked for a sunrise and there is no
+/// sunrise here" is a specific, quotable observation, where an empty list is
+/// indistinguishable from a pass that never looked.
+export interface ProofObservation {
+  readonly kind: 'action' | 'object' | 'landmark' | 'location_cue';
+  readonly label: string;
+  readonly present: boolean;
+  readonly confidence: number;
+}
+
 export interface ProofAnalysis {
   readonly tier: ProofTier;
   readonly verdict: ProofVerdict;
   /// Null when the model declines to commit to a number, which is itself a
   /// reason to prefer a human.
   readonly confidence: number | null;
+  /// How much the media has to do with the quest at all, 0..1, and null when
+  /// the analyzer would not say.
+  ///
+  /// Deliberately separate from `confidence`. That is how sure the analyzer is
+  /// of its verdict; this is what the media shows. A model can be certain a
+  /// photograph of a cat is irrelevant to "watch the sunrise" (confidence
+  /// 0.95, relevance 0.02) and unsure about a hazy horizon that probably is
+  /// one (confidence 0.4, relevance 0.85). Collapsing them would lose the
+  /// difference between "I am sure this is wrong" and "I am not sure".
+  ///
+  /// Only meaningful where the quest's contract says content can decide —
+  /// see `Verifiability`. Low relevance is the *normal* state for a quest no
+  /// photograph can show, and on its own it never justifies a rejection.
+  readonly relevance: number | null;
+  /// What the analyzer says it saw, for and against the quest.
+  readonly observations: readonly ProofObservation[];
   readonly rationale: string;
   readonly escalationReason: string;
   readonly model: string;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+}
+
+/// The "the analyzer did not produce a judgement" result.
+///
+/// A refusal, a truncated response, an unparseable body and a missing tool
+/// call are all the same outcome — no opinion about the proof — and each
+/// analyzer had its own copy of this object per failure path. A shared builder
+/// keeps them identical, and means a field added to `ProofAnalysis` cannot be
+/// forgotten on the five paths that are easiest to overlook.
+export function escalatedAnalysis(input: {
+  tier: ProofTier;
+  model: string;
+  reason: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}): ProofAnalysis {
+  return {
+    tier: input.tier,
+    verdict: 'unclear',
+    confidence: null,
+    relevance: null,
+    observations: [],
+    rationale: '',
+    escalationReason: input.reason,
+    model: input.model,
+    inputTokens: input.inputTokens ?? null,
+    outputTokens: input.outputTokens ?? null,
+  };
 }
 
 /// One vision provider, behind one interface.

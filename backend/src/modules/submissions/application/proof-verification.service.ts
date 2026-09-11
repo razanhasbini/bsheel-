@@ -57,9 +57,11 @@ export class ProofVerificationService {
     const subject = await this.repository.claim(
       submissionId,
       this.config.get('AI_VERIFICATION_MAX_ATTEMPTS', { infer: true }),
+      this.config.get('AI_VERIFICATION_CLAIM_LEASE_SECONDS', { infer: true }),
     );
     // Null means already analysed, out of attempts, or claimed by another
-    // worker. All three are correct no-ops.
+    // worker whose lease has not expired. All three are correct no-ops —
+    // and the last one is only true now that the claim is a lease.
     if (!subject) return;
 
     if (subject.status !== 'pending') {
@@ -168,7 +170,12 @@ export class ProofVerificationService {
     signals: LocationSignals,
     durationMs: number,
   ): Promise<void> {
-    const shadow = this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true });
+    // Exactly the predicate act() uses, so `acted` can never claim an action
+    // that did not happen. `acted = false` is what marks a row as honest eval
+    // data — the agent did not influence the human decision it is scored
+    // against — and a stale true here would quietly poison the eval set that
+    // every authority decision downstream is based on.
+    const willAct = this.willActOnDecisions();
     await this.repository.complete(
       submissionId,
       {
@@ -178,6 +185,14 @@ export class ProofVerificationService {
         tier: analysis?.tier ?? 'triage',
         verdict: outcome.decision === 'approve' ? 'pass' : outcome.decision === 'reject' ? 'fail' : 'unclear',
         confidence: analysis?.confidence ?? null,
+        // Unlike the verdict, these two are the model's own output rather than
+        // the policy's conclusion, and they are stored raw. The policy has no
+        // opinion to substitute: relevance and the observation list are
+        // measurements of the media, and the CAMARA agent reads them back as
+        // its CV evidence — a policy-adjusted number would be a different
+        // thing wearing the same name.
+        relevance: analysis?.relevance ?? null,
+        observations: analysis?.observations ?? [],
         rationale: analysis?.rationale ?? '',
         escalationReason: outcome.decision === 'escalate' ? outcome.reason : '',
         model: analysis?.model ?? '',
@@ -186,11 +201,11 @@ export class ProofVerificationService {
       },
       signals,
       durationMs,
-      { stage: outcome.stage, acted: !shadow && outcome.decision !== 'escalate', provider: this.analyzer.provider },
+      { stage: outcome.stage, acted: willAct && outcome.decision !== 'escalate', provider: this.analyzer.provider },
     );
   }
 
-  /// Carries out the decision, unless shadow mode says otherwise.
+  /// Carries out the decision, unless something more informed will.
   ///
   /// Approval and rejection go through the *same* repository methods a
   /// moderator's click uses, with a null actor. That is deliberate: there is
@@ -199,11 +214,27 @@ export class ProofVerificationService {
   /// decision and an automated one. `admin_audit_log.actor_id` is nullable
   /// and `approve`/`reject` already accepted `string | null`, so the schema
   /// anticipated a non-human decider.
+  ///
+  /// Two independent verifiers fire off `submission.created`, and exactly one
+  /// of them may act. This one steps aside for the other when it is running,
+  /// because the ranking is not arbitrary: the agent pipeline weighs the
+  /// CAMARA location evidence *and* this pass's own findings, read back as CV
+  /// evidence. It is strictly better informed about the same submission. Two
+  /// deciders would mean either a race to `approve`/`reject` on one row or,
+  /// worse, an approval from one and a rejection from the other, with the
+  /// user's notification decided by whichever worker happened to be quicker.
+  ///
+  /// Recording is unaffected: this pass keeps writing its verdict, relevance
+  /// and observations either way. That row is the eval slice and it is also
+  /// what the agent reads — stopping the write to avoid acting twice would
+  /// blind the decider to save it from a conflict.
   private async act(submissionId: string, outcome: PolicyOutcome): Promise<void> {
-    if (this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true })) {
+    if (!this.willActOnDecisions()) {
       this.logger.log(
         { submissionId, decision: outcome.decision, stage: outcome.stage },
-        'Shadow mode: decision recorded, not acted on',
+        this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })
+          ? 'Agent pipeline is the decider for this deployment: proof verdict recorded as evidence, not acted on'
+          : 'Shadow mode: decision recorded, not acted on',
       );
       return;
     }
@@ -216,6 +247,141 @@ export class ProofVerificationService {
       await this.submissions.reject(null, submissionId, outcome.reason, source);
     }
     this.logger.log({ submissionId, decision: outcome.decision, stage: outcome.stage }, 'Agent decided a submission');
+  }
+
+  /// Whether this pass is the one allowed to carry its decisions out.
+  ///
+  /// Two things can take that away, and they are different in kind. Shadow
+  /// mode says nobody has measured this agent yet. The agent pipeline being
+  /// enabled says something better informed will decide instead. Either way
+  /// the verdict is still recorded — and in the second case it is recorded
+  /// *for* that decider, as the CV evidence it reads.
+  private willActOnDecisions(): boolean {
+    if (this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) return false;
+    return !this.config.get('AI_VERIFICATION_SHADOW_MODE', { infer: true });
+  }
+
+  /// Scores the agent against decisions people already made (#47).
+  ///
+  /// The authority model says the agent earns the right to act from a
+  /// measured precision number. `npm run proof:eval` computes it from stored
+  /// verdicts paired with the human decision that followed — and `verify()`
+  /// refuses to analyse anything already reviewed, so that pairing can only
+  /// ever accumulate going forward. A database full of moderated history is
+  /// invisible to it, and a new deployment has to run in shadow mode for
+  /// weeks before it can answer "is this good enough yet".
+  ///
+  /// This reads that history instead. Same forensics, same cascade, same
+  /// policy — the verdict it records is the one the agent *would* have
+  /// reached, on submissions whose outcome was settled by a person before
+  /// this verdict existed.
+  ///
+  /// Three things it deliberately does not do, each of which would make it
+  /// unsafe to point at a production database:
+  ///
+  ///   * **never acts.** No `act()` call, at any setting. Shadow mode is not
+  ///     consulted because acting is not reachable from here.
+  ///   * **never claims.** No attempt increment, no state transition, so it
+  ///     cannot consume the retries a live submission needs, and it is
+  ///     re-runnable.
+  ///   * **never alerts.** `completeForEval` writes the verdict without the
+  ///     committee notification `complete()` sends on an escalation —
+  ///     otherwise scoring a year of history would notify every admin about
+  ///     every old submission the agent found ambiguous.
+  ///
+  /// It costs real vision calls, which is why the caller passes a limit.
+  async backfillForEval(limit: number): Promise<{
+    scored: number;
+    skipped: number;
+    failed: number;
+  }> {
+    if (!this.analyzer.enabled) {
+      this.logger.warn('Backfill requested while the analyzer is disabled; nothing to score with');
+      return { scored: 0, skipped: 0, failed: 0 };
+    }
+
+    const ids = await this.repository.decidedWithoutVerdict(limit);
+    let scored = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const submissionId of ids) {
+      const startedAt = Date.now();
+      try {
+        const subject = await this.repository.evalSubject(submissionId);
+        const contract = await this.repository.contractFor(submissionId);
+        const provenance = subject && contract ? await this.provenance.inspect(submissionId) : null;
+        if (!subject || !contract || !provenance) {
+          // A submission whose media has gone, or whose quest has no
+          // resolvable contract. Counted rather than recorded: a row written
+          // from nothing would be scored as if it meant something.
+          skipped += 1;
+          continue;
+        }
+
+        let analysis: ProofAnalysis | undefined;
+        if (contract.verifiability === 'content' && provenance.images.length > 0) {
+          analysis = await this.runCascade(
+            {
+              questTitle: subject.quest_title,
+              questDescription: subject.quest_description,
+              questCategory: subject.quest_category,
+              evidenceRubric: contract.evidenceRubric,
+              verifiability: contract.verifiability,
+              forensicNotes: provenance.notes,
+              caption: subject.caption,
+              images: provenance.images,
+              unreadableMedia: provenance.unreadableMedia,
+              // Historical rows have no network evidence and never will;
+              // saying so is what stops the pass inferring presence.
+              signals: {},
+            },
+            this.config.get('AI_VERIFICATION_APPROVE_MIN_CONFIDENCE', { infer: true }),
+          );
+        }
+
+        const outcome = decide({
+          verifiability: contract.verifiability,
+          mayAutoApprove: contract.mayAutoApprove,
+          mayAutoReject: contract.mayAutoReject,
+          forensics: provenance.report,
+          analysis,
+          approveMinConfidence: this.config.get('AI_VERIFICATION_APPROVE_MIN_CONFIDENCE', { infer: true }),
+          rejectMinConfidence: this.config.get('AI_VERIFICATION_REJECT_MIN_CONFIDENCE', { infer: true }),
+        });
+
+        await this.repository.completeForEval(
+          submissionId,
+          analysis ?? {
+            tier: 'triage',
+            verdict: 'unclear',
+            confidence: null,
+            relevance: null,
+            observations: [],
+            rationale: '',
+            escalationReason: outcome.reason,
+            model: '',
+            inputTokens: null,
+            outputTokens: null,
+          },
+          outcome.stage,
+          outcome.decision === 'approve' ? 'pass' : outcome.decision === 'reject' ? 'fail' : 'unclear',
+          Date.now() - startedAt,
+        );
+        scored += 1;
+      } catch (error) {
+        // Never written as a verdict, and never `fail()`ed either: failing
+        // the row would mark a live state machine on behalf of a backfill.
+        failed += 1;
+        this.logger.warn(
+          { submissionId, err: error instanceof Error ? error.message : 'Unknown error' },
+          'Backfill could not score this submission',
+        );
+      }
+    }
+
+    this.logger.log({ requested: ids.length, scored, skipped, failed }, 'Eval backfill finished');
+    return { scored, skipped, failed };
   }
 
   /// The committee's "unclear" section (#47).

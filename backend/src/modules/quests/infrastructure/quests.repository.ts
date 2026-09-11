@@ -15,20 +15,28 @@ import type {
 } from '../presentation/quest.dto.js';
 import { QuestAssignmentPolicyRepository } from './quest-assignment-policy.repository.js';
 import { eligibilityFor } from '../domain/quest-eligibility.js';
+import { visible as mapVisible } from '../../map/infrastructure/map-visibility.sql.js';
 
 @Injectable()
 export class QuestsRepository {
   constructor(private readonly database: DatabaseService, private readonly assignmentPolicy: QuestAssignmentPolicyRepository) {}
 
-  async assertDestinationAccess(userId: string, questId: string, assignment = false) {
-    const result = await this.database.query(`SELECT p.is_published,p.category,d.requires_verification,
-      EXISTS(SELECT 1 FROM map_location_evidence e WHERE e.user_id=$1 AND e.place_id=p.id
-        AND e.location_verified AND e.location_retrieved AND e.geofence_verified
-        AND e.verified_at<=now() AND e.expires_at>now()) AS verified
+  /// A destination quest is reachable exactly when its place is visible on
+  /// the map: published, and not a hidden place the user has yet to uncover.
+  /// Same predicate as the map endpoints, so a pin never offers a quest this
+  /// refuses.
+  ///
+  /// There is deliberately no assignment-time location gate any more.
+  /// Migration 0035 moved presence to the real lifecycle — the geofence opens
+  /// after assignment and the network's answer is weighed when the proof
+  /// comes in — so the old "verify before you may start" check could never
+  /// be satisfied and left every verified quest permanently locked.
+  async assertDestinationAccess(userId: string, questId: string, _assignment = false) {
+    const result = await this.database.query(`SELECT ${mapVisible} AS visible
       FROM quest_destinations d JOIN map_places p ON p.id=d.place_id WHERE d.quest_id=$2`, [userId,questId]);
     const destination = result.rows[0];
     if (!destination) return;
-    if (!destination.is_published || (destination.category === 'hidden' && !destination.verified)) {
+    if (!destination.visible) {
       throw new NotFoundException({code:'QUEST_NOT_FOUND',message:'Quest not found'});
     }
     // Deliberately no verification gate at assignment.
@@ -42,9 +50,9 @@ export class QuestsRepository {
     // nothing wrote map_location_evidence, it also made every
     // `requires_verification` quest permanently unassignable.
     //
-    // `assignment` is kept in the signature: callers distinguish the two
+    // `_assignment` is kept in the signature: callers distinguish the two
     // reads, and the hidden-place check above is the part that still differs.
-    void assignment;
+    void _assignment;
   }
 
   async findQuest(id: string): Promise<QuestRecord | null> {

@@ -49,6 +49,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Bsheel needs camera access to take photos for quest submissions.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>BSHEEL shows where you are on the quest map and how far you are from each quest location.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Bsheel needs microphone access to record video for quest submissions.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

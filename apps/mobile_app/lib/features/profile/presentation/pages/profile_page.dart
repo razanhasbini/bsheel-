@@ -1,57 +1,46 @@
+import 'package:app_contracts/app_contracts.dart';
+import 'package:app_core/app_core.dart';
+import 'package:app_models/app_models.dart';
+import 'package:app_repositories/app_repositories.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/providers/auth_session_provider.dart';
-import 'package:app_models/app_models.dart';
-import 'package:app_core/app_core.dart';
-import 'package:app_repositories/app_repositories.dart';
-import 'package:shared_ui/shared_ui.dart';
-import 'package:app_contracts/app_contracts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_ui/shared_ui.dart';
+import 'package:video_player/video_player.dart';
+
 import '../../../../core/config/deep_link_config.dart';
+import '../../../../core/providers/auth_session_provider.dart';
+import '../../../../core/providers/current_profile_provider.dart';
+import '../../../../core/providers/streak_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/sign_out_service.dart';
-import '../../../../core/providers/current_profile_provider.dart';
-import '../../../../core/providers/streak_provider.dart';
 import '../../../../core/utils/streak_utils.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../follows/data/follows_providers.dart';
 import '../../../follows/presentation/widgets/follow_button.dart';
+import '../../../map/data/map_providers.dart';
+import '../../../map/presentation/map_page.dart' show DiscoveryProgress;
 import '../../../quests/data/quest_providers.dart';
+import '../../../reactions/presentation/providers/reaction_controller.dart';
+import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../../../submissions/data/submission_providers.dart';
 import '../../domain/badge_definitions.dart';
 import '../../domain/player_class.dart';
-import '../../../map/data/map_providers.dart';
-import '../../../map/presentation/map_page.dart' show DiscoveryProgress;
-import '../../../../l10n/app_localizations.dart';
-import '../../../reactions/presentation/providers/reaction_controller.dart';
-import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../providers/profile_realtime_provider.dart';
 
-/// Profile — built to `export/mobile/12-profile.jpg`.
+/// Profile — the tabbed layout the legacy Bsheel app shipped.
 ///
-/// One scroll, no tab bar: header (avatar · name · EDIT), the violet XP panel
-/// with its gold meter and rank ladder, three stat tiles, BADGES, ACTIVITY.
-/// The frame draws nothing below the activity strip, so the six tab bodies
-/// this page used to carry moved behind the controls that name them —
-/// POSTS / FOLLOWERS / FOLLOWING open sheets, the locked badge tile opens the
-/// full badge list. Saved posts ride the POSTS sheet as a second chip, since
-/// this page is their only entry point. The old ACTIVITY tab's
-/// completed-quests grid is gone: `quest_history_page.dart` already renders
-/// it and is reachable from home.
-
-// Badge tile tints, in the frame's order: gold, jade, coral, then sky and
-// violet for anyone who unlocks more than three.
-const _badgeTints = <Color>[
-  QuestColors.osAccent,
-  QuestColors.osSuccess,
-  QuestColors.osRed,
-  QuestColors.osCool,
-  QuestColors.osPrimary,
-];
-
+/// A pinned header (avatar with level badge, name, class chip, follower
+/// counts, XP bar, DONE / XP / STREAK pills) over a sticky tab bar:
+/// POSTS · ACTIVITY · BADGES · FOLLOWERS · FOLLOWING, plus BSHEEEL on the
+/// viewer's own profile. Every tab body pulls to refresh.
+///
+/// The data underneath is the current stack — server-derived streak, the
+/// discovery-progress strip, the same providers the single-scroll version
+/// read — only the presentation went back.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key, this.userId});
   final String? userId;
@@ -143,12 +132,10 @@ class ProfilePage extends ConsumerWidget {
           );
         }
 
-        // XP maths follows the app's own linear curve — level n starts at
-        // (n-1)*100 — but is *presented* the way the frame sets it: total XP
-        // over the next level's threshold, e.g. "4,180 / 4,600".
+        // Linear curve: level n starts at (n-1)*100.
         final xpInLevel = profile.xp - (profile.level - 1) * 100;
-        final nextThreshold = profile.level * 100;
-        final xpProgress = (xpInLevel / 100).clamp(0.0, 1.0);
+        const xpForNextLevel = 100;
+        final xpProgress = (xpInLevel / xpForNextLevel).clamp(0.0, 1.0);
         final playerClass = playerClassForLevel(profile.level);
 
         final questHistoryAsync = isViewingOther
@@ -156,6 +143,9 @@ class ProfilePage extends ConsumerWidget {
             : ref.watch(questHistoryProvider);
         final questHistory =
             questHistoryAsync.valueOrNull ?? const <UserQuestModel>[];
+        final approvedQuests = questHistory
+            .where((q) => q.status == UserQuestStatus.approved)
+            .toList(growable: false);
 
         final submissions = (isViewingOther
                     ? ref.watch(userSubmissionsByUserProvider(profile.id))
@@ -172,15 +162,12 @@ class ProfilePage extends ConsumerWidget {
                         q.status == UserQuestStatus.rejected)
                     .map((q) => q.completedAt ?? q.assignedAt))
             .toList(growable: false);
-        // Server-derived (#46). The old client calculation read whatever
-        // history page was loaded, counted rejected attempts, and bucketed by
-        // a different day boundary than the reminder job.
-        //
-        // Per profile, not per viewer. This read `streakProvider` — the
-        // signed-in user's own streak — unconditionally, so opening someone
-        // else's profile showed *your* streak on *their* card. The
-        // `userStreakProvider` family already existed for exactly this and
-        // had no callers.
+        final activeDays = uniqueLocalDates(activityTimestamps);
+
+        // Server-derived (#46), per profile rather than per viewer: the
+        // legacy page counted this on the client from whatever history page
+        // had loaded, and later read the signed-in user's own streak on
+        // everyone's profile.
         final streak = (isViewingOther
                     ? ref.watch(userStreakProvider(profile.id))
                     : ref.watch(streakProvider))
@@ -188,29 +175,26 @@ class ProfilePage extends ConsumerWidget {
                 ?.current ??
             0;
 
-        final socialQuestCount = questHistory
-            .where((q) =>
-                q.quest?.category == QuestCategory.social &&
-                q.status == UserQuestStatus.approved)
+        // Single source of truth: profiles.quests_completed is kept in sync
+        // by the approval/revocation path, so it correctly drops when a post
+        // is removed by an admin or the user.
+        final displayedQuestCount = profile.questsCompleted;
+
+        final socialQuestCount = approvedQuests
+            .where((q) => q.quest?.category == QuestCategory.social)
             .length;
+        final badges = allBadges;
 
-        // POSTS counts what the posts grid actually shows: approved,
-        // non-deleted submissions.
-        final postCount = submissions
-            .where((s) =>
-                s.status == SubmissionStatus.approved &&
-                s.visibility != SubmissionVisibility.deleted &&
-                s.deletedAt == null)
-            .length;
-
-        final counts = ref.watch(followCountsProvider(profile.id)).valueOrNull;
-
+        // Hoisted out so every tab body can reuse the same handler.
+        // Invalidates every cache the page surfaces and awaits the
+        // re-fetches so the spinner stays visible until data is back.
         Future<void> handleRefresh() async {
           ref.invalidate(followCountsProvider(profile.id));
           if (isViewingOther) {
             ref.invalidate(viewedProfileProvider(profile.id));
             ref.invalidate(questHistoryByUserProvider(profile.id));
             ref.invalidate(userSubmissionsByUserProvider(profile.id));
+            ref.invalidate(userStreakProvider(profile.id));
             ref.invalidate(_savedPostsProvider(profile.id));
             await Future.wait<dynamic>([
               ref.read(viewedProfileProvider(profile.id).future),
@@ -222,6 +206,7 @@ class ProfilePage extends ConsumerWidget {
             ref.invalidate(currentProfileProvider);
             ref.invalidate(questHistoryProvider);
             ref.invalidate(userSubmissionsProvider);
+            ref.invalidate(streakProvider);
             ref.invalidate(_savedPostsProvider(profile.id));
             await Future.wait<dynamic>([
               ref.read(currentProfileProvider.future),
@@ -232,151 +217,347 @@ class ProfilePage extends ConsumerWidget {
           }
         }
 
-        final badges = allBadges;
-        final unlocked = badges
-            .where((b) => b.isUnlocked(
-                  profile: profile,
-                  streak: streak,
-                  socialQuestCount: socialQuestCount,
-                ))
-            .toList(growable: false);
+        // Wraps a tab body in a RefreshIndicator. AlwaysScrollableScrollPhysics
+        // on the bodies ensures even short / empty ones accept the pull.
+        Widget refreshable(Widget child) {
+          return RefreshIndicator(
+            color: QuestColors.osPrimary,
+            backgroundColor: QuestColors.osCard,
+            onRefresh: handleRefresh,
+            child: child,
+          );
+        }
 
-        return Scaffold(
-          backgroundColor: QuestColors.osBg,
-          body: SafeArea(
-            bottom: false,
-            child: RefreshIndicator(
-              color: QuestColors.osPrimary,
-              backgroundColor: QuestColors.osCard,
-              onRefresh: handleRefresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-                children: [
-                  _Header(
-                    profile: profile,
-                    isViewingOther: isViewingOther,
-                    onBack: () => context.canPop()
-                        ? context.pop()
-                        : context.goNamed(RouteNames.home),
-                    onEdit: () => context.pushNamed(RouteNames.editProfile),
-                    onSettings: () => context.pushNamed(RouteNames.settings),
-                    onShare: () {
-                      ref.read(analyticsProvider).profileShared(profile.id);
-                      SharePlus.instance.share(ShareParams(
-                        text:
-                            'Check out @${profile.username} on BSHEEL!\n\n${DeepLinkConfig.profileLink(profile.id)}',
-                      ));
-                    },
-                    onAvatarTap: () {
-                      final url = profile.avatarUrl;
-                      if (url != null && url.isNotEmpty) {
-                        _openAvatarFullscreen(
-                          context,
-                          imageUrl: url,
-                          heroTag: 'profile-avatar-${profile.id}',
-                        );
-                      }
-                    },
-                  ),
-                  ref.watch(mapProfileCountriesProvider(profile.id)).when(
-                        data: (countries) =>
-                            DiscoveryProgress(countries: countries),
-                        loading: () => const LinearProgressIndicator(),
-                        error: (_, __) => TextButton(
-                            onPressed: () => ref.invalidate(
-                                mapProfileCountriesProvider(profile.id)),
-                            child: const Text('RETRY DISCOVERY PROGRESS')),
-                      ),
-                  if (isViewingOther) ...[
-                    const SizedBox(height: 14),
-                    FollowButton(targetUserId: userId!),
-                  ],
-                  const SizedBox(height: 16),
-                  _XpPanel(
-                    level: profile.level,
-                    playerClass: playerClass,
-                    xp: profile.xp,
-                    nextThreshold: nextThreshold,
-                    progress: xpProgress,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StatTile(
-                          value: '$postCount',
-                          label: l.posts,
-                          onTap: () => _showProfileSheet(
-                            context,
-                            title: l.posts,
-                            child: _PostsSheetBody(
-                              userId: profile.id,
-                              submissions: submissions,
-                              showSaved: !isViewingOther,
-                            ),
+        return DefaultTabController(
+          length: isViewingOther ? 5 : 6,
+          child: Scaffold(
+            backgroundColor: QuestColors.osBg,
+            body: SafeArea(
+              bottom: false,
+              child: NestedScrollView(
+                headerSliverBuilder: (context, _) => [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      child: Column(
+                        children: [
+                          // ── Header row ────────────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isViewingOther) ...[
+                                    _IconBtn(
+                                      icon: Icons.arrow_back_rounded,
+                                      semanticLabel: 'Back',
+                                      onTap: () => context.canPop()
+                                          ? context.pop()
+                                          : context.goNamed(RouteNames.profile),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  // Title only on the user's OWN profile.
+                                  // On someone else's the big @handle here
+                                  // would repeat the one beside the avatar.
+                                  if (!isViewingOther)
+                                    Text(
+                                      l.profile.toUpperCase(),
+                                      style: QuestTypography.osDisplaySmall
+                                          .copyWith(
+                                        fontSize: 22,
+                                        height: 1,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _IconBtn(
+                                    icon: Icons.share_outlined,
+                                    semanticLabel: 'Share profile',
+                                    onTap: () {
+                                      ref
+                                          .read(analyticsProvider)
+                                          .profileShared(profile.id);
+                                      SharePlus.instance.share(ShareParams(
+                                        text:
+                                            'Check out @${profile.username} on BSHEEL!\n\n${DeepLinkConfig.profileLink(profile.id)}',
+                                      ));
+                                    },
+                                  ),
+                                  if (!isViewingOther) ...[
+                                    const SizedBox(width: 8),
+                                    _IconBtn(
+                                      icon: Icons.edit_outlined,
+                                      semanticLabel: 'Edit profile',
+                                      onTap: () => context
+                                          .pushNamed(RouteNames.editProfile),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _IconBtn(
+                                      icon: Icons.settings_outlined,
+                                      semanticLabel: 'Settings',
+                                      onTap: () => context
+                                          .pushNamed(RouteNames.settings),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StatTile(
-                          value: counts == null ? '—' : '${counts.followers}',
-                          label: l.followers,
-                          onTap: () => _showProfileSheet(
-                            context,
-                            title: l.followers,
-                            child: _FollowListTab(
-                                userId: profile.id, isFollowers: true),
+                          const SizedBox(height: 20),
+
+                          // ── Avatar + info ─────────────────────────
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              _LevelledAvatar(
+                                profile: profile,
+                                onTap: () {
+                                  final url = profile.avatarUrl;
+                                  if (url != null && url.isNotEmpty) {
+                                    _openAvatarFullscreen(
+                                      context,
+                                      imageUrl: url,
+                                      heroTag: 'profile-avatar-${profile.id}',
+                                    );
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    FitText(
+                                      profile.displayName,
+                                      minFontSize: 12,
+                                      style: QuestTypography.osHeadlineLarge
+                                          .copyWith(fontSize: 20, height: 1.1),
+                                    ),
+                                    FitText(
+                                      '@${profile.username}',
+                                      minFontSize: 10,
+                                      style: QuestTypography.osBodySmall
+                                          .copyWith(
+                                              color:
+                                                  QuestColors.osTextSecondary),
+                                    ),
+                                    if (profile.bio != null &&
+                                        profile.bio!.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        profile.bio!,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: QuestTypography.osBodySmall
+                                            .copyWith(
+                                                color: QuestColors
+                                                    .osTextSecondary),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 6),
+                                    _Chip(
+                                      label: playerClass,
+                                      bg: QuestColors.osPrimary.withAlpha(20),
+                                      fg: QuestColors.osPrimary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _FollowCountsBlock(userId: profile.id),
+                            ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _StatTile(
-                          value: counts == null ? '—' : '${counts.following}',
-                          label: l.following,
-                          onTap: () => _showProfileSheet(
-                            context,
-                            title: l.following,
-                            child: _FollowListTab(
-                                userId: profile.id, isFollowers: false),
+                          if (isViewingOther) ...[
+                            const SizedBox(height: 16),
+                            FollowButton(targetUserId: userId!),
+                          ],
+                          const SizedBox(height: 14),
+                          ref
+                              .watch(mapProfileCountriesProvider(profile.id))
+                              .when(
+                                data: (countries) =>
+                                    DiscoveryProgress(countries: countries),
+                                loading: () => const LinearProgressIndicator(),
+                                error: (_, __) => TextButton(
+                                    onPressed: () => ref.invalidate(
+                                        mapProfileCountriesProvider(
+                                            profile.id)),
+                                    child:
+                                        const Text('RETRY DISCOVERY PROGRESS')),
+                              ),
+                          const SizedBox(height: 16),
+
+                          // ── XP bar ────────────────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'XP · LEVEL ${profile.level}',
+                                style: QuestTypography.osLabelSmall.copyWith(
+                                  color: QuestColors.osTextSecondary,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              Text(
+                                '$xpInLevel / $xpForNextLevel',
+                                style: QuestTypography.osHeadlineSmall
+                                    .copyWith(fontSize: 12),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _SectionLabel(l.badges),
-                  const SizedBox(height: 10),
-                  _BadgeRow(
-                    unlocked: unlocked,
-                    onBadgeTap: (badge) => _showBadgeDetail(
-                      context,
-                      badge,
-                      true,
-                      badge.currentValue(
-                        profile: profile,
-                        streak: streak,
-                        socialQuestCount: socialQuestCount,
+                          const SizedBox(height: 6),
+                          ArcadeMeter(
+                            progress: xpProgress,
+                            fill: QuestColors.osPrimary,
+                            height: 12,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // ── Stat pills ────────────────────────────
+                          Row(
+                            children: [
+                              _StatPill(
+                                  value: '$displayedQuestCount', label: l.done),
+                              const SizedBox(width: 8),
+                              _StatPill(value: '${profile.xp}', label: 'XP'),
+                              const SizedBox(width: 8),
+                              _StatPill(value: '$streak', label: 'STREAK'),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
                     ),
-                    onSeeAll: () => _showProfileSheet(
-                      context,
-                      title: l.badges,
-                      child: _BadgeListBody(
-                        badges: badges,
-                        profile: profile,
-                        streak: streak,
-                        socialQuestCount: socialQuestCount,
+                  ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _TabBarDelegate(
+                      TabBar(
+                        labelColor: QuestColors.osTextPrimary,
+                        unselectedLabelColor: QuestColors.osTextMuted,
+                        indicatorColor: QuestColors.osPrimary,
+                        indicatorWeight: 3,
+                        labelStyle: QuestTypography.osLabelMedium
+                            .copyWith(fontSize: 12, letterSpacing: 0.4),
+                        unselectedLabelStyle: QuestTypography.osLabelMedium
+                            .copyWith(fontSize: 12, letterSpacing: 0.4),
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        tabs: [
+                          Tab(text: l.posts.toUpperCase()),
+                          Tab(text: l.activity.toUpperCase()),
+                          Tab(text: l.badges.toUpperCase()),
+                          Tab(text: l.followers.toUpperCase()),
+                          Tab(text: l.following.toUpperCase()),
+                          if (!isViewingOther) const Tab(text: 'BSHEEEL'),
+                        ],
                       ),
+                      QuestColors.osBg,
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  _SectionLabel(l.activity),
-                  const SizedBox(height: 10),
-                  _ActivityStrip(timestamps: activityTimestamps),
                 ],
+                body: TabBarView(
+                  children: [
+                    // Posts — own pull-to-refresh.
+                    refreshable(ListView(
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        _UserPostsGrid(submissions: submissions),
+                      ],
+                    )),
+
+                    // Activity — heatmap + completed quests.
+                    refreshable(ListView(
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        _ActivityHeatmap(activeDays: activeDays),
+                        if (approvedQuests.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _SectionLabel(l.completedQuests),
+                          const SizedBox(height: 10),
+                          GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              childAspectRatio: 1.1,
+                            ),
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: approvedQuests.length,
+                            itemBuilder: (context, index) {
+                              final uq = approvedQuests[index];
+                              final quest = uq.quest;
+                              return _CompletedQuestTile(
+                                title: quest?.title ?? 'Quest',
+                                category: quest?.category ?? '',
+                                xp: quest?.xpReward ?? 0,
+                                onTap: quest != null
+                                    ? () => context.pushNamed(
+                                          RouteNames.questDetails,
+                                          pathParameters: {'id': uq.questId},
+                                        )
+                                    : null,
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    )),
+
+                    // Badges — every badge with its progress.
+                    refreshable(ListView.separated(
+                      // Bottom clears the floating nav pill.
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: badges.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final badge = badges[index];
+                        final unlocked = badge.isUnlocked(
+                          profile: profile,
+                          streak: streak,
+                          socialQuestCount: socialQuestCount,
+                        );
+                        final current = badge.currentValue(
+                          profile: profile,
+                          streak: streak,
+                          socialQuestCount: socialQuestCount,
+                        );
+                        return _BadgeRow(
+                          badge: badge,
+                          unlocked: unlocked,
+                          current: current,
+                          onTap: () => _showBadgeDetail(
+                              context, badge, unlocked, current),
+                        );
+                      },
+                    )),
+
+                    // Followers / following — own pull-to-refresh.
+                    refreshable(
+                      _FollowListTab(userId: profile.id, isFollowers: true),
+                    ),
+                    refreshable(
+                      _FollowListTab(userId: profile.id, isFollowers: false),
+                    ),
+
+                    // BSHEEEL — saved quests, own profile only.
+                    if (!isViewingOther)
+                      refreshable(_SavedPostsTab(userId: profile.id)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -386,362 +567,121 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
-// ── Header ────────────────────────────────────────────────────────────────
+// ── Avatar with level badge ────────────────────────────────────────────────
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.profile,
-    required this.isViewingOther,
-    required this.onBack,
-    required this.onEdit,
-    required this.onSettings,
-    required this.onShare,
-    required this.onAvatarTap,
-  });
+/// The legacy 108pt avatar: violet→coral gradient behind the photo, ink
+/// outline and shadow, and the `L{level}` gold badge pinned to its corner.
+class _LevelledAvatar extends StatelessWidget {
+  const _LevelledAvatar({required this.profile, required this.onTap});
 
   final ProfileModel profile;
-  final bool isViewingOther;
-  final VoidCallback onBack;
-  final VoidCallback onEdit;
-  final VoidCallback onSettings;
-  final VoidCallback onShare;
-  final VoidCallback onAvatarTap;
+  final VoidCallback onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        if (isViewingOther) ...[
-          _IconBtn(icon: Icons.arrow_back_rounded, onTap: onBack),
-          const SizedBox(width: 10),
-        ],
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onAvatarTap,
-          child: Hero(
-            tag: 'profile-avatar-${profile.id}',
-            child: _SquareAvatar(
-              url: profile.avatarUrl,
-              fallback: profile.displayName,
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FitText(
-                profile.displayName.toUpperCase(),
-                // Low floor on purpose: at 320dp the avatar plus EDIT plus
-                // the gear leave the name about 60pt, and the frame sets it
-                // on one line.
-                minFontSize: 11,
-                style: QuestTypography.osDisplayMedium.copyWith(
-                  fontSize: 28,
-                  letterSpacing: -0.8,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '@${profile.username}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: QuestTypography.osLabelMedium
-                    .copyWith(color: QuestColors.osTextSecondary),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        if (isViewingOther)
-          _IconBtn(icon: Icons.share_outlined, onTap: onShare)
-        else ...[
-          _TextButton(label: 'EDIT', onTap: onEdit),
-          const SizedBox(width: 8),
-          // Not in the frame, but the settings screen is only reachable from
-          // here — dropping the gear would orphan the whole screen.
-          _IconBtn(icon: Icons.settings_outlined, onTap: onSettings),
-        ],
-      ],
-    );
-  }
-}
-
-/// The frame's profile avatar: a 72pt rounded square, `r18`, 2px ink, 4px ink
-/// shadow. Falls back to the violet→coral gradient with the initial; white on
-/// that gradient measures 4.56:1 against ink's 3.43:1, so it stays white.
-class _SquareAvatar extends StatelessWidget {
-  const _SquareAvatar({required this.url, required this.fallback});
-
-  final String? url;
-  final String fallback;
-
-  static const double _size = 72;
+  static const double _size = 108;
 
   @override
   Widget build(BuildContext context) {
     final initial = Center(
       child: Text(
-        _avatarInitial(fallback),
-        style: QuestTypography.displaySmall.copyWith(
-          fontSize: 30,
-          color: QuestColors.pureWhite,
+        _avatarInitial(profile.displayName),
+        style: QuestTypography.osDisplayMedium.copyWith(
+          fontSize: 44,
+          color: QuestColors.osTextOnPrimary,
           height: 1,
         ),
       ),
     );
-    return Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [QuestColors.osPrimary, QuestColors.osRed],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: QuestColors.osTextPrimary,
-            offset: Offset(4, 4),
-            blurRadius: 0,
+    final hasAvatar =
+        profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Hero(
+            tag: 'profile-avatar-${profile.id}',
+            child: Container(
+              width: _size,
+              height: _size,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [QuestColors.osPrimary, QuestColors.osRed]),
+                border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: QuestSpacing.cardBorderWidth),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusSheet),
+                boxShadow: QuestSpacing.shadowMd,
+              ),
+              child: hasAvatar
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(QuestSpacing.inner(
+                          QuestSpacing.radiusSheet,
+                          QuestSpacing.cardBorderWidth)),
+                      child: CachedNetworkImage(
+                        imageUrl: profile.avatarUrl!,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 200,
+                        errorWidget: (_, __, ___) => initial,
+                      ),
+                    )
+                  : initial,
+            ),
           ),
-        ],
-      ),
-      child: (url == null || url!.isEmpty)
-          ? initial
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CachedNetworkImage(
-                imageUrl: url!,
-                fit: BoxFit.cover,
-                memCacheWidth: 200,
-                placeholder: (_, __) => initial,
-                errorWidget: (_, __, ___) => initial,
+        ),
+        // Level badge
+        Positioned(
+          right: -6,
+          bottom: -6,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: QuestColors.osAccent,
+              border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: QuestSpacing.cardBorderWidth),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusSm),
+            ),
+            child: Text(
+              'L${profile.level}',
+              style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 11,
+                color: QuestColors.osAccentInk,
+                height: 1.2,
               ),
             ),
-    );
-  }
-}
-
-/// EDIT — warm surface, `r11`, 2px ink, 3px ink shadow, 44pt tall.
-class _TextButton extends StatelessWidget {
-  const _TextButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: QuestSpacing.minTouchTarget,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: QuestColors.osSurface,
-          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
-          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: QuestColors.osTextPrimary,
-              offset: Offset(3, 3),
-              blurRadius: 0,
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: QuestTypography.osHeadlineLarge.copyWith(
-            fontSize: 15,
-            letterSpacing: 0.4,
-            height: 1,
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
-// ── XP panel ──────────────────────────────────────────────────────────────
+// ── Small tinted chip (class, category, XP) ───────────────────────────────
 
-/// Violet panel, `r16`, 4px ink shadow: LVL in display white, the class in
-/// gold, the XP fraction in white mono, a gold meter, and the rank ladder
-/// underneath with the current rung in gold.
-class _XpPanel extends StatelessWidget {
-  const _XpPanel({
-    required this.level,
-    required this.playerClass,
-    required this.xp,
-    required this.nextThreshold,
-    required this.progress,
-  });
-
-  final int level;
-  final String playerClass;
-  final int xp;
-  final int nextThreshold;
-  final double progress;
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.bg, required this.fg});
+  final String label;
+  final Color bg;
+  final Color fg;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: QuestColors.osPrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: QuestColors.osTextPrimary,
-            offset: Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
+        color: bg,
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusChip),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Flexible(
-                flex: 3,
-                child: FitText(
-                  'LVL $level',
-                  minFontSize: 16,
-                  style: QuestTypography.displayLarge.copyWith(
-                    fontSize: 32,
-                    color: QuestColors.pureWhite,
-                    height: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                flex: 2,
-                child: Text(
-                  playerClass,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: QuestTypography.labelMedium
-                      .copyWith(color: QuestColors.osAccent),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                flex: 4,
-                child: FitText(
-                  '${_thousands(xp)} / ${_thousands(nextThreshold)}',
-                  minFontSize: 9,
-                  textAlign: TextAlign.right,
-                  style: QuestTypography.labelMedium
-                      .copyWith(color: QuestColors.pureWhite, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ArcadeMeter(progress: progress, fill: QuestColors.osAccent),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (final rung in playerClassLadder)
-                Flexible(
-                  child: Text(
-                    rung,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: QuestTypography.labelSmall.copyWith(
-                      fontSize: 9,
-                      // White on violet is the readable pair; the inactive
-                      // rungs stay full-strength white rather than alpha-
-                      // muted, because 9px type has no contrast to spare.
-                      color: rung == playerClass
-                          ? QuestColors.osAccent
-                          : QuestColors.pureWhite,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// `18420` → `18,420`, which is how every score is set in the frames.
-String _thousands(int value) {
-  final digits = value.abs().toString();
-  final buffer = StringBuffer(value < 0 ? '-' : '');
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(digits[i]);
-  }
-  return buffer.toString();
-}
-
-// ── Stat tile ─────────────────────────────────────────────────────────────
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({required this.value, required this.label, this.onTap});
-
-  final String value;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: 60,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: QuestColors.osTextPrimary,
-              offset: Offset(3, 3),
-              blurRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FitText(
-              value,
-              minFontSize: 12,
-              textAlign: TextAlign.center,
-              style: QuestTypography.osDisplayMedium.copyWith(
-                fontSize: 26,
-                height: 1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label.toUpperCase(),
-                maxLines: 1,
-                style: QuestTypography.osLabelSmall.copyWith(
-                  fontSize: 9,
-                  height: 1,
-                ),
-              ),
-            ),
-          ],
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: QuestTypography.osLabelSmall.copyWith(
+          fontSize: 10,
+          color: fg,
+          letterSpacing: 0.8,
+          height: 1.2,
         ),
       ),
     );
@@ -766,501 +706,109 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ── Badges ────────────────────────────────────────────────────────────────
+// ── Badge row (BADGES tab) ────────────────────────────────────────────────
 
-/// Four tiles across: up to three unlocked badges as filled squares, the rest
-/// dashed "?" placeholders. The trailing placeholder opens the full list.
 class _BadgeRow extends StatelessWidget {
   const _BadgeRow({
+    required this.badge,
     required this.unlocked,
-    required this.onBadgeTap,
-    required this.onSeeAll,
-  });
-
-  final List<BadgeDefinition> unlocked;
-  final void Function(BadgeDefinition) onBadgeTap;
-  final VoidCallback onSeeAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final shown = unlocked.take(3).toList(growable: false);
-    return Row(
-      children: [
-        for (var i = 0; i < 4; i++) ...[
-          if (i > 0) const SizedBox(width: 10),
-          Expanded(
-            child: i < shown.length
-                ? _BadgeTile(
-                    icon: shown[i].icon,
-                    tint: _badgeTints[i % _badgeTints.length],
-                    onTap: () => onBadgeTap(shown[i]),
-                  )
-                : _LockedBadgeTile(onTap: onSeeAll),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _BadgeTile extends StatelessWidget {
-  const _BadgeTile({
-    required this.icon,
-    required this.tint,
+    required this.current,
     required this.onTap,
   });
 
-  final IconData icon;
-  final Color tint;
+  final BadgeDefinition badge;
+  final bool unlocked;
+  final int current;
   final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Container(
-          decoration: BoxDecoration(
-            color: tint,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: QuestColors.osTextPrimary,
-                offset: Offset(4, 4),
-                blurRadius: 0,
-              ),
-            ],
-          ),
-          // Ink on gold, jade and coral — never white. `onAccent` decides.
-          child: Icon(icon, size: 30, color: QuestColors.onAccent(tint)),
-        ),
-      ),
-    );
-  }
-}
-
-class _LockedBadgeTile extends StatelessWidget {
-  const _LockedBadgeTile({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: CustomPaint(
-          painter: const _DashedBorderPainter(radius: 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: QuestColors.osSurface,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '?',
-              style: QuestTypography.osHeadlineLarge.copyWith(
-                fontSize: 20,
-                color: QuestColors.osTextMuted,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Activity strip ────────────────────────────────────────────────────────
-
-/// The frame's ACTIVITY block: one white card holding 28 days as two rows of
-/// fourteen cells. Three states, read off the render — warm surface for a
-/// blank day, light violet for one submission, full violet for two or more —
-/// plus coral for today when today is active.
-class _ActivityStrip extends StatelessWidget {
-  const _ActivityStrip({required this.timestamps});
-
-  final List<DateTime> timestamps;
-
-  static const int _days = 28;
-
-  @override
-  Widget build(BuildContext context) {
-    final counts = <DateTime, int>{};
-    for (final t in timestamps) {
-      final day = toLocalDateOnly(t);
-      counts[day] = (counts[day] ?? 0) + 1;
-    }
-    final today = toLocalDateOnly(DateTime.now());
-
-    Color tint(int offsetFromOldest) {
-      final day = today.subtract(Duration(days: _days - 1 - offsetFromOldest));
-      final count = counts[day] ?? 0;
-      if (count == 0) return QuestColors.osSurface;
-      if (day == today) return QuestColors.osRed;
-      if (count == 1) return QuestColors.textSecondary;
-      return QuestColors.osPrimary;
-    }
-
-    Widget row(int start) {
-      return Row(
-        children: [
-          for (var i = 0; i < 14; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: tint(start + i),
-                    borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: QuestColors.osCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: QuestColors.osTextPrimary,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [row(0), const SizedBox(height: 6), row(14)],
-      ),
-    );
-  }
-}
-
-// ── Sheets ────────────────────────────────────────────────────────────────
-
-/// The tab bodies this page used to carry, presented as a cream sheet with an
-/// ink outline and an `r18` top — the frame's panel treatment.
-void _showProfileSheet(
-  BuildContext context, {
-  required String title,
-  required Widget child,
-}) {
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (ctx) => FractionallySizedBox(
-      heightFactor: 0.85,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: QuestColors.osBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-          border: Border(
-            top: BorderSide(color: QuestColors.osTextPrimary, width: 2),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: QuestTypography.osDisplaySmall.copyWith(
-                        fontSize: 22,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  _IconBtn(
-                    icon: Icons.close_rounded,
-                    onTap: () => Navigator.of(ctx).pop(),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(child: child),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-/// POSTS sheet. Saved posts ride here as a second chip because the profile is
-/// their only entry point and the frame gives them no tile of their own.
-class _PostsSheetBody extends StatefulWidget {
-  const _PostsSheetBody({
-    required this.userId,
-    required this.submissions,
-    required this.showSaved,
-  });
-
-  final String userId;
-  final List<SubmissionModel> submissions;
-  final bool showSaved;
-
-  @override
-  State<_PostsSheetBody> createState() => _PostsSheetBodyState();
-}
-
-class _PostsSheetBodyState extends State<_PostsSheetBody> {
-  bool _saved = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (widget.showSaved)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _OptionChip(
-                  label: 'POSTS',
-                  selected: !_saved,
-                  onTap: () => setState(() => _saved = false),
-                ),
-                _OptionChip(
-                  label: 'BSHEEEL',
-                  selected: _saved,
-                  onTap: () => setState(() => _saved = true),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: _saved
-              ? _SavedPostsTab(userId: widget.userId)
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                  children: [_UserPostsGrid(submissions: widget.submissions)],
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BadgeListBody extends StatelessWidget {
-  const _BadgeListBody({
-    required this.badges,
-    required this.profile,
-    required this.streak,
-    required this.socialQuestCount,
-  });
-
-  final List<BadgeDefinition> badges;
-  final ProfileModel profile;
-  final int streak;
-  final int socialQuestCount;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-      itemCount: badges.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, i) {
-        final badge = badges[i];
-        final unlocked = badge.isUnlocked(
-          profile: profile,
-          streak: streak,
-          socialQuestCount: socialQuestCount,
-        );
-        final current = badge.currentValue(
-          profile: profile,
-          streak: streak,
-          socialQuestCount: socialQuestCount,
-        );
-        final progress = (current / badge.targetValue).clamp(0.0, 1.0);
-        final tint = _badgeTints[i % _badgeTints.length];
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _showBadgeDetail(context, badge, unlocked, current),
-          child: Container(
-            padding: const EdgeInsets.all(12),
+    final progress = (current / badge.targetValue).clamp(0.0, 1.0);
+    return ArcadeCard(
+      onTap: onTap,
+      backgroundColor:
+          unlocked ? QuestColors.osPrimary.withAlpha(20) : QuestColors.osCard,
+      borderRadius: QuestSpacing.radiusCard,
+      shadowOffset: 0,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: QuestColors.osCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-              boxShadow: const [
-                BoxShadow(
-                  color: QuestColors.osTextPrimary,
-                  offset: Offset(3, 3),
-                  blurRadius: 0,
-                ),
-              ],
+              color: unlocked
+                  ? QuestColors.osPrimary.withAlpha(40)
+                  : QuestColors.osTextPrimary.withAlpha(15),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
             ),
-            child: Row(
+            child: Icon(badge.icon,
+                size: 22,
+                color:
+                    unlocked ? QuestColors.osPrimary : QuestColors.osTextMuted),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: unlocked ? tint : QuestColors.osSurface,
-                    borderRadius:
-                        BorderRadius.circular(QuestSpacing.radiusButton),
-                    border:
-                        Border.all(color: QuestColors.osTextPrimary, width: 2),
-                  ),
-                  child: Icon(
-                    badge.icon,
-                    size: 22,
-                    color: unlocked
-                        ? QuestColors.onAccent(tint)
-                        : QuestColors.osTextMuted,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
                         badge.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: QuestTypography.osHeadlineSmall.copyWith(
+                          fontSize: 13,
                           color: unlocked
                               ? QuestColors.osTextPrimary
                               : QuestColors.osTextSecondary,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        badge.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: QuestTypography.osBodySmall
-                            .copyWith(color: QuestColors.osTextMuted),
-                      ),
-                      const SizedBox(height: 6),
-                      ArcadeMeter(
-                        progress: progress,
-                        height: 8,
-                        fill: unlocked ? QuestColors.osSuccess : tint,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        unlocked
-                            ? l.completed
-                            : '$current / ${badge.targetValue}',
-                        style: QuestTypography.osLabelSmall.copyWith(
-                          color: unlocked
-                              ? QuestColors.osSuccessText
-                              : QuestColors.osTextMuted,
-                        ),
-                      ),
+                    ),
+                    if (unlocked) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.check_circle,
+                          size: 14, color: QuestColors.osSuccess),
                     ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  badge.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osBodySmall
+                      .copyWith(fontSize: 11, color: QuestColors.osTextMuted),
+                ),
+                const SizedBox(height: 6),
+                ArcadeMeter(
+                  progress: progress,
+                  height: 8,
+                  fill:
+                      unlocked ? QuestColors.osSuccess : QuestColors.osPrimary,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  unlocked ? l.completed : '$current / ${badge.targetValue}',
+                  style: QuestTypography.osLabelSmall.copyWith(
+                    fontSize: 10,
+                    color: unlocked
+                        ? QuestColors.osSuccessText
+                        : QuestColors.osTextMuted,
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-}
-
-/// Selected = ink ground with cream type; the rest are white with a 2px ink
-/// outline. Same chip as the leaderboard scope and the settings language pair.
-class _OptionChip extends StatelessWidget {
-  const _OptionChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        // No `alignment:` here: inside a Wrap the constraints are bounded and
-        // an Align with no widthFactor would stretch the chip to the run.
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: selected ? QuestColors.osTextPrimary : QuestColors.osCard,
-            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
-            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: QuestTypography.osLabelMedium.copyWith(
-              color: selected ? QuestColors.osBg : QuestColors.osTextPrimary,
-              fontSize: 12,
-              letterSpacing: 1,
-              height: 1,
-            ),
-          ),
-        ),
+          const Icon(Icons.chevron_right,
+              size: 16, color: QuestColors.osTextMuted),
+        ],
       ),
     );
   }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({required this.radius});
-
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = QuestColors.osTextMuted
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
-      Radius.circular(radius),
-    );
-    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + 6).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + 5;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.radius != radius;
 }
 
 void _showBadgeDetail(
@@ -1280,14 +828,11 @@ void _showBadgeDetail(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
               decoration: BoxDecoration(
                 color: QuestColors.osCard,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusHero),
                 border: Border.all(
                     color: QuestColors.osTextPrimary,
                     width: QuestSpacing.cardBorderWidth),
-                boxShadow: const [
-                  BoxShadow(
-                      color: QuestColors.osTextPrimary, offset: Offset(5, 5))
-                ],
+                boxShadow: QuestSpacing.shadowLg,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1299,7 +844,8 @@ void _showBadgeDetail(
                       color: unlocked
                           ? QuestColors.osPrimary.withAlpha(25)
                           : QuestColors.osTextPrimary.withAlpha(15),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusHero),
                       border: Border.all(
                           color: QuestColors.osTextPrimary,
                           width: QuestSpacing.cardBorderWidth),
@@ -1316,22 +862,14 @@ void _showBadgeDetail(
                   Text(
                     badge.label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'Syne',
-                      fontVariations: [FontVariation('wght', 800)],
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: QuestColors.osTextPrimary,
-                    ),
+                    style:
+                        QuestTypography.osHeadlineLarge.copyWith(fontSize: 20),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     badge.rarity.label,
-                    style: const TextStyle(
-                      fontFamily: 'DMSans',
-                      fontVariations: [FontVariation('wght', 500)],
+                    style: QuestTypography.osLabelSmall.copyWith(
                       fontSize: 10,
-                      fontWeight: FontWeight.w700,
                       color: QuestColors.osTextMuted,
                       letterSpacing: 1.5,
                     ),
@@ -1340,9 +878,7 @@ void _showBadgeDetail(
                   Text(
                     badge.description,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'DMSans',
-                      fontVariations: [FontVariation('wght', 500)],
+                    style: QuestTypography.osBodyMedium.copyWith(
                       fontSize: 13,
                       color: QuestColors.osTextSecondary,
                       height: 1.5,
@@ -1361,48 +897,18 @@ void _showBadgeDetail(
                     unlocked
                         ? AppLocalizations.of(context)!.completed
                         : '$current / ${badge.targetValue}',
-                    style: TextStyle(
-                      fontFamily: 'DMSans',
-                      fontVariations: const [FontVariation('wght', 500)],
+                    style: QuestTypography.osLabelSmall.copyWith(
                       fontSize: 11,
-                      fontWeight: FontWeight.w700,
                       color: unlocked
-                          ? QuestColors.osSuccess
+                          ? QuestColors.osSuccessText
                           : QuestColors.osTextMuted,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  GestureDetector(
+                  ArcadeButton(
+                    label: 'Close',
+                    variant: ArcadeButtonVariant.secondary,
                     onTap: () => Navigator.of(ctx).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: QuestColors.osAccent,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: QuestColors.osTextPrimary,
-                            width: QuestSpacing.cardBorderWidth),
-                        boxShadow: const [
-                          BoxShadow(
-                              color: QuestColors.osTextPrimary,
-                              offset: Offset(3, 3)),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'CLOSE',
-                        style: TextStyle(
-                          fontFamily: 'Syne',
-                          fontVariations: [FontVariation('wght', 800)],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: QuestColors.osAccentInk,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -1416,41 +922,426 @@ void _showBadgeDetail(
 
 // ── Icon button ───────────────────────────────────────────────────────────────
 
-/// The spec's recurring icon button: 44pt, `r11`, white ground, 2px ink,
-/// 3px ink shadow, 15-18px glyph.
+/// The recurring 44pt icon button: white ground, 2px ink, 3px ink shadow.
 class _IconBtn extends StatelessWidget {
-  const _IconBtn({required this.icon, required this.onTap});
+  const _IconBtn({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+  });
   final IconData icon;
+  final String semanticLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: QuestSpacing.minTouchTarget,
+          height: QuestSpacing.minTouchTarget,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+            borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
+            boxShadow: QuestSpacing.shadowSm,
+          ),
+          child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Stat pill ─────────────────────────────────────────────────────────────────
+
+class _StatPill extends StatelessWidget {
+  const _StatPill({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
       child: Container(
-        width: QuestSpacing.minTouchTarget,
-        height: QuestSpacing.minTouchTarget,
-        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: QuestColors.osCard,
           border: Border.all(
               color: QuestColors.osTextPrimary,
               width: QuestSpacing.cardBorderWidth),
-          borderRadius: BorderRadius.circular(QuestSpacing.radiusButton),
-          boxShadow: const [
-            BoxShadow(
-              color: QuestColors.osTextPrimary,
-              offset: Offset(3, 3),
-              blurRadius: 0,
-            )
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
+          boxShadow: QuestSpacing.shadowSm,
+        ),
+        child: Column(
+          children: [
+            // FittedBox lets a 6+ digit XP/streak count shrink to fit inside
+            // the pill on iPhone-SE-class screens instead of overflowing.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: QuestTypography.osDisplayMedium
+                    .copyWith(fontSize: 18, height: 1.1),
+              ),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label.toUpperCase(),
+                maxLines: 1,
+                style: QuestTypography.osLabelSmall.copyWith(
+                  fontSize: 9,
+                  color: QuestColors.osTextMuted,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
           ],
         ),
-        child: Icon(icon, size: 18, color: QuestColors.osTextPrimary),
       ),
     );
   }
 }
+
+// ── Tab bar delegate ──────────────────────────────────────────────────────────
+
+class _TabBarDelegate extends SliverPersistentHeaderDelegate {
+  _TabBarDelegate(this.tabBar, this.bgColor);
+  final TabBar tabBar;
+  final Color bgColor;
+
+  @override
+  Widget build(
+          BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      ColoredBox(color: bgColor, child: tabBar);
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+  @override
+  bool shouldRebuild(_TabBarDelegate _) => false;
+}
+
+// ── Activity heatmap ──────────────────────────────────────────────────────────
+
+class _ActivityHeatmap extends StatefulWidget {
+  const _ActivityHeatmap({required this.activeDays});
+  final Set<DateTime> activeDays;
+
+  @override
+  State<_ActivityHeatmap> createState() => _ActivityHeatmapState();
+}
+
+class _ActivityHeatmapState extends State<_ActivityHeatmap> {
+  bool _expanded = false;
+
+  static const _monthNames = [
+    'JANUARY',
+    'FEBRUARY',
+    'MARCH',
+    'APRIL',
+    'MAY',
+    'JUNE',
+    'JULY',
+    'AUGUST',
+    'SEPTEMBER',
+    'OCTOBER',
+    'NOVEMBER',
+    'DECEMBER',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+
+    // Current month + previous 5 for the expanded view (newest first).
+    final months = List.generate(
+      6,
+      (i) => DateTime(now.year, now.month - i, 1),
+    );
+
+    return Semantics(
+      button: true,
+      label: _expanded ? 'Collapse activity months' : 'Expand activity months',
+      child: ArcadeCard(
+        onTap: () => setState(() => _expanded = !_expanded),
+        borderRadius: QuestSpacing.radiusCard,
+        shadowOffset: 0,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with current month + expand chevron
+            Row(
+              children: [
+                Text(
+                  _monthNames[months.first.month - 1],
+                  style: QuestTypography.osHeadlineLarge
+                      .copyWith(fontSize: 16, letterSpacing: 0.8),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${months.first.year}',
+                  style: QuestTypography.osBodySmall.copyWith(
+                    fontSize: 13,
+                    color: QuestColors.osTextMuted,
+                  ),
+                ),
+                const Spacer(),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  child: const Icon(
+                    Icons.expand_more_rounded,
+                    color: QuestColors.osTextSecondary,
+                    size: 22,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _MonthGrid(month: months.first, activeDays: widget.activeDays),
+            AnimatedCrossFade(
+              crossFadeState: _expanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 240),
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 1; i < months.length; i++) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Text(
+                          _monthNames[months[i].month - 1],
+                          style: QuestTypography.osHeadlineMedium
+                              .copyWith(fontSize: 14, letterSpacing: 0.8),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${months[i].year}',
+                          style: QuestTypography.osBodySmall.copyWith(
+                            fontSize: 11,
+                            color: QuestColors.osTextMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _MonthGrid(
+                      month: months[i],
+                      activeDays: widget.activeDays,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _expanded
+                  ? 'TAP TO COLLAPSE  •  GREEN = ACTIVE DAY'
+                  : 'TAP TO SEE MORE MONTHS  •  GREEN = ACTIVE DAY',
+              style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 9,
+                color: QuestColors.osTextMuted,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders a single calendar month as a 7-column grid with weekday labels.
+/// Empty slots before day 1 and after the last day stay blank so the grid
+/// aligns to real calendar dates (Monday-start).
+class _MonthGrid extends StatelessWidget {
+  const _MonthGrid({required this.month, required this.activeDays});
+  final DateTime month;
+  final Set<DateTime> activeDays;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+
+    // Monday-start: Dart weekday = Mon=1 … Sun=7
+    final firstDay = DateTime(month.year, month.month, 1);
+    final leadingBlanks = firstDay.weekday - 1; // 0..6
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final totalCells = leadingBlanks + daysInMonth;
+    final rowCount = (totalCells / 7).ceil();
+
+    const weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return LayoutBuilder(builder: (context, constraints) {
+      const gap = 4.0;
+      final cellSize = ((constraints.maxWidth - gap * 6) / 7).floorToDouble();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Weekday labels
+          Row(
+            children: List.generate(7, (i) {
+              return SizedBox(
+                width: cellSize + (i < 6 ? gap : 0),
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < 6 ? gap : 0),
+                  child: Center(
+                    child: Text(
+                      weekdays[i],
+                      style: QuestTypography.osLabelSmall.copyWith(
+                        fontSize: 9,
+                        color: QuestColors.osTextMuted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 6),
+          for (var row = 0; row < rowCount; row++) ...[
+            Row(
+              children: List.generate(7, (col) {
+                final cellIndex = row * 7 + col;
+                final dayNum = cellIndex - leadingBlanks + 1;
+                final inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+                Widget cell;
+                if (!inMonth) {
+                  cell = SizedBox(width: cellSize, height: cellSize);
+                } else {
+                  final date = DateTime(month.year, month.month, dayNum);
+                  final isFuture = date.isAfter(todayDate);
+                  final active = activeDays.contains(date);
+                  final isToday = date == todayDate;
+                  cell = Container(
+                    width: cellSize,
+                    height: cellSize,
+                    decoration: BoxDecoration(
+                      color: isFuture
+                          ? QuestColors.osSurface.withAlpha(80)
+                          : active
+                              ? QuestColors.osSuccess
+                              : QuestColors.osSurface,
+                      border: Border.all(
+                        color: isToday
+                            ? QuestColors.osPrimary
+                            : active
+                                ? QuestColors.osTextPrimary
+                                : QuestColors.osBorder,
+                        width: isToday ? 1.8 : 1,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusSegment),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$dayNum',
+                      style: QuestTypography.osLabelSmall.copyWith(
+                        fontSize: 9,
+                        color: active
+                            // Ink on jade — white measures short of AA there.
+                            ? QuestColors.onAccent(QuestColors.osSuccess)
+                            : isFuture
+                                ? QuestColors.osTextMuted
+                                : QuestColors.osTextSecondary,
+                      ),
+                    ),
+                  );
+                }
+                return Padding(
+                  padding: EdgeInsets.only(right: col < 6 ? gap : 0),
+                  child: cell,
+                );
+              }),
+            ),
+            if (row < rowCount - 1) const SizedBox(height: gap),
+          ],
+        ],
+      );
+    });
+  }
+}
+
+// ── Completed quest tile ──────────────────────────────────────────────────────
+
+class _CompletedQuestTile extends StatelessWidget {
+  const _CompletedQuestTile({
+    required this.title,
+    required this.category,
+    required this.xp,
+    this.onTap,
+  });
+  final String title, category;
+  final int xp;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ArcadeCard(
+      onTap: onTap,
+      borderRadius: QuestSpacing.radiusCard,
+      shadowOffset: 0,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (category.isNotEmpty)
+                _Chip(
+                  label: category,
+                  bg: QuestColors.osCool.withAlpha(30),
+                  fg: QuestColors.osTextPrimary,
+                ),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: QuestTypography.osHeadlineSmall
+                    .copyWith(fontSize: 12, height: 1.2),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _Chip(
+                label: '+$xp XP',
+                bg: QuestColors.osSuccess.withAlpha(30),
+                fg: QuestColors.osSuccessText,
+              ),
+              const Icon(Icons.check_circle,
+                  color: QuestColors.osSuccess, size: 18),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── User posts grid ───────────────────────────────────────────────────────────
 
 class _UserPostsGrid extends StatelessWidget {
   const _UserPostsGrid({required this.submissions});
@@ -1473,12 +1364,12 @@ class _UserPostsGrid extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Center(
-            child: Text(AppLocalizations.of(context)!.noPostsYet,
-                style: const TextStyle(
-                    fontFamily: 'DMSans',
-                    fontVariations: [FontVariation('wght', 500)],
-                    fontSize: 13,
-                    color: QuestColors.osTextSecondary))),
+          child: Text(
+            AppLocalizations.of(context)!.noPostsYet,
+            style: QuestTypography.osBodyMedium
+                .copyWith(color: QuestColors.osTextSecondary),
+          ),
+        ),
       );
     }
     return GridView.builder(
@@ -1493,9 +1384,7 @@ class _UserPostsGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final s = visible[index];
         final thumb = s.mediaUrls.isNotEmpty ? s.mediaUrls.first : '';
-        final isVideo = s.mediaType == MediaType.video ||
-            thumb.toLowerCase().contains('.mp4') ||
-            thumb.toLowerCase().contains('.mov');
+        final isVideo = s.mediaType == MediaType.video || isVideoUrl(thumb);
         return GestureDetector(
           onTap: () => context.pushNamed(RouteNames.feedPostDetails,
               pathParameters: {'id': s.id}),
@@ -1528,24 +1417,6 @@ class _UserPostsGrid extends StatelessWidget {
                   right: 4,
                   child: Icon(Icons.collections_outlined,
                       size: 16, color: QuestColors.pureWhite)),
-            if (s.status != SubmissionStatus.approved)
-              Positioned.fill(
-                child: ColoredBox(
-                    color: QuestColors.pureBlack.withAlpha(100),
-                    child: Center(
-                        child: Text(s.status.toUpperCase(),
-                            style: TextStyle(
-                                fontFamily: 'Syne',
-                                fontVariations: const [
-                                  FontVariation('wght', 800)
-                                ],
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: s.status == SubmissionStatus.pending
-                                    ? QuestColors.osAccent
-                                    : QuestColors.osSuccess,
-                                letterSpacing: 0.5)))),
-              ),
           ]),
         );
       },
@@ -1686,56 +1557,59 @@ class _FollowListTabState extends ConsumerState<_FollowListTab> {
       );
     }
     if (_users.isEmpty) {
-      // UX-213: chunky empty state instead of plain dim text — matches
-      // the rest of the app's empty surfaces.
-      return BsheelEmptyState(
-        title: widget.isFollowers ? l.noFollowersYet : l.notFollowingAnyone,
-        icon: widget.isFollowers
-            ? Icons.people_outline_rounded
-            : Icons.person_add_outlined,
+      // Chunky empty state instead of plain dim text — matches the rest of
+      // the app's empty surfaces. In a scroll view so pull-to-refresh works.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          BsheelEmptyState(
+            title: widget.isFollowers ? l.noFollowersYet : l.notFollowingAnyone,
+            icon: widget.isFollowers
+                ? Icons.people_outline_rounded
+                : Icons.person_add_outlined,
+          ),
+        ],
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _users.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final u = _users[index];
         final name = u.displayName.isNotEmpty ? u.displayName : u.username;
-        return GestureDetector(
+        return ArcadeCard(
           onTap: () => context.pushNamed(RouteNames.userProfile,
               pathParameters: {'userId': u.id}),
-          child: ArcadeCard(
-              borderRadius: 12,
-              shadowOffset: 3,
-              padding: const EdgeInsets.all(14),
-              child: Row(children: [
-                PixelAvatar(
-                    imageUrl: u.avatarUrl, username: u.username, size: 36),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      FitText(name,
-                          minFontSize: 10,
-                          style: const TextStyle(
-                              fontFamily: 'Syne',
-                              fontVariations: [FontVariation('wght', 800)],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: QuestColors.osTextPrimary)),
-                      FitText('@${u.username}',
-                          minFontSize: 9,
-                          style: const TextStyle(
-                              fontFamily: 'DMSans',
-                              fontVariations: [FontVariation('wght', 500)],
-                              fontSize: 11,
-                              color: QuestColors.osTextSecondary)),
-                    ])),
-                const Icon(Icons.chevron_right,
-                    size: 16, color: QuestColors.osTextMuted),
-              ])),
+          borderRadius: QuestSpacing.radiusCard,
+          shadowOffset: 0,
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            PixelAvatar(imageUrl: u.avatarUrl, username: u.username, size: 36),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FitText(
+                    name,
+                    minFontSize: 10,
+                    style:
+                        QuestTypography.osHeadlineSmall.copyWith(fontSize: 14),
+                  ),
+                  FitText(
+                    '@${u.username}',
+                    minFontSize: 9,
+                    style: QuestTypography.osBodySmall.copyWith(
+                        fontSize: 11, color: QuestColors.osTextSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                size: 16, color: QuestColors.osTextMuted),
+          ]),
         );
       },
     );
@@ -1744,9 +1618,9 @@ class _FollowListTabState extends ConsumerState<_FollowListTab> {
 
 // ── Saved posts tab ───────────────────────────────────────────────────────────
 
-/// Loads BSHEEEL items in a single round-trip (RPC) — no per-tile detail
-/// fetch. Filters out submissions whose visibility = 'deleted' server-side
-/// so admin-removed posts don't surface as ghost rows.
+/// Loads BSHEEEL items in a single round-trip — no per-tile detail fetch.
+/// Filters out submissions whose visibility = 'deleted' server-side so
+/// admin-removed posts don't surface as ghost rows.
 final _savedPostsProvider = FutureProvider.autoDispose
     .family<List<SavedPostWithQuest>, String>((ref, userId) {
   return ref
@@ -1761,41 +1635,30 @@ class _SavedPostsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final savedAsync = ref.watch(_savedPostsProvider(userId));
+    final l = AppLocalizations.of(context)!;
     return savedAsync.when(
-      loading: () => const Center(
-          child: CircularProgressIndicator(
-              color: QuestColors.osPrimary, strokeWidth: 2)),
-      error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: const TextStyle(
-                  fontFamily: 'DMSans',
-                  fontVariations: [FontVariation('wght', 500)],
-                  color: QuestColors.osRedText))),
+      loading: () => const BsheelLoading(),
+      error: (e, _) => BsheelErrorState(
+        error: e,
+        action: 'load saved quests',
+        onRetry: () => ref.invalidate(_savedPostsProvider(userId)),
+      ),
       data: (savedPosts) {
         if (savedPosts.isEmpty) {
-          return Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.bookmark_border,
-                size: 48, color: QuestColors.osTextMuted),
-            const SizedBox(height: 16),
-            Text(AppLocalizations.of(context)!.noSavedPostsYet,
-                style: const TextStyle(
-                    fontFamily: 'Syne',
-                    fontVariations: [FontVariation('wght', 800)],
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: QuestColors.osTextPrimary)),
-            const SizedBox(height: 8),
-            Text(AppLocalizations.of(context)!.savedPostsHint,
-                style: const TextStyle(
-                    fontFamily: 'DMSans',
-                    fontVariations: [FontVariation('wght', 500)],
-                    fontSize: 12,
-                    color: QuestColors.osTextSecondary)),
-          ]));
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              BsheelEmptyState(
+                title: l.noSavedPostsYet,
+                message: l.savedPostsHint,
+                icon: Icons.bookmark_border,
+              ),
+            ],
+          );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: savedPosts.length,
           itemBuilder: (context, index) => _SavedPostTile(
             saved: savedPosts[index],
@@ -1816,7 +1679,7 @@ class _SavedPostTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
-      child: GestureDetector(
+      child: ArcadeCard(
         // Main tap → confirm and take the quest as active.
         onTap: () => assignQuestFlow(
           context: context,
@@ -1825,74 +1688,63 @@ class _SavedPostTile extends ConsumerWidget {
           questTitle: saved.questTitle,
           userId: userId,
         ),
-        behavior: HitTestBehavior.opaque,
-        child: ArcadeCard(
-          borderRadius: 12,
-          shadowOffset: 3,
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: QuestColors.osPrimary,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: QuestColors.osTextPrimary,
-                    width: QuestSpacing.cardBorderWidth),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.flag_rounded,
-                  color: QuestColors.osTextOnPrimary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                saved.questTitle,
-                style: const TextStyle(
-                  fontFamily: 'Syne',
-                  fontVariations: [FontVariation('wght', 800)],
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+        borderRadius: QuestSpacing.radiusCard,
+        shadowOffset: 0,
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: QuestColors.osPrimary,
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
+              border: Border.all(
                   color: QuestColors.osTextPrimary,
-                  height: 1.2,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+                  width: QuestSpacing.cardBorderWidth),
             ),
-            const SizedBox(width: 8),
-            // Unsave button — filled bookmark, tap removes from Bsheeel.
-            GestureDetector(
+            alignment: Alignment.center,
+            child: const Icon(Icons.flag_rounded,
+                color: QuestColors.osTextOnPrimary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              saved.questTitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: QuestTypography.osHeadlineSmall
+                  .copyWith(fontSize: 14, height: 1.2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Unsave button — filled bookmark, tap removes from Bsheeel.
+          Semantics(
+            button: true,
+            label: 'Remove from BSHEEEL',
+            child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => _confirmUnsave(context, ref, saved.questTitle),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: QuestSpacing.minTouchTarget,
-                  minHeight: QuestSpacing.minTouchTarget,
+              child: Container(
+                width: QuestSpacing.minTouchTarget,
+                height: QuestSpacing.minTouchTarget,
+                decoration: BoxDecoration(
+                  color: QuestColors.osAccent,
+                  borderRadius:
+                      BorderRadius.circular(QuestSpacing.radiusButton),
+                  border: Border.all(
+                      color: QuestColors.osTextPrimary,
+                      width: QuestSpacing.cardBorderWidth),
                 ),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: QuestColors.osAccent,
-                    borderRadius:
-                        BorderRadius.circular(QuestSpacing.radiusButton),
-                    border: Border.all(
-                        color: QuestColors.osTextPrimary,
-                        width: QuestSpacing.cardBorderWidth),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.bookmark_remove_rounded,
-                    color: QuestColors.osAccentInk,
-                    size: 20,
-                  ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.bookmark_remove_rounded,
+                  color: QuestColors.osAccentInk,
+                  size: 20,
                 ),
               ),
             ),
-          ]),
-        ),
+          ),
+        ]),
       ),
     );
   }
@@ -1913,11 +1765,9 @@ class _SavedPostTile extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: QuestColors.osCard,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusHero),
               border: Border.all(color: ink, width: 2),
-              boxShadow: const [
-                BoxShadow(color: ink, offset: Offset(4, 4)),
-              ],
+              boxShadow: QuestSpacing.shadowMd,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1927,7 +1777,7 @@ class _SavedPostTile extends ConsumerWidget {
                   height: 52,
                   decoration: BoxDecoration(
                     color: QuestColors.osRed,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(QuestSpacing.radiusMd),
                     border: Border.all(color: ink, width: 2),
                   ),
                   alignment: Alignment.center,
@@ -1935,17 +1785,11 @@ class _SavedPostTile extends ConsumerWidget {
                       color: QuestColors.onAccent(QuestColors.osRed), size: 24),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'REMOVE FROM BSHEEEL?',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Syne',
-                    fontVariations: [FontVariation('wght', 800)],
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: ink,
-                    letterSpacing: 1,
-                  ),
+                  style: QuestTypography.osHeadlineMedium
+                      .copyWith(fontSize: 15, letterSpacing: 1),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1953,82 +1797,27 @@ class _SavedPostTile extends ConsumerWidget {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'DMSans',
-                    fontVariations: [FontVariation('wght', 500)],
-                    fontSize: 12,
-                    color: QuestColors.osTextMuted,
-                  ),
+                  style: QuestTypography.osBodySmall
+                      .copyWith(color: QuestColors.osTextMuted),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
+                      child: ArcadeButton(
+                        label: 'Cancel',
+                        variant: ArcadeButtonVariant.secondary,
+                        size: ArcadeButtonSize.small,
                         onTap: () => Navigator.pop(ctx, false),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                              minHeight: QuestSpacing.minTouchTarget),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: QuestColors.osCard,
-                            borderRadius: BorderRadius.circular(
-                                QuestSpacing.radiusButton),
-                            border: Border.all(color: ink, width: 2),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'CANCEL',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Syne',
-                              fontVariations: [FontVariation('wght', 800)],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: ink,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: GestureDetector(
+                      child: ArcadeButton(
+                        label: 'Remove',
+                        variant: ArcadeButtonVariant.destructive,
+                        size: ArcadeButtonSize.small,
                         onTap: () => Navigator.pop(ctx, true),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                              minHeight: QuestSpacing.minTouchTarget),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: QuestColors.osRed,
-                            borderRadius: BorderRadius.circular(
-                                QuestSpacing.radiusButton),
-                            border: Border.all(color: ink, width: 2),
-                            boxShadow: const [
-                              BoxShadow(color: ink, offset: Offset(3, 3)),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'REMOVE',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Syne',
-                              fontVariations: const [
-                                FontVariation('wght', 800)
-                              ],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: QuestColors.onAccent(QuestColors.osRed),
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                   ],
@@ -2056,7 +1845,101 @@ String _avatarInitial(String? source) {
   final s = (source ?? '').trim();
   if (s.isEmpty) return '?';
   return s.characters.first.toUpperCase();
-} // ── Avatar fullscreen viewer ────────────────────────────────────────────────
+}
+
+// ── Follower / following counts block ───────────────────────────────────────
+
+/// Stacked FOLLOWERS / FOLLOWING numbers shown to the right of the
+/// avatar+info row in the profile header. Reads from the
+/// `followCountsProvider` family — pull-to-refresh invalidates it — and
+/// tapping either jumps to its tab.
+class _FollowCountsBlock extends ConsumerWidget {
+  const _FollowCountsBlock({required this.userId});
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(followCountsProvider(userId));
+    final counts = async.valueOrNull;
+
+    Widget cell(String value, String label, VoidCallback? onTap) {
+      return Semantics(
+        button: true,
+        label: '$value $label',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            constraints:
+                const BoxConstraints(minHeight: QuestSpacing.minTouchTarget),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: QuestColors.osCard,
+              borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
+              border: Border.all(
+                  color: QuestColors.osTextPrimary,
+                  width: QuestSpacing.cardBorderWidth),
+              boxShadow: QuestSpacing.shadowSm,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: QuestTypography.osDisplayMedium
+                        .copyWith(fontSize: 16, height: 1),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: QuestTypography.osLabelSmall.copyWith(
+                      fontSize: 9,
+                      color: QuestColors.osTextSecondary,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Tab order: Posts(0), Activity(1), Badges(2), Followers(3), Following(4).
+    // Lives inside the DefaultTabController scope so animateTo works here.
+    void switchTab(int index) {
+      DefaultTabController.maybeOf(context)?.animateTo(index);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        cell(
+          counts == null ? '—' : '${counts.followers}',
+          'FOLLOWERS',
+          () => switchTab(3),
+        ),
+        const SizedBox(height: 6),
+        cell(
+          counts == null ? '—' : '${counts.following}',
+          'FOLLOWING',
+          () => switchTab(4),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Avatar fullscreen viewer ────────────────────────────────────────────────
 
 void _openAvatarFullscreen(
   BuildContext context, {
@@ -2123,25 +2006,18 @@ class _AvatarFullscreen extends StatelessWidget {
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: () => Navigator.of(context).maybePop(),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: QuestSpacing.minTouchTarget,
-                    minHeight: QuestSpacing.minTouchTarget,
+                child: Container(
+                  width: QuestSpacing.minTouchTarget,
+                  height: QuestSpacing.minTouchTarget,
+                  decoration: BoxDecoration(
+                    color: QuestColors.pureBlack.withAlpha(128),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: QuestColors.pureWhite, width: 2),
                   ),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: QuestColors.pureBlack.withAlpha(128),
-                      shape: BoxShape.circle,
-                      border:
-                          Border.all(color: QuestColors.pureWhite, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      color: QuestColors.textPrimary,
-                      size: 22,
-                    ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: QuestColors.textPrimary,
+                    size: 22,
                   ),
                 ),
               ),

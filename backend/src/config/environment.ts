@@ -128,6 +128,17 @@ const environmentSchema = z
     // sits higher, and both are set from the eval rather than by taste.
     AI_VERIFICATION_APPROVE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.85),
     AI_VERIFICATION_REJECT_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.95),
+    // Below this, the vision pass is saying the media has little to do with
+    // the quest — and an approval that ignores that is the "we checked a file
+    // was attached" failure this feature exists to prevent. So a proposed
+    // approval under the floor goes to a human instead.
+    //
+    // It is NOT a rejection trigger, and deliberately so: low relevance is the
+    // ordinary state of honest proof for any quest a photograph cannot show,
+    // and it is admissible at all only where the quest contract says
+    // verifiability = content. Set low (0.35) because the job here is to catch
+    // the cat photo submitted for a sunrise quest, not to adjudicate framing.
+    AI_VERIFICATION_MIN_RELEVANCE: z.coerce.number().min(0).max(1).default(0.35),
     // Perceptual-hash distance at or below which two images are the same
     // picture. Exposed so the eval harness can sweep it.
     AI_VERIFICATION_NEAR_DUPLICATE_DISTANCE: z.coerce.number().int().min(0).max(32).default(10),
@@ -149,6 +160,13 @@ const environmentSchema = z
     AI_VERIFICATION_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
     AI_VERIFICATION_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AI_VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+    // How long one worker's claim on a submission holds before another may
+    // take it. Longer than any legitimate pass — a video sampled to several
+    // frames, escalated to the deep rung, against AI_VERIFICATION_TIMEOUT_MS
+    // per call — and shorter than a person's patience if a worker dies
+    // holding one. Too short double-pays for a vision call; too long strands
+    // the submission in the queue.
+    AI_VERIFICATION_CLAIM_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(600),
     R2_ENDPOINT: optionalUrl,
     R2_REGION: z.string().default('auto'),
     // MinIO (and any self-hosted S3) addresses buckets as a path segment
@@ -264,12 +282,33 @@ const environmentSchema = z
     THROTTLE_TTL_MS: z.coerce.number().int().positive().default(60_000),
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
 
-    // AI agent phase — submission verification only. Every flag below
+    // AI agent phase — submission verification only.
     // Enabled by default: verifying that a device was where a quest required
     // is the product, not an optional extra, and a deployment that simply
     // forgot the variable should get the verification rather than silently
     // skip it. Turning it off is a deliberate act — set it to 'false'.
     // QoS on Demand / Emergency Mode is out of scope here.
+    // Seconds a player must wait between quest assignments. Anti-abuse on
+    // quest intake, alongside the five-rerolls-per-24h cap.
+    //
+    // Configurable rather than a constant so the e2e suite can set 0. Ten
+    // fixtures assign several quests to one user in the same second, which a
+    // 30-second wall makes impossible to express — and a test that sleeps 30
+    // seconds per assignment is not a test anyone will run. The shipped
+    // default is unchanged.
+    QUEST_ASSIGNMENT_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
+    // How long an agent run's claim holds before it is presumed abandoned.
+    //
+    // Without this a run left 'running' by a worker restart was permanent:
+    // start()'s ON CONFLICT only reclaimed 'failed' rows, so the submission
+    // could never be evaluated again and nothing said why.
+    AGENT_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3600).default(900),
+    // How often to look for submissions whose geofence evidence arrived after
+    // the agent had already escalated them (#15). Ten minutes: a webhook
+    // backlog clears in minutes, and a submission waiting on one should not
+    // wait on a sweep for much longer than a moderator would have taken.
+    AGENT_RECOVERY_SWEEP_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(600_000),
+    AGENT_RECOVERY_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
       .default('true')
@@ -343,10 +382,19 @@ const environmentSchema = z
     // only an opaque, short-lived handoff code — never a token.
     PHONE_SIGNIN_MOBILE_REDIRECT_URL: optionalUrl,
 
-    // Computer vision. 'none' is the fail-closed default (NullCvEvidenceProvider);
-    // 'http' calls an external service at CV_SERVICE_BASE_URL implementing
-    // the CvEvidenceSchema contract (see http-cv-evidence.provider.ts).
-    CV_PROVIDER: z.enum(['none', 'http']).default('none'),
+    // Computer vision — what the agent can see of the submitted media.
+    //
+    //   'local' reads the #47 vision cascade's own finding for the submission
+    //           (LocalCvEvidenceProvider). The default: it is the only setting
+    //           that works without a second service existing, and with no
+    //           vision API key configured it degrades to exactly what 'none'
+    //           returns, so defaulting to it cannot turn anything on by
+    //           surprise.
+    //   'http'  calls an external service at CV_SERVICE_BASE_URL implementing
+    //           the CvEvidenceSchema contract (see http-cv-evidence.provider.ts).
+    //   'none'  is fail-closed: UNAVAILABLE for everything, which sends every
+    //           submission to a human. An explicit off switch, not a default.
+    CV_PROVIDER: z.enum(['none', 'http', 'local']).default('local'),
     CV_SERVICE_BASE_URL: optionalUrl,
     CV_SERVICE_AUTH_TOKEN: optionalString,
     CV_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(20_000),

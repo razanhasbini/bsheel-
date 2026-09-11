@@ -1,6 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
-import type { LocationSignals, ProofAnalysis } from '../domain/proof-verification.types.js';
+import type {
+  LocationSignals,
+  ProofAnalysis,
+  ProofObservation,
+  ProofVerdict,
+  VerificationState,
+} from '../domain/proof-verification.types.js';
+
+const OBSERVATION_KINDS: readonly ProofObservation['kind'][] = ['action', 'object', 'landmark', 'location_cue'];
+
+/// Reads back what `complete()` wrote into content_evidence.
+///
+/// Defensive because the column is jsonb: a row written by an older build, or
+/// by a hand-run fixture, must degrade to "no observations" rather than
+/// throwing inside a queue worker.
+function parseObservations(raw: unknown): readonly ProofObservation[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.label !== 'string' || record.label.length === 0) return [];
+    const kind = (OBSERVATION_KINDS as readonly string[]).includes(String(record.kind))
+      ? (record.kind as ProofObservation['kind'])
+      : ('object' as const);
+    const confidence = typeof record.confidence === 'number' && Number.isFinite(record.confidence)
+      ? Math.min(1, Math.max(0, record.confidence))
+      : 0;
+    return [{ kind, label: record.label, present: record.present === true, confidence }];
+  });
+}
 
 /// What the analyzer needs to judge one submission, gathered in a single read.
 export interface VerificationSubject {
@@ -42,14 +71,32 @@ export class ProofVerificationRepository {
   /// whose analysis crashes the worker every time must eventually stop being
   /// retried, and an attempt counter that only advances on a clean finish
   /// would loop forever.
-  async claim(submissionId: string, maxAttempts: number): Promise<VerificationSubject | null> {
+  ///
+  /// `claimed_at` is what makes this an actual lease rather than a label.
+  /// Without it the state a row sits in while being analysed was
+  /// indistinguishable from the state it sits in while waiting, so a second
+  /// caller's UPDATE blocked on the row lock, read a row still marked
+  /// 'queued', and claimed it too — two vision calls on the same bytes, at
+  /// the top of a ladder whose rungs differ ~50x in price. Two callers is
+  /// the normal case: the submission.created consumer runs the pass inline
+  /// and the sweep walks everything still queued or failed every 15 minutes.
+  ///
+  /// An expired claim is taken rather than respected, which is what stops a
+  /// worker killed mid-analysis from stranding the submission.
+  async claim(
+    submissionId: string,
+    maxAttempts: number,
+    leaseSeconds: number,
+  ): Promise<VerificationSubject | null> {
     const result = await this.database.query<VerificationSubject>(
       `WITH claimed AS (
          UPDATE submission_verifications v
-         SET attempts = v.attempts + 1, state = 'queued'
+         SET attempts = v.attempts + 1, state = 'queued', claimed_at = now()
          WHERE v.submission_id = $1
            AND v.state IN ('queued', 'failed')
            AND v.attempts < $2
+           AND (v.claimed_at IS NULL
+                OR v.claimed_at < now() - make_interval(secs => $3))
          RETURNING v.submission_id, v.attempts
        )
        SELECT c.submission_id, c.attempts, s.user_id, s.caption, s.media_url,
@@ -60,7 +107,7 @@ export class ProofVerificationRepository {
        JOIN submissions s ON s.id = c.submission_id
        JOIN user_quests uq ON uq.id = s.user_quest_id
        JOIN quests q ON q.id = uq.quest_id`,
-      [submissionId, maxAttempts],
+      [submissionId, maxAttempts, leaseSeconds],
     );
     return result.rows[0] ?? null;
   }
@@ -90,6 +137,7 @@ export class ProofVerificationRepository {
              location_verified = $7, location_retrieved = $8, geofence_verified = $9,
              input_tokens = $10, output_tokens = $11, duration_ms = $12,
              stage = $13, acted = $14,
+             relevance = $15, content_evidence = $16::jsonb,
              last_error = NULL, completed_at = now()
          WHERE submission_id = $1`,
         [
@@ -107,6 +155,13 @@ export class ProofVerificationRepository {
           durationMs,
           provenance.stage,
           provenance.acted,
+          analysis.relevance,
+          // Null rather than an empty object when nothing was observed, so
+          // "no vision pass ran" stays distinguishable from "it ran and saw
+          // nothing" — the same distinction CvEvidence.status exists to make.
+          analysis.observations.length > 0
+            ? JSON.stringify({ observations: analysis.observations.map((item) => ({ ...item })) })
+            : null,
         ],
       );
       if (analysis.verdict === 'unclear') {
@@ -121,9 +176,20 @@ export class ProofVerificationRepository {
   /// the proof, and must never be stored as one.
   async fail(submissionId: string, error: string): Promise<void> {
     await this.database.query(
+      // Never downgrades a verdict that was already reached.
+      //
+      // `submission_verifications_verdict_state_check` requires a
+      // non-complete row to carry no verdict, so this UPDATE on a completed
+      // row raised 23503 — and it is called from the catch block of
+      // verify(), which is itself awaited inline by the shared
+      // domain-events processor. A late failure *after* the verdict was
+      // stored therefore threw out of the error handler and failed the whole
+      // domain event, retrying the notification side effects with it. The
+      // guard is also the right semantics on its own: a verdict that was
+      // recorded is not un-recorded by a later problem.
       `UPDATE submission_verifications
        SET state = 'failed', last_error = $2, completed_at = NULL
-       WHERE submission_id = $1`,
+       WHERE submission_id = $1 AND state <> 'complete'`,
       [submissionId, error.slice(0, 2000)],
     );
   }
@@ -159,6 +225,124 @@ export class ProofVerificationRepository {
     return result.rows.map((row) => row.submission_id);
   }
 
+
+  /// Submissions a **person** decided that carry no verdict, newest first.
+  ///
+  /// The eval set the agent's authority is supposed to be earned from, and
+  /// the only way to have one without waiting. `proof:eval` scores stored
+  /// verdicts against the human decision that followed, and `verify()`
+  /// refuses to analyse anything already reviewed — correctly, since
+  /// spending a vision call on a settled submission buys nothing
+  /// operationally. So the ordinary path can only ever accumulate forward,
+  /// and a database full of moderated history is unreadable to it.
+  ///
+  /// `reviewed_by IS NOT NULL` is what makes these rows ground truth: both
+  /// automated deciders pass a null actor deliberately, so a reviewer id is
+  /// proof a person decided. Newest first because moderation standards
+  /// drift, and a precision number computed against last year's judgement
+  /// describes last year's moderators.
+  async decidedWithoutVerdict(limit: number): Promise<readonly string[]> {
+    const result = await this.database.query<{ id: string }>(
+      `SELECT s.id
+       FROM submissions s
+       LEFT JOIN submission_verifications v
+              ON v.submission_id = s.id AND v.state = 'complete'
+       WHERE s.status IN ('approved', 'rejected')
+         AND s.reviewed_by IS NOT NULL
+         AND s.reviewed_at IS NOT NULL
+         AND s.deleted_at IS NULL
+         AND s.visibility <> 'deleted'
+         AND v.submission_id IS NULL
+       ORDER BY s.reviewed_at DESC
+       LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 500)],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  /// The same read `claim()` performs, without claiming anything.
+  ///
+  /// No attempt increment and no state change, because a backfill is not
+  /// work the pipeline owes anyone — it must not consume the retries a live
+  /// submission would need, and it must be re-runnable.
+  ///
+  /// Returns null unless a person decided this submission. That guard is the
+  /// point rather than caution: scoring a verdict against an automated
+  /// decision measures the agent against itself.
+  async evalSubject(submissionId: string): Promise<VerificationSubject | null> {
+    const result = await this.database.query<VerificationSubject>(
+      `SELECT s.id AS submission_id, 0 AS attempts, s.user_id, s.caption, s.media_url,
+              s.status::text AS status,
+              q.title AS quest_title, q.description AS quest_description,
+              q.category::text AS quest_category
+       FROM submissions s
+       JOIN user_quests uq ON uq.id = s.user_quest_id
+       JOIN quests q ON q.id = uq.quest_id
+       WHERE s.id = $1
+         AND s.status IN ('approved', 'rejected')
+         AND s.reviewed_by IS NOT NULL
+         AND s.deleted_at IS NULL`,
+      [submissionId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /// Stores a backfilled verdict, and alerts nobody.
+  ///
+  /// The difference from `complete()` is the whole reason this exists: that
+  /// method alerts every admin when a verdict is 'unclear', in the same
+  /// transaction, so an escalation cannot be recorded without the alert that
+  /// makes someone look at it. Right for a live submission awaiting review.
+  /// Catastrophic for a backfill — scoring a year of history would notify
+  /// every admin about every old submission the agent found ambiguous, for
+  /// submissions a human settled long ago.
+  ///
+  /// `acted` is hard-coded false rather than passed. A backfilled verdict is
+  /// the cleanest eval data there is: the decision it is scored against was
+  /// already made and recorded before this verdict existed, so it cannot
+  /// have influenced it even in principle.
+  async completeForEval(
+    submissionId: string,
+    analysis: ProofAnalysis,
+    stage: string,
+    verdict: ProofVerdict,
+    durationMs: number,
+  ): Promise<void> {
+    await this.database.query(
+      `INSERT INTO submission_verifications
+         (submission_id, state, verdict, confidence, relevance, content_evidence,
+          rationale, escalation_reason, model, input_tokens, output_tokens,
+          duration_ms, stage, acted, completed_at)
+       VALUES ($1, 'complete', $2::proof_verdict, $3, $4, $5::jsonb,
+               $6, $7, $8, $9, $10, $11, $12, false, now())
+       ON CONFLICT (submission_id) DO UPDATE
+         SET state = 'complete', verdict = EXCLUDED.verdict,
+             confidence = EXCLUDED.confidence, relevance = EXCLUDED.relevance,
+             content_evidence = EXCLUDED.content_evidence,
+             rationale = EXCLUDED.rationale,
+             escalation_reason = EXCLUDED.escalation_reason,
+             model = EXCLUDED.model, input_tokens = EXCLUDED.input_tokens,
+             output_tokens = EXCLUDED.output_tokens, duration_ms = EXCLUDED.duration_ms,
+             stage = EXCLUDED.stage, acted = false,
+             last_error = NULL, completed_at = now()`,
+      [
+        submissionId,
+        verdict,
+        analysis.confidence,
+        analysis.relevance,
+        analysis.observations.length > 0
+          ? JSON.stringify({ observations: analysis.observations.map((item) => ({ ...item })) })
+          : null,
+        analysis.rationale,
+        analysis.escalationReason,
+        analysis.model,
+        analysis.inputTokens,
+        analysis.outputTokens,
+        durationMs,
+        stage,
+      ],
+    );
+  }
 
   /// The private object keys making up a submission's proof, with the window
   /// the attempt ran in.
@@ -202,7 +386,9 @@ export class ProofVerificationRepository {
     capturedAt?: Date;
     width: number;
     height: number;
-    perceptualHash: string;
+    /// Null for a frame too flat to fingerprint; the column is nullable and
+    /// findDuplicate skips perceptual matching when it is absent.
+    perceptualHash: string | null;
     contentMd5: string;
     report: Record<string, unknown>;
   }): Promise<void> {
@@ -247,12 +433,15 @@ export class ProofVerificationRepository {
     submissionId: string,
     ownerId: string,
     contentMd5: string,
-    perceptualHash: string,
+    /// Null when this frame could not be perceptually fingerprinted, which
+    /// disables the perceptual half of the search rather than matching
+    /// everything — see `differenceHash`. Exact-byte matching still applies.
+    perceptualHash: string | null,
     threshold: number,
   ): Promise<{ submissionId: string; distance: number; exact: boolean; ownedByThisUser: boolean } | null> {
     const result = await this.database.query<{
       submission_id: string;
-      distance: number;
+      distance: number | null;
       exact: boolean;
       owned_by_this_user: boolean;
     }>(
@@ -267,11 +456,12 @@ export class ProofVerificationRepository {
          AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
          AND (
            m.content_md5 = $3
-           OR (m.perceptual_hash IS NOT NULL
+           OR ($4::bit(64) IS NOT NULL
+               AND m.perceptual_hash IS NOT NULL
                AND bit_count(m.perceptual_hash # $4::bit(64)) <= $5)
          )
        ORDER BY (m.content_md5 = $3) DESC,
-                bit_count(m.perceptual_hash # $4::bit(64)) ASC
+                bit_count(m.perceptual_hash # $4::bit(64)) ASC NULLS LAST
        LIMIT 1`,
       [submissionId, ownerId, contentMd5, perceptualHash, threshold],
     );
@@ -279,7 +469,11 @@ export class ProofVerificationRepository {
     return row
       ? {
           submissionId: row.submission_id,
-          distance: row.distance,
+          // Null only when a hash was absent, which the WHERE above allows
+          // solely on the exact-bytes branch — and distance is meaningless
+          // for an exact match, which the caller reports as such without
+          // consulting it.
+          distance: row.distance ?? 0,
           exact: row.exact,
           ownedByThisUser: row.owned_by_this_user,
         }
@@ -320,6 +514,61 @@ export class ProofVerificationRepository {
       : null;
   }
 
+  /// What the vision pass concluded about one submission's media, for the
+  /// agent pipeline to read as CV evidence.
+  ///
+  /// This is the bridge between the two verifiers. The vision cascade runs
+  /// once, inline off `submission.created`, and stores its findings here; the
+  /// CAMARA agent picks the same submission up from its queue moments later
+  /// and reads them rather than paying for a second look at the same image.
+  /// One vision pass, one recorded opinion, two readers — which is also what
+  /// stops the two systems from reaching different conclusions about the same
+  /// photograph.
+  ///
+  /// Returns null when no row exists at all. A row in any state is returned
+  /// as-is: `state` is what tells the caller whether there is a usable
+  /// finding, and collapsing 'failed' into null would hide a retryable
+  /// failure behind the same answer as a submission nobody has looked at.
+  async contentEvidenceFor(submissionId: string): Promise<{
+    state: VerificationState;
+    verdict: ProofVerdict | null;
+    confidence: number | null;
+    relevance: number | null;
+    stage: string | null;
+    model: string;
+    observations: readonly ProofObservation[];
+    forensics: Record<string, unknown> | null;
+  } | null> {
+    const result = await this.database.query<{
+      state: VerificationState;
+      verdict: ProofVerdict | null;
+      confidence: string | null;
+      relevance: string | null;
+      stage: string | null;
+      model: string;
+      content_evidence: { observations?: unknown } | null;
+      forensics: Record<string, unknown> | null;
+    }>(
+      `SELECT state, verdict, confidence, relevance, stage, model, content_evidence, forensics
+       FROM submission_verifications WHERE submission_id = $1`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      state: row.state,
+      verdict: row.verdict,
+      // numeric(4,3) comes back from the driver as a string; parsed here so
+      // callers never compare a threshold against '0.850'.
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      relevance: row.relevance === null ? null : Number(row.relevance),
+      stage: row.stage,
+      model: row.model,
+      observations: parseObservations(row.content_evidence?.observations),
+      forensics: row.forensics,
+    };
+  }
+
   /// The committee's "unclear" section (#47).
   ///
   /// Unresolved escalations on submissions still awaiting review, oldest
@@ -330,6 +579,10 @@ export class ProofVerificationRepository {
   async unclearQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
     const result = await this.database.query(
       `SELECT v.submission_id, v.escalation_reason, v.rationale, v.confidence,
+              -- Relevance beside confidence, never instead of it: one is how
+              -- much the media has to do with the quest, the other how sure
+              -- the analysis was. A moderator triaging this queue wants both.
+              v.relevance, v.content_evidence,
               v.model, v.queued_at, v.completed_at,
               v.location_verified, v.location_retrieved, v.geofence_verified,
               s.user_id, s.media_type::text AS media_type, s.caption,
@@ -418,9 +671,17 @@ export class ProofVerificationRepository {
     transaction: DatabaseTransaction,
   ): Promise<void> {
     await transaction.query(
-      `WITH inserted AS (
+      // FOR KEY SHARE: the same fan-out race guarded in
+      // submissions.repository.ts. This insert shares a transaction with the
+      // verdict, so an admin closing their account at the wrong moment would
+      // roll back the verdict along with its alert.
+      `WITH recipients AS (
+         SELECT a.user_id FROM admins a
+         JOIN users u ON u.id = a.user_id
+         FOR KEY SHARE OF u
+       ), inserted AS (
          INSERT INTO notifications (user_id, title, body, type, reference_id)
-         SELECT user_id, $1, $2, 'proof_unclear', $3 FROM admins
+         SELECT user_id, $1, $2, 'proof_unclear', $3 FROM recipients
          RETURNING id, user_id
        )
        INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
