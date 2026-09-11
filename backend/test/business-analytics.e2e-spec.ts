@@ -398,19 +398,86 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
 
       // Exactly seven points. Grouping the submissions alone would return
       // one, and a chart drawn from that reads as steady traffic.
-      expect(response.body.data).toHaveLength(7);
-      const total = response.body.data.reduce(
+      expect(response.body.data.points).toHaveLength(7);
+      const total = response.body.data.points.reduce(
         (sum: number, point: { completions: number }) => sum + point.completions,
         0,
       );
       expect(total).toBe(1);
-      expect(response.body.data.at(-1).completions).toBe(1);
+      expect(response.body.data.points.at(-1).completions).toBe(1);
+      // The resolved window travels back, so the chart labels the dates the
+      // server drew rather than recomputing them across a timezone edge.
+      expect(response.body.data.window.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('draws an explicit range, inclusive of both ends', async () => {
+      const businessId = await createBusiness('Ranged Series');
+
+      const response = await harness
+        .get(
+          `/businesses/${businessId}/analytics/daily`
+          + '?from=2026-03-01&to=2026-03-05',
+          owner,
+        )
+        .expect(200);
+
+      expect(response.body.data.window).toEqual({
+        from: '2026-03-01',
+        to: '2026-03-05',
+      });
+      expect(response.body.data.points).toHaveLength(5);
+      expect(response.body.data.points[0].date).toBe('2026-03-01');
+      expect(response.body.data.points.at(-1).date).toBe('2026-03-05');
+    });
+
+    // A caller who sent both meant the range; charting the preset instead
+    // would draw dates they never asked about and look correct doing it.
+    it('prefers an explicit range over a preset', async () => {
+      const businessId = await createBusiness('Range Wins');
+
+      const response = await harness
+        .get(
+          `/businesses/${businessId}/analytics/daily`
+          + '?days=7&from=2026-03-01&to=2026-03-02',
+          owner,
+        )
+        .expect(200);
+
+      expect(response.body.data.points).toHaveLength(2);
     });
 
     it('bounds the window rather than building an arbitrary series', async () => {
       const businessId = await createBusiness('Bounded Series');
       await harness.get(`/businesses/${businessId}/analytics/daily?days=100000`, owner).expect(400);
       await harness.get(`/businesses/${businessId}/analytics/daily?days=0`, owner).expect(400);
+
+      // A range is bounded too, and each reason is its own code because
+      // each has a different fix.
+      const long = await harness
+        .get(
+          `/businesses/${businessId}/analytics/daily?from=2020-01-01&to=2026-01-01`,
+          owner,
+        )
+        .expect(400);
+      expect(long.body.error.code).toBe('RANGE_TOO_LONG');
+
+      const reversed = await harness
+        .get(
+          `/businesses/${businessId}/analytics/daily?from=2026-05-10&to=2026-05-01`,
+          owner,
+        )
+        .expect(400);
+      expect(reversed.body.error.code).toBe('RANGE_REVERSED');
+
+      // A date that parses but does not exist: 2026-02-30 would otherwise
+      // become March 2nd and be charted as if it had been asked for.
+      const impossible = await harness
+        .get(
+          `/businesses/${businessId}/analytics/daily?from=2026-02-30&to=2026-03-01`,
+          owner,
+        )
+        .expect(400);
+      expect(impossible.body.error.code).toBe('INVALID_DATE');
     });
   });
 

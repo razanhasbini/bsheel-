@@ -1,7 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { BusinessAnalyticsRepository } from '../infrastructure/business-analytics.repository.js';
-import { MIN_REPORTABLE_COHORT } from '../domain/business-analytics.js';
-import type { BusinessProofQueryDto } from '../presentation/business-analytics.dto.js';
+import {
+  MAX_DAILY_SPAN_DAYS,
+  MIN_REPORTABLE_COHORT,
+  resolveDailyWindow,
+  type DailyWindowError,
+} from '../domain/business-analytics.js';
+import type {
+  BusinessDailyQueryDto,
+  BusinessProofQueryDto,
+} from '../presentation/business-analytics.dto.js';
 
 @Injectable()
 export class BusinessAnalyticsService {
@@ -17,8 +25,24 @@ export class BusinessAnalyticsService {
     return { ...summary, minReportableCohort: MIN_REPORTABLE_COHORT };
   }
 
-  daily(businessId: string, days: number) {
-    return this.analytics.daily(businessId, days);
+  /// The completion series, over a preset window or an explicit range.
+  ///
+  /// The resolved window travels back in the response so the chart labels
+  /// the dates the server actually drew rather than recomputing them and
+  /// risking a one-day disagreement across a timezone boundary.
+  async daily(businessId: string, query: BusinessDailyQueryDto) {
+    const resolved = resolveDailyWindow(
+      { days: query.days, from: query.from, to: query.to },
+      new Date(),
+    );
+    if ('error' in resolved) {
+      throw new BadRequestException({
+        code: resolved.error,
+        message: dailyWindowMessage(resolved.error),
+      });
+    }
+    const points = await this.analytics.daily(businessId, resolved.window);
+    return { window: resolved.window, points };
   }
 
   quests(businessId: string, limit: number, offset: number) {
@@ -72,5 +96,18 @@ export class BusinessAnalyticsService {
           ? { beforeSubmittedAt: last.submittedAt.toISOString(), beforeId: last.submissionId }
           : null,
     };
+  }
+}
+
+/// Each reason has a different fix, so each gets its own sentence: a bare
+/// "invalid range" leaves a caller guessing which of three things to change.
+function dailyWindowMessage(error: DailyWindowError): string {
+  switch (error) {
+    case 'INVALID_DATE':
+      return 'from and to must be calendar dates in YYYY-MM-DD form';
+    case 'RANGE_REVERSED':
+      return 'from must not be later than to';
+    case 'RANGE_TOO_LONG':
+      return `The range must span at most ${MAX_DAILY_SPAN_DAYS} days`;
   }
 }

@@ -164,6 +164,37 @@ class BusinessAnalyticsSummary {
 DateTime? _dateOrNull(Object? raw) =>
     raw is String && raw.isNotEmpty ? DateTime.tryParse(raw)?.toLocal() : null;
 
+/// The completion series, plus the window the server actually drew.
+///
+/// The window travels with the points so the chart labels the dates the
+/// server used rather than recomputing them — a client that derived "today"
+/// itself would disagree by a day for anyone west of UTC.
+class BusinessDailySeries {
+  const BusinessDailySeries({
+    required this.from,
+    required this.to,
+    required this.points,
+  });
+
+  final String from, to;
+  final List<BusinessDailyPoint> points;
+
+  int get totalCompletions =>
+      points.fold(0, (sum, point) => sum + point.completions);
+
+  factory BusinessDailySeries.fromJson(Map<String, dynamic> j) {
+    final window = ((j['window'] as Map?) ?? const {}).cast<String, dynamic>();
+    return BusinessDailySeries(
+      from: (window['from'] as String?) ?? '',
+      to: (window['to'] as String?) ?? '',
+      points: ((j['points'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(BusinessDailyPoint.fromJson)
+          .toList(),
+    );
+  }
+}
+
 /// One day of the completion series. Every day in the window is present,
 /// including the empty ones — a chart that omits quiet days draws a straight
 /// line through them and reads as steady traffic.
