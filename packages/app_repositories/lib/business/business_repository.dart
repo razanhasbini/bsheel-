@@ -23,7 +23,8 @@ abstract class BusinessRepository {
 
   Future<BusinessAnalyticsSummary> analyticsSummary(String businessId);
   Future<List<BusinessDailyPoint>> daily(String businessId, {int days = 30});
-  Future<List<BusinessQuestPerformance>> questPerformance(String businessId);
+  Future<List<BusinessQuestPerformance>> questPerformance(String businessId,
+      {int limit = 50, int offset = 0});
   Future<List<BusinessPlacePerformance>> placePerformance(String businessId);
   Future<BusinessVisitorOrigins> visitorOrigins(String businessId);
 
@@ -75,9 +76,10 @@ class ApiBusinessRepository implements BusinessRepository {
           .toList();
 
   @override
-  Future<List<BusinessQuestPerformance>> questPerformance(
-          String businessId) async =>
-      apiObjectList(await _client.get(_analytics(businessId, 'quests')))
+  Future<List<BusinessQuestPerformance>> questPerformance(String businessId,
+          {int limit = 50, int offset = 0}) async =>
+      apiObjectList(await _client.get(_analytics(businessId, 'quests'),
+              query: {'limit': limit, 'offset': offset}))
           .map(BusinessQuestPerformance.fromJson)
           .toList();
 

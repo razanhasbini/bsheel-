@@ -20,10 +20,31 @@ final dailyProvider = FutureProvider.autoDispose
   return ref.watch(businessRepositoryProvider).daily(businessId, days: days);
 });
 
+/// The server caps this at 100 per request. Asking for the cap means the
+/// filter below works over everything a business realistically has, and the
+/// UI can say so when the list is actually truncated rather than pretending
+/// the filter saw all of it.
+const questPageSize = 100;
+
 final questPerformanceProvider = FutureProvider.autoDispose
     .family<List<BusinessQuestPerformance>, String>((ref, businessId) {
-  return ref.watch(businessRepositoryProvider).questPerformance(businessId);
+  return ref
+      .watch(businessRepositoryProvider)
+      .questPerformance(businessId, limit: questPageSize);
 });
+
+/// Free-text filter over the loaded quest rows — title and place.
+///
+/// Applied on the client, over rows already fetched. That is honest only
+/// because the fetch asks for the server's maximum and the section says so
+/// when it hit it; a client-side filter over a partial list would quietly
+/// answer "no quests match" about quests it had never seen.
+final questFilterProvider = StateProvider<String>((ref) => '');
+
+enum QuestSort { completions, starts, rate, title }
+
+final questSortProvider =
+    StateProvider<QuestSort>((ref) => QuestSort.completions);
 
 final placePerformanceProvider = FutureProvider.autoDispose
     .family<List<BusinessPlacePerformance>, String>((ref, businessId) {
@@ -35,7 +56,6 @@ final visitorOriginsProvider = FutureProvider.autoDispose
   return ref.watch(businessRepositoryProvider).visitorOrigins(businessId);
 });
 
-final publicProofProvider = FutureProvider.autoDispose
-    .family<BusinessProofPage, String>((ref, businessId) {
-  return ref.watch(businessRepositoryProvider).proof(businessId);
-});
+// Published proof is paged and accumulating, so it lives in
+// proof_controller.dart rather than here: a FutureProvider can only hold
+// the first page.

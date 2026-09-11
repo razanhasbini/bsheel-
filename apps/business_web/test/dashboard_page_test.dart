@@ -81,8 +81,8 @@ void main() {
                   countries: [],
                   suppressedCountries: 0,
                   suppressedVisitors: 0)),
-          publicProofProvider.overrideWith(
-              (ref, arg) async => const BusinessProofPage(items: [])),
+          // Proof is a StateNotifier now; the fake repository below answers
+          // its read, so no provider override is needed for it.
         ],
         child: MaterialApp(
           theme: QuestTheme.light,
@@ -245,6 +245,11 @@ class _FakeRepository implements BusinessRepository {
 
   @override
   Future<List<BusinessSummary>> mine() async => _businesses;
+
+  @override
+  Future<BusinessProofPage> proof(String businessId,
+          {int limit = 20, BusinessProofCursor? cursor}) async =>
+      const BusinessProofPage(items: []);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
