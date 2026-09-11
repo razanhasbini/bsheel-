@@ -46,6 +46,10 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 COPY scripts ./scripts
+# The curated catalogue. scripts/seed-quests.mjs reads these at runtime, so
+# without them a production deploy has the schema and no content — which is
+# exactly what an empty Home looked like.
+COPY seeds ./seeds
 USER bsheel
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "dist/main.js"]
