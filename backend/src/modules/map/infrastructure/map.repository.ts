@@ -58,6 +58,13 @@ export class MapRepository {
       EXISTS (SELECT 1 FROM saved_map_places b WHERE b.user_id=$1 AND b.place_id=p.id) AS saved,
       CASE WHEN ${locked} THEN 0 ELSE (SELECT count(*)::int FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
         WHERE d.place_id=p.id AND q.is_active) END AS quest_count,
+      -- The newest approved, feed-visible proof at the place: the pin's photo
+      -- snippet. Withheld while locked, like everything else about it.
+      CASE WHEN ${locked} THEN NULL ELSE (SELECT s.media_url FROM quest_destinations d
+        JOIN user_quests uq ON uq.quest_id=d.quest_id JOIN submissions s ON s.user_quest_id=uq.id
+        WHERE d.place_id=p.id AND s.status='approved' AND s.show_in_feed AND s.visibility='visible'
+          AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
+        ORDER BY s.submitted_at DESC LIMIT 1) END AS cover_media_url,
       EXISTS (SELECT 1 FROM quest_destinations d JOIN user_quests uq ON uq.quest_id=d.quest_id
         JOIN submissions s ON s.user_quest_id=uq.id WHERE d.place_id=p.id AND s.user_id=$1
         AND s.status IN ('pending','approved') AND s.deleted_at IS NULL AND s.visibility <> 'deleted'
@@ -104,6 +111,129 @@ export class MapRepository {
       await this.database.query('DELETE FROM saved_map_places WHERE user_id=$1 AND place_id=$2',[userId,id]);
     }
     return { saved:save };
+  }
+
+  /// The one authoritative exploration model, for the map and the profile.
+  ///
+  /// A place counts as explored once the user has an approved destination
+  /// submission there that still stands — the same predicate as the reveal
+  /// rule. Unique places, so completing one place twice moves nothing;
+  /// pending and rejected proof move nothing; a quest with no destination
+  /// moves nothing. World is explored places over every published place.
+  async progress(userId: string) {
+    const rows = (await this.database.query(`
+      SELECT c.code AS country_code, c.name, c.geometry_id,
+        count(p.id)::int AS total_places,
+        count(p.id) FILTER (WHERE p.id IN (${confirmedPlaceIds}))::int AS explored_places,
+        count(p.id) FILTER (WHERE p.id NOT IN (${confirmedPlaceIds}) AND EXISTS (
+          SELECT 1 FROM quest_destinations d JOIN user_quests uq ON uq.quest_id=d.quest_id
+          JOIN submissions s ON s.user_quest_id=uq.id
+          WHERE d.place_id=p.id AND s.user_id=$1 AND s.status='pending'
+            AND s.deleted_at IS NULL AND s.visibility <> 'deleted' AND s.moderation_removed_at IS NULL))::int AS pending_places
+      FROM map_countries c LEFT JOIN map_places p ON p.country_code=c.code AND p.is_published
+      GROUP BY c.code ORDER BY c.name`, [userId])).rows as {
+        country_code: string; name: string; geometry_id: string;
+        total_places: number; explored_places: number; pending_places: number;
+      }[];
+    const percentage = (explored: number, total: number) => total === 0 ? 0 : Math.round((explored / total) * 1000) / 10;
+    const totalPlaces = rows.reduce((n, r) => n + r.total_places, 0);
+    const exploredPlaces = rows.reduce((n, r) => n + r.explored_places, 0);
+    return {
+      world: { exploredPlaces, totalPlaces, percentage: percentage(exploredPlaces, totalPlaces) },
+      countries: rows.map(r => ({
+        countryCode: r.country_code, name: r.name, geometryId: r.geometry_id,
+        exploredPlaces: r.explored_places, pendingPlaces: r.pending_places, totalPlaces: r.total_places,
+        percentage: percentage(r.explored_places, r.total_places),
+      })),
+    };
+  }
+
+  /// What one country has to offer the requesting user — browsable from
+  /// anywhere; being there is never required to look.
+  ///
+  /// Trending reuses the feed's hot signal (net score decayed by age) over
+  /// each quest's approved proof, plus completions, BSHEEEL saves and
+  /// comments. Discovery is a deterministic daily shuffle of the rest, so the
+  /// same few viral quests do not own the map forever. Both draw only from
+  /// active quests at places the user may see; `is_hidden` quests and locked
+  /// places are counted, never described.
+  async discover(userId: string, code: string) {
+    const country = (await this.database.query(`
+      SELECT c.code, c.name, c.geometry_id,
+        count(p.id)::int AS total_places,
+        count(p.id) FILTER (WHERE p.id IN (${confirmedPlaceIds}))::int AS explored_places,
+        count(p.id) FILTER (WHERE ${locked})::int AS locked_places
+      FROM map_countries c LEFT JOIN map_places p ON p.country_code=c.code AND p.is_published
+      WHERE c.code=$2 GROUP BY c.code`, [userId, code])).rows[0];
+    if (!country) throw new NotFoundException({ code:'COUNTRY_NOT_FOUND', message:'Country not found' });
+
+    const standing = `s.deleted_at IS NULL AND s.visibility <> 'deleted' AND s.moderation_removed_at IS NULL`;
+    const quests = (await this.database.query(`
+      WITH candidates AS (
+        SELECT q.id, q.title, q.category, q.difficulty, q.xp_reward, q.duration_hours,
+          d.requires_verification, p.id AS place_id, p.name AS place_name, p.city, p.latitude, p.longitude
+        FROM quest_destinations d JOIN quests q ON q.id=d.quest_id JOIN map_places p ON p.id=d.place_id
+        WHERE p.country_code=$2 AND ${visible} AND q.is_active AND NOT q.is_hidden
+          AND (q.available_from IS NULL OR q.available_from <= now())
+          AND (q.available_until IS NULL OR q.available_until > now())
+      ), scored AS (
+        SELECT c.*,
+          (SELECT COALESCE(sum(s.net_score::double precision
+              / power(GREATEST(EXTRACT(EPOCH FROM (now() - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5)), 0)
+             + 1.5 * count(*) FILTER (WHERE s.status='approved')
+             + 0.5 * (SELECT count(*) FROM comments cm WHERE cm.submission_id = ANY(array_agg(s.id)))
+           FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+           WHERE uq.quest_id=c.id AND s.status='approved' AND ${standing}) AS engagement,
+          (SELECT count(*)::int FROM saved_quests sq WHERE sq.quest_id=c.id) AS saves,
+          (SELECT count(*)::int FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+             WHERE uq.quest_id=c.id AND s.status='approved' AND ${standing}) AS completions,
+          (SELECT s.media_url FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+             WHERE uq.quest_id=c.id AND s.status='approved' AND s.show_in_feed AND ${standing}
+             ORDER BY s.submitted_at DESC LIMIT 1) AS cover_media_url,
+          EXISTS (SELECT 1 FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+             WHERE uq.quest_id=c.id AND s.user_id=$1 AND s.status='approved' AND ${standing}) AS completed,
+          EXISTS (SELECT 1 FROM saved_quests sq WHERE sq.quest_id=c.id AND sq.user_id=$1) AS saved
+        FROM candidates c
+      )
+      SELECT *, (engagement + 2 * saves) AS score,
+        md5(id::text || current_date::text) AS shuffle
+      FROM scored`, [userId, code])).rows as Record<string, unknown>[];
+
+    const byScore = [...quests].sort((a, b) => Number(b.score) - Number(a.score));
+    const trending = byScore.filter(q => Number(q.score) > 0).slice(0, 5);
+    const taken = new Set(trending.map(q => q.id));
+    const discovery = quests.filter(q => !taken.has(q.id))
+      .sort((a, b) => String(a.shuffle).localeCompare(String(b.shuffle))).slice(0, 5);
+    const hiddenQuests = (await this.database.query(`
+      SELECT count(*)::int AS n FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
+      JOIN map_places p ON p.id=d.place_id WHERE p.country_code=$1 AND p.is_published AND q.is_active AND q.is_hidden`, [code])).rows[0].n as number;
+
+    const collections = (await this.database.query(`
+      SELECT col.id, col.name, col.description,
+        count(i.quest_id)::int AS total,
+        count(i.quest_id) FILTER (WHERE EXISTS (
+          SELECT 1 FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+          WHERE uq.quest_id=i.quest_id AND s.user_id=$1 AND s.status='approved' AND ${standing}))::int AS completed
+      FROM quest_collections col LEFT JOIN quest_collection_items i ON i.collection_id=col.id
+      WHERE col.country_code=$2 AND col.is_published
+      GROUP BY col.id ORDER BY col.name`, [userId, code])).rows;
+
+    const strip = (q: Record<string, unknown>) => {
+      const { engagement: _e, shuffle: _s, ...rest } = q;
+      return rest;
+    };
+    const total = Number(country.total_places), explored = Number(country.explored_places);
+    return {
+      country: {
+        code: country.code, name: country.name, geometryId: country.geometry_id,
+        totalPlaces: total, exploredPlaces: explored,
+        percentage: total === 0 ? 0 : Math.round((explored / total) * 1000) / 10,
+      },
+      trending: trending.map(strip),
+      discovery: discovery.map(strip),
+      hiddenCount: Number(country.locked_places) + hiddenQuests,
+      collections,
+    };
   }
 
   async adminPlaces() {

@@ -46,6 +46,20 @@ final mapDetailProvider =
 const MapFilter mapAllPlacesFilter =
     (country: null, category: null, search: '', offset: 0, savedOnly: false);
 
+/// World + per-country exploration, backend-authoritative. Watched by the map
+/// and usable by the profile, so the two never disagree.
+final mapProgressProvider = FutureProvider.autoDispose<MapProgress>((ref) {
+  ref.watch(authSessionProvider);
+  return ref.watch(mapRepositoryProvider).progress();
+});
+
+/// One country's trending / discovery quests, hidden count and collections.
+final mapDiscoverProvider =
+    FutureProvider.autoDispose.family<MapCountryDiscovery, String>((ref, code) {
+  ref.watch(authSessionProvider);
+  return ref.watch(mapRepositoryProvider).discover(code);
+});
+
 /// Whether the page loads OpenStreetMap tiles. Widget tests turn it off: the
 /// test HTTP client answers every tile with 400 and the map is still fully
 /// exercisable on its fog, pins and sheets alone.

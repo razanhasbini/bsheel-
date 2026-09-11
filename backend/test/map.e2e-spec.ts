@@ -110,6 +110,78 @@ describe('map destinations and discovery', {timeout:120000}, () => {
     await h.get(`/quests/${secret.id}`,user).expect(404);
   });
 
+  // Exploration progress (#66): one authoritative model, approved-only,
+  // unique places. Pending, rejected, repeated and non-location completions
+  // move nothing.
+  it('counts exploration from approved destination quests only, once per place',async()=>{
+    const pct=async()=>{
+      const r=await h.get('/map/progress/me',user).expect(200);
+      return {world:r.body.data.world,lb:r.body.data.countries.find((c:{countryCode:string})=>c.countryCode==='LB')};
+    };
+    const before=await pct();
+    const baseExplored=before.lb.exploredPlaces as number;
+
+    // Pending proof at a fresh place: nothing moves.
+    const spot=await h.post('/map/admin/places',admin).send(input()).expect(201);
+    places.push(spot.body.data.id);
+    const q1=await h.createQuest();
+    await h.post(`/map/admin/places/${spot.body.data.id}/quests`,admin).send({questId:q1.id,requiresVerification:false}).expect(201);
+    const pending=await h.createSubmission(user,{questId:q1.id});
+    expect((await pct()).lb.exploredPlaces).toBe(baseExplored);
+    expect((await pct()).lb.pendingPlaces).toBeGreaterThanOrEqual(1);
+
+    // Approved: the place counts, once, and the world moves with it.
+    await h.post(`/submissions/${pending.id}/approve`,admin).send({}).expect(204);
+    const after=await pct();
+    expect(after.lb.exploredPlaces).toBe(baseExplored+1);
+    expect(after.lb.percentage).toBeGreaterThan(before.lb.percentage);
+    expect(after.world.exploredPlaces).toBe((before.world.exploredPlaces as number)+1);
+
+    // A second approved quest at the SAME place is not a second discovery.
+    const q2=await h.createQuest();
+    await h.post(`/map/admin/places/${spot.body.data.id}/quests`,admin).send({questId:q2.id,requiresVerification:false}).expect(201);
+    const again=await h.createSubmission(user,{questId:q2.id});
+    await h.post(`/submissions/${again.id}/approve`,admin).send({}).expect(204);
+    expect((await pct()).lb.exploredPlaces).toBe(baseExplored+1);
+
+    // A quest with no destination — a home/learning quest — never counts.
+    const home=await h.createQuest();
+    const homeProof=await h.createSubmission(user,{questId:home.id});
+    await h.post(`/submissions/${homeProof.id}/approve`,admin).send({}).expect(204);
+    expect((await pct()).lb.exploredPlaces).toBe(baseExplored+1);
+
+    // Other players' progress is their own.
+    const others=await h.get('/map/progress/me',other).expect(200);
+    expect(others.body.data.countries.find((c:{countryCode:string})=>c.countryCode==='LB').exploredPlaces).toBe(0);
+  });
+
+  it('describes a country from anywhere: trending, discovery, and how much is hidden',async()=>{
+    await h.get('/map/countries/XX/discover',user).expect(404);
+    await h.get('/map/countries/lb/discover',user).expect(400);
+    const r=await h.get('/map/countries/LB/discover',user).expect(200);
+    const d=r.body.data;
+    expect(d.country).toMatchObject({code:'LB',name:'Lebanon'});
+    expect(d.country.percentage).toBeGreaterThan(0);
+    // The quest the user completed above has engagement, so it trends; a
+    // trending quest is never also a discovery pick.
+    const trendingIds=d.trending.map((q:{id:string})=>q.id);
+    expect(trendingIds.length).toBeGreaterThan(0);
+    for(const q of d.discovery)expect(trendingIds).not.toContain(q.id);
+    for(const q of [...d.trending,...d.discovery]){
+      expect(q).toHaveProperty('place_id');expect(q).toHaveProperty('latitude');expect(q).toHaveProperty('completed');
+      expect(q).not.toHaveProperty('engagement');
+    }
+    // A genuinely hidden quest is counted, never listed.
+    const secret=await h.createQuest();
+    await h.database.query('UPDATE quests SET is_hidden=true WHERE id=$1',[secret.id]);
+    await h.post(`/map/admin/places/${placeId}/quests`,admin).send({questId:secret.id,requiresVerification:false}).expect(201);
+    const r2=await h.get('/map/countries/LB/discover',user).expect(200);
+    const all=[...r2.body.data.trending,...r2.body.data.discovery].map((q:{id:string})=>q.id);
+    expect(all).not.toContain(secret.id);
+    expect(r2.body.data.hiddenCount).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(r2.body.data.collections)).toBe(true);
+  });
+
   // Admin manageability (#48). The console could create a place and link a
   // quest, then nothing: no way to see existing links, undo a mis-link, or
   // publish a draft. Because destination assignment is blocked while a place

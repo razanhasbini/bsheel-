@@ -155,7 +155,8 @@ void main() {
           confirmed: 2,
           saved: 5)
     ]))));
-    expect(find.text('LEBANON · 30%'), findsOneWidget);
+    // Exploration counts approved proof only: 2 of 10 places, not 3.
+    expect(find.text('LEBANON · 20%'), findsOneWidget);
     expect(find.text('2 confirmed · 1 awaiting review'), findsOneWidget);
   });
 }
