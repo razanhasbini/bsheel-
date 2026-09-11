@@ -23,6 +23,7 @@ import { QuestsModule } from './modules/quests/quests.module.js';
 import { QuestMaintenanceProcessor } from './modules/quests/application/quest-maintenance.processor.js';
 import { QuestMaintenanceScheduler } from './modules/quests/application/quest-maintenance.scheduler.js';
 import { AgentModule } from './modules/agent/agent.module.js';
+import { AgentRecoveryScheduler } from './modules/agent/infrastructure/agent-recovery.scheduler.js';
 import { SubmissionVerificationProcessor } from './modules/agent/infrastructure/submission-verification.processor.js';
 import { QuestAssignmentAgentProcessor } from './modules/agent/infrastructure/quest-assignment-agent.processor.js';
 import { SubmissionsModule } from './modules/submissions/submissions.module.js';
@@ -60,6 +61,7 @@ import { ProofVerificationScheduler } from './modules/submissions/application/pr
     QuestMaintenanceProcessor,
     QuestMaintenanceScheduler,
     SubmissionVerificationProcessor,
+    AgentRecoveryScheduler,
     QuestAssignmentAgentProcessor,
     ProofVerificationProcessor,
     ProofVerificationScheduler,
