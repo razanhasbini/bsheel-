@@ -185,6 +185,7 @@ export class ProfilesRepository {
            bio = CASE WHEN $6 THEN $7 ELSE bio END,
            profile_completed = CASE WHEN $8 = true THEN true ELSE profile_completed END,
            country_code = CASE WHEN $9 THEN $10 ELSE country_code END,
+           age_verified = CASE WHEN $11 THEN true ELSE age_verified END,
            updated_at = now()
          WHERE id = $1
          RETURNING ${publicColumns}, age_verified, analytics_consent_at, country_code`,
@@ -201,6 +202,7 @@ export class ProfilesRepository {
           // Uppercased to match the column's CHECK, so aggregation never has
           // to fold case and 'lb' and 'LB' cannot become two countries.
           input.countryCode ? input.countryCode.toUpperCase() : null,
+          input.ageVerified === true,
         ],
         );
         if (result.rows[0]) await this.emitUpdated(id, 'profile_edit', transaction);

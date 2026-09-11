@@ -117,10 +117,13 @@ class _SignupPageState extends ConsumerState<SignupPage>
 
     setState(() => _isLoading = true);
     try {
-      final response = await ref.read(authRepositoryProvider).signInWithPhone(
-          phone,
-          email: email.isEmpty ? null : email,
-          password: password);
+      final response =
+          await ref.read(authRepositoryProvider).signInWithPhone(phone,
+              email: email.isEmpty ? null : email,
+              password: password,
+              // The form's own checkbox, validated above — so a phone signup
+              // never gets asked a second time after landing.
+              ageVerified: _ageConfirmed);
       if (!mounted) return;
       ref.read(analyticsProvider).signup();
       final user = response.user;

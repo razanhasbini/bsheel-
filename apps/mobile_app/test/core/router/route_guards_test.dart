@@ -225,6 +225,40 @@ void main() {
       );
     });
 
+    test('un-onboarded AND unverified does not loop between the two gates', () {
+      // Seen in production: / → walkthrough → verify-phone → walkthrough …
+      // The walkthrough must be allowed to render for an unverified user,
+      // and verify-phone must hand off to the walkthrough (not vice versa).
+      expect(
+        authRedirect(
+          location: RoutePaths.onboardingWalkthrough,
+          isLoggedIn: true,
+          isOnboardingComplete: false,
+          isPhoneVerified: false,
+        ),
+        isNull,
+      );
+      expect(
+        authRedirect(
+          location: RoutePaths.verifyPhone,
+          isLoggedIn: true,
+          isOnboardingComplete: false,
+          isPhoneVerified: false,
+        ),
+        RoutePaths.onboardingWalkthrough,
+      );
+      // Once onboarding is done the phone gate takes over from home.
+      expect(
+        authRedirect(
+          location: RoutePaths.home,
+          isLoggedIn: true,
+          isOnboardingComplete: true,
+          isPhoneVerified: false,
+        ),
+        RoutePaths.verifyPhone,
+      );
+    });
+
     test('the phone-signin callback is reachable while unverified', () {
       expect(
         authRedirect(

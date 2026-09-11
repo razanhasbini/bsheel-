@@ -77,7 +77,11 @@ export class OAuthSignInDto {
   @IsString() @MinLength(100) idToken!: string;
   @IsOptional() @IsString() @Length(16, 200) nonce?: string;
   @IsOptional() @IsString() @MaxLength(100) displayName?: string;
-  @Equals(true) ageVerified!: true;
+  /// Optional. The 13+ confirmation is asked once, in the app, after the
+  /// account exists — not as a gate in front of every sign-in. Omitted or
+  /// false leaves `profiles.age_verified` as it is; it only ever moves to
+  /// true (here, or later through PATCH /profiles/me).
+  @IsOptional() @IsBoolean() ageVerified?: boolean;
 }
 
 export class StartPhoneSignInDto {
@@ -95,7 +99,10 @@ export class StartPhoneSignInDto {
   /// hasher.
   @IsOptional() @IsString() @MinLength(10) @MaxLength(200) password?: string;
 
-  @Equals(true) ageVerified!: true;
+  /// Optional, same reasoning as OAuthSignInDto: the signup form sends true
+  /// because it carries its own checkbox; the login page's phone button
+  /// sends nothing and the app asks once after sign-in instead.
+  @IsOptional() @IsBoolean() ageVerified?: boolean;
 }
 
 export class StartPhoneLinkDto {

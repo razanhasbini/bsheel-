@@ -91,6 +91,12 @@ class ApiProfileRepository implements ProfileRepository {
   }
 
   @override
+  Future<void> confirmAge() async {
+    // The server accepts only `true` here; the flag never moves back.
+    await _client.patch('profiles/me', body: {'ageVerified': true});
+  }
+
+  @override
   Future<String> uploadAvatar(
     String userId,
     Uint8List bytes,

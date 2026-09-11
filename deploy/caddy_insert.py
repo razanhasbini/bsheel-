@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Insert the Bsheel /api/v1 and /socket.io handles into a Caddyfile.
+"""Insert the Bsheel handles into a Caddyfile.
+
+Two groups, each added only if missing, so a server that already has the
+first can pick up the second on a later run:
+
+  - /api/v1/* and /socket.io/*          — the API and the realtime gateway
+  - the root-level paths                — /phone-signin-callback and the two
+                                          /.well-known app-association files,
+                                          which the OS and the browser fetch
+                                          from the domain root and which the
+                                          catch-all otherwise answers with the
+                                          literal string "Bsheel API"
 
 Called by caddy-apply.sh. Kept separate so it can be unit-tested against
 sample Caddyfiles without touching a live server.
@@ -73,6 +84,38 @@ def bare_terminal_directive(body):
     return None
 
 
+ROOT_PATHS = (
+    "/phone-signin-callback",
+    "/.well-known/apple-app-site-association",
+    "/.well-known/assetlinks.json",
+)
+ROOT_MATCHER = "@bsheel_root"
+
+
+def build_root_block(upstream, indent="\t"):
+    """The root-level paths the API serves outside /api/v1.
+
+    Number Verification lands the browser on /phone-signin-callback, and
+    iOS/Android fetch the app-association files from the domain root without
+    following redirects. None of the three can live under /api/v1, so without
+    this route the site's catch-all answers them — and the app never learns
+    it owns the link. A named matcher rather than three handles, so there is
+    one thing to grep for.
+    """
+    return (
+        f"\n{indent}# --- Bsheel root paths (added by deploy/caddy-apply.sh) ---\n"
+        f"{indent}# Number Verification's landing page and the iOS/Android app-\n"
+        f"{indent}# association files. Fetched from the domain root, so they\n"
+        f"{indent}# cannot live under /api/v1; without this the catch-all below\n"
+        f"{indent}# answers them with the literal string \"Bsheel API\".\n"
+        f"{indent}{ROOT_MATCHER} path {' '.join(ROOT_PATHS)}\n"
+        f"{indent}handle {ROOT_MATCHER} {{\n"
+        f"{indent}\treverse_proxy {upstream}\n"
+        f"{indent}}}\n"
+        f"{indent}# --- end Bsheel root paths ---\n"
+    )
+
+
 def build_block(upstream, indent="\t"):
     return (
         f"\n{indent}# --- Bsheel API (added by deploy/caddy-apply.sh) ---\n"
@@ -91,8 +134,10 @@ def build_block(upstream, indent="\t"):
 
 
 def insert(src, upstream):
-    """Return the edited config, or raise ValueError with a reason."""
-    if "/api/v1/*" in src and "/socket.io/*" in src:
+    """Return the edited config, None if nothing is missing, or raise ValueError."""
+    need_api = not ("/api/v1/*" in src and "/socket.io/*" in src)
+    need_root = ROOT_MATCHER not in src
+    if not need_api and not need_root:
         return None  # already present
 
     open_idx, close_idx = find_site_block(src)
@@ -112,7 +157,16 @@ def insert(src, upstream):
 
     lines = [ln for ln in body.splitlines() if ln.strip()]
     indent = re.match(r"[ \t]*", lines[0]).group(0) if lines else "\t"
-    return src[: open_idx + 1] + build_block(upstream, indent or "\t") + src[open_idx + 1 :]
+    # Both go at the top of the block. `handle` blocks with matchers are
+    # tried before a matcher-less catch-all whatever the order, but the
+    # imported Supabase handle is a named matcher too, so position is what
+    # keeps ours ahead of anything a future snippet might claim.
+    added = ""
+    if need_api:
+        added += build_block(upstream, indent or "\t")
+    if need_root:
+        added += build_root_block(upstream, indent or "\t")
+    return src[: open_idx + 1] + added + src[open_idx + 1 :]
 
 
 def main():
@@ -138,7 +192,12 @@ def main():
 
     with open(path, "w") as handle:
         handle.write(result)
-    print(f"  inserted /api/v1 and /socket.io handles -> {upstream}")
+    added = []
+    if "/api/v1/*" not in src:
+        added.append("/api/v1 + /socket.io handles")
+    if ROOT_MATCHER not in src:
+        added.append(f"{ROOT_MATCHER} handle ({', '.join(ROOT_PATHS)})")
+    print(f"  inserted {' and '.join(added)} -> {upstream}")
     return 0
 
 

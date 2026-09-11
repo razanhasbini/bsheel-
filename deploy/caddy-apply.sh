@@ -85,5 +85,16 @@ else
   restore; fail "Bsheel is not answering through Caddy — rolled back"
 fi
 
+# The root-level route: the association file is JSON from the API, never
+# the catch-all's plain string.
+code=$(curl -s -o /dev/null -m 15 -w '%{http_code}' https://api.bsheel.app/.well-known/apple-app-site-association 2>/dev/null)
+body=$(curl -s -m 15 https://api.bsheel.app/.well-known/apple-app-site-association 2>/dev/null | head -c 200)
+if [ "$code" = 200 ] && printf '%s' "$body" | grep -q '"applinks"'; then
+  printf "  \033[32mOK\033[0m    /.well-known/apple-app-site-association -> applinks JSON\n"
+else
+  printf "  \033[31mFAIL\033[0m  /.well-known/apple-app-site-association -> %s  body: %s\n" "$code" "$body"
+  restore; fail "the @bsheel_root route is not answering — rolled back"
+fi
+
 printf "\n\033[32mDone.\033[0m Backup kept at %s\n" "$BACKUP"
 printf "Run deploy/verify.sh from your Mac for the full check.\n"

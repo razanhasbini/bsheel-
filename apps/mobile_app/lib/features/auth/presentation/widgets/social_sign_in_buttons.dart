@@ -11,40 +11,14 @@ import '../auth_error_mapper.dart';
 import 'auth_field.dart';
 import 'phone_number_prompt.dart';
 
-/// Migration 0142: the email signup path has an in-form age checkbox. OAuth
-/// and phone sign-in can't pass metadata at sign-in time, so we confirm 13+
-/// in a one-shot modal BEFORE launching the operator/OAuth web view. If the
-/// user says no, the flow aborts before any account is created.
-Future<bool> confirmAgeGate(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => AlertDialog(
-      title: const Text('AGE CHECK',
-          style: TextStyle(fontWeight: FontWeight.w800)),
-      content: const Text(
-        'Bsheel is for users aged 13 and older. Do you confirm you are 13 '
-        'or older?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text("I'M UNDER 13"),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('YES, 13+'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('You must be 13 or older to sign in.')),
-    );
-  }
-  return confirmed == true;
-}
+// There is deliberately no age dialog in front of these buttons any more.
+// The email signup form keeps its in-form checkbox; every other way in
+// (phone, Apple, Google) creates or opens the account first, and
+// `AgeGateListener` (core/widgets) asks the 13+ question exactly once
+// afterwards — for any account whose profile has not yet answered it.
+// Asking before the operator/OAuth hand-off meant a returning user was
+// re-asked on every sign-in, and a refusal there aborted a flow that had
+// not yet created anything to refuse.
 
 void _showAuthError(BuildContext context, Object e) {
   final msg = e.toString();
@@ -95,8 +69,6 @@ class _PhoneAuthButtonState extends ConsumerState<PhoneAuthButton> {
   bool _loading = false;
 
   Future<void> _signInWithPhone() async {
-    if (!await confirmAgeGate(context)) return;
-    if (!mounted) return;
     // V1 verifies a specific claim, so we have to ask what the claim is
     // before the redirect. Backing out of this dialog is a cancel, not a
     // failure — no account is created and nothing is reported as an error.
@@ -132,12 +104,20 @@ class _PhoneAuthButtonState extends ConsumerState<PhoneAuthButton> {
 }
 
 class SocialSignInButtons extends ConsumerStatefulWidget {
-  const SocialSignInButtons({super.key, this.includePhone = true});
+  const SocialSignInButtons({
+    super.key,
+    this.includePhone = true,
+    this.labelPrefix = 'CONTINUE WITH',
+  });
 
   /// The signup page hoists the phone button to the top of the page as the
   /// primary call to action and renders this block for Apple/Google only.
   /// The login page keeps all three together.
   final bool includePhone;
+
+  /// "CONTINUE WITH" on signup, "LOG IN WITH" on the login page — the same
+  /// three buttons, worded for the page they sit on.
+  final String labelPrefix;
 
   @override
   ConsumerState<SocialSignInButtons> createState() =>
@@ -151,7 +131,6 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
   bool get _anyLoading => _appleLoading || _googleLoading;
 
   Future<void> _signInWithApple() async {
-    if (!await confirmAgeGate(context)) return;
     setState(() => _appleLoading = true);
     try {
       final response = await ref.read(authRepositoryProvider).signInWithApple();
@@ -166,7 +145,6 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
   }
 
   Future<void> _signInWithGoogle() async {
-    if (!await confirmAgeGate(context)) return;
     setState(() => _googleLoading = true);
     try {
       final response =
@@ -207,7 +185,7 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
           // Android it uses the native sheet and needs none of that.
           if (!kIsWeb) ...[
             ArcadeButton(
-              label: 'CONTINUE WITH APPLE',
+              label: '${widget.labelPrefix} APPLE',
               icon: Icons.apple,
               variant: ArcadeButtonVariant.ghost,
               isLoading: _appleLoading,
@@ -216,7 +194,7 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
             const SizedBox(height: 15),
           ],
           ArcadeButton(
-            label: 'CONTINUE WITH GOOGLE',
+            label: '${widget.labelPrefix} GOOGLE',
             icon: Icons.g_mobiledata,
             variant: ArcadeButtonVariant.ghost,
             isLoading: _googleLoading,
@@ -226,7 +204,7 @@ class _SocialSignInButtonsState extends ConsumerState<SocialSignInButtons> {
         if (widget.includePhone) ...[
           if (socialEnabled) const SizedBox(height: 15),
           PhoneAuthButton(
-            label: 'CONTINUE WITH PHONE NUMBER',
+            label: '${widget.labelPrefix} PHONE NUMBER',
             enabled: !_anyLoading,
           ),
         ],

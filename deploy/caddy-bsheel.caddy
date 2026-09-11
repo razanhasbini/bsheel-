@@ -30,6 +30,19 @@
 #           reverse_proxy 127.0.0.1:3010
 #       }
 #
+#       # Root-level paths the API serves OUTSIDE /api/v1 (live 2026-09-12).
+#       # CAMARA Number Verification lands the browser on
+#       # /phone-signin-callback, and iOS/Android fetch the app-association
+#       # files from the domain root without following redirects — so none
+#       # of the three can be prefixed. Without this handle the catch-all
+#       # answered all of them with the literal string "Bsheel API": iOS
+#       # never learned the app owned the link, Safari kept the redirect,
+#       # and a verified tester dead-ended on that string.
+#       @bsheel_root path /phone-signin-callback /.well-known/apple-app-site-association /.well-known/assetlinks.json
+#       handle @bsheel_root {
+#           reverse_proxy 127.0.0.1:3010
+#       }
+#
 #       # ... every existing Supabase handle stays exactly as it is ...
 #   }
 #
@@ -106,11 +119,15 @@ media.bsheel.app {
 #       # ... existing quest-app handles stay as they are ...
 #   }
 #
-# NOTE on the well-known files: both apps share the bundle id
-# com.questapp.mobileApp and one Team ID, so the existing
-# /.well-known/assetlinks.json and /.well-known/apple-app-site-association
-# already cover Bsheel. They need no change. Verify rather than assume:
+# NOTE on the well-known files: admin.bsheel.app's copies cover the share
+# links (/post, /user, /join, /reset-password) — both apps share the bundle
+# id com.questapp.mobileApp and one Team ID. They do NOT cover phone sign-in:
+# that callback lives on api.bsheel.app, whose association files the API
+# generates itself (see the @bsheel_root handle above), because an
+# association file only counts for links on the host that serves it. Verify
+# rather than assume:
 #   curl -s https://admin.bsheel.app/.well-known/assetlinks.json
+#   curl -s https://api.bsheel.app/.well-known/apple-app-site-association
 
 # ---------------------------------------------------------------------------
 # Business / partner dashboard at admin.bsheel.app/business/  (live 2026-09-11)

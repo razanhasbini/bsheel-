@@ -64,6 +64,27 @@ elif printf '%s' "$body" | grep -q 'Transport unknown'; then
   ok "socket.io route reaches the gateway (polling refused by design; websocket only)"
 else bad "socket.io/ -> $code  body: $body"; fi
 
+# Root-level paths, outside /api/v1. Number Verification lands the browser on
+# /phone-signin-callback and iOS fetches the association file from the domain
+# root, so both need their own Caddy route (@bsheel_root). Without it the
+# catch-all answers "Bsheel API" — 200, and completely wrong: iOS never learns
+# the app owns the link, and a verified tester dead-ends on that string.
+code=$(get "$HOST/.well-known/apple-app-site-association"); body=$(head -c 300 /tmp/vf.$$ 2>/dev/null)
+if [ "$code" = 200 ] && printf '%s' "$body" | grep -q '"applinks"'; then
+  ok "apple-app-site-association -> JSON with applinks (root route in effect)"
+elif printf '%s' "$body" | grep -qx 'Bsheel API'; then
+  bad "apple-app-site-association returns the catch-all string — the @bsheel_root Caddy route is missing"
+else
+  bad "apple-app-site-association -> $code  body: $(head -c 80 <<<"$body")"
+fi
+
+code=$(get "$HOST/phone-signin-callback?error=INVALID_PHONE_SIGNIN_STATE"); body=$(head -c 300 /tmp/vf.$$ 2>/dev/null)
+if [ "$code" = 200 ] && printf '%s' "$body" | grep -qi '<!doctype html>'; then
+  ok "phone-signin-callback -> the landing page (HTML)"
+else
+  bad "phone-signin-callback -> $code  body: $(head -c 80 <<<"$body")"
+fi
+
 # /docs must not be public in production.
 code=$(get "$HOST/docs")
 [ "$code" = 200 ] && printf '%s' "$(head -c 200 /tmp/vf.$$)" | grep -qi swagger \

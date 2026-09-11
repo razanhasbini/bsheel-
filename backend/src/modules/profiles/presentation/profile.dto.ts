@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { Equals, IsBoolean, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -37,6 +37,14 @@ export class UpdateProfileDto {
   @IsString()
   @Matches(/^[A-Za-z]{2}$/)
   countryCode?: string | null;
+
+  /// The one-time 13+ confirmation the app asks after sign-in for any
+  /// account that has not given it yet (phone, Google and Apple sign-in no
+  /// longer ask up front). Only `true` is accepted: the flag is monotonic,
+  /// and a client cannot un-confirm an age on someone's behalf.
+  @IsOptional()
+  @Equals(true)
+  ageVerified?: true;
 }
 
 export class AnalyticsConsentDto {

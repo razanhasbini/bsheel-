@@ -153,7 +153,7 @@ export class AuthService {
       input.nonce,
       input.displayName,
     );
-    const account = await this.repository.findOrCreateOAuthAccount(identity, input.ageVerified);
+    const account = await this.repository.findOrCreateOAuthAccount(identity, input.ageVerified ?? false);
     if (account.status !== 'active') {
       throw new ForbiddenException({ code: 'ACCOUNT_RESTRICTED', message: `This account is ${account.status}` });
     }
@@ -165,7 +165,7 @@ export class AuthService {
     const identity = await this.oauthVerifier.verify(
       input.provider, input.idToken, input.nonce, input.displayName,
     );
-    await this.repository.linkOAuthIdentity(userId, identity, input.ageVerified);
+    await this.repository.linkOAuthIdentity(userId, identity, input.ageVerified ?? false);
   }
 
   /// Starts the CAMARA Number Verification redirect for a brand-new sign-in
@@ -176,7 +176,7 @@ export class AuthService {
   /// it is not trusted for anything until the network says it matches.
   async startPhoneSignIn(
     phoneNumber: string,
-    ageVerified: true,
+    ageVerified = false,
     email?: string,
     password?: string,
   ): Promise<{ authorizationUrl: string }> {

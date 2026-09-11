@@ -274,6 +274,7 @@ class ApiAuthRepository implements AuthRepository {
     String phoneNumber, {
     String? email,
     String? password,
+    bool ageVerified = false,
   }) async {
     final start = apiObject(
       await _client.post(
@@ -281,7 +282,11 @@ class ApiAuthRepository implements AuthRepository {
         authenticated: false,
         body: {
           'phoneNumber': phoneNumber,
-          'ageVerified': true,
+          // Only the signup form has actually asked; the login page's phone
+          // button sends false and the app asks once after sign-in instead
+          // (AgeGateListener). Never hardcode true here — that recorded a
+          // confirmation nobody gave.
+          'ageVerified': ageVerified,
           if (email != null && email.isNotEmpty) 'email': email,
           if (password != null && password.isNotEmpty) 'password': password,
         },
@@ -330,10 +335,12 @@ class ApiAuthRepository implements AuthRepository {
 
   /// Set only while a phone-sign-in redirect is in flight, resolved by
   /// [handlePhoneCallback] once the OS delivers the verified
-  /// `https://admin.bsheel.app/phone-signin-callback` App Link/Universal
-  /// Link back into the app (see RoutePaths.phoneSigninCallback). No custom
-  /// URL scheme is used for this — those are not OS-verified and another
-  /// app could register the same one to intercept an auth callback.
+  /// `https://api.bsheel.app/phone-signin-callback` App Link/Universal
+  /// Link back into the app (see RoutePaths.phoneSigninCallback). The
+  /// API's landing page also tries `bitsheel:///phone-signin-callback` for
+  /// a device that missed the Universal Link; the handoff code it carries
+  /// is single-use and two minutes long, which is what makes that fallback
+  /// acceptable where a custom scheme otherwise would not be.
   Completer<Uri>? _pendingPhoneCallback;
 
   /// Called by the router the moment the verified callback link lands.
@@ -421,7 +428,8 @@ class ApiAuthRepository implements AuthRepository {
           if (nonce != null) 'nonce': nonce,
           if (displayName != null && displayName.trim().isNotEmpty)
             'displayName': displayName.trim(),
-          'ageVerified': true,
+          // Deliberately absent: the 13+ confirmation is asked once, in the
+          // app, after sign-in — not asserted here on the user's behalf.
         },
       ),
     );

@@ -67,9 +67,17 @@ String? authRedirect({
   // the anchor of the account itself. Applies however the account was
   // created (password/Google/Apple); an account created via phone sign-in
   // already has one and never lands here.
+  //
+  // Exempt while on the walkthrough. The onboarding rule above sends an
+  // un-onboarded user there from anywhere — including from /verify-phone —
+  // so without this exemption a user who is both un-onboarded and
+  // unverified ping-pongs between the two until GoRouter gives up with
+  // "redirect loop detected". Onboarding runs first; the walkthrough's own
+  // exit goes to /home, where this rule catches them.
   if (isLoggedIn &&
       !isPhoneVerified &&
       !isVerifyPhoneRoute &&
+      !isOnboardingRoute &&
       !isResetPassword) {
     return RoutePaths.verifyPhone;
   }

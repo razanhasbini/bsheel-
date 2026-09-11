@@ -7,6 +7,7 @@ import 'core/providers/auth_state_provider.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/lifecycle/app_resume_observer.dart';
 import 'core/services/analytics_consent_controller.dart';
+import 'core/widgets/age_gate_listener.dart';
 import 'core/widgets/app_prompts_listener.dart';
 import 'core/widgets/maintenance_overlay.dart';
 import 'features/dev/presentation/demo_launcher_overlay.dart';
@@ -102,7 +103,11 @@ class _QuestAppState extends ConsumerState<QuestApp> {
             // Wraps the offline + content layers so the admin-triggered
             // rate prompt and force-update overlay both have priority over
             // any in-app screen the user is on.
-            child: OfflineOverlay(child: child ?? const SizedBox.shrink()),
+            child: AgeGateListener(
+              // The one-time 13+ question, asked after sign-in for any
+              // account whose profile has not answered it yet.
+              child: OfflineOverlay(child: child ?? const SizedBox.shrink()),
+            ),
           ),
         ),
       ),

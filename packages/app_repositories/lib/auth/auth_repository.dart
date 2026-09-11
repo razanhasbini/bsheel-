@@ -69,10 +69,15 @@ abstract class AuthRepository {
   /// [password] is the one the user chose on the signup form. It is applied
   /// to the account only once the carrier confirms the number, so a refused
   /// verification leaves nothing behind.
+  ///
+  /// [ageVerified] is true only when this call carries an answer the user
+  /// actually gave (the signup form's checkbox). The login page's phone
+  /// button leaves it false; the app asks once after sign-in instead.
   Future<AuthResult> signInWithPhone(
     String phoneNumber, {
     String? email,
     String? password,
+    bool ageVerified = false,
   });
 
   /// Same redirect, but attaches the verified number to the already
@@ -83,7 +88,7 @@ abstract class AuthRepository {
   Future<AuthResult> linkPhone(String phoneNumber);
 
   /// Called by the router when the verified
-  /// `https://admin.bsheel.app/phone-signin-callback` deep link lands,
+  /// `https://api.bsheel.app/phone-signin-callback` deep link lands,
   /// resolving whichever [signInWithPhone] or [linkPhone] call is waiting
   /// for it. A no-op if nothing is waiting.
   Future<void> handlePhoneCallback(Uri uri);

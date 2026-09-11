@@ -789,6 +789,7 @@ class _FakeAuthRepository implements AuthRepository {
     String phoneNumber, {
     String? email,
     String? password,
+    bool ageVerified = false,
   }) async =>
       const AuthResult();
 

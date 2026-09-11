@@ -49,6 +49,15 @@ abstract class ProfileRepository {
   Future<List<ProfileModel>> listProfiles({int limit});
   Future<ProfileModel> createProfile(ProfileModel profile);
   Future<ProfileModel> updateProfile(ProfileModel profile);
+
+  /// Records the one-time 13+ confirmation for the signed-in account.
+  ///
+  /// Its own call rather than an [updateProfile] round-trip on purpose:
+  /// that projection re-sends the avatar key, which the server re-verifies
+  /// against `media_objects` — and an imported account whose avatar predates
+  /// that table would be refused, leaving the age prompt impossible to
+  /// dismiss. This sends the flag and nothing else.
+  Future<void> confirmAge();
   Future<String> uploadAvatar(String userId, Uint8List bytes, String fileName);
   Future<void> deleteAvatar(String userId, {String? avatarUrl});
 }

@@ -166,13 +166,24 @@ function renderLanding(input: {
     : (reason?.body ??
        'Something went wrong finishing sign-in. Please start again from the app.');
 
-  // The deep link is attempted immediately rather than offered as a button:
-  // on a device that has the app but missed the Universal Link — a stale
-  // association cache, an older iOS — this still lands the user back inside
-  // it. The escape() below matters because the handoff arrives from a query
-  // string and is written into a document.
+  // The deep link is attempted immediately AND offered as a button: on a
+  // device that has the app but missed the Universal Link — a stale
+  // association cache, an older iOS, Apple's CDN not having picked up the
+  // association file yet — the automatic attempt lands the user back inside
+  // it, and the button is there for a browser that blocks script-driven
+  // scheme navigation. The escape() below matters because the handoff
+  // arrives from a query string and is written into a document.
+  //
+  // `bitsheel` is the scheme the app actually registers (Info.plist
+  // CFBundleURLSchemes / AndroidManifest) — an earlier `bsheel://` here
+  // opened nothing. The three slashes are load-bearing: the router matches
+  // on the URL's *path*, and Android's embedding forwards only the path
+  // (iOS forwards the whole URL, which parses the same way). So
+  // `bitsheel://phone-signin-callback` — a host and an empty path — matches
+  // no route, while `bitsheel:///phone-signin-callback` is the callback
+  // route the router declares.
   const deepLink = input.verified && input.handoff
-    ? `bsheel://phone-signin-callback?handoff=${encodeURIComponent(input.handoff)}`
+    ? `bitsheel:///phone-signin-callback?handoff=${encodeURIComponent(input.handoff)}&intent=sign_in`
     : null;
 
   return `<!doctype html>
@@ -192,12 +203,16 @@ function renderLanding(input: {
   .mark { width:44px; height:44px; border-radius:50%; display:grid; place-items:center;
           margin-bottom:1rem; font-size:22px; border:2px solid #1A1330; }
   .ok { background:#17C27B; } .bad { background:#FF5A6E; }
+  .open { display:block; margin-top:1.25rem; padding:.9rem 1rem; text-align:center;
+          font-weight:800; letter-spacing:.04em; text-decoration:none; color:#fff;
+          background:#6B3BFF; border:2px solid #1A1330; border-radius:14px; box-shadow:0 4px 0 #1A1330; }
 </style>
 </head><body>
   <div class="card">
     <div class="mark ${input.verified ? 'ok' : 'bad'}">${input.verified ? '✓' : '!'}</div>
     <h1>${escapeHtml(title)}</h1>
     <p>${escapeHtml(body)}</p>
+    ${deepLink ? `<a class="open" href="${escapeHtml(deepLink)}">OPEN BSHEEL</a>` : ''}
   </div>
   ${deepLink ? `<script>location.replace(${JSON.stringify(deepLink)});</script>` : ''}
 </body></html>`;

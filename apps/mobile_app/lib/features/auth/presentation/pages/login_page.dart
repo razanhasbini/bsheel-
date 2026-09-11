@@ -19,9 +19,14 @@ import '../../../../l10n/app_localizations.dart';
 /// Log in, drawn from `export/mobile/16-login.jpg`.
 ///
 /// Cream ground, 22 of side padding, everything vertically centred with a
-/// 15pt rhythm: `LOG IN` in Syne 800/42, two labelled fields, a right-aligned
-/// FORGOT PASSWORD?, the violet primary, an OR rule, the social buttons, and
-/// a centred sign-up line.
+/// 15pt rhythm: `LOG IN` in Syne 800/42, EMAIL and PASSWORD fields, a
+/// right-aligned FORGOT PASSWORD?, the violet primary, an OR rule, then
+/// LOG IN WITH APPLE / GOOGLE / PHONE NUMBER, and a centred sign-up line.
+///
+/// Email + password on top, not phone + password: a phone account's
+/// credential is the carrier check, which is the phone button below — the
+/// password form is for the accounts that have one, and those are keyed by
+/// email.
 ///
 /// There is no card behind the fields and no wordmark above the title — both
 /// were inventions of the previous pass. The fields carry no shadow and no
@@ -35,13 +40,13 @@ class LoginPage extends ConsumerStatefulWidget {
 
 // H9 (2026-05-17): block screenshots while a password is on screen.
 class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
-  final _phoneController = TextEditingController(text: '+');
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneFocus = FocusNode();
+  final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
   bool _isLoading = false;
-  String? _phoneError;
+  String? _emailError;
   String? _passwordError;
 
   /// True once the pending-error dialog for this failure has been raised,
@@ -50,9 +55,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
-    _phoneFocus.dispose();
+    _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
@@ -111,24 +116,22 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
   }
 
   Future<void> _login() async {
-    final phone = LoginCredentials.normalizePhone(_phoneController.text);
+    final email = LoginCredentials.normalizeIdentifier(_emailController.text);
     final password = _passwordController.text;
-    final phoneErr = LoginCredentials.validatePhone(_phoneController.text);
+    final emailErr = LoginCredentials.validateIdentifier(_emailController.text);
     final passwordErr = password.isEmpty
         ? AppLocalizations.of(context)!.pleaseEnterPassword
         : null;
 
     setState(() {
-      _phoneError = phoneErr;
+      _emailError = emailErr;
       _passwordError = passwordErr;
     });
-    if (phoneErr != null || passwordErr != null) return;
+    if (emailErr != null || passwordErr != null) return;
 
     setState(() => _isLoading = true);
     try {
-      await ref
-          .read(authRepositoryProvider)
-          .signInWithPhonePassword(phone, password);
+      await ref.read(authRepositoryProvider).signInWithEmail(email, password);
       final user = ref.read(authSessionProvider);
       if (user != null) {
         ref.read(analyticsProvider).identify(
@@ -141,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
       AppLogger.error('[Login] Login failed', e);
       if (mounted) {
         // INVALID_CREDENTIALS is deliberately one message for "no such
-        // number" and "wrong password" alike — the server will not say
+        // account" and "wrong password" alike — the server will not say
         // which, so neither does the form.
         setState(() => _passwordError = mapAuthError(e.toString()));
       }
@@ -186,18 +189,18 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                         ),
                         const SizedBox(height: 15),
                         AuthField(
-                          controller: _phoneController,
-                          focusNode: _phoneFocus,
-                          label: 'PHONE NUMBER',
-                          hint: '+96170123456',
-                          keyboardType: TextInputType.phone,
+                          controller: _emailController,
+                          focusNode: _emailFocus,
+                          label: l.email,
+                          hint: l.enterEmail,
+                          keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
-                          errorText: _phoneError,
+                          errorText: _emailError,
                           autocorrect: false,
-                          autofillHints: const [AutofillHints.telephoneNumber],
+                          autofillHints: const [AutofillHints.email],
                           onChanged: (_) {
-                            if (_phoneError != null) {
-                              setState(() => _phoneError = null);
+                            if (_emailError != null) {
+                              setState(() => _emailError = null);
                             }
                           },
                           onSubmitted: (_) => _passwordFocus.requestFocus(),
@@ -233,8 +236,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           onTap: _isLoading ? null : _login,
                         ),
                         // SocialSignInButtons renders the OR rule itself
-                        // (and nothing at all when social login is off).
-                        const SocialSignInButtons(),
+                        // (and only the phone button when social login is
+                        // off — that one never hides).
+                        const SocialSignInButtons(labelPrefix: 'LOG IN WITH'),
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin
                         // does, without the hit target moving it.
