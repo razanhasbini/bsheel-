@@ -25,6 +25,18 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   profileCompleted?: boolean;
+
+  /// Self-declared home country, ISO 3166-1 alpha-2. Optional, and null
+  /// clears it. Accepts either case and is normalised on write, so a client
+  /// sending "lb" is not a validation error the user has to decode.
+  ///
+  /// Never shown on a public profile. It exists so business analytics can
+  /// answer "where do visitors come from" in aggregate, and only for users
+  /// who have also given analytics consent.
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{2}$/)
+  countryCode?: string | null;
 }
 
 export class AnalyticsConsentDto {

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -59,6 +60,10 @@ export class UpdateBusinessDto {
   @IsOptional() @IsUrl({ protocols: ['http', 'https'], require_protocol: true }) @MaxLength(2048) websiteUrl?: string | null;
   @IsOptional() @IsUrl({ protocols: ['http', 'https'], require_protocol: true }) @MaxLength(2048) logoUrl?: string | null;
   @IsOptional() @IsIn(businessStatuses) status?: (typeof businessStatuses)[number];
+  /// #50's whitelist. True stamps the subscription now, false clears it.
+  /// Separate from `status`: suspending a business for a content dispute is
+  /// not the same act as ending its analytics subscription.
+  @IsOptional() @IsBoolean() analyticsSubscribed?: boolean;
 }
 
 export class LinkBusinessPlaceDto {

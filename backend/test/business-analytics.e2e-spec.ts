@@ -37,12 +37,25 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
     return result.rows[0].id;
   };
 
-  const createBusiness = async (name: string): Promise<string> => {
+  /// Creates a business and subscribes it to analytics.
+  ///
+  /// The subscription is not implied by existing (#50's whitelist), so
+  /// without this every case here would get ANALYTICS_NOT_SUBSCRIBED. The
+  /// entitlement itself is tested in its own block below, with a business
+  /// deliberately left unsubscribed.
+  const createBusiness = async (name: string, subscribe = true): Promise<string> => {
     const response = await harness
       .post('/admin/businesses', admin)
       .send({ name: named(name), ownerUserId: owner.id })
       .expect(201);
-    return response.body.data.id;
+    const id = response.body.data.id;
+    if (subscribe) {
+      await harness
+        .patch(`/admin/businesses/${id}`, admin)
+        .send({ analyticsSubscribed: true })
+        .expect(200);
+    }
+    return id;
   };
 
   const claim = (businessId: string, placeId: string) =>
@@ -405,6 +418,239 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
     });
   });
 
+  /// #50's "dynamic whitelist ... every business subscribed with bsheel
+  /// analytics". Before this existed, `businesses.status` was standing in
+  /// for entitlement, so every business that existed got the full dashboard.
+  describe('the analytics subscription', () => {
+    const routes = ['summary', 'daily', 'quests', 'places', 'countries', 'proof'];
+
+    it('refuses every route for a business that is not subscribed', async () => {
+      const unsubscribed = await createBusiness('Not Subscribed', false);
+      const placeId = await createPlace('Unsubscribed Place');
+      await claim(unsubscribed, placeId);
+
+      for (const route of routes) {
+        const response = await harness
+          .get(`/businesses/${unsubscribed}/analytics/${route}`, owner)
+          .expect(403);
+        expect(response.body.error.code, route).toBe('ANALYTICS_NOT_SUBSCRIBED');
+      }
+    });
+
+    // The member must still reach their own account while unsubscribed, or
+    // the app cannot tell them what they are missing or who they are.
+    it('leaves the rest of the business API reachable without a subscription', async () => {
+      const unsubscribed = await createBusiness('Still Reachable', false);
+
+      await harness.get(`/businesses/${unsubscribed}`, owner).expect(200);
+      await harness.get(`/businesses/${unsubscribed}/places`, owner).expect(200);
+      const mine = await harness.get('/businesses/me', owner).expect(200);
+      expect(mine.body.data.map((row: { id: string }) => row.id)).toContain(unsubscribed);
+    });
+
+    it('opens on subscribe and closes again on revoke', async () => {
+      const business = await createBusiness('Toggled Subscription', false);
+      await harness.get(`/businesses/${business}/analytics/summary`, owner).expect(403);
+
+      await harness
+        .patch(`/admin/businesses/${business}`, admin)
+        .send({ analyticsSubscribed: true })
+        .expect(200);
+      await harness.get(`/businesses/${business}/analytics/summary`, owner).expect(200);
+
+      await harness
+        .patch(`/admin/businesses/${business}`, admin)
+        .send({ analyticsSubscribed: false })
+        .expect(200);
+      await harness.get(`/businesses/${business}/analytics/summary`, owner).expect(403);
+    });
+
+    // Entitlement and moderation are different acts. Changing the status of
+    // a subscribed business must not silently cancel its subscription.
+    it('keeps the subscription across a suspension', async () => {
+      const business = await createBusiness('Suspended But Paid');
+
+      await harness.patch(`/admin/businesses/${business}`, admin).send({ status: 'suspended' }).expect(200);
+      const suspended = await harness
+        .get(`/businesses/${business}/analytics/summary`, owner)
+        .expect(403);
+      // Suspension is the reason, not a lapsed subscription.
+      expect(suspended.body.error.code).toBe('BUSINESS_SUSPENDED');
+
+      await harness.patch(`/admin/businesses/${business}`, admin).send({ status: 'active' }).expect(200);
+      await harness.get(`/businesses/${business}/analytics/summary`, owner).expect(200);
+    });
+
+    // Re-granting must not reset the start date a billing period would be
+    // measured from.
+    it('does not move the subscription date when granted twice', async () => {
+      const business = await createBusiness('Regranted');
+      const first = await harness.database.query<{ at: Date }>(
+        'SELECT analytics_subscribed_at AS at FROM businesses WHERE id = $1',
+        [business],
+      );
+
+      await harness
+        .patch(`/admin/businesses/${business}`, admin)
+        .send({ analyticsSubscribed: true })
+        .expect(200);
+
+      const second = await harness.database.query<{ at: Date }>(
+        'SELECT analytics_subscribed_at AS at FROM businesses WHERE id = $1',
+        [business],
+      );
+      expect(second.rows[0].at.toISOString()).toBe(first.rows[0].at.toISOString());
+    });
+
+    it('is not granted merely by existing', async () => {
+      const fresh = await createBusiness('Default Off', false);
+      const row = await harness.database.query<{ at: Date | null }>(
+        'SELECT analytics_subscribed_at AS at FROM businesses WHERE id = $1',
+        [fresh],
+      );
+      expect(row.rows[0].at).toBeNull();
+    });
+  });
+
+  /// #50's "country touristic analytics". The care here is all about not
+  /// reporting a number the business would misread.
+  describe('where visitors come from', () => {
+    /// A visitor who declared a country, optionally consenting to its use.
+    const visitorFrom = async (
+      questId: string,
+      countryCode: string | null,
+      consented: boolean,
+    ): Promise<void> => {
+      const author = await harness.createUser({ prefix: 'anorigin' });
+      if (countryCode) {
+        await harness.patch('/profiles/me', author).send({ countryCode }).expect(200);
+      }
+      if (consented) {
+        await harness.patch('/profiles/me/analytics-consent', author).send({ consented: true }).expect(200);
+      }
+      const submission = await harness.createSubmission(author, {
+        questId,
+        caption: named('origin proof'),
+      });
+      await harness.post(`/submissions/${submission.id}/approve`, moderator).send({}).expect(204);
+    };
+
+    const originsOf = async (businessId: string) =>
+      (await harness.get(`/businesses/${businessId}/analytics/countries`, owner).expect(200)).body.data;
+
+    it('reports a country once enough visitors have declared it', async () => {
+      const business = await createBusiness('Origins Reported');
+      const placeId = await createPlace('Origins Place');
+      await claim(business, placeId);
+      const questId = await questAt(placeId, 'Origins Quest');
+
+      for (let i = 0; i < MIN_REPORTABLE_COHORT; i += 1) await visitorFrom(questId, 'LB', true);
+
+      const origins = await originsOf(business);
+      expect(origins.visitors).toBe(MIN_REPORTABLE_COHORT);
+      expect(origins.disclosed).toBe(MIN_REPORTABLE_COHORT);
+      expect(origins.countries).toHaveLength(1);
+      expect(origins.countries[0]).toMatchObject({
+        countryCode: 'LB',
+        visitors: MIN_REPORTABLE_COHORT,
+        shareOfDisclosed: 1,
+      });
+    });
+
+    // The case that protects a person. One visitor from a country, plus one
+    // public feed post at the same place, names them.
+    it('never names a country with too few visitors to hide in', async () => {
+      const business = await createBusiness('Origins Suppressed');
+      const placeId = await createPlace('Suppressed Origins Place');
+      await claim(business, placeId);
+      const questId = await questAt(placeId, 'Suppressed Origins Quest');
+
+      await visitorFrom(questId, 'QA', true);
+      await visitorFrom(questId, 'AE', true);
+
+      const origins = await originsOf(business);
+      expect(origins.countries).toEqual([]);
+      // Collapsed rather than dropped, so the figures still reconcile
+      // against `disclosed` instead of quietly failing to add up.
+      expect(origins.suppressedCountries).toBe(2);
+      expect(origins.suppressedVisitors).toBe(2);
+      expect(origins.disclosed).toBe(2);
+    });
+
+    // Completing a quest at a place is not consent to be counted by its
+    // owner. The person came for the quest.
+    it('treats a declared country without analytics consent as undisclosed', async () => {
+      const business = await createBusiness('Origins Unconsented');
+      const placeId = await createPlace('Unconsented Place');
+      await claim(business, placeId);
+      const questId = await questAt(placeId, 'Unconsented Quest');
+
+      for (let i = 0; i < MIN_REPORTABLE_COHORT; i += 1) await visitorFrom(questId, 'LB', false);
+
+      const origins = await originsOf(business);
+      expect(origins.visitors).toBe(MIN_REPORTABLE_COHORT);
+      expect(origins.disclosed).toBe(0);
+      expect(origins.undisclosed).toBe(MIN_REPORTABLE_COHORT);
+      expect(origins.countries).toEqual([]);
+    });
+
+    /// The honesty property. A business shown "Lebanon 100%" over five
+    /// disclosed visitors, when forty people came, would be reading a
+    /// tenth of its traffic as all of it.
+    it('states how much of its visitor base it cannot account for', async () => {
+      const business = await createBusiness('Origins Partial');
+      const placeId = await createPlace('Partial Origins Place');
+      await claim(business, placeId);
+      const questId = await questAt(placeId, 'Partial Origins Quest');
+
+      for (let i = 0; i < MIN_REPORTABLE_COHORT; i += 1) await visitorFrom(questId, 'LB', true);
+      await visitorFrom(questId, null, false);
+      await visitorFrom(questId, null, false);
+
+      const origins = await originsOf(business);
+      expect(origins.visitors).toBe(MIN_REPORTABLE_COHORT + 2);
+      expect(origins.disclosed).toBe(MIN_REPORTABLE_COHORT);
+      expect(origins.undisclosed).toBe(2);
+      // Never apportioned across the buckets to make them look complete.
+      expect(origins.countries[0].visitors).toBe(MIN_REPORTABLE_COHORT);
+    });
+
+    it('reports nobody for a business with no visitors', async () => {
+      const business = await createBusiness('Origins Empty');
+
+      const origins = await originsOf(business);
+      expect(origins).toMatchObject({
+        visitors: 0,
+        disclosed: 0,
+        undisclosed: 0,
+        suppressedCountries: 0,
+        suppressedVisitors: 0,
+      });
+      expect(origins.countries).toEqual([]);
+    });
+
+    it('counts a repeat visitor once, from one country', async () => {
+      const business = await createBusiness('Origins Repeat');
+      const placeId = await createPlace('Repeat Origins Place');
+      await claim(business, placeId);
+      const questId = await questAt(placeId, 'Repeat Origins Quest');
+      const second = await questAt(placeId, 'Repeat Origins Quest Two');
+
+      const author = await harness.createUser({ prefix: 'anrepeat' });
+      await harness.patch('/profiles/me', author).send({ countryCode: 'LB' }).expect(200);
+      await harness.patch('/profiles/me/analytics-consent', author).send({ consented: true }).expect(200);
+      for (const quest of [questId, second]) {
+        const submission = await harness.createSubmission(author, { questId: quest });
+        await harness.post(`/submissions/${submission.id}/approve`, moderator).send({}).expect(204);
+      }
+
+      const origins = await originsOf(business);
+      // Two completions, one person.
+      expect(origins.visitors).toBe(1);
+      expect((await summaryOf(business)).completions).toBe(2);
+    });
+  });
+
   describe('who can read it', () => {
     let businessId: string;
 
@@ -416,7 +662,7 @@ describe('business analytics (e2e)', { timeout: 300_000 }, () => {
       await submit(questId, { outcome: 'approved' });
     });
 
-    const routes = ['summary', 'daily', 'quests', 'places', 'proof'];
+    const routes = ['summary', 'daily', 'quests', 'places', 'countries', 'proof'];
 
     it('refuses a stranger on every route, with a 404', async () => {
       for (const route of routes) {

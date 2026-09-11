@@ -27,6 +27,9 @@ export interface Business {
   readonly websiteUrl: string | null;
   readonly logoUrl: string | null;
   readonly status: BusinessStatus;
+  /// Null when not subscribed to analytics. Visible to members and admins;
+  /// it is an account fact, not analytics data.
+  readonly analyticsSubscribedAt: Date | null;
   readonly createdAt: Date;
 }
 
@@ -46,6 +49,10 @@ export interface BusinessMembership {
   readonly businessId: string;
   readonly role: BusinessMemberRole;
   readonly status: BusinessStatus;
+  /// When analytics access was granted, or null when the business is not
+  /// subscribed. Resolved with the membership so the entitlement check costs
+  /// no extra query.
+  readonly analyticsSubscribedAt: Date | null;
 }
 
 /// A member's view of a business they belong to.
@@ -58,6 +65,20 @@ export interface BusinessSummary extends Business {
 /// could appoint members could appoint itself an owner, which makes the two
 /// roles the same role with extra steps.
 export const canManageMembers = (role: BusinessMemberRole): boolean => role === 'owner';
+
+/// Whether the business is subscribed to analytics (#50's "whitelist").
+///
+/// Separate from `canReadDashboard` on purpose, because status and
+/// entitlement answer different questions: `status` is a moderation state,
+/// and a business in perfectly good standing may simply not be paying for
+/// analytics. Conflating them meant every business that existed got the
+/// full dashboard.
+///
+/// Both must hold — a subscribed business that has been suspended reads
+/// nothing, and an unsuspended business that is not subscribed reads
+/// nothing either.
+export const canReadAnalytics = (membership: BusinessMembership): boolean =>
+  canReadDashboard(membership) && membership.analyticsSubscribedAt !== null;
 
 /// A suspended business keeps its place links — losing them would destroy
 /// the record of what was claimed, which is exactly what a dispute needs —

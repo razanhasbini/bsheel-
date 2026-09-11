@@ -110,6 +110,40 @@ export interface BusinessPublicProof {
   readonly submittedAt: Date;
 }
 
+/// Where a business's visitors say they are from (#50's tourism analytics).
+///
+/// Three numbers rather than one list, because a bare list of countries
+/// would be read as "these are my visitors" and be wrong. Only visitors who
+/// both declared a country *and* consented to analytics can appear in a
+/// bucket, so the buckets nearly always sum to less than the real visitor
+/// count — and a business shown "3 visitors: Lebanon 3" when forty people
+/// came would make decisions on a tenth of its traffic.
+///
+/// `undisclosed` is therefore not padding: it is the difference between what
+/// is known and what happened, stated plainly so the ratio is visible.
+export interface BusinessVisitorOrigins {
+  /// Distinct people with an approved submission at these places.
+  readonly visitors: number;
+  /// Of those, how many declared a country and consented to its use.
+  readonly disclosed: number;
+  /// The rest. Never inferred, never apportioned across the buckets.
+  readonly undisclosed: number;
+  readonly countries: readonly BusinessOriginBucket[];
+  /// Buckets that existed but were below the reporting threshold, collapsed
+  /// into one figure so the total still reconciles.
+  readonly suppressedCountries: number;
+  readonly suppressedVisitors: number;
+}
+
+export interface BusinessOriginBucket {
+  /// ISO 3166-1 alpha-2, as the visitor declared it.
+  readonly countryCode: string;
+  readonly visitors: number;
+  /// Share of `disclosed`, not of `visitors` — a percentage of a number the
+  /// business can see, rather than of one nobody knows.
+  readonly shareOfDisclosed: number;
+}
+
 /// Whether a cohort is too small to report as a number.
 export const isCohortSuppressed = (people: number): boolean =>
   people > 0 && people < MIN_REPORTABLE_COHORT;

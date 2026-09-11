@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BusinessAccessGuard } from './application/business-access.guard.js';
+import { BusinessAnalyticsGuard } from './application/business-analytics.guard.js';
 import { BusinessAnalyticsService } from './application/business-analytics.service.js';
 import { BusinessService } from './application/business.service.js';
 import { BusinessAnalyticsRepository } from './infrastructure/business-analytics.repository.js';
@@ -21,6 +22,7 @@ import { BusinessController } from './presentation/business.controller.js';
     BusinessAccessGuard,
     BusinessAnalyticsRepository,
     BusinessAnalyticsService,
+    BusinessAnalyticsGuard,
   ],
   exports: [BusinessRepository, BusinessService, BusinessAccessGuard],
 })

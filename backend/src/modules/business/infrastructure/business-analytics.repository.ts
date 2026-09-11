@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import {
+  MIN_REPORTABLE_COHORT,
   completionRate,
   isCohortSuppressed,
   type BusinessAnalyticsSummary,
@@ -8,6 +9,7 @@ import {
   type BusinessPlacePerformance,
   type BusinessPublicProof,
   type BusinessQuestPerformance,
+  type BusinessVisitorOrigins,
 } from '../domain/business-analytics.js';
 
 /// Every submission that counts as activity at a business's places.
@@ -254,6 +256,78 @@ export class BusinessAnalyticsRepository {
       lastActivityAt: row.last_activity_at,
       cohortSuppressed: isCohortSuppressed(row.visitors),
     }));
+  }
+
+  /// Where this business's visitors say they are from.
+  ///
+  /// Two rules are enforced in the SQL rather than trusted to the caller:
+  ///
+  /// A visitor contributes to a country bucket only if they declared a
+  /// country **and** set `analytics_consent_at`. Consent is not implied by
+  /// having completed a quest at the place — the person came for the quest,
+  /// not to be counted — so a declared country without consent stays
+  /// undisclosed.
+  ///
+  /// Buckets below the reporting threshold are never returned as rows. A
+  /// single-visitor country is a person: combined with one public feed post
+  /// at the same place, "1 visitor from Qatar" names them. Those rows are
+  /// collapsed into `suppressedCountries` / `suppressedVisitors` so the
+  /// figures still reconcile against `disclosed` instead of quietly not
+  /// adding up.
+  async visitorOrigins(businessId: string): Promise<BusinessVisitorOrigins> {
+    const result = await this.database.query<{
+      country_code: string | null;
+      visitors: number;
+    }>(
+      `WITH activity AS (${ACTIVITY}),
+       visitors AS (
+         -- One row per person, not per submission: someone who completed
+         -- three quests here is one visitor from one country.
+         SELECT DISTINCT a.user_id
+         FROM activity a
+         WHERE a.status = 'approved'
+       )
+       SELECT CASE
+                WHEN p.analytics_consent_at IS NOT NULL THEN p.country_code
+                ELSE NULL
+              END AS country_code,
+              count(*)::int AS visitors
+       FROM visitors v
+       JOIN profiles p ON p.id = v.user_id
+       GROUP BY 1`,
+      [businessId],
+    );
+
+    let visitors = 0;
+    let disclosed = 0;
+    const buckets: { countryCode: string; visitors: number }[] = [];
+    for (const row of result.rows) {
+      visitors += row.visitors;
+      if (row.country_code === null) continue;
+      disclosed += row.visitors;
+      buckets.push({ countryCode: row.country_code, visitors: row.visitors });
+    }
+
+    const reportable = buckets.filter((bucket) => bucket.visitors >= MIN_REPORTABLE_COHORT);
+    const suppressed = buckets.filter((bucket) => bucket.visitors < MIN_REPORTABLE_COHORT);
+    return {
+      visitors,
+      disclosed,
+      undisclosed: visitors - disclosed,
+      countries: reportable
+        .sort((left, right) =>
+          right.visitors - left.visitors || left.countryCode.localeCompare(right.countryCode))
+        .map((bucket) => ({
+          countryCode: bucket.countryCode,
+          visitors: bucket.visitors,
+          // Share of what is known, so the percentages sum to 100 across
+          // the disclosed population rather than to some fraction of it.
+          shareOfDisclosed:
+            disclosed > 0 ? Math.round((bucket.visitors / disclosed) * 1000) / 1000 : 0,
+        })),
+      suppressedCountries: suppressed.length,
+      suppressedVisitors: suppressed.reduce((sum, bucket) => sum + bucket.visitors, 0),
+    };
   }
 
   /// Proof the author published, at one of this business's places.

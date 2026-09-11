@@ -412,9 +412,32 @@ that way.
   = 'deleted'`, moderator-removed), so the dashboard cannot drift from the
   feed.
 
-`profiles` has **no country column**, so the "country touristic analytics"
-in #50 has no data source — don't go looking for it.
-`profiles.analytics_consent_at` exists and gates per-user analytics.
+**Analytics is a separate entitlement from standing.** `businesses.status`
+is a *moderation* state; `businesses.analytics_subscribed_at` is #50's
+whitelist, NULL by default and never granted by merely existing.
+`BusinessAnalyticsGuard` runs after `BusinessAccessGuard` (it reads the
+membership that guard resolved, so it costs no extra query) and refuses with
+**403 `ANALYTICS_NOT_SUBSCRIBED`** — 403 and not 404 here, the opposite of
+the non-member case, because a member knows the business exists and hiding
+the reason leaves an owner staring at an empty dashboard. The subscription
+gates *only* the analytics routes: an unsubscribed member must still reach
+`/businesses/me` and their own account. Suspending a business does not
+cancel its subscription, and re-granting does not move
+`analytics_subscribed_at`, so a billing period's start survives it.
+
+**Where visitors come from** (`analytics/countries`) is self-declared
+`profiles.country_code` — ISO 3166-1 alpha-2, optional, uppercase by CHECK,
+set through `PATCH /profiles/me`. Deliberately **not** an FK to
+`map_countries` (that is the game board — currently two rows — and a player
+can be from anywhere), and deliberately **not** derived from CAMARA, which
+would be inferring someone's residence from telecom data they gave us to
+verify one quest. A visitor reaches a country bucket only with a declared
+country **and** `analytics_consent_at`: completing a quest at a place is not
+consent to be counted by its owner. The response carries `visitors`,
+`disclosed` and `undisclosed` separately, and sub-threshold buckets collapse
+into `suppressedCountries`/`suppressedVisitors` rather than vanishing —
+because "Lebanon 100%" over five disclosed visitors when forty came would be
+read as all of the traffic instead of an eighth of it.
 
 The join path (`business_places` → `quest_destinations.place_id` →
 `user_quests.quest_id` → `submissions.user_quest_id`) is already covered by
