@@ -41,8 +41,8 @@ void main() {
   /// tokenised — the merge of PR #52 pushed the count to 159 and the ratchet
   /// caught it, which is what it is for. Lowered again from 155 to 137 when
   /// the legacy feed and profile layouts came back with tokens throughout,
-  /// and to 135 when the leaderboard followed.
-  const onScaleLiteralBudget = 135;
+  /// and to 135 when the leaderboard followed, then 133 for the map.
+  const onScaleLiteralBudget = 133;
 
   /// `BorderRadius.circular(11)`, `Radius.circular(11.0)`, and the same
   /// inside `BorderRadius.all/only/vertical/horizontal`. A non-literal

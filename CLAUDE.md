@@ -261,10 +261,21 @@ honest players in other timezones. And `etag` is not a usable content
 hash: it is a hash of part hashes for multipart uploads, which is why
 `media_objects.content_md5` exists.
 
-Location-verified quests and the hidden-quest geofence unlock stay
-blocked on the CAMARA adapter (#53). `map_location_evidence` has readers
-and no writer, which is correct fail-closed behaviour, not a gap to
-work around.
+Location works the other way round from how it first shipped. A
+destination quest is started like any other; the assignment agent then
+opens a CAMARA geofence for the quest window (`geofencing_subscriptions`)
+and the agent weighs `network_evidence` + geofence events when the proof
+comes in. There is **no** pre-assignment location gate — migration 0035
+removed it, and `map_location_evidence` is a legacy cache nothing writes.
+
+The map is the game board: every published place is a pin; a `hidden`
+place is a *locked* pin (name withheld, position blurred to ~1 km) until
+the player has an **approved** quest at any place within 10 km, after
+which it and its quests open. One rule, `map-visibility.sql.ts`, decides
+both what the map shows and what `assertDestinationAccess` lets a player
+start, so a visible pin can never offer a quest the API refuses. Device
+GPS moves the player's avatar on the map and nothing else — it is never
+evidence.
 
 ## High-risk invariants
 

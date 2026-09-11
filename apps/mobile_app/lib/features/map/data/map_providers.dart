@@ -38,3 +38,15 @@ final mapDetailProvider =
   ref.watch(authSessionProvider);
   return ref.watch(mapRepositoryProvider).detail(id);
 });
+
+/// The unfiltered first page of places, for the layers that must not follow
+/// the user's filters: the fog cut-outs around confirmed discoveries and the
+/// "places here" count. Same family as the filtered list, so a filter of
+/// "everything" shares the request rather than doubling it.
+const MapFilter mapAllPlacesFilter =
+    (country: null, category: null, search: '', offset: 0, savedOnly: false);
+
+/// Whether the page loads OpenStreetMap tiles. Widget tests turn it off: the
+/// test HTTP client answers every tile with 400 and the map is still fully
+/// exercisable on its fog, pins and sheets alone.
+final mapTilesEnabledProvider = Provider<bool>((ref) => true);
