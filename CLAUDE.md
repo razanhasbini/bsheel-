@@ -54,6 +54,7 @@ inline in an HTTP handler.
 apps/
   mobile_app/          user-facing app
   admin_web/           admin dashboard
+  business_web/        partner dashboard (#50), served at admin.bsheel.app/business
 packages/
   app_core/            design tokens (QuestColors/Spacing/Typography), logger, utils
   app_models/          shared data models
@@ -442,6 +443,31 @@ read as all of the traffic instead of an eighth of it.
 The join path (`business_places` → `quest_destinations.place_id` →
 `user_quests.quest_id` → `submissions.user_quest_id`) is already covered by
 existing indexes; no new ones were added, and none are needed.
+
+### The two client surfaces
+
+**In the app**, a business is an ordinary player. The only difference is a
+card on their *own* profile (`business_card.dart`) naming the business and
+linking to the dashboard — nothing for anyone else, nothing on another
+person's profile, and nothing while the read is loading or failed, because
+the card is an addition to somebody's page rather than the page.
+
+**The dashboard is `apps/business_web`**, a separate Flutter web app served
+at `admin.bsheel.app/business`. It is *not* a route inside `admin_web`, and
+that is deliberate: `SEC-027` in `admin_router.dart` bounces every signed-in
+non-admin to the login gate, and a business member is an ordinary user with
+no admin role — so putting it there would mean carving an exception into
+that control. Same origin means no `CORS_ORIGINS` change is needed (an
+origin is scheme + host + port), and the token namespace is
+`bsheel.business` so an admin and a business owner in one browser cannot
+evict each other's session. `docs/DEPLOYMENT.md` has the build and serving
+requirements.
+
+The dashboard is not an authority boundary — the API refuses a non-member
+with a 404 whatever the client does — so its job is to *explain*: a
+suspension, an unsubscribed account and a missing `DASHBOARD_URL` are three
+separate messages because each has a different fix, and every section loads
+and fails on its own so one endpoint cannot blank the other five.
 
 ## High-risk invariants
 

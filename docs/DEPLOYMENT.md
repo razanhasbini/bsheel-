@@ -8,6 +8,7 @@ There are three separate deliverables with three different paths:
 |---|---|---|
 | API + worker (`backend/`) | container image → your host | **not yet wired** |
 | Admin dashboard (`apps/admin_web`) | Flutter web build → static hosting | **not yet wired** |
+| Business dashboard (`apps/business_web`) | Flutter web build → static hosting under the admin origin at `/business` | **not yet wired** |
 | Mobile app | App Store / Play Store via `scripts/ios_release.sh` | manual, see `PUBLISHING.md` |
 
 > **Status, stated plainly.** This repository has a complete, working local
@@ -126,6 +127,49 @@ defence in depth is cheap here.
 Serve `/.well-known/assetlinks.json` and
 `/.well-known/apple-app-site-association` from the same origin if deep links
 are in use — see `docs/deep_links/README.md`.
+
+## Business dashboard
+
+A second static Flutter web bundle (`apps/business_web`), served **under the
+admin origin at `/business`** rather than on its own subdomain:
+
+```bash
+cd apps/business_web
+flutter build web \
+  --base-href=/business/ \
+  --dart-define=API_URL=https://api.bsheel.app/api/v1
+# → build/web  (serve at https://admin.bsheel.app/business/)
+```
+
+Three things make that placement the right one, and they are worth knowing
+before someone "tidies it up" onto `business.bsheel.app`:
+
+- **It needs no CORS change.** `CORS_ORIGINS` is an exact-match allowlist
+  (`src/main.ts`) that gates HTTP *and* the WebSocket adapter, and production
+  carries `https://admin.bsheel.app` alone. An origin is scheme + host +
+  port, so a bundle at `/business` on that host is already allowed. A new
+  subdomain would load perfectly and fail every API call until someone adds
+  the origin and restarts the API. If you do want the subdomain, add it
+  first: `CORS_ORIGINS=https://admin.bsheel.app,https://business.bsheel.app`.
+- **It is a separate app, not a route in the admin console.** `SEC-027` in
+  `admin_router.dart` bounces every signed-in non-admin to the login gate so
+  feature pages never run their reads for one. A business member is an
+  ordinary user with no admin role, so putting the dashboard inside
+  `admin_web` would mean carving an exception into that control. A separate
+  bundle keeps it untouched, and businesses never reach the console.
+- **Its token store namespace is `bsheel.business`.** Same origin means
+  shared browser storage, so a shared namespace would have an admin and a
+  business owner in one browser silently evict each other's session.
+
+Serving requirements: the path must fall back to `/business/index.html` for
+unknown sub-paths (Flutter web uses path URLs, so a deep link like
+`/business/?business=<id>` must not 404), and the bundle carries no secrets —
+authorisation is the API's, by membership and subscription.
+
+The mobile app links here via `DASHBOARD_URL` in
+`apps/mobile_app/dart_defines.release.json`. It is a build-time value and
+deliberately not derived from `API_URL`: guessing a host produces a link that
+looks right, ships, and 404s for every owner who taps it.
 
 ## Mobile app
 

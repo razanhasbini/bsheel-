@@ -35,6 +35,13 @@ scripts:
   # and the inline video element. Bare `flutter test` therefore fails to
   # compile it, which is what `test:flutter` used to do — so the admin
   # dashboard's tests never actually ran in CI.
+  # `business_web` is deliberately NOT in here. It is a web app too, but
+  # its own code imports nothing web-only — the shared transport, models
+  # and design system are all VM-safe — so `test:flutter` compiles and runs
+  # it. Move it here only if it ever gains a dart:ui_web / js_interop
+  # dependency, because then bare `flutter test` stops compiling it and its
+  # tests silently stop running, which is exactly what happened to
+  # admin_web.
   test:web:
     run: melos exec --scope="admin_web" -- flutter test --platform chrome
     description: Run the admin dashboard's tests on Chrome, its real target.
