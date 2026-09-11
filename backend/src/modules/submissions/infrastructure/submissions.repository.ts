@@ -276,11 +276,26 @@ export class SubmissionsRepository {
                   AND prior.quest_id = uq.quest_id
                   AND prior.status = 'approved'
                   AND prior.id <> uq.id
-              ) AS is_retake
+              ) AS is_retake,
+              -- AI proof verification (#47), the same projection the review
+              -- queue carries. This route is where the escalation queue's
+              -- REVIEW button lands, so without these the one screen reached
+              -- *because* the agent could not decide was the one screen that
+              -- could not show what it concluded.
+              verification.verdict::text AS ai_verdict,
+              verification.confidence AS ai_confidence,
+              verification.relevance AS ai_relevance,
+              verification.content_evidence AS ai_content_evidence,
+              verification.rationale AS ai_rationale,
+              verification.escalation_reason AS ai_escalation_reason,
+              verification.forensics AS ai_forensics
        FROM submissions s
        JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id
        JOIN quests q ON q.id = uq.quest_id
+       LEFT JOIN submission_verifications verification
+              ON verification.submission_id = s.id
+             AND verification.state = 'complete'
        -- The review screen shows a COLLAB / VERSUS badge. Joining it here
        -- avoids a second request that would be scoped to the caller rather
        -- than to the submission's author.
