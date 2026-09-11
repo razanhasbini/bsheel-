@@ -13,6 +13,11 @@ abstract final class FeedRpcColumns {
   static const String userId = 'user_id';
   static const String questId = 'quest_id';
   static const String questTitle = 'quest_title';
+
+  /// The country the quest's reviewed destination sits in, or null for a
+  /// location-independent quest. Comes from quest_destinations → map_places
+  /// → map_countries, never from a caption or a vision guess.
+  static const String questCountryName = 'quest_country_name';
   static const String questDescription = 'quest_description';
   static const String questCategory = 'quest_category';
   static const String xpReward = 'xp_reward';

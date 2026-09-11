@@ -53,7 +53,7 @@ class ApiSubmissionsRepository implements SubmissionsRepository {
   Future<SubmissionModel?> getSubmission(String submissionId) async {
     try {
       final data = apiObject(await _client.get('submissions/$submissionId'));
-      return _signed(SubmissionModel.fromJson(data));
+      return await _signed(SubmissionModel.fromJson(data));
     } on ApiException catch (error) {
       if (error.statusCode == 404) return null;
       rethrow;

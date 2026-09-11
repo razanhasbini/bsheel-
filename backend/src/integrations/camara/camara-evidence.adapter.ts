@@ -49,9 +49,24 @@ interface CircleAreaResult {
 export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
   private readonly logger = new Logger(CamaraEvidenceAdapter.name);
 
-  // No additional capability beyond the three mandatory ones is confirmed
-  // available yet.
-  readonly supportedAdditionalCapabilities: readonly string[] = [];
+  /**
+   * The one optional capability the agent may reach for (#73).
+   *
+   * Device Reachability answers a question the mandatory three cannot: when
+   * location evidence is missing, was the handset even on the network? An
+   * unreachable device explains an UNAVAILABLE location result, which is
+   * the difference between "we could not tell" and "they were not there" —
+   * and that difference decides between HUMAN_REVIEW and a false rejection.
+   *
+   * It is CONTEXT and nothing more. It cannot approve or reject anything,
+   * and that is structural rather than a matter of care: the policy reads
+   * only MANDATORY_CAPABILITIES, so evidence filed under ADDITIONAL is
+   * incapable of satisfying or failing the gate. Reachable does not mean
+   * the quest was done; unreachable does not mean it was not.
+   *
+   * Roaming and SIM Swap are deliberately absent.
+   */
+  readonly supportedAdditionalCapabilities: readonly string[] = ['DEVICE_REACHABILITY'];
 
   constructor(
     private readonly config: ConfigService<Environment, true>,
@@ -101,7 +116,74 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
   }
 
   async getAdditionalEvidence(query: LocationEvidenceQuery, capability: string): Promise<NetworkEvidence> {
-    return this.unavailable(query, 'ADDITIONAL', capability);
+    // The allowlist is the contract. Anything else is refused here rather
+    // than attempted, so a model that invents a capability name gets
+    // UNAVAILABLE instead of an unplanned provider call.
+    if (capability !== 'DEVICE_REACHABILITY') {
+      return this.unavailable(query, 'ADDITIONAL', capability, 'Capability is not on the allowlist');
+    }
+    return this.deviceReachability(query);
+  }
+
+  /**
+   * Is the device on the network at all?
+   *
+   * The plain retrieval, not a subscription: reachability is only ever read
+   * once, at decision time, to explain evidence that is already in hand.
+   * Standing up subscription and webhook infrastructure to watch a device
+   * continuously would be both more machinery and more surveillance than
+   * the question needs.
+   *
+   * The outcome is always `SUPPORTED` on a successful read, which reads
+   * oddly until you remember what it means: this capability supports the
+   * agent's REASONING, it does not support the claim that a quest was
+   * completed. Marking an unreachable device CONTRADICTED would be exactly
+   * the false-rejection signal this was chosen to prevent.
+   */
+  private async deviceReachability(query: LocationEvidenceQuery): Promise<NetworkEvidence> {
+    const client = this.clientOrNull();
+    if (!client) return this.unavailable(query, 'ADDITIONAL', 'DEVICE_REACHABILITY', 'CAMARA is not configured');
+    if (!query.phoneNumber) {
+      return this.unavailable(query, 'ADDITIONAL', 'DEVICE_REACHABILITY', 'No CAMARA-verified phone number on file for this user');
+    }
+
+    try {
+      const response = await client.deviceStatus.retrieveReachabilityStatus({
+        device: { phoneNumber: query.phoneNumber },
+      });
+      const connectivity = (response.connectivity ?? []).filter(
+        (item): item is 'DATA' | 'SMS' => item === 'DATA' || item === 'SMS',
+      );
+      return {
+        provider: 'nokia-network-as-code',
+        providerReference: `reachability:${query.submissionId}`,
+        capability: 'ADDITIONAL',
+        apiName: 'DEVICE_REACHABILITY',
+        outcome: 'SUPPORTED',
+        observedAt: response.lastStatusTime ?? new Date().toISOString(),
+        // Normalized, not the raw payload. The model needs to know whether
+        // the handset could carry data, not how Nokia spells its response —
+        // and the device identifier is deliberately not echoed back into
+        // anything the model can read.
+        result: {
+          reachable: response.reachable === true,
+          connectivity,
+          dataConnected: connectivity.includes('DATA'),
+          smsOnly: connectivity.includes('SMS') && !connectivity.includes('DATA'),
+          lastStatusTime: response.lastStatusTime ?? null,
+        },
+      };
+    } catch (error) {
+      // A provider failure is UNAVAILABLE, never "unreachable". Concluding
+      // the device was off because Nokia was down would be inventing
+      // evidence, and it is the exact mistake CONTRADICTED-vs-UNAVAILABLE
+      // exists to keep apart.
+      this.logger.warn(
+        { err: error, submissionId: query.submissionId },
+        'Device reachability lookup failed',
+      );
+      return this.unavailable(query, 'ADDITIONAL', 'DEVICE_REACHABILITY', 'CAMARA call failed');
+    }
   }
 
   private async locationVerification(query: LocationEvidenceQuery): Promise<NetworkEvidence> {

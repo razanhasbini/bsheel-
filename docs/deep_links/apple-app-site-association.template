@@ -1,14 +1,25 @@
 {
+  "_comment": [
+    "The API now SERVES this itself at /.well-known/apple-app-site-association,",
+    "from the same host as the links it claims. This file is kept only as a",
+    "reference for any other host that also needs one.",
+    "",
+    "It must be reachable WITHOUT credentials. admin.bsheel.app sits behind",
+    "HTTP Basic auth, which is why a TestFlight tester was met by a password",
+    "prompt after verifying their number: iOS could not read the association,",
+    "so the callback opened in Safari, and Safari hit the auth wall."
+  ],
   "applinks": {
     "apps": [],
     "details": [
       {
         "appID": "JMDKX9TYX6.com.questapp.mobileApp",
         "paths": [
+          "/phone-signin-callback",
+          "/reset-password*",
           "/post/*",
           "/user/*",
-          "/join/*",
-          "/phone-signin-callback"
+          "/join/*"
         ]
       }
     ]

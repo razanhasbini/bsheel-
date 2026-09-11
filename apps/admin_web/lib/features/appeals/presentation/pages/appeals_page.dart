@@ -292,6 +292,13 @@ class _AppealCardState extends ConsumerState<_AppealCard> {
     );
     if (confirmed != true || !mounted) return;
 
+    // Captured before the decision, because deciding removes this card.
+    // Resolving the appeal drops it out of `appealsProvider`, so by the
+    // time the request returns this element is being unmounted — and
+    // reading ScaffoldMessenger.of(context) off a dying element is what
+    // trips "_dependents.isEmpty is not true".
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() => _overturning = true);
     try {
       // The API resolves the acting moderator from the token, re-checks the
@@ -302,11 +309,14 @@ class _AppealCardState extends ConsumerState<_AppealCard> {
         '',
         note: 'Appeal overturned on review.',
       );
+      // Tell them first, then invalidate. The other order asks a widget
+      // that is already gone to show a message.
+      _say(messenger, 'Appeal overturned — the submission is approved.');
       ref.invalidate(appealsProvider);
-      _toast('Appeal overturned — the submission is approved.');
     } catch (e) {
-      _toast('Nothing was changed — the appeal is still open. $e');
-    } finally {
+      _say(messenger, 'Nothing was changed — the appeal is still open. $e');
+      // Only worth clearing the spinner on the failure path: on success
+      // this card no longer exists to show one.
       if (mounted) setState(() => _overturning = false);
     }
   }
@@ -357,6 +367,9 @@ class _AppealCardState extends ConsumerState<_AppealCard> {
     noteController.dispose();
     if (confirmed != true || !mounted) return;
 
+    // See _confirmOverturn: upholding removes this card too.
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() => _upholding = true);
     try {
       await AppBackend.repositories.moderation.rejectSubmission(
@@ -364,19 +377,20 @@ class _AppealCardState extends ConsumerState<_AppealCard> {
         '',
         note: note.isEmpty ? null : note,
       );
+      _say(messenger, 'Rejection upheld. This submission is closed.');
       ref.invalidate(appealsProvider);
-      _toast('Rejection upheld. This submission is closed.');
     } catch (e) {
-      _toast('Nothing was changed — the appeal is still open. $e');
+      _say(messenger, 'Nothing was changed — the appeal is still open. $e');
+      if (mounted) setState(() => _upholding = false);
     }
-    if (mounted) setState(() => _upholding = false);
   }
 
-  void _toast(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  /// Shows a message through a messenger captured while this card was still
+  /// in the tree, so it survives the card being removed by its own decision.
+  void _say(ScaffoldMessengerState messenger, String message) {
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ── Row reading ───────────────────────────────────────────────────

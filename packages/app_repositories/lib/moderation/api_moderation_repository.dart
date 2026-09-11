@@ -14,7 +14,7 @@ class ApiModerationRepository implements ModerationRepository {
   Future<SubmissionModel?> getSubmissionById(String submissionId) async {
     try {
       final row = apiObject(await _client.get('submissions/$submissionId'));
-      return _signed(SubmissionModel.fromJson(row));
+      return await _signed(SubmissionModel.fromJson(row));
     } on ApiException catch (error) {
       if (error.statusCode == 404) return null;
       rethrow;

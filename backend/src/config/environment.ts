@@ -282,9 +282,12 @@ const environmentSchema = z
     THROTTLE_TTL_MS: z.coerce.number().int().positive().default(60_000),
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
 
-    // AI agent phase — submission verification only. Every flag below
-    // defaults to disabled, so the pipeline is fully inert until turned on
-    // deliberately. QoS on Demand / Emergency Mode is out of scope here.
+    // AI agent phase — submission verification only.
+    // Enabled by default: verifying that a device was where a quest required
+    // is the product, not an optional extra, and a deployment that simply
+    // forgot the variable should get the verification rather than silently
+    // skip it. Turning it off is a deliberate act — set it to 'false'.
+    // QoS on Demand / Emergency Mode is out of scope here.
     // Seconds a player must wait between quest assignments. Anti-abuse on
     // quest intake, alongside the five-rerolls-per-24h cap.
     //
@@ -308,7 +311,7 @@ const environmentSchema = z
     AGENT_RECOVERY_SWEEP_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
     AGENT_SUBMISSION_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     OPENAI_AGENT_ENABLED: z
       .enum(['true', 'false'])
@@ -350,6 +353,18 @@ const environmentSchema = z
     // network-as-code.nokia.rapidapi.com (see camara-client.factory.ts) —
     // the value Nokia documents, and the only one that routes to the API.
     // Leave blank unless Nokia moves the API within their hub.
+    // Universal Link / App Link association. Served from this host at the
+    // well-known paths, because Apple and Google fetch them there
+    // unauthenticated and will not follow a prefix or a redirect.
+    IOS_APP_ID: z.string().min(1).default('JMDKX9TYX6.com.questapp.mobileApp'),
+    ANDROID_PACKAGE_NAME: z.string().min(1).default('com.questapp.mobileApp'),
+    // No default: an assetlinks file listing the wrong fingerprint tells
+    // Android the app is NOT authorised, and it caches that.
+    ANDROID_CERT_FINGERPRINT: optionalString,
+    // Where to forward the handoff when the client is a browser, which has
+    // no OS to intercept a Universal Link. Local Flutter web sets this;
+    // production leaves it blank so the fallback page is what shows.
+    PHONE_SIGNIN_WEB_APP_URL: optionalUrl,
     CAMARA_RAPIDAPI_HOST: optionalString,
 
     // CAMARA Number Verification (issue #1) — a separate 3-legged flow from

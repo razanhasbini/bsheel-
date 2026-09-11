@@ -21,6 +21,8 @@ import '../../../core/router/route_names.dart';
 import '../data/live_location_provider.dart';
 import '../data/map_providers.dart';
 import '../domain/map_geometry.dart';
+import '../../quests/presentation/providers/journey_providers.dart';
+import 'journey_route_layer.dart';
 
 /// Natural Earth country outlines, decoded once — they cut the fog of war
 /// along real borders.
@@ -95,6 +97,8 @@ class _MapPageState extends ConsumerState<MapPage> {
     final allPlaces = ref.watch(mapPlacesProvider(mapAllPlacesFilter));
     final live =
         ref.watch(liveLocationProvider).valueOrNull ?? LiveLocation.pending;
+    final journeys =
+        ref.watch(activeJourneysProvider).valueOrNull ?? const <JourneyRun>[];
     final tiles = ref.watch(mapTilesEnabledProvider);
     final me = ref.watch(currentProfileProvider).valueOrNull;
 
@@ -198,6 +202,7 @@ class _MapPageState extends ConsumerState<MapPage> {
                       ),
                   ],
                 ),
+                for (final journey in journeys) JourneyRouteLayer(run: journey),
                 MarkerLayer(
                   markers: [
                     for (final p in rows)

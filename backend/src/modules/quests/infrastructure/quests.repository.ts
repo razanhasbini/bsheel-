@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -13,6 +14,7 @@ import type {
   UpdateQuestDto,
 } from '../presentation/quest.dto.js';
 import { QuestAssignmentPolicyRepository } from './quest-assignment-policy.repository.js';
+import { eligibilityFor } from '../domain/quest-eligibility.js';
 import { visible as mapVisible } from '../../map/infrastructure/map-visibility.sql.js';
 
 @Injectable()
@@ -37,6 +39,20 @@ export class QuestsRepository {
     if (!destination.visible) {
       throw new NotFoundException({code:'QUEST_NOT_FOUND',message:'Quest not found'});
     }
+    // Deliberately no verification gate at assignment.
+    //
+    // Presence is proven where it is claimed — at SUBMISSION, by the CAMARA
+    // pipeline — not before a user is allowed to take a challenge on. The
+    // proposal's central journey is a user in Lebanon watching a Lusail
+    // Stadium completion, pressing Do This Quest, and saving it for a trip
+    // they have not taken yet. Demanding verified presence here made
+    // discovery unable to motivate travel, which is the product; and since
+    // nothing wrote map_location_evidence, it also made every
+    // `requires_verification` quest permanently unassignable.
+    //
+    // `_assignment` is kept in the signature: callers distinguish the two
+    // reads, and the hidden-place check above is the part that still differs.
+    void _assignment;
   }
 
   async findQuest(id: string): Promise<QuestRecord | null> {
@@ -191,6 +207,75 @@ export class QuestsRepository {
     }
   }
 
+  /**
+   * Ensures a chain step being assigned belongs to a live run, and records
+   * that this checkpoint has been started.
+   *
+   * A solo chain opens its run lazily here, because there is no roster to
+   * gather. A group chain must NOT: coercing it into a solo run would
+   * produce a run whose kind disagrees with its chain, and would hand one
+   * person a relay meant for several. It is refused instead.
+   */
+  private async openJourneyForStep(
+    userId: string,
+    questId: string,
+    transaction: DatabaseTransaction,
+  ): Promise<void> {
+    const step = await transaction.query<{
+      chain_id: string; mode: string; step_order: number; completion_rule: string;
+    }>(
+      `SELECT cs.chain_id, ch.mode, cs.step_order, ch.completion_rule
+       FROM quest_chain_steps cs JOIN quest_chains ch ON ch.id = cs.chain_id
+       WHERE cs.quest_id = $1 AND ch.is_active`,
+      [questId],
+    );
+    const row = step.rows[0];
+    if (!row) return;
+    // An all_steps_any_order chain has no baton to pass and nothing to
+    // sequence, so it needs no run and must not be made to wait for one.
+    // Runs exist to carry ORDERED progression.
+    if (row.completion_rule !== 'sequential') return;
+
+    const live = await transaction.query<{ id: string }>(
+      `SELECT r.id FROM quest_chain_runs r
+       WHERE r.chain_id = $2 AND r.status IN ('forming', 'active')
+         AND (r.owner_user_id = $1 OR EXISTS (
+           SELECT 1 FROM quest_chain_run_participants p
+           WHERE p.chain_run_id = r.id AND p.user_id = $1))
+       LIMIT 1`,
+      [userId, row.chain_id],
+    );
+
+    if (live.rows.length === 0) {
+      if (row.mode !== 'solo') {
+        // Only refuse here when somebody is trying to BEGIN a relay. A
+        // request for a later step is a different mistake and deserves the
+        // more precise answer: that checkpoint is locked, not that the
+        // journey needs starting. Returning lets the eligibility gate say
+        // so, which is also what keeps a non-member out.
+        if (row.step_order !== 1) return;
+        throw new BadRequestException({
+          code: 'CHAIN_RUN_REQUIRED',
+          message: 'This journey is a relay — it has to be started as a group run',
+        });
+      }
+      await transaction.query(
+        `INSERT INTO quest_chain_runs (chain_id, run_kind, owner_user_id, created_by_user_id, status, started_at)
+         VALUES ($1, 'solo', $2, $2, 'active', now()) ON CONFLICT DO NOTHING`,
+        [row.chain_id, userId],
+      );
+    }
+
+    // Audit only. Deliberately not a gate: an expired or rejected checkpoint
+    // stays retryable under the ordinary quest rules, so a journey cannot
+    // strand itself on a stage somebody started and ran out of time on.
+    await transaction.query(
+      `UPDATE journey_stage_unlocks SET started_at = COALESCE(started_at, now())
+       WHERE quest_id = $1 AND target_user_id = $2`,
+      [questId, userId],
+    );
+  }
+
   async findActiveForUser(userId: string): Promise<UserQuestRecord | null> {
     const result = await this.database.query<
       UserQuestRecord & { quests: QuestRecord }
@@ -266,6 +351,10 @@ export class QuestsRepository {
   ): Promise<UserQuestRecord> {
     await this.assertDestinationAccess(userId, questId, true);
     return this.database.transaction(async (transaction) => {
+      // Starting a chain step is what opens the journey, and the timer
+      // starts HERE — never at unlock. An approval that landed while the
+      // user was asleep must not have been quietly burning their clock.
+      await this.openJourneyForStep(userId, questId, transaction);
       await this.assignmentPolicy.lockUser(userId, transaction);
       await this.expireOverdueForUser(userId, transaction);
       if (displaceActive) {
@@ -297,19 +386,34 @@ export class QuestsRepository {
       // APPROVED proof for this user. The roll never offers one, but this
       // endpoint takes a questId from the client, so the rule has to be
       // enforced here too or the chain is bypassable by id.
+      // Whose approval counts depends on the chain's mode, and until now
+      // this only ever asked about the caller — so in a group chain, where
+      // the previous step belongs to somebody else by definition, step 2
+      // could never open for anyone and `mode = 'group'` was unreachable.
+      // Nothing failed loudly; relays just stopped after step 1.
       const locked = await transaction.query<{ step_order: number }>(
         `SELECT cs.step_order
          FROM quest_chain_steps cs
+         JOIN quest_chains ch ON ch.id = cs.chain_id
          WHERE cs.quest_id = $2
            AND cs.step_order > 1
+           -- A cross-country challenge has no reason to make one country
+           -- wait for another, so only sequential chains gate on order.
+           AND ch.completion_rule = 'sequential'
            AND NOT EXISTS (
              SELECT 1
              FROM quest_chain_steps prev
              JOIN user_quests uq ON uq.quest_id = prev.quest_id
              WHERE prev.chain_id = cs.chain_id
                AND prev.step_order = cs.step_order - 1
-               AND uq.user_id = $1
                AND uq.status = 'approved'
+               AND (
+                 ch.mode = 'solo' AND uq.user_id = $1
+                 OR ch.mode = 'group' AND EXISTS (
+                   SELECT 1 FROM collab_group_members m
+                   WHERE m.group_id = ch.collab_group_id AND m.user_id = uq.user_id
+                 )
+               )
            )
          LIMIT 1`,
         [userId, questId],
@@ -327,8 +431,33 @@ export class QuestsRepository {
         `SELECT * FROM quests
          WHERE id = $1 AND is_active = true
            AND (available_from IS NULL OR available_from <= now())
-           AND (available_until IS NULL OR available_until > now())`,
-        [questId],
+           AND (available_until IS NULL OR available_until > now())
+           -- A hidden quest is not assignable until it has actually opened
+           -- for THIS user. The roll never offers one, but this endpoint
+           -- takes an id from the client — exactly the reasoning already
+           -- applied to chain steps above, which was never applied here. A
+           -- guessed or leaked id could take a hidden quest straight past
+           -- the unlock mechanism, and nothing would have noticed.
+           --
+           -- Two mechanisms can open one, and they are separate by design:
+           -- discovery owns generic hidden unlocks (quest_unlock_rules →
+           -- user_quest_unlocks), journeys own stage unlocks
+           -- (journey_stage_unlocks). A hidden later step of a chain is
+           -- opened by its journey and has no user_quest_unlocks row, so a
+           -- gate that knew only the first would have locked every
+           -- multi-stage quest out of its own progression.
+           AND (NOT is_hidden
+             OR EXISTS (
+               SELECT 1 FROM user_quest_unlocks u
+               WHERE u.quest_id = quests.id AND u.user_id = $2
+             )
+             OR EXISTS (
+               SELECT 1 FROM journey_stage_unlocks j
+               JOIN quest_chain_runs r ON r.id = j.chain_run_id
+               WHERE j.quest_id = quests.id AND j.target_user_id = $2
+                 AND r.status = 'active'
+             ))`,
+        [questId, userId],
       );
       const quest = questResult.rows[0];
       if (!quest)
@@ -442,14 +571,11 @@ export class QuestsRepository {
   ///
   /// Takes the quest alias so callers can apply it to `q`, `quests`, etc.
   private static offerable(alias: string): string {
-    return `${alias}.is_active
-      AND NOT ${alias}.is_hidden
-      AND (${alias}.available_from IS NULL OR ${alias}.available_from <= now())
-      AND (${alias}.available_until IS NULL OR ${alias}.available_until > now())
-      AND NOT EXISTS (
-        SELECT 1 FROM quest_chain_steps cs
-        WHERE cs.quest_id = ${alias}.id AND cs.step_order > 1
-      )`;
+    // Delegates to the shared eligibility engine so the roll, Home, the map
+    // and search cannot drift apart. The ROLL channel is the narrowest: it
+    // adds the location-independent and not-already-settled clauses on top
+    // of the visibility rules every surface shares.
+    return eligibilityFor('ROLL', { alias, userParam: '$1' });
   }
 
   async pickerOptions(
@@ -483,13 +609,8 @@ export class QuestsRepository {
         `WITH eligible AS (
            SELECT q.* FROM quests q
            WHERE ${QuestsRepository.offerable('q')}
-             AND NOT EXISTS (SELECT 1 FROM quest_destinations d WHERE d.quest_id=q.id)
              AND ($2::uuid IS NULL OR q.id <> $2)
              AND NOT EXISTS (SELECT 1 FROM admin_quest_injections i WHERE i.quest_id = q.id)
-             AND NOT EXISTS (
-               SELECT 1 FROM user_quests uq WHERE uq.user_id = $1 AND uq.quest_id = q.id
-               AND uq.status IN ('submitted', 'approved')
-             )
          ), preferred AS (
            SELECT * FROM eligible WHERE created_by IS NOT NULL ORDER BY created_at DESC, random() LIMIT $3
          ), filler AS (
@@ -510,8 +631,7 @@ export class QuestsRepository {
               q.xp_reward AS quest_xp_reward, q.duration_hours AS quest_duration_hours
        FROM quest_of_the_day d JOIN quests q ON q.id = d.quest_id
        WHERE d.display_date = (now() AT TIME ZONE 'UTC')::date
-         AND ${QuestsRepository.offerable('q')}
-         AND NOT EXISTS (SELECT 1 FROM quest_destinations dest WHERE dest.quest_id=q.id) LIMIT 1`,
+         AND ${eligibilityFor('QUEST_OF_DAY', { alias: 'q' })} LIMIT 1`,
     );
     return result.rows[0] ?? null;
   }

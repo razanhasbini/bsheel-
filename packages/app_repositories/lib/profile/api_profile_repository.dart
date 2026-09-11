@@ -29,7 +29,7 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<ProfileModel?> getProfile(String userId) async {
     try {
-      return _signed(
+      return await _signed(
         ProfileModel.fromJson(
           apiObject(await _client.get('profiles/$userId')),
         ),
@@ -45,7 +45,7 @@ class ApiProfileRepository implements ProfileRepository {
     final name = username.trim();
     if (name.isEmpty) return null;
     try {
-      return _signed(
+      return await _signed(
         ProfileModel.fromJson(
           apiObject(await _client.get('profiles/by-username/$name')),
         ),

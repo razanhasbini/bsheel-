@@ -78,6 +78,18 @@ class ApiClient {
   final Uri baseUrl;
   final ApiTokenStore tokenStore;
   final Duration timeout;
+
+  /// Called once when a refresh fails and the stored session is discarded.
+  ///
+  /// Without it the tokens vanish and nothing else notices: the router still
+  /// believes the user is signed in, so it holds them on a Home screen where
+  /// every request 401s and every section renders empty. Being silently
+  /// stranded there is worse than being asked to sign in again.
+  ///
+  /// Assigned after construction rather than passed in, because the thing
+  /// that handles it — the auth repository — is built from the same bundle
+  /// as this client and cannot exist yet while this is being constructed.
+  void Function()? onSessionExpired;
   final http.Client _http;
   Future<bool>? _refreshInFlight;
 
@@ -222,7 +234,7 @@ class ApiClient {
     }
     try {
       final streamed = await _http.send(request).timeout(timeout);
-      return http.Response.fromStream(streamed).timeout(timeout);
+      return await http.Response.fromStream(streamed).timeout(timeout);
     } on TimeoutException {
       throw const ApiException(
         statusCode: 0,
@@ -255,7 +267,13 @@ class ApiClient {
 
   Future<bool> _performRefresh() async {
     final current = await tokenStore.read();
-    if (current == null) return false;
+    // Nothing to refresh with. The session is already gone, so say so —
+    // returning quietly leaves the app holding a dead access token and
+    // 401ing every read while it renders whatever it last cached.
+    if (current == null) {
+      onSessionExpired?.call();
+      return false;
+    }
     try {
       final response = await _send(
         'POST',
@@ -265,15 +283,39 @@ class ApiClient {
         authenticated: false,
       );
       final data = _decode(response);
-      if (data is! Map) return false;
+      if (data is! Map) {
+        // A 2xx that is not a token pair is a broken contract, not a
+        // transient fault, and retrying it forever is worse than stopping.
+        await _endSession();
+        return false;
+      }
       await tokenStore.write(
         ApiTokenPair.fromJson(Map<String, dynamic>.from(data)),
       );
       return true;
-    } on ApiException {
-      await tokenStore.clear();
+    } on ApiException catch (error) {
+      // A refused refresh token is dead: revoked, rotated, or its account
+      // deleted. Anything else — a 500, a proxy hiccup — is the server
+      // having a bad moment, and signing someone out over that loses their
+      // place for no reason. Distinguishing the two is the whole point:
+      // clearing on every failure logs people out on a flaky connection,
+      // and clearing on none is how a dead session survives a refresh and
+      // shows stale screens forever.
+      if (error.statusCode == 401 || error.statusCode == 403) {
+        await _endSession();
+      }
+      return false;
+    } catch (_) {
+      // Network-shaped: no response at all. Keep the session; the caller
+      // sees the failure and the next attempt may well succeed.
       return false;
     }
+  }
+
+  /// Discards the stored session and tells the app, exactly once per failure.
+  Future<void> _endSession() async {
+    await tokenStore.clear();
+    onSessionExpired?.call();
   }
 
   Object? _decode(http.Response response) {

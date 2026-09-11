@@ -11,6 +11,9 @@ import { ObjectStorageService } from '../../modules/media/infrastructure/object-
 import { DomainEventsRepository } from './domain-events.repository.js';
 import { RealtimeEventPublisher } from '../realtime/realtime-event.publisher.js';
 import { TelegramEventService } from '../../integrations/telegram/telegram-event.service.js';
+import { JourneyProgressionService } from '../../modules/quests/application/journey-progression.service.js';
+import { JourneyNotifier } from '../../modules/quests/application/journey-notifier.service.js';
+import { QuestUnlockService } from '../../modules/discovery/application/quest-unlock.service.js';
 import { ProofVerificationService } from '../../modules/submissions/application/proof-verification.service.js';
 
 interface NotificationCreatedPayload {
@@ -36,6 +39,9 @@ export class DomainEventsProcessor extends WorkerHost {
     @InjectQueue('submission-verification') private readonly submissionVerificationQueue: Queue,
     @InjectQueue('quest-assignment-agent') private readonly questAssignmentQueue: Queue,
     private readonly proofVerification: ProofVerificationService,
+    private readonly journeyProgression: JourneyProgressionService,
+    private readonly journeyNotifier: JourneyNotifier,
+    private readonly questUnlocks: QuestUnlockService,
   ) {
     super();
   }
@@ -97,6 +103,18 @@ export class DomainEventsProcessor extends WorkerHost {
       //    type and never reaches this branch, so an appeal can never be
       //    auto re-decided; appeals stay human-only.
       await this.enqueueSubmissionVerification(payload);
+    } else if (job.name === 'submission.approved') {
+      // The one place a journey advances, for an agent decision and a
+      // moderator's click alike: both converge on submissions.approve() and
+      // therefore on this event. An appeal approved weeks later arrives the
+      // same way, which is why progression listens for the authoritative
+      // status rather than for who decided it.
+      await this.advanceJourney(payload);
+      // A completed quest can also be the condition that opens a hidden
+      // one — a prerequisite cleared, or a collection reaching its
+      // threshold. The engine existed with no caller, so hidden quests
+      // with prerequisite rules could never open at all.
+      await this.openHiddenQuests(payload);
     } else if (job.name === 'quest.assigned') {
       // Same rule: enqueue only. The post-assignment work measures the
       // user's distance over CAMARA and opens a geofence, neither of which
@@ -109,6 +127,51 @@ export class DomainEventsProcessor extends WorkerHost {
       );
     }
     await this.repository.markProcessed(this.consumer, messageId);
+  }
+
+  /**
+   * Advances the journey a just-approved checkpoint belongs to.
+   *
+   * Idempotent all the way down, because this runs off an at-least-once
+   * queue: the unlock's primary key refuses a second row and the run's
+   * status guard refuses a second completion, so a replayed event announces
+   * nothing twice.
+   */
+  private async advanceJourney(data: Record<string, unknown>): Promise<void> {
+    const questId = typeof data.questId === 'string' ? data.questId : null;
+    const userId = typeof data.userId === 'string' ? data.userId : null;
+    if (!questId || !userId) return;
+    const result = await this.journeyProgression.onSubmissionApproved(questId, userId);
+    if (result.kind === 'stage-unlocked') {
+      await this.journeyNotifier.announceUnlock(result, userId);
+    } else if (result.kind === 'journey-completed') {
+      await this.journeyNotifier.announceCompletion(result.runId, result.chainName);
+    }
+  }
+
+  /**
+   * Opens any hidden quest whose conditions this approval just satisfied.
+   *
+   * Idempotent by construction: `user_quest_unlocks` has a primary key on
+   * (user, quest), so a replayed event re-evaluates the same rules and
+   * inserts nothing. Only quests that opened on THIS call come back, which
+   * is what keeps the announcement from repeating.
+   *
+   * Failures are swallowed. A discovery that does not fire is a missed
+   * delight; throwing here would fail the whole job and retry the journey
+   * progression and notifications alongside it.
+   */
+  private async openHiddenQuests(data: Record<string, unknown>): Promise<void> {
+    const userId = typeof data.userId === 'string' ? data.userId : null;
+    if (!userId) return;
+    try {
+      const opened = await this.questUnlocks.evaluateFor(userId);
+      for (const quest of opened) {
+        await this.journeyNotifier.announceHiddenUnlock(userId, quest.title, quest.questId);
+      }
+    } catch (error) {
+      this.logger.warn({ err: error, userId }, 'Hidden-quest unlock evaluation failed');
+    }
   }
 
   private submissionPayload(data: Record<string, unknown>): { submissionId: string } {

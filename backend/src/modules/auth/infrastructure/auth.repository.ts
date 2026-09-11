@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
+import { countryFromPhone } from '../../discovery/domain/dialling-codes.js';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { AccountCredentials, SessionRecord } from '../domain/auth.types.js';
 import type { OAuthIdentity } from './oauth-identity-verifier.js';
@@ -125,6 +126,27 @@ export class AuthRepository {
        LEFT JOIN admins a ON a.user_id = u.id
        WHERE u.email = $1 AND u.deleted_at IS NULL`,
       [email.trim().toLowerCase()],
+    );
+    return result.rows[0] ? this.mapAccount(result.rows[0]) : null;
+  }
+
+  /**
+   * The phone-and-password sign-in lookup.
+   *
+   * Reads `users.phone_number` rather than `auth_identities`, because that
+   * column is what `findOrCreateByPhone` writes alongside `phone_verified_at`
+   * and what the CHECK on account shape is built around. A number only lands
+   * there after the carrier confirmed it, so a row found here is one CAMARA
+   * already vouched for.
+   */
+  async findAccountByPhone(phoneNumber: string): Promise<AccountCredentials | null> {
+    const result = await this.database.query<AccountRow>(
+      `SELECT u.id, u.email::text, u.password_hash, u.email_verified_at, u.phone_verified_at,
+              u.status, u.token_version, a.role::text
+       FROM users u
+       LEFT JOIN admins a ON a.user_id = u.id
+       WHERE u.phone_number = $1 AND u.deleted_at IS NULL`,
+      [phoneNumber.trim()],
     );
     return result.rows[0] ? this.mapAccount(result.rows[0]) : null;
   }
@@ -316,7 +338,12 @@ export class AuthRepository {
   /// counterpart exists for a brand-new phone account, so unlike
   /// findOrCreateOAuthAccount there is nothing to match against beyond the
   /// auth_identities row itself.
-  async findOrCreateByPhone(phoneNumber: string, ageVerified: boolean, email?: string | null): Promise<AccountCredentials> {
+  async findOrCreateByPhone(
+    phoneNumber: string,
+    ageVerified: boolean,
+    email?: string | null,
+    passwordHash?: string | null,
+  ): Promise<AccountCredentials> {
     return this.database.transaction(async (transaction) => {
       await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 15))', [`phone:${phoneNumber}`]);
       const normalizedEmail = email?.trim().toLowerCase() || null;
@@ -340,6 +367,24 @@ export class AuthRepository {
           `UPDATE profiles SET age_verified = age_verified OR $2, updated_at = now() WHERE id = $1`,
           [existingIdentity.rows[0].id, ageVerified],
         );
+        // An account that already has a password keeps it. Verifying the
+        // number proves possession of the SIM, which is not the same as
+        // knowing the password — letting a fresh signup overwrite one would
+        // turn a swapped or recycled number into a silent account takeover.
+        // Filling in a NULL is different: those accounts predate the
+        // password requirement and have no secret to protect.
+        if (passwordHash && !existingIdentity.rows[0].password_hash) {
+          const filled = await transaction.query<AccountRow>(
+            `UPDATE users SET password_hash = $2, updated_at = now()
+             WHERE id = $1 AND password_hash IS NULL
+             RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
+                       status, token_version, NULL::text AS role`,
+            [existingIdentity.rows[0].id, passwordHash],
+          );
+          if (filled.rows[0]) {
+            return this.mapAccount({ ...filled.rows[0], role: existingIdentity.rows[0].role });
+          }
+        }
         return this.mapAccount(existingIdentity.rows[0]);
       }
 
@@ -350,12 +395,17 @@ export class AuthRepository {
       const emailIsFree = normalizedEmail
         ? (await transaction.query('SELECT 1 FROM users WHERE email = $1', [normalizedEmail])).rows.length === 0
         : false;
+      // The dialling code is where they signed up from, and it is a fact the
+      // carrier verified rather than a claim on a form. Null when the code
+      // maps to no seeded country — including Nokia's +999 simulator range,
+      // which belongs to nowhere and must not be turned into somewhere.
+      const signupCountry = countryFromPhone(phoneNumber);
       const created = await transaction.query<AccountRow>(
-        `INSERT INTO users (email, phone_number, phone_verified_at)
-         VALUES ($2, $1, now())
+        `INSERT INTO users (email, phone_number, phone_verified_at, signup_country_code, password_hash)
+         VALUES ($2, $1, now(), $3, $4)
          RETURNING id, email::text, password_hash, email_verified_at, phone_verified_at,
                    status, token_version, NULL::text AS role`,
-        [phoneNumber, emailIsFree ? normalizedEmail : null],
+        [phoneNumber, emailIsFree ? normalizedEmail : null, signupCountry, passwordHash ?? null],
       );
       const account = created.rows[0];
       const username = `user_${createStableSuffix('phone', phoneNumber)}`;

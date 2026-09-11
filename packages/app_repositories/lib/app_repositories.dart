@@ -32,6 +32,13 @@ export 'quest_campaigns/quest_campaigns_repository.dart';
 export 'quests/quests_repository.dart';
 export 'quests/api_quests_repository.dart';
 
+// ── Quest authoring (admin console) ──────────────────────────────────────
+export 'quest_authoring/quest_authoring_models.dart';
+export 'quest_authoring/api_quest_authoring_repository.dart';
+
+// ── Journeys (multi-stage progression) ───────────────────────────────────
+export 'journeys/api_journeys_repository.dart';
+
 // ── Submissions ──────────────────────────────────────────────────────────
 export 'submissions/submissions_repository.dart';
 export 'submissions/api_submissions_repository.dart';
@@ -93,3 +100,6 @@ export 'media/api_media_uploader.dart';
 
 // ── Realtime ─────────────────────────────────────────────────────────────
 export 'realtime/api_realtime_client.dart';
+
+export 'discovery/discovery_repository.dart';
+export 'discovery/api_discovery_repository.dart';

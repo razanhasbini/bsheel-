@@ -1,0 +1,47 @@
+{
+  "questsForChains": [
+    { "seedKey": "bsheel:q:chain-byblos-1", "title": "Byblos I — the souk", "category": "adventure", "difficulty": "easy", "xpReward": 40, "durationHours": 12,
+      "place": "bsheel:place:lb-byblos", "requiresVerification": true,
+      "description": "Find the oldest shop still trading in the souk and get the owner to tell you how long they have been there." },
+    { "seedKey": "bsheel:q:chain-byblos-2", "title": "Byblos II — the castle", "category": "adventure", "difficulty": "medium", "xpReward": 55, "durationHours": 12,
+      "place": "bsheel:place:lb-byblos-castle", "requiresVerification": true,
+      "description": "From the keep you can see every layer of the city at once. Photograph the Phoenician, Roman and Crusader work in a single frame." },
+    { "seedKey": "bsheel:q:chain-byblos-3", "title": "Byblos III — the port", "category": "adventure", "difficulty": "medium", "xpReward": 70, "durationHours": 12,
+      "place": "bsheel:place:lb-byblos-port", "requiresVerification": true,
+      "description": "Cedar left for Egypt from this harbour. Find a fisherman who will tell you what leaves from it now." },
+
+    { "seedKey": "bsheel:q:relay-1", "title": "Relay I — start the story", "category": "creativity", "difficulty": "easy", "xpReward": 40, "durationHours": 24,
+      "description": "Film ten seconds that begin a story, ending on a gesture the next person must pick up. Hand it on." },
+    { "seedKey": "bsheel:q:relay-2", "title": "Relay II — continue it", "category": "creativity", "difficulty": "easy", "xpReward": 45, "durationHours": 24,
+      "description": "Start your ten seconds on exactly the gesture the last person ended on, somewhere they have never been." },
+    { "seedKey": "bsheel:q:relay-3", "title": "Relay III — land it", "category": "creativity", "difficulty": "medium", "xpReward": 60, "durationHours": 24,
+      "description": "Close the story. Same rule: begin where the last one ended." },
+
+    { "seedKey": "bsheel:q:xc-lb-bread", "title": "Levant table — Lebanon", "category": "learning", "difficulty": "easy", "xpReward": 60, "durationHours": 24,
+      "place": "bsheel:place:lb-tripoli-souk", "requiresVerification": true,
+      "description": "Bring the bread. Film someone in Tripoli making it the way they always have." },
+    { "seedKey": "bsheel:q:xc-ps-oil", "title": "Levant table — Palestine", "category": "learning", "difficulty": "easy", "xpReward": 60, "durationHours": 24,
+      "place": "bsheel:place:ps-sebastia", "requiresVerification": true,
+      "description": "Bring the oil. Film an olive press in the hills around Sebastia and ask how old the trees are." },
+    { "seedKey": "bsheel:q:xc-qa-coffee", "title": "Levant table — Qatar", "category": "learning", "difficulty": "easy", "xpReward": 60, "durationHours": 24,
+      "place": "bsheel:place:qa-souq-waqif", "requiresVerification": true,
+      "description": "Bring the coffee. Film gahwa poured properly in Souq Waqif and learn what the cardamom is for." }
+  ],
+
+  "chains": [
+    { "seedKey": "bsheel:chain:byblos", "name": "Byblos in three acts",
+      "description": "Souk, castle, port — each one opens the next.",
+      "mode": "solo", "completionRule": "sequential",
+      "steps": ["bsheel:q:chain-byblos-1", "bsheel:q:chain-byblos-2", "bsheel:q:chain-byblos-3"] },
+
+    { "seedKey": "bsheel:chain:relay", "name": "Pass it on",
+      "description": "Three people, one continuous story. Nobody can start until the person before them is approved.",
+      "mode": "group", "completionRule": "sequential",
+      "steps": ["bsheel:q:relay-1", "bsheel:q:relay-2", "bsheel:q:relay-3"] },
+
+    { "seedKey": "bsheel:chain:levant-table", "name": "One table, three countries",
+      "description": "Bread from Lebanon, oil from Palestine, coffee from Qatar. Any order — the table is only finished when all three arrive.",
+      "mode": "group", "completionRule": "all_steps_any_order",
+      "steps": ["bsheel:q:xc-lb-bread", "bsheel:q:xc-ps-oil", "bsheel:q:xc-qa-coffee"] }
+  ]
+}

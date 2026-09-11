@@ -6,6 +6,18 @@ import { confirmedPlaceIds, locked, visible } from './map-visibility.sql.js';
 // A locked pin still marks the area — that is the invitation to go and earn
 // it — but not the spot: two decimals is roughly a kilometre, wider than
 // any geofence radius the schema allows.
+/// Whether a hidden quest has opened for this viewer.
+///
+/// Both mechanisms count, and they are separate by design: discovery owns
+/// generic hidden unlocks, journeys own stage unlocks. `$1` is the viewer.
+/// Kept identical to the gate in quests.repository.assignSpecific — a map
+/// that offers what the assign endpoint refuses is confusing, and a map
+/// that reveals what it should withhold is worse.
+const hiddenVisible = `(NOT q.is_hidden
+  OR EXISTS (SELECT 1 FROM user_quest_unlocks u WHERE u.quest_id=q.id AND u.user_id=$1)
+  OR EXISTS (SELECT 1 FROM journey_stage_unlocks j JOIN quest_chain_runs r ON r.id=j.chain_run_id
+             WHERE j.quest_id=q.id AND j.target_user_id=$1 AND r.status='active'))`;
+
 const blurred = (column: string) => `CASE WHEN ${locked} THEN round(p.${column}::numeric, 2)::double precision ELSE p.${column} END`;
 
 @Injectable()
@@ -57,7 +69,7 @@ export class MapRepository {
       ${blurred('longitude')} AS longitude,
       EXISTS (SELECT 1 FROM saved_map_places b WHERE b.user_id=$1 AND b.place_id=p.id) AS saved,
       CASE WHEN ${locked} THEN 0 ELSE (SELECT count(*)::int FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
-        WHERE d.place_id=p.id AND q.is_active) END AS quest_count,
+        WHERE d.place_id=p.id AND q.is_active AND ${hiddenVisible}) END AS quest_count,
       -- The newest approved, feed-visible proof at the place: the pin's photo
       -- snippet. Withheld while locked, like everything else about it.
       CASE WHEN ${locked} THEN NULL ELSE (SELECT s.media_url FROM quest_destinations d
@@ -89,7 +101,8 @@ export class MapRepository {
     const quests = (await this.database.query(`SELECT q.id,q.title,q.description,q.category,q.difficulty,
       q.duration_hours,q.xp_reward,d.requires_verification,true AS unlocked
       FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
-      WHERE d.place_id=$1 AND q.is_active ORDER BY q.title,q.id`, [id])).rows;
+      WHERE d.place_id=$2 AND q.is_active AND ${hiddenVisible}
+      ORDER BY q.title,q.id`, [userId,id])).rows;
     const previews = (await this.database.query(`SELECT s.id,s.user_id,p.username::text,s.media_type,s.submitted_at,s.media_url
       FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
       JOIN quest_destinations d ON d.quest_id=uq.quest_id JOIN profiles p ON p.id=s.user_id

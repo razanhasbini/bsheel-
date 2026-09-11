@@ -1,0 +1,64 @@
+{
+  "hidden": [
+    { "seedKey": "bsheel:q:hidden-qa-inland-sea", "title": "Where the sea meets the dunes", "category": "adventure", "difficulty": "hard", "xpReward": 95, "durationHours": 72,
+      "place": "bsheel:place:qa-inland-sea", "editorialTier": "flagship", "requiresVerification": true,
+      "unlock": { "type": "country_entered", "countryCode": "QA" },
+      "description": "Khor Al Adaid is one of the few places on earth where the sea runs into the desert. Reach it with a licensed desert operator — never drive the dunes yourself — and film the moment the water appears." },
+    { "seedKey": "bsheel:q:hidden-lb-cedars-view", "title": "The view the postcards miss", "category": "adventure", "difficulty": "medium", "xpReward": 75, "durationHours": 24,
+      "place": "bsheel:place:lb-cedars", "requiresVerification": true,
+      "unlock": { "type": "place_entered", "place": "bsheel:place:lb-cedars" },
+      "description": "Somewhere on the marked trail above the grove there is an angle where the whole forest sits below you. Find it, from the path." },
+    { "seedKey": "bsheel:q:hidden-ps-soap-roof", "title": "Where the soap dries", "category": "learning", "difficulty": "medium", "xpReward": 70, "durationHours": 24,
+      "place": "bsheel:place:ps-nablus-old-city", "requiresVerification": true,
+      "unlock": { "type": "prerequisite_quest", "quest": "bsheel:q:ps-nablus-kunafa" },
+      "description": "Nablus soap cures on rooftops in stacked towers. Ask a factory whether you may see theirs, and film the stacks if they say yes." },
+    { "seedKey": "bsheel:q:hidden-it-colosseum-night", "title": "The arena after dark", "category": "creativity", "difficulty": "medium", "xpReward": 80, "durationHours": 24,
+      "place": "bsheel:place:it-colosseum", "requiresVerification": true,
+      "unlock": { "type": "collection_progress", "collection": "bsheel:col:mediterranean-table", "threshold": 2 },
+      "description": "Book an official evening opening and photograph the hypogeum lit from below." },
+    { "seedKey": "bsheel:q:hidden-lb-byblos-sunset", "title": "The last light on the harbour", "category": "creativity", "difficulty": "easy", "xpReward": 60, "durationHours": 24,
+      "place": "bsheel:place:lb-byblos-port", "requiresVerification": true,
+      "unlock": { "type": "prerequisite_quest", "quest": "bsheel:q:chain-byblos-3" },
+      "description": "Photograph the fishing port in the last ten minutes of light, from the sea wall." }
+  ],
+
+  "events": [
+    { "seedKey": "bsheel:q:event-qa-f1-paddock", "title": "Hear it before you see it", "category": "adventure", "difficulty": "medium", "xpReward": 85, "durationHours": 48,
+      "place": "bsheel:place:qa-lusail-stadium", "editorialTier": "flagship", "requiresVerification": true,
+      "availableFromDaysFromNow": -3, "availableUntilDaysFromNow": 10,
+      "description": "Film the sound of a race weekend from inside the circuit grounds — the moment engines start, with your own reaction in frame." },
+    { "seedKey": "bsheel:q:event-lb-byblos-festival", "title": "A concert among the ruins", "category": "social", "difficulty": "easy", "xpReward": 70, "durationHours": 24,
+      "place": "bsheel:place:lb-byblos", "requiresVerification": true,
+      "availableFromDaysFromNow": -1, "availableUntilDaysFromNow": 21,
+      "description": "Byblos stages music inside the archaeological site. Film one minute of a set with the old stone behind the stage." },
+    { "seedKey": "bsheel:q:event-es-granada-spring", "title": "The gardens in flower", "category": "creativity", "difficulty": "easy", "xpReward": 60, "durationHours": 48,
+      "place": "bsheel:place:es-alhambra", "requiresVerification": true,
+      "availableFromDaysFromNow": 30, "availableUntilDaysFromNow": 75,
+      "description": "The Generalife gardens are worth a specific season. Photograph them at their peak." },
+    { "seedKey": "bsheel:q:event-eg-expired-lantern", "title": "Ramadan lanterns in Khan el-Khalili", "category": "creativity", "difficulty": "easy", "xpReward": 60, "durationHours": 24,
+      "place": "bsheel:place:eg-khan-el-khalili", "requiresVerification": true,
+      "availableFromDaysFromNow": -120, "availableUntilDaysFromNow": -60,
+      "description": "Photograph the fanous lanterns filling the lanes. Seeded already-closed so the expired-event path is testable." }
+  ],
+
+  "partners": [
+    { "seedKey": "bsheel:partner:demo-souq-kitchen", "name": "DEMO — Souq Kitchen", "slug": "demo-souq-kitchen", "kind": "restaurant", "countryCode": "QA", "isDemo": true },
+    { "seedKey": "bsheel:partner:demo-cedar-lodge", "name": "DEMO — Cedar Lodge", "slug": "demo-cedar-lodge", "kind": "hotel", "countryCode": "LB", "isDemo": true },
+    { "seedKey": "bsheel:partner:demo-alula-tours", "name": "DEMO — AlUla Heritage Tours", "slug": "demo-alula-tours", "kind": "tourism_authority", "countryCode": "SA", "isDemo": true }
+  ],
+
+  "sponsored": [
+    { "seedKey": "bsheel:q:spon-qa-chef", "title": "Cook machboos with the chef", "category": "learning", "difficulty": "medium", "xpReward": 85, "durationHours": 24,
+      "place": "bsheel:place:qa-souq-waqif", "editorialTier": "flagship", "requiresVerification": true,
+      "partner": "bsheel:partner:demo-souq-kitchen",
+      "description": "Book the kitchen session, cook machboos start to finish alongside the chef, and film the moment the rice goes on top." },
+    { "seedKey": "bsheel:q:spon-lb-cedar-breakfast", "title": "Breakfast above the cloud line", "category": "adventure", "difficulty": "easy", "xpReward": 65, "durationHours": 24,
+      "place": "bsheel:place:lb-cedars", "requiresVerification": true,
+      "partner": "bsheel:partner:demo-cedar-lodge",
+      "description": "Some mornings the cloud sits below the lodge. Film breakfast with the valley filled in white underneath you." },
+    { "seedKey": "bsheel:q:spon-sa-hegra-guide", "title": "The guided tomb", "category": "learning", "difficulty": "medium", "xpReward": 80, "durationHours": 48,
+      "place": "bsheel:place:sa-hegra", "requiresVerification": true,
+      "partner": "bsheel:partner:demo-alula-tours",
+      "description": "Take the official tour to a tomb that is normally closed, and explain one thing your guide told you that is not on any sign." }
+  ]
+}

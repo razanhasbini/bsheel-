@@ -32,6 +32,7 @@
     "test:telegram": "node scripts/smoke-telegram.mjs",
     "import:legacy": "node scripts/legacy-import/import-legacy.mjs",
     "proof:eval": "node scripts/proof-eval.mjs",
+    "seed:quests": "node scripts/seed-quests.mjs",
     "proof:contract": "node scripts/proof-contract-audit.mjs",
     "proof:backfill": "node scripts/proof-backfill.mjs",
     "legacy:media": "node scripts/legacy-import/import-media.mjs",

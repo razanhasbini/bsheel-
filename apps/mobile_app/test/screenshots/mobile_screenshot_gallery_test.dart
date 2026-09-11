@@ -785,8 +785,18 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthResult> signInWithGoogle() async => const AuthResult();
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber,
-          {String? email}) async =>
+  Future<AuthResult> signInWithPhone(
+    String phoneNumber, {
+    String? email,
+    String? password,
+  }) async =>
+      const AuthResult();
+
+  @override
+  Future<AuthResult> signInWithPhonePassword(
+    String phoneNumber,
+    String password,
+  ) async =>
       const AuthResult();
 
   @override

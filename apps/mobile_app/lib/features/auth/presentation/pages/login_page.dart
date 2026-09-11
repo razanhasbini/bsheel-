@@ -11,6 +11,7 @@ import '../../../../core/security/secure_screen.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../auth_error_mapper.dart';
 import '../login_credentials.dart';
+import '../pending_auth_error.dart';
 import '../widgets/auth_field.dart';
 import '../widgets/social_sign_in_buttons.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -34,49 +35,100 @@ class LoginPage extends ConsumerStatefulWidget {
 
 // H9 (2026-05-17): block screenshots while a password is on screen.
 class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController(text: '+');
   final _passwordController = TextEditingController();
-  final _emailFocus = FocusNode();
+  final _phoneFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
   bool _isLoading = false;
-  String? _emailError;
+  String? _phoneError;
   String? _passwordError;
 
-  /// Set when login failed because the email is unconfirmed, so the UI
-  /// can offer a one-tap "resend confirmation email" action.
-  bool _offerResendConfirmation = false;
+  /// True once the pending-error dialog for this failure has been raised,
+  /// so a rebuild does not stack a second copy on top of the first.
+  bool _showingPendingError = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
-    _emailFocus.dispose();
+    _phoneFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
 
+  /// Raises the failure the phone-sign-in callback parked on its way here.
+  ///
+  /// It has to be shown from this page rather than from the callback route:
+  /// that route navigates away in the same frame it discovers the error, so
+  /// anything it shows is attached to a widget being disposed and never
+  /// appears — a refused number used to bounce back to this screen in total
+  /// silence, which reads as the button doing nothing.
+  ///
+  /// A dialog rather than a snackbar, because a sign-in that did not happen
+  /// is not something to glance at and miss.
+  void _raisePendingError(String code) {
+    if (_showingPendingError) return;
+    _showingPendingError = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: QuestColors.cardBg(context),
+          title: Text(
+            'SIGN-IN FAILED',
+            style: QuestTypography.osHeadlineSmall.copyWith(
+              color: QuestColors.text(context),
+            ),
+          ),
+          content: Text(
+            mapAuthError(code),
+            style: QuestTypography.osBodyMedium.copyWith(
+              color: QuestColors.textDim(context),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: QuestTypography.osHeadlineSmall.copyWith(
+                  fontSize: 14,
+                  color: QuestColors.osPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      _showingPendingError = false;
+      // Cleared only after it has been seen and dismissed. Clearing on
+      // display would lose the message to any rebuild that raced it.
+      ref.read(pendingAuthErrorProvider.notifier).state = null;
+    });
+  }
+
   Future<void> _login() async {
-    final identifier = _emailController.text.trim();
+    final phone = LoginCredentials.normalizePhone(_phoneController.text);
     final password = _passwordController.text;
-    final emailErr = LoginCredentials.validateIdentifier(identifier);
+    final phoneErr = LoginCredentials.validatePhone(_phoneController.text);
     final passwordErr = password.isEmpty
         ? AppLocalizations.of(context)!.pleaseEnterPassword
         : null;
 
     setState(() {
-      _emailError = emailErr;
+      _phoneError = phoneErr;
       _passwordError = passwordErr;
     });
-    if (emailErr != null || passwordErr != null) return;
+    if (phoneErr != null || passwordErr != null) return;
 
-    setState(() {
-      _isLoading = true;
-      _offerResendConfirmation = false;
-    });
-    final email = LoginCredentials.normalizeIdentifier(identifier);
+    setState(() => _isLoading = true);
     try {
-      await ref.read(authRepositoryProvider).signInWithEmail(email, password);
+      await ref
+          .read(authRepositoryProvider)
+          .signInWithPhonePassword(phone, password);
       final user = ref.read(authSessionProvider);
       if (user != null) {
         ref.read(analyticsProvider).identify(
@@ -88,42 +140,23 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
     } catch (e) {
       AppLogger.error('[Login] Login failed', e);
       if (mounted) {
-        final raw = e.toString().toLowerCase();
-        setState(() {
-          _passwordError = mapAuthError(e.toString());
-          _offerResendConfirmation = raw.contains('email_not_confirmed') ||
-              raw.contains('email not confirmed');
-        });
+        // INVALID_CREDENTIALS is deliberately one message for "no such
+        // number" and "wrong password" alike — the server will not say
+        // which, so neither does the form.
+        setState(() => _passwordError = mapAuthError(e.toString()));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _resendConfirmation() async {
-    final email = LoginCredentials.normalizeIdentifier(_emailController.text);
-    if (LoginCredentials.validateIdentifier(email) != null) return;
-    setState(() => _offerResendConfirmation = false);
-    try {
-      await ref.read(authRepositoryProvider).resendSignupConfirmation(email);
-    } catch (e) {
-      // Deliberately swallowed into the same message — revealing whether
-      // the resend "worked" per-address would enable email enumeration.
-      AppLogger.error('[Login] Resend confirmation failed', e);
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(const SnackBar(
-        content: Text(
-            'If that address has an unconfirmed account, a new confirmation '
-            'email is on its way.'),
-      ));
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    // A failure the phone-sign-in callback route parked for us on its way
+    // here, because it could not show one itself.
+    final parked = ref.watch(pendingAuthErrorProvider);
+    if (parked != null) _raisePendingError(parked);
 
     return Scaffold(
       backgroundColor: QuestColors.bg(context),
@@ -153,15 +186,20 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                         ),
                         const SizedBox(height: 15),
                         AuthField(
-                          controller: _emailController,
-                          focusNode: _emailFocus,
-                          label: l.email,
-                          hint: l.enterEmail,
-                          keyboardType: TextInputType.emailAddress,
+                          controller: _phoneController,
+                          focusNode: _phoneFocus,
+                          label: 'PHONE NUMBER',
+                          hint: '+96170123456',
+                          keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
-                          errorText: _emailError,
+                          errorText: _phoneError,
                           autocorrect: false,
-                          autofillHints: const [AutofillHints.username],
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                          onChanged: (_) {
+                            if (_phoneError != null) {
+                              setState(() => _phoneError = null);
+                            }
+                          },
                           onSubmitted: (_) => _passwordFocus.requestFocus(),
                         ),
                         const SizedBox(height: 15),
@@ -177,19 +215,10 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           autofillHints: const [AutofillHints.password],
                           onSubmitted: (_) => _login(),
                         ),
-                        // Offered only after a login attempt failed with
-                        // "email not confirmed" — one tap re-sends the
-                        // signup confirmation email.
-                        // No 15 either side of these: `_MonoLink` is a 45pt
-                        // box around a 15pt label, which is exactly the
-                        // frame's 15 + label + 15. Padding it as well would
-                        // push the primary button 29 down the screen.
-                        if (_offerResendConfirmation)
-                          _MonoLink(
-                            label: 'RESEND CONFIRMATION EMAIL',
-                            alignment: Alignment.centerLeft,
-                            onTap: _resendConfirmation,
-                          ),
+                        // No 15 either side: `_MonoLink` is a 45pt box
+                        // around a 15pt label, which is exactly the frame's
+                        // 15 + label + 15. Padding it as well would push the
+                        // primary button 29 down the screen.
                         _MonoLink(
                           label: l.forgotPassword,
                           alignment: Alignment.centerRight,

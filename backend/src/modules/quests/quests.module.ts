@@ -5,11 +5,18 @@ import { QuestCampaignsRepository } from './infrastructure/quest-campaigns.repos
 import { QuestsRepository } from './infrastructure/quests.repository.js';
 import { QuestCampaignsController } from './presentation/quest-campaigns.controller.js';
 import { QuestsController } from './presentation/quests.controller.js';
+import { QuestAuthoringController } from './presentation/quest-authoring.controller.js';
+import { QuestAuthoringRepository } from './infrastructure/quest-authoring.repository.js';
+import { JourneyRepository } from './infrastructure/journey.repository.js';
+import { JourneyProgressionService } from './application/journey-progression.service.js';
+import { JourneyNotifier } from './application/journey-notifier.service.js';
+import { JourneyService } from './application/journey.service.js';
+import { JourneysController } from './presentation/journeys.controller.js';
 import { QuestAssignmentPolicyRepository } from './infrastructure/quest-assignment-policy.repository.js';
 import { QuestMaintenanceService } from './application/quest-maintenance.service.js';
 
 @Module({
-  controllers: [QuestsController, QuestCampaignsController],
+  controllers: [QuestsController, QuestCampaignsController, QuestAuthoringController, JourneysController],
   providers: [
     QuestsService,
     QuestsRepository,
@@ -17,7 +24,16 @@ import { QuestMaintenanceService } from './application/quest-maintenance.service
     QuestMaintenanceService,
     QuestCampaignsService,
     QuestCampaignsRepository,
+    QuestAuthoringRepository,
+    JourneyRepository,
+    JourneyProgressionService,
+    JourneyNotifier,
+    JourneyService,
   ],
-  exports: [QuestsService, QuestAssignmentPolicyRepository, QuestMaintenanceService],
+  exports: [
+    QuestsService, QuestAssignmentPolicyRepository, QuestMaintenanceService,
+    // The outbox processor advances journeys off submission.approved.
+    JourneyProgressionService, JourneyNotifier, JourneyRepository,
+  ],
 })
 export class QuestsModule {}

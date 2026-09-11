@@ -18,7 +18,9 @@ import '../../../moderation/presentation/widgets/inline_video.dart';
 // page once a few thousand approved posts exist (each with joined
 // profile + user_quest + quest payload). 200 covers >95% of admin
 // review needs; the search field is the path for older rows.
-const int _adminFeedListLimit = 200;
+/// The endpoint's own maximum. 200 was over it, so this list would have
+/// 400ed the same way the dashboard did.
+const int _adminFeedListLimit = adminSubmissionListMaxLimit;
 
 /// Approved posts in one visibility state, newest first. Media keys are
 /// private R2 objects; the adapter signs them so the UI's img tags can

@@ -15,6 +15,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:admin.bsheel.app</string>
+		<string>applinks:api.bsheel.app</string>
 	</array>
 </dict>
 </plist>

@@ -4,7 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:app_core/app_core.dart';
 
-import '../../../../core/config/deep_link_config.dart';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+
+import '../../../../core/config/branded_media.dart';
+import '../../../../core/config/share_template.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_session_provider.dart';
@@ -19,6 +25,11 @@ Future<void> showPostActionsSheet(
   required String postId,
   required String postUsername,
   String? postUserId,
+  String? questTitle,
+  String? questCountryName,
+  String? caption,
+  String? mediaUrl,
+  String? mediaType,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -32,6 +43,11 @@ Future<void> showPostActionsSheet(
       postId: postId,
       postUsername: postUsername,
       postUserId: postUserId,
+      questTitle: questTitle,
+      questCountryName: questCountryName,
+      caption: caption,
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
       pageContext: context,
     ),
   );
@@ -44,11 +60,21 @@ class _PostActionsSheet extends StatelessWidget {
     required this.postUsername,
     required this.pageContext,
     this.postUserId,
+    this.questTitle,
+    this.questCountryName,
+    this.caption,
+    this.mediaUrl,
+    this.mediaType,
   });
 
   final WidgetRef ref;
   final String postId;
   final String postUsername;
+  final String? questTitle;
+  final String? questCountryName;
+  final String? caption;
+  final String? mediaUrl;
+  final String? mediaType;
   final String? postUserId;
   final BuildContext pageContext;
 
@@ -84,6 +110,84 @@ class _PostActionsSheet extends StatelessWidget {
     }
   }
 
+  /// Saves the proof with the Bsheel template baked into it.
+  ///
+  /// A link carries the template as text, but a photo in somebody's camera
+  /// roll arrives with nothing attached — no quest, no place, no Bsheel. The
+  /// band is drawn into the image so a reposted photo still says where it
+  /// came from.
+  ///
+  /// Video is saved as-is. Burning a caption into a video means re-encoding
+  /// it, which is a transcoding dependency and a long wait on a phone, so it
+  /// is deliberately not attempted rather than done badly. The share text
+  /// still carries the template.
+  Future<void> _save(BuildContext context) async {
+    Navigator.of(context).maybePop();
+    final page = pageContext;
+    HapticFeedback.selectionClick();
+    final url = mediaUrl;
+    if (url == null || url.isEmpty) return;
+
+    if (!page.mounted) return;
+    _tell(page, 'Preparing…');
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) throw Exception('download failed');
+
+      final isVideo = (mediaType ?? '').toLowerCase().contains('video');
+      Uint8List bytes = response.bodyBytes;
+      var extension = isVideo ? 'mp4' : 'jpg';
+      if (!isVideo) {
+        final branded = await BrandedMedia.brand(
+          bytes,
+          questTitle: questTitle ?? '',
+          country: questCountryName,
+          caption: caption,
+          username: postUsername,
+        );
+        // A photo we could not decode is still the photo they asked for, so
+        // it saves unbranded rather than failing.
+        if (branded != null) {
+          bytes = branded;
+          extension = 'png';
+        }
+      }
+
+      final directory = await getTemporaryDirectory();
+      final file = File(
+        '${directory.path}/bsheel_${postId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '')}.$extension',
+      );
+      await file.writeAsBytes(bytes);
+
+      // The system sheet is what offers "Save to Photos" / "Save to Files",
+      // and on the web it becomes a download. Going through it avoids a
+      // gallery plugin and the photo-library permission that comes with one.
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile(file.path, mimeType: isVideo ? 'video/mp4' : 'image/png')
+          ],
+          text: ShareTemplate.quest(
+            postId: postId,
+            questTitle: questTitle ?? '',
+            country: questCountryName,
+            caption: caption,
+            username: postUsername,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (page.mounted) _tell(page, 'Could not save that. Please try again.');
+    }
+  }
+
+  void _tell(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _share(BuildContext context) async {
     Navigator.of(context).maybePop();
     context = pageContext;
@@ -91,8 +195,13 @@ class _PostActionsSheet extends StatelessWidget {
     ref.read(analyticsProvider).postShared(postId);
     await SharePlus.instance.share(
       ShareParams(
-        text:
-            'Check out this quest by @$postUsername on BSHEEL!\n\n${DeepLinkConfig.postLink(postId)}',
+        text: ShareTemplate.quest(
+          postId: postId,
+          questTitle: questTitle ?? '',
+          country: questCountryName,
+          caption: caption,
+          username: postUsername,
+        ),
       ),
     );
   }
@@ -308,6 +417,15 @@ class _PostActionsSheet extends StatelessWidget {
             tint: QuestColors.osPrimary,
             onTap: () => _share(context),
           ),
+          if ((mediaUrl ?? '').isNotEmpty) ...[
+            Container(height: 1, color: ink.withAlpha(30)),
+            _ActionRow(
+              icon: Icons.download_rounded,
+              label: 'SAVE',
+              tint: QuestColors.osPrimary,
+              onTap: () => _save(context),
+            ),
+          ],
           Container(height: 1, color: ink.withAlpha(30)),
           _ActionRow(
             icon: Icons.flag_rounded,

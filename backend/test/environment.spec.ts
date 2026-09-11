@@ -14,6 +14,25 @@ describe('validateEnvironment', () => {
     expect(environment.AUTH_EMAIL_CONFIRMATION_REQUIRED).toBe(true);
   });
 
+  it('enables submission verification when the variable is absent', () => {
+    // Fail-safe rather than fail-silent. Verifying that a device was where a
+    // quest required is the product, so a deployment that simply forgot the
+    // variable must get the verification, not quietly skip it. Disabling is
+    // a deliberate act and has to be spelled out.
+    expect(
+      validateEnvironment({ NODE_ENV: 'test' }).AGENT_SUBMISSION_VERIFICATION_ENABLED,
+    ).toBe(true);
+  });
+
+  it('disables submission verification only on an explicit false', () => {
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'test',
+        AGENT_SUBMISSION_VERIFICATION_ENABLED: 'false',
+      }).AGENT_SUBMISSION_VERIFICATION_ENABLED,
+    ).toBe(false);
+  });
+
   it('rejects an inverted connection-pool range', () => {
     expect(() =>
       validateEnvironment({ DATABASE_POOL_MIN: '21', DATABASE_POOL_MAX: '20' }),

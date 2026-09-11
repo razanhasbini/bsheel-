@@ -9,6 +9,10 @@ abstract final class DeepLinkConfig {
   /// the app or falls back to the App Store / Play Store.
   static const String domain = 'admin.bsheel.app';
 
+  /// Public host that owns the verified Number Verification handoff.
+  /// Unlike the share-link host, this must never sit behind admin HTTP auth.
+  static const String authDomain = 'api.bsheel.app';
+
   /// Build a shareable HTTPS link to a feed post.
   static String postLink(String postId) => 'https://$domain/post/$postId';
 

@@ -28,7 +28,23 @@ async function bootstrap() {
     .split(',')
     .map((origin) => origin.trim());
   app.useWebSocketAdapter(new ConfiguredSocketIoAdapter(app, allowedOrigins));
-  app.setGlobalPrefix(config.get('API_PREFIX', { infer: true }));
+  app.setGlobalPrefix(config.get('API_PREFIX', { infer: true }), {
+    // Three paths must live at the domain root, outside /api/v1.
+    //
+    // Apple and Google fetch the association files from a fixed location and
+    // will not follow a prefix; if they 404 there, the OS never learns the
+    // app owns these links and every one of them opens in a browser instead.
+    // That is precisely what happened in TestFlight: sign-in completed and
+    // then dead-ended in Safari.
+    //
+    // The callback page is rooted for the same reason — it is the URL those
+    // files claim, so the two have to agree.
+    exclude: [
+      '.well-known/apple-app-site-association',
+      '.well-known/assetlinks.json',
+      'phone-signin-callback',
+    ],
+  });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.useGlobalPipes(
     new ValidationPipe({

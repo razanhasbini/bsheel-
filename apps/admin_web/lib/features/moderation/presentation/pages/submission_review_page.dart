@@ -299,7 +299,10 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
   Future<void> approve() async {
     final handler = widget.onApprove;
     if (handler == null || _busy || !_pending) return;
-    if (widget.blockedReason != null) return;
+    if (widget.blockedReason != null) {
+      _showBlocked();
+      return;
+    }
 
     final note = _note.text.trim();
     final confirmed = await showDialog<bool>(
@@ -353,7 +356,10 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
   Future<void> reject() async {
     final handler = widget.onReject;
     if (handler == null || _busy || !_pending) return;
-    if (widget.blockedReason != null) return;
+    if (widget.blockedReason != null) {
+      _showBlocked();
+      return;
+    }
 
     final note = _note.text.trim();
     if (note.isEmpty) {
@@ -404,6 +410,20 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
     if (!mounted) return;
     setState(() => _isActioning = false);
     if (ok) _note.clear();
+  }
+
+  /// Says why a decision did not happen.
+  ///
+  /// Both decision paths used to return silently when blocked. The button
+  /// carries a small caption and is disabled, but the `A` / `R` keyboard
+  /// shortcuts route here too — and a keypress that does nothing at all
+  /// reads as the panel being broken, not as a rule being enforced. It is
+  /// the difference between "I clicked approve and nothing happened" and
+  /// knowing there is one more photo to look at.
+  void _showBlocked() {
+    final reason = widget.blockedReason;
+    if (reason == null) return;
+    _snack(context, '$reason — scroll through every photo and video first.');
   }
 
   void _showNoteRequired() {

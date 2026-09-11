@@ -15,6 +15,8 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../reactions/presentation/widgets/bsheeel_dialog.dart';
 import '../widgets/arcade_page_chrome.dart';
 import '../../../../core/services/analytics_reporter.dart';
+import '../widgets/journey_timeline.dart';
+import '../widgets/detail_primitives.dart';
 
 /// Quest details, drawn to `export/mobile/06-quest-detail.jpg`.
 ///
@@ -221,7 +223,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
-                                child: _StatChip(
+                                child: StatChip(
                                   label: l.difficulty,
                                   value: quest.difficulty.toUpperCase(),
                                   // White in the render: the three chips run
@@ -232,7 +234,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: _StatChip(
+                                child: StatChip(
                                   label: l.reward,
                                   value: '${quest.xpReward} XP',
                                   tint: QuestColors.osPrimary,
@@ -240,7 +242,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: _StatChip(
+                                child: StatChip(
                                   label: l.timeLeft,
                                   value:
                                       _timeRemaining(expiresAt, isActiveQuest),
@@ -260,7 +262,7 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                         const SizedBox(height: 14),
 
                         // ── Mission briefing ───────────────────────
-                        _BlockLabel(l.missionBriefing),
+                        BlockLabel(l.missionBriefing),
                         const SizedBox(height: 7),
                         Text(
                           quest.description,
@@ -271,22 +273,27 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
                         ),
                         const SizedBox(height: 14),
 
+                        // ── The route, when this quest is part of one ──
+                        // Renders nothing for an ordinary quest, so it costs
+                        // a network call and no layout on the common case.
+                        JourneyTimeline(questId: quest.id),
+
                         // ── Acceptance criteria ────────────────────
-                        _BlockLabel(l.acceptanceCriteria),
+                        BlockLabel(l.acceptanceCriteria),
                         const SizedBox(height: 8),
-                        _CheckRow(text: l.criteriaProof, met: true),
+                        CheckRow(text: l.criteriaProof, met: true),
                         const SizedBox(height: 8),
-                        _CheckRow(text: l.criteriaQuality, met: true),
+                        CheckRow(text: l.criteriaQuality, met: true),
                         const SizedBox(height: 8),
-                        _CheckRow(text: l.criteriaCaption, met: true),
+                        CheckRow(text: l.criteriaCaption, met: true),
                         const SizedBox(height: 14),
 
                         // ── Submission requirements ────────────────
-                        _BlockLabel(l.submissionRequirements),
+                        BlockLabel(l.submissionRequirements),
                         const SizedBox(height: 8),
-                        _CheckRow(text: l.reqCaptureProof, met: isSubmitted),
+                        CheckRow(text: l.reqCaptureProof, met: isSubmitted),
                         const SizedBox(height: 8),
-                        _CheckRow(text: l.reqUploadProof, met: isSubmitted),
+                        CheckRow(text: l.reqUploadProof, met: isSubmitted),
                       ],
                     ),
                   ),
@@ -379,142 +386,6 @@ class _QuestDetailsPageState extends ConsumerState<QuestDetailsPage> {
 
 /// Mono 11 / wide tracking / soft ink. The frame uses exactly one label
 /// treatment for every block on the page.
-class _BlockLabel extends StatelessWidget {
-  const _BlockLabel(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: QuestTypography.osLabelMedium.copyWith(
-        color: QuestColors.osTextSecondary,
-        fontSize: 11,
-        letterSpacing: 1.32,
-      ),
-    );
-  }
-}
-
-// ── Stat chip ──────────────────────────────────────────────────────────────
-
-/// `r12`, 2px ink, 3px ink shadow, 10/11 padding. Label mono 8, value
-/// Syne 700 15 — or mono 14 for the countdown, which must not reflow.
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.tint,
-    this.mono = false,
-  });
-
-  final String label;
-  final String value;
-  final Color tint;
-  final bool mono;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    // Derived from the fill: violet takes white, gold takes osAccentInk,
-    // everything else ink. Never alpha-muted on an accent ground.
-    final fg = QuestColors.onAccent(tint);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-      decoration: BoxDecoration(
-        color: tint,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ink, width: 2),
-        boxShadow: QuestSpacing.shadowSm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: QuestTypography.osLabelSmall.copyWith(
-              color: fg,
-              fontSize: 8,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 1),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: mono
-                  ? QuestTypography.osLabelMedium.copyWith(
-                      color: fg,
-                      fontSize: 14,
-                      letterSpacing: 0,
-                      height: 1.2,
-                    )
-                  : QuestTypography.osHeadlineMedium.copyWith(
-                      color: fg,
-                      fontSize: 15,
-                      height: 1.2,
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Criteria / requirement row ─────────────────────────────────────────────
-
-/// An 18pt square with a 5px radius and a 2px ink outline, jade when the
-/// item is satisfied and warm cream when it is not, then the sentence in
-/// normal case. The frame draws no card around these.
-class _CheckRow extends StatelessWidget {
-  const _CheckRow({required this.text, required this.met});
-  final String text;
-  final bool met;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = QuestColors.text(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: met ? QuestColors.osSuccess : QuestColors.osSurface,
-              borderRadius: BorderRadius.circular(QuestSpacing.radiusDot),
-              border: Border.all(color: ink, width: 2),
-            ),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            text,
-            style: QuestTypography.osBodyMedium.copyWith(
-              color:
-                  met ? QuestColors.osTextPrimary : QuestColors.osTextSecondary,
-              fontSize: 14,
-              height: 1.5,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Loading skeleton ───────────────────────────────────────────────────────
-
 class _DetailsSkeleton extends StatelessWidget {
   const _DetailsSkeleton();
 

@@ -24,6 +24,10 @@ import '../../data/quest_providers.dart';
 import '../widgets/arcade_page_chrome.dart';
 import '../widgets/home_arcade_widgets.dart';
 import '../widgets/home_extras.dart';
+import '../widgets/discovery_shelves.dart';
+import '../../../../core/backend/app_backend.dart';
+import '../widgets/active_journey_card.dart';
+import '../providers/journey_providers.dart';
 
 /// ──────────────────────────────────────────────────────────────────────────
 /// HOME — Arcade Pop rebuild (Direction A)
@@ -121,6 +125,35 @@ class _HomePageState extends ConsumerState<HomePage> {
       barrierColor: QuestColors.pureBlack.withAlpha(160),
       builder: (_) => _PendingListDialog(pending: pending),
     );
+  }
+
+  /// The completed-count a journey card should animate from, if the server
+  /// still owes this player an unlock moment.
+  ///
+  /// Captured once per run: the server stops reporting the unlock as soon as
+  /// it is acknowledged, and the transition must not vanish halfway through
+  /// because its own trigger was cleared.
+  final Map<String, int> _advanceFrom = {};
+
+  int? _captureAdvance(JourneyRun run) {
+    if (run.unseenUnlock == null) return _advanceFrom[run.runId];
+    return _advanceFrom.putIfAbsent(run.runId, () => run.completedSteps);
+  }
+
+  /// Marks the unlock seen once the card has actually shown the transition.
+  ///
+  /// Show first, acknowledge after: if the app dies mid-animation the server
+  /// should still owe the moment rather than having forgotten it. The
+  /// richer celebration lives on the journey page — here the card simply
+  /// moves from the old state to the new one and stays there, which is the
+  /// part that was missing when this was a modal that appeared and left.
+  Future<void> _acknowledge(String runId) async {
+    try {
+      await AppBackend.repositories.journeys.acknowledgeUnlock(runId);
+      if (mounted) ref.invalidate(activeJourneysProvider);
+    } catch (_) {
+      // Worst case the moment is offered again.
+    }
   }
 
   @override
@@ -358,12 +391,36 @@ class _HomePageState extends ConsumerState<HomePage> {
                             // what is in review — see migration 0021, which
                             // narrowed the unique index to 'assigned' only.
 
+                            // A journey outlives its checkpoints. Approving
+                            // stage 1 clears the assigned quest, and before
+                            // this the whole journey vanished with it —
+                            // leaving the player to rediscover stage 2 on
+                            // Home as if it were a stranger. The card sits
+                            // above the hero so the parent stays visible
+                            // whatever the child quest is doing.
+                            final journey = ref.watch(featuredJourneyProvider);
+
                             return Column(
                               children: [
                                 if (pendingList.isNotEmpty) ...[
                                   _PendingReviewCard(
                                     pending: pendingList,
                                     onOpen: () => _showPendingList(pendingList),
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
+                                if (journey != null) ...[
+                                  ActiveJourneyCard(
+                                    run: journey,
+                                    advanceFrom: _captureAdvance(journey),
+                                    onUnlockShown: () =>
+                                        _acknowledge(journey.runId),
+                                    onOpen: () => context.pushNamed(
+                                      RouteNames.journeyDetail,
+                                      pathParameters: {'runId': journey.runId},
+                                    ),
+                                    onOpenMap: () =>
+                                        context.pushNamed(RouteNames.map),
                                   ),
                                   const SizedBox(height: 14),
                                 ],
@@ -383,7 +440,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                                       },
                                     ),
                                   )
-                                else
+                                else if (journey == null ||
+                                    !journey.canContinue)
+                                  // Offered only when there is nothing else
+                                  // to do. Rolling a fresh quest while a
+                                  // checkpoint waits would pull the player
+                                  // off a journey they already started.
                                   _SlotMachineZone(onGenerate: _rollWheel),
                               ],
                             );
@@ -456,6 +518,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                           ),
                         ),
                       ),
+
+                    // ── Discovery shelves ──
+                    // Below the roll and the hero, deliberately: the
+                    // spontaneous "give me something now" loop stays the top
+                    // of this screen, and discovery is what you scroll into
+                    // once that is answered. The server chooses which
+                    // shelves exist, so this renders nothing at all when
+                    // there is nothing worth showing.
+                    const SliverToBoxAdapter(child: DiscoveryShelves()),
 
                     // ── Weekly XP race — visible motivation toward a goal ──
                     SliverToBoxAdapter(

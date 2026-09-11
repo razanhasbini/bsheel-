@@ -53,7 +53,19 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber, {String? email}) {
+  Future<AuthResult> signInWithPhone(
+    String phoneNumber, {
+    String? email,
+    String? password,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<AuthResult> signInWithPhonePassword(
+    String phoneNumber,
+    String password,
+  ) {
     throw UnimplementedError();
   }
 

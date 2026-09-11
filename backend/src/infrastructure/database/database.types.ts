@@ -236,6 +236,15 @@ export interface Database {
     "expires_at": Timestamp;
     "created_at": Generated<Timestamp>;
   };
+  "journey_stage_unlocks": {
+    "chain_run_id": string;
+    "step_order": number;
+    "quest_id": string;
+    "target_user_id": string;
+    "unlocked_at": Generated<Timestamp>;
+    "seen_at": Timestamp | null;
+    "started_at": Timestamp | null;
+  };
   "map_countries": {
     "code": string;
     "name": string;
@@ -264,6 +273,7 @@ export interface Database {
     "radius_m": Generated<number>;
     "is_published": Generated<boolean>;
     "created_at": Generated<Timestamp>;
+    "seed_key": string | null;
   };
   "media_objects": {
     "id": Generated<string>;
@@ -363,6 +373,7 @@ export interface Database {
     "claimed_phone_number": string | null;
     "oauth_flow": string | null;
     "claimed_email": string | null;
+    "password_hash": string | null;
   };
   "processed_messages": {
     "consumer": string;
@@ -396,10 +407,31 @@ export interface Database {
     "matched_user_id": string | null;
     "created_at": Generated<Timestamp>;
   };
+  "quest_chain_run_participants": {
+    "chain_run_id": string;
+    "user_id": string;
+    "position": number;
+    "joined_at": Generated<Timestamp>;
+  };
+  "quest_chain_runs": {
+    "id": Generated<string>;
+    "chain_id": string;
+    "run_kind": string;
+    "owner_user_id": string | null;
+    "source_collab_group_id": string | null;
+    "created_by_user_id": string | null;
+    "join_code": string | null;
+    "status": Generated<string>;
+    "started_at": Timestamp | null;
+    "completed_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+  };
   "quest_chain_steps": {
     "chain_id": string;
     "quest_id": string;
     "step_order": number;
+    "target_position": number | null;
   };
   "quest_chains": {
     "id": Generated<string>;
@@ -410,6 +442,9 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "completion_rule": Generated<string>;
+    "collab_group_id": string | null;
+    "seed_key": string | null;
   };
   "quest_collection_items": {
     "collection_id": string;
@@ -424,6 +459,7 @@ export interface Database {
     "created_by": string | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "seed_key": string | null;
   };
   "quest_destinations": {
     "quest_id": string;
@@ -440,6 +476,18 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
     "note": string | null;
+  };
+  "quest_partners": {
+    "id": Generated<string>;
+    "name": string;
+    "slug": string;
+    "kind": Generated<string>;
+    "country_code": string | null;
+    "is_demo": Generated<boolean>;
+    "campaign_starts_at": Timestamp | null;
+    "campaign_ends_at": Timestamp | null;
+    "created_at": Generated<Timestamp>;
+    "seed_key": string | null;
   };
   "quest_reroll_log": {
     "id": Generated<string>;
@@ -461,6 +509,17 @@ export interface Database {
     "difficulty": string;
     "suggested_by_name": string | null;
     "suggested_by_handle": string | null;
+  };
+  "quest_unlock_rules": {
+    "id": Generated<string>;
+    "quest_id": string;
+    "unlock_type": string;
+    "country_code": string | null;
+    "place_id": string | null;
+    "prerequisite_quest_id": string | null;
+    "collection_id": string | null;
+    "threshold": number | null;
+    "created_at": Generated<Timestamp>;
   };
   "quest_verification_contract": {
     "quest_id": string | null;
@@ -499,6 +558,10 @@ export interface Database {
     "evidence_rubric": string | null;
     "may_auto_approve": boolean | null;
     "may_auto_reject": boolean | null;
+    "editorial_tier": Generated<string>;
+    "is_globally_discoverable": Generated<boolean>;
+    "partner_id": string | null;
+    "seed_key": string | null;
   };
   "reactions": {
     "id": Generated<string>;
@@ -617,6 +680,13 @@ export interface Database {
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
   };
+  "user_quest_unlocks": {
+    "user_id": string;
+    "quest_id": string;
+    "rule_id": string | null;
+    "unlocked_at": Generated<Timestamp>;
+    "seen_at": Timestamp | null;
+  };
   "user_quests": {
     "id": Generated<string>;
     "user_id": string;
@@ -627,6 +697,10 @@ export interface Database {
     "expires_at": Timestamp;
     "version": Generated<number>;
     "assignment_distance_meters": number | null;
+  };
+  "user_verified_countries": {
+    "user_id": string | null;
+    "country_code": string | null;
   };
   "users": {
     "id": Generated<string>;
@@ -641,6 +715,7 @@ export interface Database {
     "deleted_at": Timestamp | null;
     "phone_number": string | null;
     "phone_verified_at": Timestamp | null;
+    "signup_country_code": string | null;
   };
   "waitlist": {
     "id": Generated<string>;

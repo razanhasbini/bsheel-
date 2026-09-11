@@ -1,0 +1,16 @@
+[
+  { "seedKey": "bsheel:col:discover-lebanon", "name": "Discover Lebanon", "countryCode": "LB",
+    "description": "Bread, ruins, cedars and the sea — the country in six challenges.",
+    "quests": ["bsheel:q:lb-manoushe", "bsheel:q:lb-baalbek-columns", "bsheel:q:lb-cedars-oldest",
+               "bsheel:q:lb-tripoli-soap", "bsheel:q:chain-byblos-1", "bsheel:q:hidden-lb-cedars-view"] },
+
+  { "seedKey": "bsheel:col:explore-qatar", "name": "Explore Qatar", "countryCode": "QA",
+    "description": "Stadium, souq and the desert that ends in a sea.",
+    "quests": ["bsheel:q:qa-lusail-final", "bsheel:q:qa-souq-falcon", "bsheel:q:qa-souq-clues",
+               "bsheel:q:hidden-qa-inland-sea"] },
+
+  { "seedKey": "bsheel:col:mediterranean-table", "name": "Mediterranean Table", "countryCode": null,
+    "description": "Eat your way around one sea — five countries, five kitchens.",
+    "quests": ["bsheel:q:lb-manoushe", "bsheel:q:ps-nablus-kunafa", "bsheel:q:eg-khan-coffee",
+               "bsheel:q:it-rialto-lunch", "bsheel:q:tr-bazaar-haggle"] }
+]

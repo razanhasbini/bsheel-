@@ -3,6 +3,7 @@
 #
 #   ./deploy.sh --preflight-only      # inspect the box, change nothing
 #   ./deploy.sh                       # sync + build + start + verify
+#   ./deploy.sh --seed                # also seed the curated quest catalogue
 #   ./deploy.sh --admin               # also build and upload the admin panel
 #   ./deploy.sh --apply-caddy         # also publish it through Caddy (with rollback)
 #
@@ -17,12 +18,14 @@ KEY="${BSHEEL_SSH_KEY:-$HOME/.ssh/bsheel_deploy}"
 REMOTE_DIR="${BSHEEL_REMOTE_DIR:-/opt/bsheel}"
 PREFLIGHT_ONLY=0
 WITH_ADMIN=0
+WITH_SEED=0
 APPLY_CADDY=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --preflight-only) PREFLIGHT_ONLY=1; shift ;;
     --admin)          WITH_ADMIN=1; shift ;;
+    --seed)           WITH_SEED=1; shift ;;
     --apply-caddy)    APPLY_CADDY=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -94,6 +97,21 @@ $SSH "$SERVER" '
   cd '"$REMOTE_DIR"'/deploy && docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=60 api
   exit 1
 ' || fail "the API did not come up; Caddy was not touched, so quest-app is unaffected"
+
+if [ "$WITH_SEED" -eq 1 ]; then
+  step "Seed the curated quest catalogue"
+  # Idempotent on `seed_key`, so re-running only updates what changed and a
+  # second run is a no-op. Deliberately opt-in and AFTER the readiness check:
+  # migrations are part of every deploy because the schema must match the
+  # code, but content is a decision, and it is not one to make while the API
+  # is still coming up.
+  #
+  # No --prune. Pruning deletes seeded rows no longer in the files, which on
+  # a live database can take content out from under players mid-quest.
+  $SSH "$SERVER" "cd $REMOTE_DIR/deploy && docker compose --env-file .env.prod -f docker-compose.prod.yml \
+    run --rm --no-deps api node scripts/seed-quests.mjs" \
+    || fail "seeding failed — the API is up and serving whatever it had before"
+fi
 
 if [ "$WITH_ADMIN" -eq 1 ]; then
   step "Build the admin dashboard for /v2/"

@@ -9,10 +9,11 @@ import { AuthRepository } from './infrastructure/auth.repository.js';
 import { OAuthIdentityVerifier } from './infrastructure/oauth-identity-verifier.js';
 import { PhoneSigninStateRepository } from './infrastructure/phone-signin-state.repository.js';
 import { AuthController } from './presentation/auth.controller.js';
+import { PhoneSigninLandingController } from './presentation/phone-signin-landing.controller.js';
 
 @Module({
   imports: [PassportModule, JwtModule.register({}), CamaraModule],
-  controllers: [AuthController],
+  controllers: [AuthController, PhoneSigninLandingController],
   providers: [
     AuthService,
     AuthRepository,

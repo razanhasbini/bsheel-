@@ -8,6 +8,24 @@ final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 final e164Pattern = RegExp(r'^\+[1-9]\d{6,14}$');
 
 abstract final class LoginCredentials {
+  /// Strip the spaces, dashes and brackets people naturally type into a
+  /// phone field. Whatever is left has to be E.164, because that is the only
+  /// shape the account was created under.
+  static String normalizePhone(String value) {
+    return value.replaceAll(RegExp(r'[\s\-()]'), '');
+  }
+
+  static String? validatePhone(String value) {
+    final normalized = normalizePhone(value);
+    if (normalized.isEmpty || normalized == '+') {
+      return 'Phone number is required';
+    }
+    if (!e164Pattern.hasMatch(normalized)) {
+      return 'Use international format, e.g. +96170123456';
+    }
+    return null;
+  }
+
   /// Trim + lower-case so `Foo@Bar.com` resolves to the same account the
   /// signup page created (signup lower-cases before calling Supabase).
   static String normalizeIdentifier(String value) {

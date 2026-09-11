@@ -53,6 +53,16 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Stream<AuthState> get authStateChanges => _changes.stream;
 
+  /// Announces that a refresh failed and the stored session is gone.
+  ///
+  /// The tokens were already cleared by the client; this is what tells the
+  /// rest of the app, so the router can send the user to sign in rather than
+  /// holding them on a screen whose every request now 401s.
+  void notifySessionExpired() {
+    _currentUser = null;
+    _changes.add(const AuthState(AuthChangeEvent.signedOut, null));
+  }
+
   @override
   AuthUser? get currentUser => _currentUser;
 
@@ -245,8 +255,26 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthResult> signInWithPhone(String phoneNumber,
-      {String? email}) async {
+  Future<AuthResult> signInWithPhonePassword(
+    String phoneNumber,
+    String password,
+  ) async {
+    final data = apiObject(
+      await _client.post(
+        'auth/login',
+        authenticated: false,
+        body: {'phoneNumber': phoneNumber, 'password': password},
+      ),
+    );
+    return _acceptTokens(ApiTokenPair.fromJson(data), AuthChangeEvent.signedIn);
+  }
+
+  @override
+  Future<AuthResult> signInWithPhone(
+    String phoneNumber, {
+    String? email,
+    String? password,
+  }) async {
     final start = apiObject(
       await _client.post(
         'auth/phone/start',
@@ -255,6 +283,7 @@ class ApiAuthRepository implements AuthRepository {
           'phoneNumber': phoneNumber,
           'ageVerified': true,
           if (email != null && email.isNotEmpty) 'email': email,
+          if (password != null && password.isNotEmpty) 'password': password,
         },
       ),
     );

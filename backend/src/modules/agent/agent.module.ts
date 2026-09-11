@@ -22,6 +22,7 @@ import { OpenAiAgentRunner } from './infrastructure/openai/openai-agent.runner.j
  * queue-consuming glue.
  */
 @Module({
+  
   imports: [CamaraModule, ComputerVisionModule, MediaModule, GeofencingModule],
   providers: [
     AgentContextRepository,

@@ -308,6 +308,27 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.pendingReviewReminder:
       case NotificationType.streakAtRisk:
         context.goNamed(RouteNames.home);
+      // Journey notifications carry the RUN as their reference, so a tap
+      // lands on the journey itself. Sending them to Home and throwing a
+      // modal is what left people asking what had changed.
+      // A hidden quest that just opened: land on the quest itself, since it
+      // may belong to no journey at all.
+      case NotificationType.hiddenQuestDiscovered:
+        if (refId != null) {
+          context.pushNamed(RouteNames.questDetails,
+              pathParameters: {'id': refId});
+        } else {
+          context.goNamed(RouteNames.home);
+        }
+      case NotificationType.journeyStageUnlocked:
+      case NotificationType.journeyTeammateAdvanced:
+      case NotificationType.journeyCompleted:
+        if (refId != null) {
+          context.pushNamed(RouteNames.journeyDetail,
+              pathParameters: {'runId': refId});
+        } else {
+          context.goNamed(RouteNames.home);
+        }
       case NotificationType.submissionApproved:
       case NotificationType.submissionRejected:
       case NotificationType.newSubmission:
