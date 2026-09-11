@@ -500,23 +500,48 @@ async function main() {
          RETURNING id`,
         [visitor.id, partnerQuests[0]],
       )).rows[0];
-      await client.query(
+      // The same key/upload/media_objects shape the other seeded
+      // submissions use. Without the media_objects row POST /media/sign
+      // finds nothing, and the proof wall -- the one section that shows
+      // actual pictures -- renders placeholders while looking broken.
+      const partnerKey = `submissions/${visitor.id}/${randomUUID()}.png`;
+      await putObject(partnerKey);
+      const partnerSubmission = (await client.query(
         `INSERT INTO submissions
            (user_quest_id, user_id, media_url, media_type, caption, status,
             show_in_feed, visibility, submitted_at, reviewed_at, reviewed_by)
          VALUES ($1, $2, $3, 'image', 'Seeded partner proof.', 'approved',
                  $4, 'visible', now() - interval '3 days',
-                 now() - interval '3 days' + interval '2 hours', $5)`,
+                 now() - interval '3 days' + interval '2 hours', $5)
+         RETURNING id`,
         [
           assignment.id,
           visitor.id,
-          `submissions/${visitor.id}/${randomUUID()}.jpg`,
+          partnerKey,
           // One kept off the feed, so the proof wall demonstrates that an
           // approved-but-private submission still counts as a completion
           // while its media stays private.
           index !== 0,
           userIds.moderator,
         ],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO media_objects
+           (user_id, client_request_id, object_key, kind, status, content_type,
+            declared_size_bytes, stored_size_bytes, etag, submission_id,
+            upload_expires_at, created_at, completed_at)
+         VALUES ($1, gen_random_uuid(), $2, 'submission', 'ready', 'image/png',
+                 $3, $3, $4, $5, now(), now() - interval '3 days',
+                 now() - interval '3 days')`,
+        [visitor.id, partnerKey, pngBytes.length, pngMd5, partnerSubmission.id],
+      );
+      // The link the real upload flow writes, and the one the CV provider
+      // and the media quota read.
+      await client.query(
+        `INSERT INTO media_submission_links (media_object_id, submission_id)
+         SELECT id, $2 FROM media_objects WHERE object_key = $1
+         ON CONFLICT DO NOTHING`,
+        [partnerKey, partnerSubmission.id],
       );
 
       // Exposure telemetry, so the funnel's top half is populated. Client-
