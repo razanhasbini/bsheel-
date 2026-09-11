@@ -46,6 +46,32 @@ abstract final class BackendConfig {
     return uri;
   }
 
+  /// Where the business analytics dashboard is served (#14's "link to the
+  /// dashboard on their account").
+  ///
+  /// Supplied at build time and **not derived from [apiUrl]**. Guessing a
+  /// host — swapping `api.` for `admin.`, say — produces a link that looks
+  /// right, ships, and 404s for every business owner who taps it, with
+  /// nothing in the build to show it was ever a guess.
+  static const String dashboardUrl = String.fromEnvironment(
+    'DASHBOARD_URL',
+    defaultValue: '',
+  );
+
+  /// The dashboard link, or null when this build was not told where the
+  /// dashboard lives. Null means the profile shows the business without
+  /// offering a link, rather than offering one that goes nowhere.
+  static Uri? get dashboardUri {
+    final raw = dashboardUrl.trim();
+    if (raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) return null;
+    // A dashboard carries an authenticated session; http would put it on the
+    // wire in the clear.
+    if (kReleaseMode && uri.scheme != 'https') return null;
+    return uri;
+  }
+
   /// Resolved at startup so a misconfigured build fails immediately with a
   /// readable message rather than on the first network call.
   static void validate() => apiUri;
