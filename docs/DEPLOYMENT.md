@@ -186,6 +186,79 @@ The mobile app links here via `DASHBOARD_URL` in
 deliberately not derived from `API_URL`: guessing a host produces a link that
 looks right, ships, and 404s for every owner who taps it.
 
+## Taking the business feature live
+
+Three steps, and **the order matters** — each one is useless before the one
+above it. Checked against production on 2026-09-11, where step 1 had not
+happened.
+
+### 1. Deploy the API
+
+The business endpoints only exist in a build that includes
+`modules/business` and `modules/analytics`. Until the API is redeployed from
+`main`, nothing else in this list can work: the dashboard loads and every
+call 404s, and `business:provision` fails on its first write.
+
+**How to tell, in one request:**
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' https://api.bsheel.app/api/v1/businesses/me
+```
+
+- `401` — the route exists and wants a token. Deployed. Go to step 2.
+- `404` — the route is not there. The build predates the business module.
+
+The distinction matters because both look like failure from the client. Sanity-check
+the probe itself against a route you know needs auth (`profiles/me` should
+be `401`); if *that* 404s too, something else is wrong.
+
+### 2. Provision a business
+
+```bash
+cd backend
+npm run business:provision -- \
+  --api https://api.bsheel.app/api/v1 \
+  --admin-email <a super_admin> --admin-password '...' \
+  --name '<business name>' --owner '<their Bsheel username>' \
+  --place '<an existing published place>' \
+  --apply          # omit for a dry run
+```
+
+Dry run first: it resolves the owner and the places before writing anything,
+so a mistyped handle leaves nothing behind. The fourth thing it does — the
+analytics subscription — is the one that gets skipped by hand, and without
+it the owner signs in to `ANALYTICS_NOT_SUBSCRIBED`.
+
+Places must already exist and be published (admin console → Destinations).
+
+### 3. Serve the dashboard bundle
+
+```bash
+cd apps/business_web
+flutter build web \
+  --base-href=/business/ \
+  --dart-define=API_URL=https://api.bsheel.app/api/v1
+```
+
+Then serve `build/web` at `/business/` on the admin host, with the fallback
+described above. No `CORS_ORIGINS` change and no DNS record: it is the same
+origin as the admin console.
+
+### Acceptance, without opening a browser
+
+```bash
+TOKEN=<the owner's access token>
+for r in summary daily funnel quests places countries proof; do
+  curl -s -o /dev/null -w "$r %{http_code}\n" \
+    -H "authorization: Bearer $TOKEN" \
+    "https://api.bsheel.app/api/v1/businesses/<id>/analytics/$r"
+done
+```
+
+Seven `200`s means the account is provisioned *and* subscribed. A `403` on
+all seven means step 2's subscription was skipped; a `404` means the caller
+is not a member of that business.
+
 ## Mobile app
 
 Not deployed by any backend pipeline. It ships through the App Store and Play
