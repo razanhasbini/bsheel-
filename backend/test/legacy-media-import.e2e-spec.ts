@@ -19,7 +19,14 @@ const run = promisify(execFile);
 /// real thing than pointing at MinIO would be: legacy objects are fetched
 /// over plain HTTP from somewhere this process has no credentials for, which
 /// is exactly what the script has to handle.
-describe('legacy media import (e2e)', { timeout: 180_000 }, () => {
+/// Skipped without object storage, the same condition
+/// proof-provenance.e2e-spec.ts uses: the four cases that matter here fetch
+/// bytes and put them in a bucket, and CI runs no MinIO. The dry-run cases
+/// could run anywhere, but splitting the suite to save two assertions in an
+/// environment that cannot exercise the feature is not worth the seam.
+const storageConfigured = Boolean(process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID);
+
+describe.runIf(storageConfigured)('legacy media import (e2e)', { timeout: 180_000 }, () => {
   let harness: E2eHarness;
   let author: TestUser;
   let legacy: Server;
