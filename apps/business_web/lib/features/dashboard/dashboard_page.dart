@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/shared_ui.dart';
 
 import '../../core/providers/analytics_providers.dart';
+import '../../core/providers/proof_controller.dart';
 import '../../core/providers/session_providers.dart';
 import 'widgets/completion_chart.dart';
 import 'widgets/stat_tile.dart';
+import 'widgets/team_section.dart';
 
 /// The partner dashboard (#50).
 ///
@@ -124,6 +126,11 @@ class _Dashboard extends ConsumerWidget {
               _OriginsSection(businessId: business.id),
               const SizedBox(height: 28),
               _ProofSection(businessId: business.id),
+              const SizedBox(height: 28),
+              // Last, because it is administration rather than insight —
+              // but on the dashboard, because before this an owner had to
+              // ask an admin to add their own staff.
+              TeamSection(business: business),
               const SizedBox(height: 48),
             ],
           ],
@@ -333,14 +340,63 @@ class _DailySection extends ConsumerWidget {
   }
 }
 
-class _QuestSection extends ConsumerWidget {
+class _QuestSection extends ConsumerStatefulWidget {
   const _QuestSection({required this.businessId});
 
   final String businessId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final quests = ref.watch(questPerformanceProvider(businessId));
+  ConsumerState<_QuestSection> createState() => _QuestSectionState();
+}
+
+class _QuestSectionState extends ConsumerState<_QuestSection> {
+  final _filter = TextEditingController();
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  /// Filter, then sort. Both run over the rows already fetched, which is
+  /// only honest because the fetch asks for the server's cap and the note
+  /// below says when it was reached.
+  List<BusinessQuestPerformance> _visible(
+      List<BusinessQuestPerformance> rows, String query, QuestSort sort) {
+    final needle = query.trim().toLowerCase();
+    final filtered = needle.isEmpty
+        ? [...rows]
+        : rows
+            .where((row) =>
+                row.title.toLowerCase().contains(needle) ||
+                row.placeName.toLowerCase().contains(needle))
+            .toList();
+    filtered.sort((left, right) {
+      switch (sort) {
+        case QuestSort.completions:
+          return right.completions.compareTo(left.completions);
+        case QuestSort.starts:
+          return right.starts.compareTo(left.starts);
+        case QuestSort.rate:
+          // A quest nobody started has no rate, so it sorts last rather
+          // than tying with the genuinely worst performer at zero.
+          final a = left.completionRate, b = right.completionRate;
+          if (a == null && b == null) return left.title.compareTo(right.title);
+          if (a == null) return 1;
+          if (b == null) return -1;
+          return b.compareTo(a);
+        case QuestSort.title:
+          return left.title.toLowerCase().compareTo(right.title.toLowerCase());
+      }
+    });
+    return filtered;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quests = ref.watch(questPerformanceProvider(widget.businessId));
+    final query = ref.watch(questFilterProvider);
+    final sort = ref.watch(questSortProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,20 +410,80 @@ class _QuestSection extends ConsumerWidget {
         quests.when(
           loading: () => const LinearProgressIndicator(),
           error: (_, __) => SectionError(
-            onRetry: () => ref.invalidate(questPerformanceProvider(businessId)),
+            onRetry: () =>
+                ref.invalidate(questPerformanceProvider(widget.businessId)),
           ),
-          data: (rows) => rows.isEmpty
-              ? const EmptyNote(
-                  text: 'No quests are offered at your places yet.')
-              : ArcadeCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (final (index, row) in rows.indexed)
-                        _QuestRow(row: row, isFirst: index == 0),
-                    ],
-                  ),
+          data: (rows) {
+            if (rows.isEmpty) {
+              return const EmptyNote(
+                  text: 'No quests are offered at your places yet.');
+            }
+            final visible = _visible(rows, query, sort);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 260,
+                      child: ArcadeTextField(
+                        controller: _filter,
+                        hint: 'Filter by quest or place',
+                        onChanged: (value) => ref
+                            .read(questFilterProvider.notifier)
+                            .state = value,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    DropdownButton<QuestSort>(
+                      value: sort,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(
+                            value: QuestSort.completions,
+                            child: Text('Most completed')),
+                        DropdownMenuItem(
+                            value: QuestSort.starts,
+                            child: Text('Most started')),
+                        DropdownMenuItem(
+                            value: QuestSort.rate, child: Text('Best rate')),
+                        DropdownMenuItem(
+                            value: QuestSort.title, child: Text('By name')),
+                      ],
+                      onChanged: (value) => value == null
+                          ? null
+                          : ref.read(questSortProvider.notifier).state = value,
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                if (visible.isEmpty)
+                  EmptyNote(text: 'No quests match "${query.trim()}".')
+                else
+                  ArcadeCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        for (final (index, row) in visible.indexed)
+                          _QuestRow(row: row, isFirst: index == 0),
+                      ],
+                    ),
+                  ),
+                // Named rather than silent: a filter that has only seen the
+                // first hundred rows must not be able to answer "no quests
+                // match" about rows it never received.
+                if (rows.length >= questPageSize) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Showing the first $questPageSize quests, so the filter '
+                    'covers those only.',
+                    style: QuestTypography.osBodySmall
+                        .copyWith(color: QuestColors.osRed),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );
@@ -637,7 +753,8 @@ class _ProofSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final proof = ref.watch(publicProofProvider(businessId));
+    final feed = ref.watch(proofControllerProvider(businessId));
+    final controller = ref.read(proofControllerProvider(businessId).notifier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -647,22 +764,44 @@ class _ProofSection extends ConsumerWidget {
           subtitle: 'Proof its author published to the Bsheel feed. Private '
               'proof is never shown here.',
         ),
-        proof.when(
-          loading: () => const LinearProgressIndicator(),
-          error: (_, __) => SectionError(
-            onRetry: () => ref.invalidate(publicProofProvider(businessId)),
+        if (feed.loading)
+          const LinearProgressIndicator()
+        else if (feed.items.isEmpty && feed.error != null)
+          SectionError(onRetry: controller.refresh)
+        else if (feed.items.isEmpty)
+          const EmptyNote(
+              text: 'Nobody has published proof from your places yet.')
+        else ...[
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [for (final item in feed.items) _ProofTile(item: item)],
           ),
-          data: (page) => page.items.isEmpty
-              ? const EmptyNote(
-                  text: 'Nobody has published proof from your places yet.')
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final item in page.items) _ProofTile(item: item),
-                  ],
-                ),
-        ),
+          const SizedBox(height: 14),
+          // A page that failed keeps everything already loaded and keeps the
+          // cursor, so retrying costs one request rather than the whole
+          // list.
+          if (feed.error != null) ...[
+            SectionError(
+              message: 'Could not load more posts.',
+              onRetry: controller.loadMore,
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (feed.hasMore)
+            ArcadeButton(
+              label: feed.loadingMore ? 'LOADING…' : 'LOAD MORE',
+              variant: ArcadeButtonVariant.ghost,
+              expand: false,
+              onTap: feed.loadingMore ? null : controller.loadMore,
+            )
+          else
+            // Says the list is complete, so a business is never left
+            // wondering whether there is more behind it.
+            Text('That is all ${feed.items.length} posts.',
+                style: QuestTypography.osBodySmall
+                    .copyWith(color: QuestColors.textDim(context))),
+        ],
       ],
     );
   }

@@ -469,6 +469,20 @@ suspension, an unsubscribed account and a missing `DASHBOARD_URL` are three
 separate messages because each has a different fix, and every section loads
 and fails on its own so one endpoint cannot blank the other five.
 
+Two client rules worth keeping. The proof wall **accumulates pages** through
+the keyset cursor and says "that is all N posts" when the cursor comes back
+null — a single-page read hid a business's own content behind nothing. And
+the quest filter runs on the client over rows already fetched, which is only
+honest because the fetch asks for the server's cap of 100 *and* the section
+says so when it hit it; a client-side filter over a partial list would
+answer "no quests match" about quests it never received.
+
+**Setting one up:** `npm run business:provision` (in `backend/`) does all
+four steps through the audited admin endpoints — create, claim places, add
+the owner, grant the subscription. Dry run by default. The fourth step is
+the one people forget, and without it the owner signs in to
+`ANALYTICS_NOT_SUBSCRIBED` with nothing pointing at the cause.
+
 ## High-risk invariants
 
 These are covered by integration tests in `backend/test/`. If you change one,
