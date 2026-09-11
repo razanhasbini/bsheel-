@@ -534,6 +534,8 @@ export interface Database {
     "acted": Generated<boolean>;
     "forensics": Json | null;
     "stage": string | null;
+    "relevance": string | null;
+    "content_evidence": Json | null;
   };
   "submissions": {
     "id": Generated<string>;

@@ -2,13 +2,19 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Environment } from '../../../config/environment.js';
-import { buildJudgingPrompt, describeSubmission, verdictJsonSchema } from '../domain/proof-prompt.js';
-import type {
-  ProofAnalysis,
-  ProofAnalysisRequest,
-  ProofAnalyzer,
-  ProofTier,
-  ProofVerdict,
+import {
+  buildJudgingPrompt,
+  describeSubmission,
+  parseVerdictPayload,
+  verdictJsonSchema,
+  type VerdictPayload,
+} from '../domain/proof-prompt.js';
+import {
+  escalatedAnalysis,
+  type ProofAnalysis,
+  type ProofAnalysisRequest,
+  type ProofAnalyzer,
+  type ProofTier,
 } from '../domain/proof-verification.types.js';
 
 /// Vision analysis via Anthropic's Messages API (#47).
@@ -116,15 +122,12 @@ export class ClaudeProofAnalyzer implements ProofAnalyzer {
         { model, tier, category: response.stop_details?.category ?? null },
         'Proof analysis declined by safety classifier',
       );
-      return {
+      return escalatedAnalysis({
         tier,
-        verdict: 'unclear',
-        confidence: null,
-        rationale: '',
-        escalationReason: 'The agent declined to analyse this proof. A human decision is required.',
         model,
         ...usage,
-      };
+        reason: 'The agent declined to analyse this proof. A human decision is required.',
+      });
     }
 
     const call = response.content.find(
@@ -132,33 +135,17 @@ export class ClaudeProofAnalyzer implements ProofAnalyzer {
     );
     if (!call || call.type !== 'tool_use') {
       this.logger.warn({ model, tier, stopReason: response.stop_reason }, 'Proof analysis returned no verdict');
-      return {
+      return escalatedAnalysis({
         tier,
-        verdict: 'unclear',
-        confidence: null,
-        rationale: '',
-        escalationReason: 'The agent returned no verdict. A human decision is required.',
         model,
         ...usage,
-      };
+        reason: 'The agent returned no verdict. A human decision is required.',
+      });
     }
 
-    const input = call.input as {
-      verdict: ProofVerdict;
-      confidence: number;
-      rationale: string;
-      escalation_reason: string;
-    };
-    return {
-      tier,
-      verdict: input.verdict,
-      confidence: Number.isFinite(input.confidence)
-        ? Math.min(1, Math.max(0, input.confidence))
-        : null,
-      rationale: (input.rationale ?? '').trim().slice(0, 4000),
-      escalationReason: (input.escalation_reason ?? '').trim().slice(0, 500),
-      model,
-      ...usage,
-    };
+    // Same clamping and truncation as the OpenAI adapter, from the same
+    // function, so a per-provider accuracy difference in the eval is a
+    // difference in judgement and not in post-processing.
+    return parseVerdictPayload(call.input as VerdictPayload, tier, model, usage);
   }
 }

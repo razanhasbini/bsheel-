@@ -1,6 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService, type DatabaseTransaction } from '../../../infrastructure/database/database.service.js';
-import type { LocationSignals, ProofAnalysis } from '../domain/proof-verification.types.js';
+import type {
+  LocationSignals,
+  ProofAnalysis,
+  ProofObservation,
+  ProofVerdict,
+  VerificationState,
+} from '../domain/proof-verification.types.js';
+
+const OBSERVATION_KINDS: readonly ProofObservation['kind'][] = ['action', 'object', 'landmark', 'location_cue'];
+
+/// Reads back what `complete()` wrote into content_evidence.
+///
+/// Defensive because the column is jsonb: a row written by an older build, or
+/// by a hand-run fixture, must degrade to "no observations" rather than
+/// throwing inside a queue worker.
+function parseObservations(raw: unknown): readonly ProofObservation[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.label !== 'string' || record.label.length === 0) return [];
+    const kind = (OBSERVATION_KINDS as readonly string[]).includes(String(record.kind))
+      ? (record.kind as ProofObservation['kind'])
+      : ('object' as const);
+    const confidence = typeof record.confidence === 'number' && Number.isFinite(record.confidence)
+      ? Math.min(1, Math.max(0, record.confidence))
+      : 0;
+    return [{ kind, label: record.label, present: record.present === true, confidence }];
+  });
+}
 
 /// What the analyzer needs to judge one submission, gathered in a single read.
 export interface VerificationSubject {
@@ -90,6 +119,7 @@ export class ProofVerificationRepository {
              location_verified = $7, location_retrieved = $8, geofence_verified = $9,
              input_tokens = $10, output_tokens = $11, duration_ms = $12,
              stage = $13, acted = $14,
+             relevance = $15, content_evidence = $16::jsonb,
              last_error = NULL, completed_at = now()
          WHERE submission_id = $1`,
         [
@@ -107,6 +137,13 @@ export class ProofVerificationRepository {
           durationMs,
           provenance.stage,
           provenance.acted,
+          analysis.relevance,
+          // Null rather than an empty object when nothing was observed, so
+          // "no vision pass ran" stays distinguishable from "it ran and saw
+          // nothing" — the same distinction CvEvidence.status exists to make.
+          analysis.observations.length > 0
+            ? JSON.stringify({ observations: analysis.observations.map((item) => ({ ...item })) })
+            : null,
         ],
       );
       if (analysis.verdict === 'unclear') {
@@ -121,9 +158,20 @@ export class ProofVerificationRepository {
   /// the proof, and must never be stored as one.
   async fail(submissionId: string, error: string): Promise<void> {
     await this.database.query(
+      // Never downgrades a verdict that was already reached.
+      //
+      // `submission_verifications_verdict_state_check` requires a
+      // non-complete row to carry no verdict, so this UPDATE on a completed
+      // row raised 23503 — and it is called from the catch block of
+      // verify(), which is itself awaited inline by the shared
+      // domain-events processor. A late failure *after* the verdict was
+      // stored therefore threw out of the error handler and failed the whole
+      // domain event, retrying the notification side effects with it. The
+      // guard is also the right semantics on its own: a verdict that was
+      // recorded is not un-recorded by a later problem.
       `UPDATE submission_verifications
        SET state = 'failed', last_error = $2, completed_at = NULL
-       WHERE submission_id = $1`,
+       WHERE submission_id = $1 AND state <> 'complete'`,
       [submissionId, error.slice(0, 2000)],
     );
   }
@@ -320,6 +368,61 @@ export class ProofVerificationRepository {
       : null;
   }
 
+  /// What the vision pass concluded about one submission's media, for the
+  /// agent pipeline to read as CV evidence.
+  ///
+  /// This is the bridge between the two verifiers. The vision cascade runs
+  /// once, inline off `submission.created`, and stores its findings here; the
+  /// CAMARA agent picks the same submission up from its queue moments later
+  /// and reads them rather than paying for a second look at the same image.
+  /// One vision pass, one recorded opinion, two readers — which is also what
+  /// stops the two systems from reaching different conclusions about the same
+  /// photograph.
+  ///
+  /// Returns null when no row exists at all. A row in any state is returned
+  /// as-is: `state` is what tells the caller whether there is a usable
+  /// finding, and collapsing 'failed' into null would hide a retryable
+  /// failure behind the same answer as a submission nobody has looked at.
+  async contentEvidenceFor(submissionId: string): Promise<{
+    state: VerificationState;
+    verdict: ProofVerdict | null;
+    confidence: number | null;
+    relevance: number | null;
+    stage: string | null;
+    model: string;
+    observations: readonly ProofObservation[];
+    forensics: Record<string, unknown> | null;
+  } | null> {
+    const result = await this.database.query<{
+      state: VerificationState;
+      verdict: ProofVerdict | null;
+      confidence: string | null;
+      relevance: string | null;
+      stage: string | null;
+      model: string;
+      content_evidence: { observations?: unknown } | null;
+      forensics: Record<string, unknown> | null;
+    }>(
+      `SELECT state, verdict, confidence, relevance, stage, model, content_evidence, forensics
+       FROM submission_verifications WHERE submission_id = $1`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      state: row.state,
+      verdict: row.verdict,
+      // numeric(4,3) comes back from the driver as a string; parsed here so
+      // callers never compare a threshold against '0.850'.
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      relevance: row.relevance === null ? null : Number(row.relevance),
+      stage: row.stage,
+      model: row.model,
+      observations: parseObservations(row.content_evidence?.observations),
+      forensics: row.forensics,
+    };
+  }
+
   /// The committee's "unclear" section (#47).
   ///
   /// Unresolved escalations on submissions still awaiting review, oldest
@@ -330,6 +433,10 @@ export class ProofVerificationRepository {
   async unclearQueue(limit: number, offset: number): Promise<readonly Record<string, unknown>[]> {
     const result = await this.database.query(
       `SELECT v.submission_id, v.escalation_reason, v.rationale, v.confidence,
+              -- Relevance beside confidence, never instead of it: one is how
+              -- much the media has to do with the quest, the other how sure
+              -- the analysis was. A moderator triaging this queue wants both.
+              v.relevance, v.content_evidence,
               v.model, v.queued_at, v.completed_at,
               v.location_verified, v.location_retrieved, v.geofence_verified,
               s.user_id, s.media_type::text AS media_type, s.caption,
@@ -418,9 +525,17 @@ export class ProofVerificationRepository {
     transaction: DatabaseTransaction,
   ): Promise<void> {
     await transaction.query(
-      `WITH inserted AS (
+      // FOR KEY SHARE: the same fan-out race guarded in
+      // submissions.repository.ts. This insert shares a transaction with the
+      // verdict, so an admin closing their account at the wrong moment would
+      // roll back the verdict along with its alert.
+      `WITH recipients AS (
+         SELECT a.user_id FROM admins a
+         JOIN users u ON u.id = a.user_id
+         FOR KEY SHARE OF u
+       ), inserted AS (
          INSERT INTO notifications (user_id, title, body, type, reference_id)
-         SELECT user_id, $1, $2, 'proof_unclear', $3 FROM admins
+         SELECT user_id, $1, $2, 'proof_unclear', $3 FROM recipients
          RETURNING id, user_id
        )
        INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)

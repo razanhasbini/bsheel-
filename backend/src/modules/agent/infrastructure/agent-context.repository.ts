@@ -19,6 +19,10 @@ export interface SubmissionContextRow {
   readonly base_xp: number;
   readonly default_duration_hours: number;
   readonly verification_requirements: Record<string, unknown> | null;
+  readonly verifiability: 'content' | 'provenance_only' | 'none';
+  readonly evidence_rubric: string;
+  readonly may_auto_approve: boolean;
+  readonly may_auto_reject: boolean;
   readonly place_id: string | null;
   readonly requires_verification: boolean | null;
   readonly country_code: string | null;
@@ -49,6 +53,10 @@ export interface AssignmentContextRow {
   readonly base_xp: number;
   readonly default_duration_hours: number;
   readonly verification_requirements: Record<string, unknown> | null;
+  readonly verifiability: 'content' | 'provenance_only' | 'none';
+  readonly evidence_rubric: string;
+  readonly may_auto_approve: boolean;
+  readonly may_auto_reject: boolean;
   readonly place_id: string | null;
   readonly requires_verification: boolean | null;
   readonly country_code: string | null;
@@ -78,6 +86,7 @@ export class AgentContextRepository {
          q.id AS quest_id, q.title, q.description, q.category, q.difficulty,
          q.xp_reward AS base_xp, q.duration_hours AS default_duration_hours,
          q.verification_requirements,
+         vc.verifiability, vc.evidence_rubric, vc.may_auto_approve, vc.may_auto_reject,
          qd.place_id, qd.requires_verification,
          mp.country_code, mp.latitude, mp.longitude, mp.radius_m,
          g.mode::text AS collab_mode,
@@ -85,6 +94,13 @@ export class AgentContextRepository {
        FROM submissions s
        JOIN user_quests uq ON uq.id = s.user_quest_id
        JOIN quests q ON q.id = uq.quest_id
+       -- The one resolved answer to "what can proof establish here, and what
+       -- may the agent do about it" (#47, migration 0034). Read through the
+       -- view so this worker cannot disagree with the vision cascade or the
+       -- admin surface about a quest's contract. An inner join is safe: the
+       -- view has a row per quest and COALESCEs an unknown category down to
+       -- none/no-authority rather than dropping it.
+       JOIN quest_verification_contract vc ON vc.quest_id = q.id
        LEFT JOIN quest_destinations qd ON qd.quest_id = q.id
        LEFT JOIN map_places mp ON mp.id = qd.place_id
        LEFT JOIN collab_group_members gm ON gm.user_quest_id = uq.id
@@ -113,11 +129,13 @@ export class AgentContextRepository {
               q.id AS quest_id, q.title, q.description, q.category, q.difficulty,
               q.xp_reward AS base_xp, q.duration_hours AS default_duration_hours,
               q.verification_requirements,
+              vc.verifiability, vc.evidence_rubric, vc.may_auto_approve, vc.may_auto_reject,
               qd.place_id, qd.requires_verification,
               mp.country_code, mp.latitude, mp.longitude, mp.radius_m,
               u.phone_number
        FROM user_quests uq
        JOIN quests q ON q.id = uq.quest_id
+       JOIN quest_verification_contract vc ON vc.quest_id = q.id
        JOIN users u ON u.id = uq.user_id
        LEFT JOIN quest_destinations qd ON qd.quest_id = q.id
        LEFT JOIN map_places mp ON mp.id = qd.place_id

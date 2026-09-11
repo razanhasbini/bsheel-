@@ -1,9 +1,42 @@
 // Generate Kysely types from the migrated database; --check detects schema drift.
 // Only introspects metadata. Never reads application rows or changes the database.
 import pg from 'pg';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import process from 'node:process';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
+const TYPES_PATH = new URL('../src/infrastructure/database/database.types.ts', import.meta.url);
+
+// Read DATABASE_URL from backend/.env when it is not already exported, the
+// same way scripts/migrate.mjs does.
+//
+// These two scripts are documented side by side in CLAUDE.md as bare
+// commands, and only one of them worked that way: with a perfectly good .env
+// sitting there, `npm run db:types` failed inside the pg driver with "SASL:
+// SCRAM-SERVER-FIRST-MESSAGE: client password must be a string" — which says
+// nothing about a missing variable, and is what you get when the connection
+// string is undefined. An exported variable still wins, which is what CI and
+// the migration-replay check rely on to point at a scratch database.
+async function databaseUrlFromEnvFile() {
+  try {
+    const contents = await readFile(resolve('.env'), 'utf8');
+    for (const line of contents.split('\n')) {
+      const match = /^\s*DATABASE_URL\s*=\s*(.*)$/.exec(line);
+      if (!match) continue;
+      return match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+    }
+  } catch {
+    // No .env is normal in CI, where the variable is exported instead.
+  }
+  return undefined;
+}
+
+const databaseUrl = process.env.DATABASE_URL ?? (await databaseUrlFromEnvFile());
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required (export it, or set it in backend/.env)');
+}
+
+const pool = new pg.Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 5000 });
 try {
   const { rows: columns } = await pool.query(`
     SELECT table_name, column_name, udt_name, is_nullable, column_default
@@ -59,11 +92,17 @@ try {
   lines.push('  };', '}', '');
   const generated = lines.join('\n');
   if (process.argv.includes('--check')) {
-    const existing = await readFile(new URL('../src/infrastructure/database/database.types.ts', import.meta.url), 'utf8');
+    const existing = await readFile(TYPES_PATH, 'utf8');
     if (existing !== generated) throw new Error('Database types drifted: regenerate against the latest migrated database.');
     console.log('Database types match the migrated schema.');
   } else {
-    process.stdout.write(generated);
+    // Written from here rather than through a shell redirect. `node … > file`
+    // truncates the target before the script runs, so any failure — an
+    // unreachable database, an unmapped column type — left the checked-in
+    // types file empty, turning a one-line fix into a restore from git. The
+    // write now happens only after the whole schema has been read and mapped.
+    await writeFile(TYPES_PATH, generated);
+    console.log(`Wrote ${generated.split('\n').length - 1} lines of database types.`);
   }
 } finally {
   await pool.end();

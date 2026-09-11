@@ -219,7 +219,9 @@ conclude.
 | 3 reject_review | most capable model | **required before any rejection** |
 
 The rungs differ ~50x in price, so the cascade is the dominant cost
-decision. The asymmetry is deliberate: the cheapest model may clear a
+decision. Each vision rung returns a verdict *and* two measurements of
+the media — a `relevance` score and a typed observation list, absences
+included — which is what the agent reads back as its CV evidence. The asymmetry is deliberate: the cheapest model may clear a
 clean submission, but only the most capable one may conclude that proof
 is fake. `decide()` refuses to reject on a triage or deep verdict
 however confident it is.
@@ -244,12 +246,41 @@ agent decides and acts on nothing, and `acted = false` marks those rows
 as the honest eval slice. `npm run proof:eval` scores them against the
 human decisions that followed. `may_auto_reject` is seeded false for
 every category — authority is earned from a precision number, not
-asserted in a migration.
+asserted in a migration, and `finalizeDecision` enforces that against
+the agent path too, not only against this cascade.
 
 When it does act, it calls the *same* `approve`/`reject` a moderator's
 click uses with a null actor, so the XP-awarded-once invariant, the
 notification, the audit row and the collab fan-out cannot drift between
 a human decision and an automated one.
+
+### Two verifiers, one decider, one vision pass
+
+`submission.created` starts both verifiers, and they answer different
+questions: this cascade asks whether the *media* is authentic and shows
+the task; the agent (`modules/agent`, #53) asks whether the *device* was
+where the quest required. Exactly one of them may act, and it is the
+better-informed one — when `AGENT_SUBMISSION_VERIFICATION_ENABLED` is
+true this cascade records its verdict and steps aside
+(`willActOnDecisions`), because the agent weighs the CAMARA evidence
+*and* this pass's findings.
+
+It sees those findings because `CV_PROVIDER=local` (the default) binds
+`LocalCvEvidenceProvider`, which **reads** the row this cascade already
+wrote rather than running a second vision call on the same bytes. The
+consumer awaits the cascade before enqueueing the agent job, so the
+finding is always there — that ordering is load-bearing and
+`domain-events.processor.spec.ts` fails if it is reordered. With
+`CV_PROVIDER=none` the agent is blind and escalates everything, which is
+what every deployment did before the binding existed.
+
+`relevance` (0..1, on `submission_verifications`) is how much the media
+has to do with the quest, and is **not** confidence — a model can be
+certain a cat photo is irrelevant to "watch the sunrise". It can stop an
+automated approval below `AI_VERIFICATION_MIN_RELEVANCE` and can never
+cause a rejection, and it is admissible only where the contract says
+`content`: for a quest no photograph can show, low relevance is what
+honest proof looks like.
 
 Escalations surface at `/moderation/unclear` with a sidebar badge, and
 deciding there clears the escalation in the same transaction.

@@ -58,6 +58,19 @@ export const AgentContextSchema = z
         baseXp: z.number().int().nonnegative(),
         defaultDurationHours: z.number().positive(),
         stageCount: z.number().int().positive().default(1),
+        // The resolved verification contract (#47, migration 0034): what proof
+        // can establish for this quest, and what the agent is allowed to do
+        // about it. Not optional, because a missing contract is the one case
+        // that must fail closed — the view itself COALESCEs an unknown
+        // category to none/no-authority rather than leaving it null.
+        verification: z
+          .object({
+            verifiability: z.enum(['content', 'provenance_only', 'none']),
+            evidenceRubric: z.string(),
+            mayAutoApprove: z.boolean(),
+            mayAutoReject: z.boolean(),
+          })
+          .strict(),
         requirements: z
           .object({
             actions: z.array(z.string()),
@@ -164,11 +177,25 @@ export const CvEvidenceSchema = z
     provider: z.string(),
     modelVersion: z.string(),
     analyzedAt: z.string().datetime(),
+    // How much the submitted media has to do with the quest, 0..1. Optional
+    // because it is meaningful only for quests a photograph can actually show
+    // — see CvEvidenceAnalysisInput.task.verifiability. Absent means "not
+    // assessed", which is the correct answer for two thirds of the catalogue
+    // and must never be read as "irrelevant".
+    relevance: Confidence.optional(),
     detections: z.array(
       z.object({
         type: z.enum(['ACTION', 'OBJECT', 'LANDMARK', 'LOCATION_CUE']),
         label: z.string(),
         confidence: Confidence,
+        // Whether it was actually found. An absence the analysis looked for
+        // is a real finding and often the decisive one — "the quest asked for
+        // a sunrise and there is no sunrise here" is precisely what a decider
+        // needs, and a detections list that could only express presence would
+        // force it to be dropped or smuggled into a warning string. Defaults
+        // true so an external provider that only reports what it saw stays
+        // correct without changing anything.
+        present: z.boolean().default(true),
         timestampsMs: z.array(z.number().int().nonnegative()),
       }),
     ),
@@ -184,6 +211,18 @@ export const CvEvidenceSchema = z
     integrity: z
       .object({
         manipulationLikely: z.boolean(),
+        // Set when the analysis found something that must prevent an
+        // AUTOMATED approval whatever the content shows — a capture time
+        // outside the quest window, a byte-identical copy of someone else's
+        // proof, a screenshot, a generated-content marker. Distinct from
+        // manipulationLikely, which is the stronger claim that the file was
+        // tampered with: a screenshot is not a forgery and still must not be
+        // waved through by a machine.
+        //
+        // Deliberately a boolean and not a score. It is the *conclusion* of a
+        // measurement, and the deciding policy needs something it can gate on
+        // rather than a number it has to threshold.
+        blocksAutomatedApproval: z.boolean().default(false),
         confidence: Confidence,
         notes: z.array(z.string()),
       })

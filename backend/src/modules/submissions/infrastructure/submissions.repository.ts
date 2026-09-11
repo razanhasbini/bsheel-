@@ -27,7 +27,17 @@ export interface SubmissionRecord {
 
 /// Cursor contexts. Distinct per list so a cursor cannot be replayed on a
 /// list with a different ordering — `decodeCursor` rejects a mismatch.
-const listForAdminCursorContext = 'submissions.admin.list';
+/// Bound to the sort direction, not just to the list.
+///
+/// The cursor carries a position in an ordering, and `order` is half of what
+/// that ordering is — a cursor minted while paging ascending, replayed with
+/// `order=desc`, describes a boundary in the wrong direction and silently
+/// returns the rows the client already walked past. Naming the direction in
+/// the context makes the mismatch a 400 instead, which is the same reason the
+/// list is named here at all. feed.repository.ts keys its context the same
+/// way, on scope and sort.
+const listForAdminCursorContext = (order: 'asc' | 'desc'): string =>
+  `submissions.admin.list:${order}`;
 const reviewQueueCursorContext = 'submissions.admin.review-queue';
 
 /// Attaches `next_cursor` to the last row of a full page, and strips the
@@ -326,6 +336,12 @@ export class SubmissionsRepository {
               -- not finished; advisory, so a moderator can ignore it.
               verification.verdict::text AS ai_verdict,
               verification.confidence AS ai_confidence,
+              -- How much the media had to do with the quest, separately from
+              -- how sure the analysis was of its verdict (#47). Null where no
+              -- content analysis ran, which is correct for a quest no
+              -- photograph can show — and must not be read as "irrelevant".
+              verification.relevance AS ai_relevance,
+              verification.content_evidence AS ai_content_evidence,
               verification.rationale AS ai_rationale,
               verification.escalation_reason AS ai_escalation_reason,
               EXISTS (
@@ -405,10 +421,11 @@ export class SubmissionsRepository {
     const descending = filter.order === 'desc';
     const direction = descending ? 'DESC' : 'ASC';
 
-    // The cursor is context-bound to this list, so one taken from the feed —
-    // or from the review queue — is rejected rather than silently paging
-    // through the wrong ordering.
-    const cursor = decodeCursor(filter.cursor, listForAdminCursorContext);
+    // The cursor is context-bound to this list AND to its direction, so one
+    // taken from the feed, from the review queue, or from a walk in the other
+    // direction is rejected rather than silently paging through the wrong
+    // ordering.
+    const cursor = decodeCursor(filter.cursor, listForAdminCursorContext(descending ? 'desc' : 'asc'));
     if (cursor) {
       parameters.push(cursor.at, cursor.id);
       // The comparison follows the sort: reversing one without the other
@@ -427,6 +444,20 @@ export class SubmissionsRepository {
     parameters.push(cursor ? 0 : Math.max(filter.offset ?? 0, 0));
     const offsetPlaceholder = `$${parameters.length}`;
 
+    // The id tiebreaker takes the SAME direction as the sort, and that is not
+    // cosmetic. The cursor above compares the row-wise tuple
+    // (submitted_at, id) against (cursor.at, cursor.id), which is an ordering
+    // on both columns in one direction. Leaving `s.id` ascending under a DESC
+    // sort made the two disagree inside any group of rows sharing a
+    // submitted_at: a page boundary falling there either repeated those rows
+    // on the next page or skipped them, depending on which side of the
+    // boundary the highest id landed.
+    //
+    // Ties are not hypothetical. submitted_at defaults to now(), which in
+    // PostgreSQL is the *transaction* timestamp, so every submission written
+    // by one transaction shares it to the microsecond. This surfaced as a
+    // single duplicate in a 51-row walk — an intermittent result that reads
+    // as test flakiness rather than as a paginator that repeats rows.
     const result = await this.database.query(
       `SELECT s.*, p.username::text, p.display_name, p.avatar_url,
               q.title AS quest_title, q.description AS quest_description, q.category AS quest_category,
@@ -434,11 +465,11 @@ export class SubmissionsRepository {
        FROM submissions s JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id
        ${where}
-       ORDER BY s.submitted_at ${direction}, s.id
+       ORDER BY s.submitted_at ${direction}, s.id ${direction}
        LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
       parameters,
     );
-    return withNextCursor(result.rows, limit, listForAdminCursorContext);
+    return withNextCursor(result.rows, limit, listForAdminCursorContext(descending ? 'desc' : 'asc'));
   }
 
   async appeal(userId: string, id: string, appealNote: string): Promise<void> {
@@ -732,8 +763,15 @@ export class SubmissionsRepository {
     const body = appeal ? 'Resubmitted after rejection. Fresh eyes needed.' : 'New submission waiting on a verdict.';
     const type = appeal ? 'appeal_submitted' : 'new_submission';
     await transaction.query(
-      `WITH inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id)
-       SELECT user_id, $1, $2, $3, $4 FROM admins RETURNING id, user_id)
+      // FOR KEY SHARE for the same reason as every other fan-out here: see
+      // notifyLeaderboardChanges. An admin closing their account while a
+      // submission is being created would otherwise fail the create.
+      `WITH recipients AS (
+         SELECT a.user_id FROM admins a
+         JOIN users u ON u.id = a.user_id
+         FOR KEY SHARE OF u
+       ), inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id)
+       SELECT user_id, $1, $2, $3, $4 FROM recipients RETURNING id, user_id)
        INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
        SELECT 'notification', id, 'notification.created',
          jsonb_build_object('notificationId', id, 'userId', user_id) FROM inserted`,
@@ -770,9 +808,17 @@ export class SubmissionsRepository {
       [userId],
     );
     await transaction.query(
-      `WITH inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
-       SELECT user_id, $2, $3, 'collab_partner_approved', $4, $5
-       FROM collab_group_members WHERE group_id = $1 AND user_id <> $5
+      // FOR KEY SHARE: same fan-out race as notifyLeaderboardChanges, and on
+      // the same approve() transaction. collab_group_members cascade-deletes
+      // with the user, so a teammate closing their account mid-approval used
+      // to roll the approval back.
+      `WITH recipients AS (
+         SELECT m.user_id FROM collab_group_members m
+         JOIN users u ON u.id = m.user_id
+         WHERE m.group_id = $1 AND m.user_id <> $5
+         FOR KEY SHARE OF u
+       ), inserted AS (INSERT INTO notifications (user_id, title, body, type, reference_id, actor_id)
+       SELECT user_id, $2, $3, 'collab_partner_approved', $4, $5 FROM recipients
        RETURNING id, user_id)
        INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
        SELECT 'notification', id, 'notification.created',
@@ -791,10 +837,16 @@ export class SubmissionsRepository {
     userId: string, authorName: string, submissionId: string, transaction: DatabaseTransaction,
   ): Promise<void> {
     await transaction.query(
+      // `JOIN users … FOR KEY SHARE` is load-bearing, not decoration. See the
+      // note on notifyLeaderboardChanges: selecting a fan-out recipient and
+      // then inserting a notification for them is a foreign-key race, and the
+      // loser is the moderator whose approval 500s.
       `WITH recipients AS (
-         SELECT follower_id FROM follows
-         WHERE following_id = $1 AND follower_id <> $1
-         ORDER BY created_at LIMIT 100
+         SELECT f.follower_id FROM follows f
+         JOIN users u ON u.id = f.follower_id
+         WHERE f.following_id = $1 AND f.follower_id <> $1
+         ORDER BY f.created_at LIMIT 100
+         FOR KEY SHARE OF u
        ), inserted AS (
          INSERT INTO notifications (user_id, title, body, type, reference_id)
          SELECT follower_id, $2, 'Quest cleared. Go gas them up. 🙌',
@@ -828,10 +880,30 @@ export class SubmissionsRepository {
     }
     if (ranks.rows[0].new_rank >= ranks.rows[0].old_rank) return;
     await transaction.query(
+      // The join onto `users` with FOR KEY SHARE is what stops this statement
+      // failing the whole approval.
+      //
+      // Recipients are read from `profiles`, but `notifications.user_id`
+      // references `users`, and a foreign key is checked against committed
+      // data rather than against the statement's snapshot. So under READ
+      // COMMITTED the sequence "this statement sees a profile → someone else
+      // commits that account's deletion → the insert checks the key" raises
+      // 23503, which rolls back the surrounding transaction: the approval, the
+      // XP award and the author's own notification, all lost because an
+      // unrelated user closed their account at the wrong moment. The moderator
+      // gets a 500 and no explanation.
+      //
+      // FOR KEY SHARE takes exactly the lock the key check would have taken,
+      // just early enough to matter — a concurrent deletion waits for this
+      // transaction instead of racing it. Cascading deletes make `profiles`
+      // and `follows` rows disappear with the user, which is why the fan-out
+      // reads cannot be trusted on their own.
       `WITH recipients AS (
-         SELECT id FROM profiles
-         WHERE id <> $1 AND xp > $2 AND xp <= $3
-         ORDER BY xp DESC, id LIMIT 20
+         SELECT p.id FROM profiles p
+         JOIN users u ON u.id = p.id
+         WHERE p.id <> $1 AND p.xp > $2 AND p.xp <= $3
+         ORDER BY p.xp DESC, p.id LIMIT 20
+         FOR KEY SHARE OF u
        ), inserted AS (
          INSERT INTO notifications (user_id, title, body, type)
          SELECT id, $4, 'They climbed past you on the leaderboard. Your move.',
