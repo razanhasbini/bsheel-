@@ -166,6 +166,47 @@ an image — never reject for failing to show a count."*
 It is a keyword check, so read the full table it prints rather than only the
 flags — particularly any row where `reject` is already true.
 
+## Scoring it without waiting
+
+```bash
+npm run build                                  # the backfill runs against dist/
+npm run proof:backfill                         # dry run: what it would score, and the cost
+npm run proof:backfill -- --apply --limit 25
+npm run proof:eval
+```
+
+`proof:eval` needs verdicts paired with the human decision that followed, and
+`verify()` refuses to analyse anything already reviewed — correctly, since a
+vision call on a settled submission buys nothing operationally. So the
+ordinary path only accumulates forward, and a deployment with a year of
+moderation history still has to sit in shadow mode for weeks before it can
+answer "is this good enough yet".
+
+The backfill reads that history. Same forensics, same cascade, same policy;
+the verdict recorded is the one the agent *would* have reached on a submission
+whose outcome a person settled before the verdict existed — which makes it
+cleaner eval data than shadow mode rather than dirtier, since it cannot have
+influenced the decision it is scored against even in principle.
+
+Three things it will not do, which is what makes it safe to point at a
+production database:
+
+- **never acts** — there is no `act()` call on that path at any setting
+- **never claims** — no attempt increment, no state change, so it cannot
+  consume the retries a live submission needs, and it is re-runnable
+- **never alerts** — `complete()` notifies every admin on an escalation;
+  scoring a year of history through it would notify them about every old
+  submission the agent found ambiguous
+
+It selects only submissions where `reviewed_by IS NOT NULL`. Both automated
+deciders pass a null actor deliberately, so that is what separates ground
+truth from the agent marking its own homework.
+
+It spends real vision calls, one submission at a time — hence the limit, and
+the dry run being the default. Quests whose contract is `provenance_only` or
+`none` make no vision call at all, and the dry run tells you how many of each
+you have before you spend anything.
+
 ## Stage 4 — let it act
 
 Only after `npm run proof:eval` reports a precision you are willing to defend

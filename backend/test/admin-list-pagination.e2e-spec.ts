@@ -194,12 +194,20 @@ describe('admin list keyset pagination (e2e)', { timeout: 180_000 }, () => {
   it('returns the same set of rows by cursor as by offset', async () => {
     const byCursor = await walk('/submissions/admin?status=all&order=asc', 3);
     const byOffset: string[] = [];
-    for (let offset = 0; offset < 60; offset += 20) {
+    // Walks until this suite's own rows have all been seen, rather than to a
+    // fixed offset. The list is a shared table that every other suite adds
+    // to, so a hard ceiling of 60 rows silently stopped covering these
+    // fixtures the moment the corpus grew past it — and the failure read as
+    // "the offset paginator lost a row" when the offset walk had simply
+    // never reached it. The 20-page bound is the runaway guard, not the
+    // coverage target.
+    for (let page = 0; page < 20; page += 1) {
       const response = await harness
-        .get(`/submissions/admin?status=all&order=asc&limit=20&offset=${offset}`, moderator)
+        .get(`/submissions/admin?status=all&order=asc&limit=20&offset=${page * 20}`, moderator)
         .expect(200);
       byOffset.push(...response.body.data.map((row: { id: string }) => row.id));
-      if (response.body.data.length < 20) break;
+      const seen = new Set(byOffset);
+      if (response.body.data.length < 20 || [...owned].every((id) => seen.has(id))) break;
     }
     // Compared as sets over the fixtures this suite owns: the shared database
     // is being written by other suites in parallel, so the tails differ.

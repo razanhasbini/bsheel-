@@ -41,12 +41,33 @@
 //     than assumed.
 import process from 'node:process';
 import pg from 'pg';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const args = new Set(process.argv.slice(2));
 const asJson = args.has('--json');
-const DATABASE_URL = process.env.DATABASE_URL;
+
+// Reads backend/.env when the variable is not exported, like migrate.mjs,
+// database-types.mjs and proof-backfill.mjs. Worth the four lines: the
+// backfill's closing line tells you to run this next, and it failed with
+// "DATABASE_URL is not set" for anyone whose URL lives in the file that every
+// other part of the backend reads.
+async function databaseUrlFromEnvFile() {
+  try {
+    const contents = await readFile(resolve('.env'), 'utf8');
+    for (const line of contents.split('\n')) {
+      const match = /^\s*DATABASE_URL\s*=\s*(.*)$/.exec(line);
+      if (match) return match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+    }
+  } catch {
+    // No .env is normal in CI, where the variable is exported instead.
+  }
+  return undefined;
+}
+
+const DATABASE_URL = process.env.DATABASE_URL ?? (await databaseUrlFromEnvFile());
 if (!DATABASE_URL) {
-  console.error('DATABASE_URL is not set');
+  console.error('DATABASE_URL is required (export it, or set it in backend/.env)');
   process.exit(1);
 }
 
