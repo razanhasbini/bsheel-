@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
@@ -23,12 +24,28 @@ import {
   UpdatePasswordDto,
 } from './auth.dto.js';
 
+/**
+ * The per-client cap on the credential-shaped routes, well under the general
+ * THROTTLE_LIMIT: 120 password guesses a minute is a brute-force budget, and
+ * phone start, recovery and resend each trigger a paid or mailed side effect.
+ *
+ * Read from process.env rather than ConfigService because decorators are
+ * evaluated when this module is imported, before Nest's DI exists. The same
+ * key is declared (and defaulted) in config/environment.ts so it is
+ * validated and documented with the rest; the e2e runner raises it, since
+ * the harness signs in hundreds of times a minute from one address.
+ */
+const AUTH_THROTTLE = {
+  default: { limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? '20'), ttl: 60_000 },
+};
+
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly service: AuthService) {}
 
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @Post('register')
   @ApiOperation({ summary: 'Create a password account and queue confirmation when required' })
   register(
@@ -40,6 +57,7 @@ export class AuthController {
 
   @Public()
   @HttpCode(200)
+  @Throttle(AUTH_THROTTLE)
   @Post('login')
   @ApiOperation({ summary: 'Create a session using email and password' })
   login(@Body() body: LoginDto, @Req() request: Request): Promise<TokenPair> {
@@ -63,6 +81,7 @@ export class AuthController {
 
   @Public()
   @HttpCode(200)
+  @Throttle(AUTH_THROTTLE)
   @Post('phone/start')
   @ApiOperation({ summary: 'Start CAMARA Number Verification for a brand-new phone sign-in' })
   startPhone(@Body() body: StartPhoneSignInDto): Promise<{ authorizationUrl: string }> {
@@ -104,6 +123,7 @@ export class AuthController {
 
   @Public()
   @HttpCode(202)
+  @Throttle(AUTH_THROTTLE)
   @Post('password-recovery')
   @ApiOperation({ summary: 'Queue a password-recovery email without revealing account existence' })
   async requestPasswordRecovery(@Body() body: RequestPasswordRecoveryDto): Promise<void> {
@@ -120,6 +140,7 @@ export class AuthController {
 
   @Public()
   @HttpCode(202)
+  @Throttle(AUTH_THROTTLE)
   @Post('email-confirmation/resend')
   @ApiOperation({ summary: 'Queue another confirmation email without revealing account existence' })
   async requestEmailConfirmation(@Body() body: RequestEmailConfirmationDto): Promise<void> {

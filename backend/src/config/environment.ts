@@ -292,6 +292,15 @@ const environmentSchema = z
     SWAGGER_ENABLED: booleanFromString,
     THROTTLE_TTL_MS: z.coerce.number().int().positive().default(60_000),
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(120),
+    /**
+     * Per-client cap on the credential-shaped routes (login, register, phone
+     * start, password recovery, confirmation resend) — far below the general
+     * limit, because 120 password guesses a minute is a brute-force budget,
+     * and each of the others sends an SMS-grade or email-grade side effect.
+     * Read by the controller at import time (decorators evaluate then), so
+     * it is documented here and applied from process.env there.
+     */
+    AUTH_THROTTLE_LIMIT: z.coerce.number().int().positive().default(20),
 
     // AI agent phase — submission verification only.
     // Enabled by default: verifying that a device was where a quest required

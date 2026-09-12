@@ -39,6 +39,9 @@ export default defineConfig({
        * limit bites should set its own.
        */
       THROTTLE_LIMIT: '2000',
+      // Same reasoning for the stricter auth routes: the harness signs in
+      // hundreds of times a minute from one address.
+      AUTH_THROTTLE_LIMIT: '2000',
     },
   },
 });

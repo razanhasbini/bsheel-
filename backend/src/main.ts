@@ -13,6 +13,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService<Environment, true>);
   app.useLogger(app.get(PinoLogger));
+  // The API sits behind exactly one reverse proxy (Caddy on the same host,
+  // which appends the client to X-Forwarded-For). Without this, `req.ip` is
+  // the proxy's own address for every request, so the rate limiter keyed
+  // every user into ONE shared bucket — THROTTLE_LIMIT was a cap on the
+  // whole userbase, and a brute-force attempt was indistinguishable from
+  // normal traffic. One hop, not `true`: trusting every hop would let a
+  // client forge its own X-Forwarded-For and pick its bucket.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.enableShutdownHooks();
   app.use(helmet());
   app.use(compression());
