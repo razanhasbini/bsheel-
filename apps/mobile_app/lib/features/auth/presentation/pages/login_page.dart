@@ -19,9 +19,15 @@ import '../../../../l10n/app_localizations.dart';
 /// Log in, drawn from `export/mobile/16-login.jpg`.
 ///
 /// Cream ground, 22 of side padding, everything vertically centred with a
-/// 15pt rhythm: `LOG IN` in Syne 800/42, EMAIL and PASSWORD fields, a
-/// right-aligned FORGOT PASSWORD?, the violet primary, an OR rule, then
-/// LOG IN WITH APPLE / GOOGLE / PHONE NUMBER, and a centred sign-up line.
+/// 15pt rhythm: `LOG IN` in Syne 800/42, then **LOG IN WITH PHONE NUMBER**
+/// as the violet primary, an OR USE EMAIL rule, the EMAIL and PASSWORD
+/// fields with a right-aligned FORGOT PASSWORD?, the LOG IN button, an OR
+/// rule, LOG IN WITH APPLE / GOOGLE, and a centred sign-up line.
+///
+/// Phone leads because a CAMARA-verified number is the one credential no
+/// account can be without — it is the device identifier every location-based
+/// submission is checked against. Email and password are the optional extra,
+/// and the page is ordered to say so.
 ///
 /// Email + password on top, not phone + password: a phone account's
 /// credential is the carrier check, which is the phone button below — the
@@ -188,6 +194,18 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           ),
                         ),
                         const SizedBox(height: 15),
+                        // Phone first, and as the violet primary: a verified
+                        // number is what every account is anchored to, and
+                        // the only credential that is never optional. Email
+                        // and password are a convenience on top of it, so
+                        // they sit below the rule rather than above it.
+                        const PhoneAuthButton(
+                          label: 'LOG IN WITH PHONE NUMBER',
+                          variant: ArcadeButtonVariant.primary,
+                        ),
+                        const SizedBox(height: 17),
+                        const OrRule(label: 'OR USE EMAIL'),
+                        const SizedBox(height: 17),
                         AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
@@ -235,10 +253,13 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           isLoading: _isLoading,
                           onTap: _isLoading ? null : _login,
                         ),
-                        // SocialSignInButtons renders the OR rule itself
-                        // (and only the phone button when social login is
-                        // off — that one never hides).
-                        const SocialSignInButtons(labelPrefix: 'LOG IN WITH'),
+                        // Apple / Google only — the phone button is hoisted
+                        // to the top of this page as the primary path, the
+                        // way the signup page leads with the phone form.
+                        const SocialSignInButtons(
+                          includePhone: false,
+                          labelPrefix: 'LOG IN WITH',
+                        ),
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin
                         // does, without the hit target moving it.

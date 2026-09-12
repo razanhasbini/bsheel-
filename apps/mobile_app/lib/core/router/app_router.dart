@@ -5,8 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pending_deep_link.dart';
 import 'route_names.dart';
 import 'route_guards.dart';
-import '../providers/auth_repository_provider.dart';
-import '../../features/auth/presentation/pending_auth_error.dart';
 import '../providers/auth_state_provider.dart';
 import '../providers/auth_session_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
@@ -15,6 +13,7 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/signup_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
+import '../../features/auth/presentation/pages/phone_signin_callback_screen.dart';
 import '../../features/auth/presentation/pages/verify_phone_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_walkthrough_page.dart';
 import '../../features/quests/presentation/pages/home_page.dart';
@@ -250,33 +249,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.phoneSigninCallback,
         name: RouteNames.phoneSigninCallback,
-        builder: (context, state) => Consumer(
-          builder: (context, cref, _) {
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              final failure = state.uri.queryParameters['error'];
-              if (failure != null && failure.isNotEmpty) {
-                // Handed to the login page rather than shown from here.
-                // This route is about to be torn down by the `go` below, so
-                // a messenger read from THIS context belongs to a widget
-                // being disposed and the message never appears — which is
-                // why a refused number used to bounce back in silence.
-                cref.read(pendingAuthErrorProvider.notifier).state = failure;
-                if (context.mounted) context.go(RoutePaths.login);
-                return;
-              }
-              // Awaited, because on web this call is the one that actually
-              // exchanges the handoff code for a session — navigating first
-              // would bounce off the auth gate before the tokens land. On
-              // mobile it just wakes the waiting sign-in call and returns
-              // immediately, so the await costs nothing there.
-              await cref
-                  .read(authRepositoryProvider)
-                  .handlePhoneCallback(state.uri);
-              if (context.mounted) context.go(RoutePaths.home);
-            });
-            return const SizedBox.shrink();
-          },
-        ),
+        builder: (context, state) => PhoneSigninCallbackScreen(uri: state.uri),
       ),
       // Temporary: the hackathon demo surface. Sits outside the shell so it
       // is reachable without disturbing the tab structure, and is removed

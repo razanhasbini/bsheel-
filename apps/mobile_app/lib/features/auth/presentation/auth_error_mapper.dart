@@ -24,6 +24,17 @@ String mapAuthError(String raw) {
     return 'Google sign-in is misconfigured for the web build.';
   }
 
+  // A single-use handoff code, replayed. On the web the browser keeps
+  // `?handoff=…` in the address bar, so a reload or a back button re-submits
+  // a code that has already been spent — and the first one usually
+  // SUCCEEDED. Saying "invalid or expired" there accuses the user of
+  // something that did not happen; the honest message is that the link is
+  // finished, and whether they are already signed in.
+  if (msg.contains('invalid_phone_handoff')) {
+    return 'That sign-in link has already been used. Links are single-use — '
+        'start again from here if you are not signed in yet.';
+  }
+
   // ── CAMARA Number Verification ───────────────────────────────
   // The carrier's "no" is a different fact from the carrier being
   // unreachable: one means check the number, the other means try again.
