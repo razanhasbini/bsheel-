@@ -493,7 +493,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   style: QuestTypography.osBodySmall.copyWith(
                                       color: QuestColors.osTextSecondary),
                                 ),
-                                children: const [CollabPage(embedded: true)],
+                                // Home's own roll handler, so the panel's
+                                // empty state can open the picker instead of
+                                // routing to the page it is already on.
+                                children: [
+                                  CollabPage(
+                                      embedded: true,
+                                      onRollQuest: _rollWheel),
+                                ],
                               ),
                             ),
                           ),

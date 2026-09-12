@@ -32,8 +32,22 @@ import '../../data/collab_providers.dart';
 /// On an ink panel every outline is **cream**, not ink: an ink border on an
 /// ink ground is invisible. That is measured off the render, not a choice.
 class CollabPage extends ConsumerStatefulWidget {
-  const CollabPage({super.key, this.embedded = false});
+  const CollabPage({super.key, this.embedded = false, this.onRollQuest});
   final bool embedded;
+
+  /// How this panel rolls a quest when there is none to group around.
+  ///
+  /// Required because of where the panel actually lives: embedded, it is an
+  /// ExpansionTile on Home, sitting a few hundred pixels below Home's own
+  /// quest generator. Its empty state used to offer a button that called
+  /// `goNamed(home)` — which, from inside Home, routes to the page you are
+  /// already on and does nothing at all. The button looked dead because it
+  /// was. Home passes its own roll handler down instead, so the button opens
+  /// the same picker the generator opens.
+  ///
+  /// Null on the standalone /collab route, where navigating to Home is the
+  /// right answer and does something.
+  final Future<void> Function()? onRollQuest;
 
   @override
   ConsumerState<CollabPage> createState() => _CollabPageState();
@@ -179,7 +193,10 @@ class _CollabPageState extends ConsumerState<CollabPage> {
           // quest whose proof is already in. The second used to render as
           // "you have no quest", which is confusing when the home screen
           // directly above says one is in review.
-          _NoQuestPanel(awaitingReview: activeQuest != null)
+          _NoQuestPanel(
+            awaitingReview: activeQuest != null,
+            onRoll: widget.onRollQuest,
+          )
         else if (groupAsync!.isLoading)
           const ArcadeSkeleton(height: 220, radius: 18)
         else if (groupAsync.hasError)
@@ -616,7 +633,7 @@ class _CreateGroupPanel extends StatelessWidget {
 }
 
 class _NoQuestPanel extends StatelessWidget {
-  const _NoQuestPanel({this.awaitingReview = false});
+  const _NoQuestPanel({this.awaitingReview = false, this.onRoll});
 
   /// True when the player DOES have a quest, but its proof is already in.
   ///
@@ -625,6 +642,11 @@ class _NoQuestPanel extends StatelessWidget {
   /// Their part of that group is simply over — and because a submitted quest
   /// no longer blocks a new roll, the useful next step is to take another one.
   final bool awaitingReview;
+
+  /// Supplied when this panel is embedded in a page that can roll a quest
+  /// itself. See CollabPage.onRollQuest — without it the button navigates,
+  /// and from inside Home that is a no-op.
+  final Future<void> Function()? onRoll;
 
   @override
   Widget build(BuildContext context) {
@@ -643,7 +665,7 @@ class _NoQuestPanel extends StatelessWidget {
         const SizedBox(height: 16),
         ArcadeButton(
           label: awaitingReview ? 'Roll another quest' : 'Generate a quest',
-          onTap: () => context.goNamed(RouteNames.home),
+          onTap: onRoll ?? () => context.goNamed(RouteNames.home),
         ),
       ],
     );
