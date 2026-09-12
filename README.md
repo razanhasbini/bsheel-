@@ -47,6 +47,8 @@ needs no extra flags.
   graph, blocks and reporting.
 - **Collab groups** — join by code, complete together or head-to-head, with
   public voting.
+- **World map** — every published place as a pin, plus a moments layer:
+  photo and video proof from the feed pinned at the place it was earned.
 - **Leaderboards** — global and following-only, by XP.
 - **Push notifications** — Firebase Cloud Messaging, fanned out by a durable
   queue rather than from the client.

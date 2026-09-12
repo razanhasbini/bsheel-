@@ -27,6 +27,7 @@ if (/(^|@)([^/]*\.)?bsheel\.app/.test(databaseUrl)) {
   throw new Error('Refusing to seed what looks like a production database');
 }
 const reset = process.argv.includes('--reset');
+const camaraPersonas = process.argv.includes('--camara-personas');
 
 const PASSWORD = 'Str0ng-Passphrase-9';
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
@@ -52,15 +53,59 @@ const QUESTS = [
   ['Spend an hour with no phone', 'Leave it behind. Tell us what you noticed.', 'adventure', 'easy', 20, 4],
 ];
 
+// [email, username, displayName, bio, adminRole, phoneNumber]
+//
+// **Phone sign-in is the product's mandatory path, and nothing here may
+// stand in its way.** Every account is anchored to a CAMARA-verified number
+// (email/password is the secondary credential), so the app redirects a
+// signed-in account without one to /verify-phone. A seeded account with no
+// number can therefore sign in and reach nothing, which is why these exist
+// at all — they are fixtures for the DATA, not a demonstration of sign-up.
+//
+// Writing the column directly is the documented local-testing device (see
+// docs/CAMARA_TESTING.md); in production it is only ever written by a
+// completed Number Verification, and this script refuses to run there.
+//
+// **These are deliberately NOT Nokia simulator numbers.** The simulator
+// answers per number and only `+99999991000` can complete Number
+// Verification — so a fixture holding it would take the one number the real
+// phone sign-up flow needs, and `phone_number` is globally UNIQUE. An
+// earlier version of this file did exactly that and broke the demo of the
+// requirement it was meant to support. Lebanese fixture numbers stay out of
+// the simulator's way; `--camara-personas` hands them out on purpose.
 const USERS = [
-  ['admin@bsheel.test', 'admin', 'Admin', 'Runs the place.', 'super_admin'],
-  ['mod@bsheel.test', 'moderator', 'Mod', 'Reviews the queue.', 'moderator'],
-  ['layla@bsheel.test', 'layla', 'Layla', 'Here for the adventure quests.', null],
-  ['omar@bsheel.test', 'omar', 'Omar', 'Fitness only. No drawing.', null],
-  ['rana@bsheel.test', 'rana', 'Rana', 'I will draw anything.', null],
-  ['sami@bsheel.test', 'sami', 'Sami', 'Collecting every category.', null],
-  ['nour@bsheel.test', 'nour', 'Nour', '', null],
-  ['ziad@bsheel.test', 'ziad', 'Ziad', 'Lurker.', null],
+  ['admin@bsheel.test', 'admin', 'Admin', 'Runs the place.', 'super_admin', '+9611000001'],
+  ['mod@bsheel.test', 'moderator', 'Mod', 'Reviews the queue.', 'moderator', '+9611000002'],
+  ['layla@bsheel.test', 'layla', 'Layla', 'Here for the adventure quests.', null, '+9611000003'],
+  ['omar@bsheel.test', 'omar', 'Omar', 'Fitness only. No drawing.', null, '+9611000004'],
+  ['rana@bsheel.test', 'rana', 'Rana', 'I will draw anything.', null, '+9611000005'],
+  ['sami@bsheel.test', 'sami', 'Sami', 'Collecting every category.', null, '+9611000006'],
+  ['nour@bsheel.test', 'nour', 'Nour', '', null, '+9611000007'],
+  ['ziad@bsheel.test', 'ziad', 'Ziad', 'Lurker.', null, '+9611000008'],
+];
+
+/// Nokia simulator personas, assigned only with `--camara-personas`.
+///
+/// The simulator answers PER PHONE NUMBER, so a location outcome is chosen
+/// by choosing whose account to act as. Off by default for one reason:
+/// handing `+99999991000` to a fixture consumes the only number that can
+/// complete Number Verification, and the live phone sign-up — a mandatory
+/// requirement — then has no number left to demonstrate with.
+///
+/// Use it when you are testing the location matrix and not the sign-up.
+const CAMARA_PERSONAS = [
+  // Location Verification TRUE — the only persona that reaches an APPROVED
+  // location outcome end to end.
+  ['layla', '+99999991001'],
+  // Number Verification TRUE, Location FALSE — the contradiction case: good
+  // photo, network says the device was never there. TAKES THE SIGN-UP NUMBER.
+  ['omar', '+99999991000'],
+  // UNKNOWN → UNAVAILABLE → human review. Never an automatic rejection.
+  ['rana', '+99999991002'],
+  // PARTIAL with no matchRate → UNAVAILABLE → human review.
+  ['sami', '+99999991003'],
+  // Provider error (returns 500) → UNAVAILABLE → human review.
+  ['nour', '+99999990503'],
 ];
 
 const log = (...args) => console.log(...args);
@@ -83,8 +128,20 @@ async function main() {
         [emails],
       );
       log(`reset: removed ${rowCount} seeded user(s) and their content`);
+      // Two tables reference `quests` with ON DELETE RESTRICT, and both have
+      // to go first or the reset fails on its own fixture. quest_of_the_day
+      // was always one of them. collab_groups is the other, and it only
+      // shows up on a database that has been used: a group whose creator was
+      // not a seeded user survives the delete above and then holds its quest
+      // hostage, so `--reset` worked on a clean database and failed on a
+      // real one — which is the opposite of when you need it.
       await client.query(
         `DELETE FROM quest_of_the_day
+         WHERE quest_id IN (SELECT id FROM quests WHERE title = ANY($1::text[]))`,
+        [QUESTS.map(([title]) => title)],
+      );
+      await client.query(
+        `DELETE FROM collab_groups
          WHERE quest_id IN (SELECT id FROM quests WHERE title = ANY($1::text[]))`,
         [QUESTS.map(([title]) => title)],
       );
@@ -97,16 +154,43 @@ async function main() {
 
     // ── users, profiles, identities ──────────────────────────────────────
     const userIds = {};
-    for (const [email, username, displayName, bio, role] of USERS) {
+    for (const [email, username, displayName, bio, role, phoneNumber] of USERS) {
+      // `phone_number` is globally UNIQUE, and the simulator personas are a
+      // shared testing resource: an account created by hand during earlier
+      // CAMARA work may be holding the one this fixture wants, and the seed
+      // then dies on a 23505 halfway through. Take it back, and say so.
+      //
+      // Releasing it costs that account nothing it needs: `phoneVerified`
+      // is read from `phone_verified_at`, which is left alone, so it does
+      // not land at the phone wall — it just stops answering as this
+      // persona, which is the point.
+      const claimed = await client.query(
+        `UPDATE users SET phone_number = NULL
+          WHERE phone_number = $1 AND email IS DISTINCT FROM $2
+          RETURNING id`,
+        [phoneNumber, email],
+      );
+      if (claimed.rowCount) {
+        log(`  reclaimed ${phoneNumber} from ${claimed.rowCount} other local account(s)`);
+      }
       const existing = await client.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rowCount) {
         userIds[username] = existing.rows[0].id;
+        // Backfill for a database seeded before the numbers existed —
+        // otherwise re-running the seed leaves the accounts at the phone
+        // wall, which is the one thing this is here to prevent.
+        await client.query(
+          `UPDATE users SET phone_number = $2, phone_verified_at = now()
+            WHERE id = $1 AND phone_number IS NULL`,
+          [existing.rows[0].id, phoneNumber],
+        );
         continue;
       }
       const user = await client.query(
-        `INSERT INTO users (email, password_hash, email_verified_at, status)
-         VALUES ($1, $2, now(), 'active') RETURNING id`,
-        [email, passwordHash],
+        `INSERT INTO users (email, password_hash, email_verified_at, status,
+                            phone_number, phone_verified_at)
+         VALUES ($1, $2, now(), 'active', $3, now()) RETURNING id`,
+        [email, passwordHash, phoneNumber],
       );
       const id = user.rows[0].id;
       userIds[username] = id;
@@ -129,6 +213,28 @@ async function main() {
       }
     }
     log(`users: ${Object.keys(userIds).length}`);
+
+    // Opt-in only. See CAMARA_PERSONAS: this consumes +99999991000, the one
+    // number that can complete Number Verification, so the live phone
+    // sign-up has nothing left to demonstrate with until the seed is run
+    // again without the flag.
+    if (camaraPersonas) {
+      for (const [username, phoneNumber] of CAMARA_PERSONAS) {
+        await client.query(
+          `UPDATE users SET phone_number = NULL
+            WHERE phone_number = $1 AND id IS DISTINCT FROM $2`,
+          [phoneNumber, userIds[username]],
+        );
+        await client.query(
+          `UPDATE users SET phone_number = $2, phone_verified_at = now() WHERE id = $1`,
+          [userIds[username], phoneNumber],
+        );
+      }
+      log(`camara personas: ${CAMARA_PERSONAS.map(([u]) => u).join(', ')}`);
+      log('  WARNING: omar now holds +99999991000 — the only number that can');
+      log('  complete Number Verification. Live phone sign-up cannot be');
+      log('  demonstrated until you re-run the seed without --camara-personas.');
+    }
 
     // ── quests ───────────────────────────────────────────────────────────
     const questIds = [];
@@ -563,6 +669,118 @@ async function main() {
     }
     log(`business: Tawlet Mar Mikhael — owner layla, manager omar`);
 
+    // ── moments: proof pinned across the map ─────────────────────────────
+    //
+    // The map's moments layer draws one square per approved, feed-visible
+    // submission at a published place. Everything above leaves exactly one
+    // place with proof on it, so the layer renders as a single tile and the
+    // thing it is for — a board that looks like people have been places —
+    // cannot be seen at all.
+    //
+    // Dedicated users, like the partner visitors and for the same reason:
+    // these are approved quests, and hanging them on the named accounts
+    // would put their XP out of step with the reconciliation the seed ran
+    // further up. Rebuilt each run, so a second run does not double them.
+    await client.query(
+      `DELETE FROM users WHERE email LIKE 'moment-traveller-%@bsheel.test'`,
+    );
+    await client.query(`DELETE FROM quests WHERE title LIKE 'Seeded moment at %'`);
+
+    // Whatever published places this database has — the ones seed-quests
+    // loaded from backend/seeds/places.json if it has been run, and the
+    // partner place otherwise. Deliberately not a list of coordinates
+    // invented here: a place is a real location, and seeds/validate.mjs
+    // refuses fabricated ones for exactly that reason.
+    const momentPlaces = (await client.query(
+      `SELECT id, name, country_code FROM map_places
+        WHERE is_published AND category <> 'hidden'
+        ORDER BY country_code, name LIMIT 8`,
+    )).rows;
+
+    let moments = 0;
+    for (const [index, momentPlace] of momentPlaces.entries()) {
+      const traveller = (await client.query(
+        `INSERT INTO users (email, password_hash, email_verified_at, status)
+         VALUES ($1, $2, now(), 'active') RETURNING id`,
+        [`moment-traveller-${index}@bsheel.test`, passwordHash],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO profiles (id, username, display_name, xp, level, quests_completed)
+         VALUES ($1, $2, $3, 40, 1, 1)`,
+        [traveller.id, `traveller${index}`, `Traveller ${index + 1}`],
+      );
+
+      const momentQuest = (await client.query(
+        `INSERT INTO quests (title, description, category, difficulty,
+                             xp_reward, duration_hours, is_active, created_by)
+         VALUES ($1, $2, $3, 'easy', 40, 24, true, $4) RETURNING id`,
+        [
+          `Seeded moment at ${momentPlace.name}`,
+          'Local fixture: proof pinned on the map.',
+          ['adventure', 'creativity', 'social', 'learning', 'fitness'][index % 5],
+          userIds.admin,
+        ],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO quest_destinations (quest_id, place_id) VALUES ($1, $2)`,
+        [momentQuest.id, momentPlace.id],
+      );
+
+      // Two per place, because one tile per place would never exercise the
+      // scatter the client does — which is the part most likely to be wrong.
+      for (let copy = 0; copy < 2; copy += 1) {
+        const daysAgo = index + copy + 1;
+        const assignment = (await client.query(
+          `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
+           VALUES ($1, $2, 'approved', now() - make_interval(days => $3),
+                   now() - make_interval(days => $3) + interval '1 day')
+           RETURNING id`,
+          [traveller.id, momentQuest.id, daysAgo],
+        )).rows[0];
+        const key = `submissions/${traveller.id}/${randomUUID()}.png`;
+        await putObject(key);
+        const submission = (await client.query(
+          `INSERT INTO submissions
+             (user_quest_id, user_id, media_url, media_type, caption, status,
+              show_in_feed, visibility, submitted_at, reviewed_at, reviewed_by)
+           VALUES ($1, $2, $3, 'image', $4, 'approved', true, 'visible',
+                   now() - make_interval(days => $5),
+                   now() - make_interval(days => $5) + interval '2 hours', $6)
+           RETURNING id`,
+          [
+            assignment.id, traveller.id, key,
+            `Seeded proof at ${momentPlace.name}.`, daysAgo, userIds.moderator,
+          ],
+        )).rows[0];
+        // Without the media_objects row POST /media/sign finds nothing and
+        // every tile draws its placeholder — which looks exactly like the
+        // layer being broken.
+        await client.query(
+          `INSERT INTO media_objects
+             (user_id, client_request_id, object_key, kind, status, content_type,
+              declared_size_bytes, stored_size_bytes, etag, submission_id,
+              upload_expires_at, created_at, completed_at)
+           VALUES ($1, gen_random_uuid(), $2, 'submission', 'ready', 'image/png',
+                   $3, $3, $4, $5, now(), now() - make_interval(days => $6),
+                   now() - make_interval(days => $6))`,
+          [traveller.id, key, pngBytes.length, pngMd5, submission.id, daysAgo],
+        );
+        await client.query(
+          `INSERT INTO media_submission_links (media_object_id, submission_id)
+           SELECT id, $2 FROM media_objects WHERE object_key = $1
+           ON CONFLICT DO NOTHING`,
+          [key, submission.id],
+        );
+        moments += 1;
+      }
+    }
+    // Every seeded moment is a photo. There is no sample video in the
+    // repository and no thumbnailing job yet, so a seeded `video` row would
+    // be a PNG that the post screen cannot play — and the map tile for a
+    // video is a play glyph either way, so seeding one would demonstrate
+    // nothing the photos do not.
+    log(`moments: ${moments} across ${momentPlaces.length} places`);
+
     const counts = await client.query(
       `SELECT
          (SELECT count(*) FROM profiles) AS profiles,
@@ -576,13 +794,21 @@ async function main() {
          (SELECT count(*) FROM follows) AS follows,
          (SELECT count(*) FROM reports WHERE status = 'pending') AS open_reports,
          (SELECT count(*) FROM businesses) AS businesses,
+         (SELECT count(*) FROM map_places WHERE is_published) AS published_places,
+         (SELECT count(*) FROM quest_destinations) AS placed_quests,
          (SELECT count(*) FROM analytics_events) AS analytics_events`,
     );
     log('\nseeded:', counts.rows[0]);
     log(`\nsign in with any of these — password: ${PASSWORD}`);
-    for (const [email, username, , , role] of USERS) {
-      log(`  ${email.padEnd(22)} ${username.padEnd(11)} ${role ?? 'user'}`);
+    for (const [email, username, , , role, phoneNumber] of USERS) {
+      log(`  ${email.padEnd(22)} ${username.padEnd(11)} ${(role ?? 'user').padEnd(12)} ${phoneNumber}`);
     }
+    log('\nPhone sign-in is the real path: sign UP in the app with');
+    log('  +99999991000 — the Nokia simulator number that verifies.');
+    log('These seeded accounts are data fixtures, and their numbers are');
+    log('Lebanese placeholders that stay out of the simulator\'s way; sign in');
+    log('to them with the email and password above. For the location matrix,');
+    log('re-run with --camara-personas (see docs/CAMARA_TESTING.md).');
     log('\nthe partner dashboard: sign in as layla (owner) or omar (manager)');
     log('  cd apps/business_web && flutter run -d chrome \\');
     log('    --dart-define=API_URL=http://127.0.0.1:3010/api/v1');

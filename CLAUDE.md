@@ -243,13 +243,33 @@ contract* (`quest_verification_defaults` + nullable overrides on
 
 For `provenance_only` and `none`, **no vision call is made at all**.
 
-**Shadow mode is the default** (`AI_VERIFICATION_SHADOW_MODE=true`): the
-agent decides and acts on nothing, and `acted = false` marks those rows
-as the honest eval slice. `npm run proof:eval` scores them against the
-human decisions that followed. `may_auto_reject` is seeded false for
-every category — authority is earned from a precision number, not
-asserted in a migration, and `finalizeDecision` enforces that against
-the agent path too, not only against this cascade.
+**Deciding is the default.** Every switch on the path is on out of the
+box — `AI_VERIFICATION_ENABLED`, `CV_PROVIDER=local`,
+`OPENAI_AGENT_ENABLED`, `CAMARA_ENABLED`,
+`AGENT_SUBMISSION_VERIFICATION_ENABLED`, the `app_config` pause row
+(migration 0048), and `AI_VERIFICATION_SHADOW_MODE=false`. That is a
+change from how this shipped: shadow mode used to be the default and
+`may_auto_reject` was seeded false for every category, on the reasoning
+that authority should be earned from a measured precision number.
+Migration 0046 granted rejection authority where the media can answer the
+question, and the defaults followed. `environment.spec.ts` pins all five,
+because a deployment with four of them on reviews nothing while looking
+like it reviews everything.
+
+What did **not** change is every narrower guard, and those are the
+safety: a rejection needs a positive statement from the network or the
+media (UNAVAILABLE goes to a human, never to a reject), `may_auto_reject`
+is still false for `provenance_only` and `none`, approval needs CV
+evidence above `AI_VERIFICATION_MIN_RELEVANCE`, and an integrity finding
+blocks an automated approval outright. `finalizeDecision` enforces these
+against the agent path too, not only against this cascade.
+
+**To re-open an honest eval slice**, set `AI_VERIFICATION_SHADOW_MODE=true`:
+the verifiers decide and act on nothing, `acted = false` marks those rows,
+and `npm run proof:eval` scores them against the human decisions that
+followed. The switch is read by both verifiers, so it is the single "may
+automation act" lever. Settings → AI SUBMISSION VERIFICATION is the
+faster, deploy-free brake for an incident.
 
 When it does act, it calls the *same* `approve`/`reject` a moderator's
 click uses with a null actor, so the XP-awarded-once invariant, the
@@ -332,6 +352,94 @@ both what the map shows and what `assertDestinationAccess` lets a player
 start, so a visible pin can never offer a quest the API refuses. Device
 GPS moves the player's avatar on the map and nothing else — it is never
 evidence.
+
+### Moments: proof pinned where it happened
+
+Over the pins sits a second layer, Snap/Instagram-map shaped: one small
+square per approved, feed-visible submission, sitting at the place the quest
+belonged to. `GET map/moments` (bounded, country-filterable) and
+`_MomentTile` on the client. It is an **addition** to the pins, never a
+replacement — a moment shows that somebody did this here; the pin is what
+starts a quest, so pins draw last and stay on top.
+
+**It is a sample, not the feed on a map.** Two cuts, both deliberate and
+both pinned by `map.e2e-spec.ts`:
+
+- **Hidden quests never appear.** A later stage of a journey, or a quest
+  that unlocks by reaching somewhere, is content the player is meant to
+  discover; a tile of somebody else completing it gives away that it exists,
+  roughly where it is and what it involves. `is_hidden` is excluded
+  outright rather than per viewer — "you have unlocked it, so you may see
+  other people's" leaks the moment it is slightly wrong. A locked *place* is
+  already excluded by `visible`; this is the quest-level equivalent, and the
+  test hides a quest people had already completed, because that is the real
+  case: a quest becomes a journey's later stage after it has been played.
+- **At most `MOMENTS_PER_PLACE` (2) per place**, and 24 tiles by default
+  (60 cap). A landmark with two hundred completions would bury every other
+  place on the board and turn the map into the feed. Two tiles says people
+  have been here and gives the scatter something to spread; the place's own
+  sheet is where the full set lives.
+
+Three more things decide the rest:
+
+- **It adds no visibility.** The predicate is the feed's own — approved,
+  `show_in_feed`, `visibility = 'visible'`, not deleted, not
+  moderator-removed, author active, neither party blocked — plus the map's
+  locked-place rule. Every moment is already public to every signed-in user;
+  the map is a second way to come across it, not a second audience. `media_url`
+  is signed by the client exactly as the feed signs it, because the key *is*
+  the access.
+- **The coordinate is the place's, not the person's.** Bsheel stores which
+  place a quest belonged to, and does not store where a photograph was taken.
+  The one source that could approximate it is `network_evidence`, and
+  publishing that on a map would be repurposing telecom verification somebody
+  consented to for a single quest. So the API returns the place's point and
+  radius, and the tile says "this happened at Baalbek" rather than naming a
+  spot.
+- **The scatter is presentation, and says so.** Several moments at one
+  landmark share one coordinate, so the client offsets each tile by metres
+  derived from its own submission id — deterministic (a tile that drifted
+  would read as somebody moving), inside the place radius, capped at 120 m so
+  a 10 km geofence cannot fling proof across a city, and floor-bounded so two
+  tiles never stack. `MapMoment.scatterOffset`, pinned by `map_test.dart`.
+
+Video tiles are a play glyph on the quest's category tint, not a frame:
+there is no thumbnailing job, and decoding a frame per marker would mean a
+video decoder per tile on a map being panned. Tapping any tile opens the
+ordinary feed post — the same screen, so votes, comments, BSHEEEL and report
+cannot drift into a map-only copy. Server-side poster frames are the obvious
+next step, and the only thing standing between a video tile and looking as
+good as a photo one.
+
+The layer is fetched only above the pin-zoom threshold and can be toggled off
+from the map's right-hand controls; `seed-local.mjs` seeds two moments across
+up to eight published places, which is what makes the scatter visible at all.
+
+## Emergency Mode / QoS on Demand: deliberately not built
+
+The proposal lists QoS on Demand behind an SOS button as the first CAMARA
+API. It is **not implemented, on purpose**, and this is a decision rather
+than a backlog item — so nobody should read the absence as an oversight and
+fill it in.
+
+An SOS feature is a promise that help arrives. Keeping that promise needs
+things this platform does not have and cannot fake: a route to real
+emergency services, somebody on the other end of it, a tested escalation
+path, and a defensible answer for the case where the network prioritisation
+succeeds and the help still does not come. Shipping the button without them
+would be worse than not shipping it, because a user in trouble would rely on
+it. Prioritising a data bearer is not rescue.
+
+What exists instead, and is genuinely useful, is the evidence layer the
+proposal describes around it: Device Status reachability
+(`DEVICE_REACHABILITY`, the one capability the agent may request beyond the
+mandatory baseline), Location Retrieval and Geofencing history, all bound to
+a quest window. If Emergency Mode is ever built, it builds on those.
+
+Two places encode the decision in code, and they should stay agreed:
+`supportedAdditionalCapabilities` in `camara-evidence.adapter.ts` (QoS is not
+in the allowlist, so the agent cannot request it) and the port comment in
+`agent/domain/network-evidence.port.ts`.
 
 ## Business / destination accounts (#14)
 
@@ -543,11 +651,31 @@ Three smaller things that are load-bearing:
   costs a rounding error; a retry queue costs the user battery and
   eventually replays stale events into the wrong day.
 
-**Impressions are deliberately not emitted yet.** The event type and the
-aggregation exist, but accurate counting needs visibility detection, and an
-over-counted impression is worse than an absent one because a business is
-shown it as a measurement. The dashboard shows reach, opens and BSHEEELs —
-every number on it is one somebody actually reported.
+**Impressions are emitted from the feed, and only from the feed.** The
+blocker was never the event type or the aggregation — both existed — it was
+that an over-counted impression is worse than an absent one, because a
+business is shown it as a measurement, and `itemBuilder` running is not
+somebody seeing a card.
+
+`ImpressionTracker` (`core/services/impression_tracker.dart`) is what makes
+the claim defensible, and it rests on a property of that screen: the feed is
+a full-screen vertical PageView, so the post on screen is the settled page
+rather than an estimate. It counts a view when the card was the visible one
+*and* stayed for a dwell (1s), once per **quest** per tracker, and never
+while the app is backgrounded. Keyed on the quest, not the post, because
+several completions of one quest can sit in a feed and counting each would
+distort impression → detail-view conversion by however many people posted
+it. Scrolling back up to a post is not a second view.
+
+The list surfaces — map, search, home — still do not emit. A row in a
+scrolling list needs real visibility detection to make the same claim, and
+guessing there would put exactly the unauditable number in front of a
+business that this was withheld to avoid. That is the shape of the work if
+someone widens it: a visibility signal per surface, then the same tracker.
+
+The dashboard shows reach, opens, BSHEEELs and now impressions — every
+number on it is one somebody actually reported, and the funnel keeps the
+whole `exposure` object labelled as client-attested.
 
 Retention is not implemented. Raw per-user telemetry has no reason to
 outlive the aggregates drawn from it; a rollup plus a delete is the obvious
