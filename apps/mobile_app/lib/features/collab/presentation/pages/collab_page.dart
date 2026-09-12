@@ -127,10 +127,20 @@ class _CollabPageState extends ConsumerState<CollabPage> {
 
   @override
   Widget build(BuildContext context) {
+    // `/quests/active` returns a SUBMITTED quest as well as an assigned one —
+    // deliberately, because the home hero has to show "awaiting review". This
+    // panel must not: a group belongs to a quest you can still act on, and
+    // once the proof is in, the player's part is over (voting happens on the
+    // feed). Keying off the submitted quest left the section pinned to a
+    // finished group with VOTING OPEN, and — because the roll cap lets you
+    // take a new quest while one is in review — no way to start a group for
+    // the quest you had just taken.
     final activeQuest = ref.watch(activeQuestProvider).valueOrNull;
-    final groupAsync = activeQuest == null
+    final liveQuest =
+        activeQuest?.status == UserQuestStatus.assigned ? activeQuest : null;
+    final groupAsync = liveQuest == null
         ? null
-        : ref.watch(collabGroupStatusProvider(activeQuest.id));
+        : ref.watch(collabGroupStatusProvider(liveQuest.id));
     final group = groupAsync?.valueOrNull;
 
     final content = ListView(
@@ -164,8 +174,12 @@ class _CollabPageState extends ConsumerState<CollabPage> {
             ],
           ),
         const SizedBox(height: 16),
-        if (activeQuest == null)
-          const _NoQuestPanel()
+        if (liveQuest == null)
+          // Says which of the two situations this is: no quest at all, or a
+          // quest whose proof is already in. The second used to render as
+          // "you have no quest", which is confusing when the home screen
+          // directly above says one is in review.
+          _NoQuestPanel(awaitingReview: activeQuest != null)
         else if (groupAsync!.isLoading)
           const ArcadeSkeleton(height: 220, radius: 18)
         else if (groupAsync.hasError)
@@ -176,9 +190,9 @@ class _CollabPageState extends ConsumerState<CollabPage> {
           )
         else if (group != null && group.isCollab)
           _CollabHero(
-            title: activeQuest.quest?.title ?? 'QUEST',
+            title: liveQuest.quest?.title ?? 'QUEST',
             group: group,
-            expiresAt: group.expiresAt ?? activeQuest.expiresAt,
+            expiresAt: group.expiresAt ?? liveQuest.expiresAt,
             onCastVote: () => context.goNamed(RouteNames.feed),
             onShare: group.code == null
                 ? null
@@ -186,18 +200,18 @@ class _CollabPageState extends ConsumerState<CollabPage> {
           )
         else
           _CreateGroupPanel(
-            questTitle: activeQuest.quest?.title ?? 'YOUR QUEST',
+            questTitle: liveQuest.quest?.title ?? 'YOUR QUEST',
             selectedMode: _selectedMode,
             creating: _creating,
             onModeChange: (mode) => setState(() => _selectedMode = mode),
-            onCreate: () => _createGroup(activeQuest.id),
+            onCreate: () => _createGroup(liveQuest.id),
           ),
         if (group != null && group.isCollab) ...[
           const SizedBox(height: 18),
           const _SectionLabel('YOUR GROUPS'),
           const SizedBox(height: 10),
           _GroupCard(
-            title: activeQuest?.quest?.title ?? 'QUEST',
+            title: liveQuest?.quest?.title ?? 'QUEST',
             memberCount: group.members.length,
             code: group.code,
             open: group.status == CollabGroupStatus.open,
@@ -602,21 +616,33 @@ class _CreateGroupPanel extends StatelessWidget {
 }
 
 class _NoQuestPanel extends StatelessWidget {
-  const _NoQuestPanel();
+  const _NoQuestPanel({this.awaitingReview = false});
+
+  /// True when the player DOES have a quest, but its proof is already in.
+  ///
+  /// Worth distinguishing: the home screen directly above says "in review",
+  /// so telling them here that they have no quest reads as a contradiction.
+  /// Their part of that group is simply over — and because a submitted quest
+  /// no longer blocks a new roll, the useful next step is to take another one.
+  final bool awaitingReview;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _DashedPanel(
-          label: 'EMPTY STATE',
-          title: 'NO COLLAB YET',
-          body: 'Roll a quest to invite friends, or join one with a code.',
+        _DashedPanel(
+          label: awaitingReview ? 'PROOF IN REVIEW' : 'EMPTY STATE',
+          title: awaitingReview ? 'THAT GROUP IS DONE' : 'NO COLLAB YET',
+          body: awaitingReview
+              ? 'Your proof is with a moderator, so there is nothing left to do '
+                  'in that group — voting happens on the feed. Roll another '
+                  'quest to start a new one, or join a friend with a code.'
+              : 'Roll a quest to invite friends, or join one with a code.',
         ),
         const SizedBox(height: 16),
         ArcadeButton(
-          label: 'Generate a quest',
+          label: awaitingReview ? 'Roll another quest' : 'Generate a quest',
           onTap: () => context.goNamed(RouteNames.home),
         ),
       ],
