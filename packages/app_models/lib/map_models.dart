@@ -449,7 +449,8 @@ class MapMoment {
     // 0.35..1.0 of the spread: never on top of the pin, never at the rim.
     // The square root is what spreads them evenly over the disc; without it
     // they crowd the centre.
-    final distance = spread * (0.35 + 0.65 * sqrt(((hash >> 12) % 1000) / 1000));
+    final distance =
+        spread * (0.35 + 0.65 * sqrt(((hash >> 12) % 1000) / 1000));
     return (east: distance * cos(angle), north: distance * sin(angle));
   }
 }

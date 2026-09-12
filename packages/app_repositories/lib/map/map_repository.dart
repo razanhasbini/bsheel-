@@ -103,7 +103,9 @@ class ApiMapRepository implements MapRepository {
     final rows = apiObjectList(await _client.get('map/moments', query: {
       if (country != null) 'country': country,
       'limit': limit,
-    })).map((r) => Map<String, dynamic>.from(r)).toList();
+    }))
+        .map((r) => Map<String, dynamic>.from(r))
+        .toList();
     // Same signing path as the feed's, and for the same reason: `media_url`
     // is an object key, and the key is the access. A row whose signing
     // failed keeps an empty string rather than the raw key — the tile draws
@@ -120,7 +122,8 @@ class ApiMapRepository implements MapRepository {
         .map((r) => r['avatar_url'] as String? ?? '')
         .where((u) => u.isNotEmpty));
     if (raw.isNotEmpty) {
-      final signed = await ApiMediaSigner(_client).signMany(raw.toSet().toList());
+      final signed =
+          await ApiMediaSigner(_client).signMany(raw.toSet().toList());
       for (final row in rows) {
         for (final key in ['media_url', 'avatar_url']) {
           final url = row[key] as String?;

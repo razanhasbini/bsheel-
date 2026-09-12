@@ -780,9 +780,7 @@ class _MapPageState extends ConsumerState<MapPage>
     return LatLng(
       moment.latitude + offset.north / metresPerDegreeLat,
       moment.longitude +
-          (metresPerDegreeLng.abs() < 1
-              ? 0
-              : offset.east / metresPerDegreeLng),
+          (metresPerDegreeLng.abs() < 1 ? 0 : offset.east / metresPerDegreeLng),
     );
   }
 
@@ -800,7 +798,8 @@ class _MapPageState extends ConsumerState<MapPage>
   Future<void> _openMoment(MapMoment moment) async {
     HapticFeedback.lightImpact();
     final places = [
-      ...(ref.read(mapPlacesProvider(_filter)).valueOrNull ?? const <MapPlace>[]),
+      ...(ref.read(mapPlacesProvider(_filter)).valueOrNull ??
+          const <MapPlace>[]),
       ...(ref.read(mapPlacesProvider(mapAllPlacesFilter)).valueOrNull ??
           const <MapPlace>[]),
     ];
@@ -1298,8 +1297,7 @@ class _MomentSheetState extends ConsumerState<_MomentSheet> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
           Row(children: [
-            _AuthorRing(
-                avatarUrl: moment.avatarUrl, username: moment.username),
+            _AuthorRing(avatarUrl: moment.avatarUrl, username: moment.username),
             const SizedBox(width: 10),
             Expanded(
               child: Text('@${moment.username}',
@@ -1401,7 +1399,8 @@ class _MomentSheetState extends ConsumerState<_MomentSheet> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('This clip could not be loaded. Open the post to try again.',
+          child: Text(
+              'This clip could not be loaded. Open the post to try again.',
               textAlign: TextAlign.center),
         ),
       );
@@ -1515,7 +1514,8 @@ class _MomentTile extends StatelessWidget {
     ].join(', ');
 
     return Tooltip(
-      message: '${moment.placeName} · ${moment.questTitle} · @${moment.username}'
+      message:
+          '${moment.placeName} · ${moment.questTitle} · @${moment.username}'
           '${more > 0 ? ' · +$more more' : ''}',
       child: Semantics(
         button: true,
@@ -1576,8 +1576,7 @@ class _MomentTile extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(
                                     QuestSpacing.radiusFull),
                                 border: Border.all(
-                                    color: QuestColors.osTextPrimary,
-                                    width: 1),
+                                    color: QuestColors.osTextPrimary, width: 1),
                               ),
                               child: Text('⚑${moment.questCount}',
                                   style: QuestTypography.osLabelSmall
@@ -1607,8 +1606,8 @@ class _MomentTile extends StatelessWidget {
                     color: QuestColors.osCard,
                     borderRadius:
                         BorderRadius.circular(QuestSpacing.radiusFull),
-                    border: Border.all(
-                        color: QuestColors.osTextPrimary, width: 1),
+                    border:
+                        Border.all(color: QuestColors.osTextPrimary, width: 1),
                   ),
                   child: Text('+$more more',
                       style: QuestTypography.osLabelSmall
@@ -1642,8 +1641,7 @@ class _AuthorRing extends StatelessWidget {
       decoration: BoxDecoration(
         color: QuestColors.osCard,
         shape: BoxShape.circle,
-        border:
-            Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+        border: Border.all(color: QuestColors.osTextPrimary, width: 1.5),
         boxShadow: QuestSpacing.shadowSm,
       ),
       alignment: Alignment.center,
@@ -2861,8 +2859,7 @@ class _ProofThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label:
-          '${preview.isVideo ? 'Video' : 'Photo'} by ${preview.username}'
+      label: '${preview.isVideo ? 'Video' : 'Photo'} by ${preview.username}'
           '${preview.questTitle.isEmpty ? '' : ', ${preview.questTitle}'}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,

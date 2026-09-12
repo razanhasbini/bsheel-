@@ -62,6 +62,7 @@ class _MapRepo extends Fake implements MapRepository {
           longitude: 35.5),
       quests: [],
       previews: []);
+
   /// Two moments at the one fixture place — the case the scatter exists
   /// for, since both carry that place's coordinate.
   @override
@@ -243,8 +244,8 @@ void main() {
     expect(at('moment-a').scatterOffset, first);
 
     // Distinct: two moments at one place must not stack into one square.
-    final apart = (first.east - second.east).abs() +
-        (first.north - second.north).abs();
+    final apart =
+        (first.east - second.east).abs() + (first.north - second.north).abs();
     expect(apart, greaterThan(1));
 
     // Bounded: never outside the place, and never further than 120 m however
