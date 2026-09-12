@@ -114,10 +114,11 @@ class _PostActionsSheet extends StatelessWidget {
   /// band is drawn into the image so a reposted photo still says where it
   /// came from.
   ///
-  /// Video is saved as-is. Burning a caption into a video means re-encoding
-  /// it, which is a transcoding dependency and a long wait on a phone, so it
-  /// is deliberately not attempted rather than done badly. The share text
-  /// still carries the template.
+  /// Video gets the same band, burned in on the worker rather than here:
+  /// re-encoding is a transcoding dependency and a long wait on a phone, and
+  /// the worker already has ffmpeg. The app asks for the render, waits up to
+  /// ninety seconds, and saves the plain clip (saying so) if it is not ready
+  /// — the share text carries the template either way.
   Future<void> _save(BuildContext context) async {
     Navigator.of(context).maybePop();
     final page = pageContext;
@@ -128,10 +129,32 @@ class _PostActionsSheet extends StatelessWidget {
     if (!page.mounted) return;
     _tell(page, 'Preparing…');
     try {
-      final response = await http.get(Uri.parse(url));
+      final isVideo = (mediaType ?? '').toLowerCase().contains('video');
+
+      // Videos are branded on the worker (ffmpeg burns the same band photos
+      // get on the phone). Ask, wait, and fall back to the plain clip — with
+      // a word about it — if the render is not ready in time. The original
+      // is always there; the band is the upgrade.
+      var downloadUrl = url;
+      if (isVideo) {
+        _tell(page, 'Adding the Bsheel band to the video…');
+        try {
+          final export =
+              await AppBackend.repositories.mediaExports.awaitBranded(postId);
+          if (export.isReady) {
+            downloadUrl = export.downloadUrl!;
+          } else if (page.mounted) {
+            _tell(page,
+                'The branded version is still rendering — saving the plain video.');
+          }
+        } catch (_) {
+          // The export endpoint being down must not cost the user the save.
+        }
+      }
+
+      final response = await http.get(Uri.parse(downloadUrl));
       if (response.statusCode != 200) throw Exception('download failed');
 
-      final isVideo = (mediaType ?? '').toLowerCase().contains('video');
       Uint8List bytes = response.bodyBytes;
       var extension = isVideo ? 'mp4' : 'jpg';
       if (!isVideo) {

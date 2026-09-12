@@ -15,6 +15,7 @@ import { RedisModule } from './infrastructure/redis/redis.module.js';
 import { RealtimeEventPublisher } from './infrastructure/realtime/realtime-event.publisher.js';
 import { TelegramModule } from './integrations/telegram/telegram.module.js';
 import { MediaReclaimProcessor } from './modules/media/application/media-reclaim.processor.js';
+import { BrandedExportProcessor } from './modules/media/infrastructure/branded-export.processor.js';
 import { MediaReclaimScheduler } from './modules/media/application/media-reclaim.scheduler.js';
 import { StreakReminderProcessor } from './modules/profiles/application/streak-reminder.processor.js';
 import { StreakReminderScheduler } from './modules/profiles/application/streak-reminder.scheduler.js';
@@ -61,6 +62,8 @@ import { ProofVerificationScheduler } from './modules/submissions/application/pr
     RealtimeEventPublisher,
     MediaReclaimProcessor,
     MediaReclaimScheduler,
+    // Branded video renders (0050): ffmpeg lives here, never in the API.
+    BrandedExportProcessor,
     StreakReminderProcessor,
     StreakReminderScheduler,
     QuestMaintenanceProcessor,
