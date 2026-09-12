@@ -27,6 +27,22 @@ final featuredJourneyProvider = Provider.autoDispose<JourneyRun?>((ref) {
   return runs.first;
 });
 
+/// Whether this quest is a checkpoint of a route the player chose to post
+/// as one, in which case the feed switch on the submit screen is not the
+/// player's to set.
+///
+/// Derived from the runs the app already holds rather than asked for per
+/// quest: the answer is the same one the server enforces at insert, and a
+/// second round trip to be told something already on screen is waste.
+final withheldForJourneyProvider =
+    Provider.autoDispose.family<bool, String?>((ref, questId) {
+  if (questId == null) return false;
+  final runs = ref.watch(activeJourneysProvider).valueOrNull ?? const [];
+  return runs.any((run) =>
+      run.postsAsOneRoute &&
+      run.stages.any((stage) => stage.questId == questId));
+});
+
 /// A journey the server still owes this player an unlock moment for.
 ///
 /// Read from the run rather than from local storage: a checkpoint approved

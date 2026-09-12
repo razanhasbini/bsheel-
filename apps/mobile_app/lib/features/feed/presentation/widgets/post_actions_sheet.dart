@@ -4,10 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:app_core/app_core.dart';
 
-import 'dart:io';
-
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/config/branded_media.dart';
 import '../../../../core/config/share_template.dart';
@@ -153,20 +150,28 @@ class _PostActionsSheet extends StatelessWidget {
         }
       }
 
-      final directory = await getTemporaryDirectory();
-      final file = File(
-        '${directory.path}/bsheel_${postId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '')}.$extension',
-      );
-      await file.writeAsBytes(bytes);
+      // Handed over as bytes, never through a temp file.
+      //
+      // This is what was broken: the save wrote to getTemporaryDirectory()
+      // and wrapped a dart:io File, and neither of those exists on the web
+      // build. Every SAVE in a browser threw before it reached the share
+      // sheet and landed in the catch below as "Could not save that",
+      // which described the symptom and hid the cause. XFile.fromData needs
+      // no filesystem and behaves the same on every platform.
+      final name =
+          'bsheel_${postId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '')}.$extension';
+      final mimeType = isVideo ? 'video/mp4' : 'image/png';
 
       // The system sheet is what offers "Save to Photos" / "Save to Files",
       // and on the web it becomes a download. Going through it avoids a
       // gallery plugin and the photo-library permission that comes with one.
       await SharePlus.instance.share(
         ShareParams(
-          files: [
-            XFile(file.path, mimeType: isVideo ? 'video/mp4' : 'image/png')
-          ],
+          files: [XFile.fromData(bytes, mimeType: mimeType, name: name)],
+          // The web implementation reads the filename from here, not from
+          // the XFile — without it the download arrives as "file" with no
+          // extension and the browser will not open it.
+          fileNameOverrides: [name],
           text: ShareTemplate.quest(
             postId: postId,
             questTitle: questTitle ?? '',

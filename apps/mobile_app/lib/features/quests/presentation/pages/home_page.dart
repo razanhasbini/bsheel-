@@ -441,11 +441,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                                     ),
                                   )
                                 else if (journey == null ||
-                                    !journey.canContinue)
-                                  // Offered only when there is nothing else
+                                    !journey.hasCheckpointWaiting)
+                                  // Offered whenever there is nothing live
                                   // to do. Rolling a fresh quest while a
-                                  // checkpoint waits would pull the player
-                                  // off a journey they already started.
+                                  // checkpoint is genuinely waiting would
+                                  // pull the player off a journey they
+                                  // already started — but a checkpoint that
+                                  // came back REJECTED is not waiting on
+                                  // anything, and treating it as though it
+                                  // were took the whole quest generator off
+                                  // Home until the player dealt with it.
+                                  // One turned-down photo must not close the
+                                  // rest of the app.
                                   _SlotMachineZone(onGenerate: _rollWheel),
                               ],
                             );

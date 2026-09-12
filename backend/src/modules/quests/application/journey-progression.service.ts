@@ -67,9 +67,14 @@ export class JourneyProgressionService {
       const remaining = await this.journeys.unapprovedSteps(run.id, transaction);
       if (remaining.length === 0) {
         const closed = await this.journeys.completeRun(run.id, transaction);
-        return closed
-          ? { kind: 'journey-completed' as const, runId: run.id, chainName }
-          : { kind: 'already-processed' as const };
+        if (!closed) return { kind: 'already-processed' as const };
+        // The route reaches the feed here, and only here, for a run whose
+        // player asked for one post (0047). Inside the same transaction that
+        // closed the run, so a journey can never be finished-but-unpublished:
+        // the stops have been withheld all along and this is the only thing
+        // that lets them out.
+        await this.journeys.publishJourneyPost(run.id, transaction);
+        return { kind: 'journey-completed' as const, runId: run.id, chainName };
       }
 
       // Which checkpoint opens now depends on the chain's rule, and only

@@ -65,11 +65,28 @@ describe('quest verification contract (e2e)', { timeout: 120_000 }, () => {
 
   // Authority is earned by measurement, not asserted in a migration. Until
   // the eval produces a precision number, nothing may reject automatically.
-  it('grants no category the power to auto-reject out of the box', async () => {
-    const result = await harness.database.query<{ count: string }>(
-      'SELECT count(*) FROM quest_verification_defaults WHERE may_auto_reject',
+  // Rejection authority follows verifiability, and nothing else (0046).
+  //
+  // 0034 granted it to nobody, which was right while the agent's precision
+  // was unmeasured and wrong once the cost showed up: a screenshot the agent
+  // was 99% sure about still cost a moderator a review. It is now granted
+  // exactly where the media can answer the question — where the asked-for
+  // thing is visible when it is there, so its absence is a finding.
+  //
+  // Asserted as the rule rather than as a count, so a new category inherits
+  // the reasoning instead of silently landing on whichever side keeps the
+  // number right.
+  it('grants auto-rejection only where the media can settle the quest', async () => {
+    const rows = await harness.database.query<{ category: string; verifiability: string; may_auto_reject: boolean }>(
+      'SELECT category, verifiability, may_auto_reject FROM quest_verification_defaults',
     );
-    expect(Number(result.rows[0].count)).toBe(0);
+    expect(rows.rows.length).toBeGreaterThan(0);
+    for (const row of rows.rows) {
+      expect(row.may_auto_reject, row.category).toBe(row.verifiability === 'content');
+    }
+    // And the categories a photograph cannot speak to are genuinely present,
+    // so the loop above is not vacuously true on an all-content catalogue.
+    expect(rows.rows.some((row) => row.verifiability !== 'content')).toBe(true);
   });
 
   // A category default cannot be right for every quest in it: "Watch the

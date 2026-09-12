@@ -1,6 +1,7 @@
 import 'package:app_contracts/app_contracts.dart';
 
 import 'collab_feed_member.dart';
+import 'journey_post_stop.dart';
 import 'src/json_coercions.dart';
 import 'src/value_equality.dart';
 
@@ -60,6 +61,20 @@ class FeedPostModel {
   /// page — offset paging duplicates and skips cards when scores move.
   final String? nextCursor;
 
+  /// The stops of a journey posted as one route (0047).
+  ///
+  /// Empty on every post that is not a route, which is almost all of them.
+  /// Each stop stays its own submission — its own verdict, its own appeal —
+  /// so this is a list of what the post is made of rather than extra media
+  /// hanging off it.
+  final List<JourneyPostStop> journeyStops;
+
+  /// The route's name, when this post is one. Null otherwise.
+  final String? journeyTitle;
+
+  /// True when this post is a whole route rather than a single proof.
+  bool get isJourneyPost => journeyStops.length > 1;
+
   const FeedPostModel({
     required this.id,
     required this.mediaUrl,
@@ -93,6 +108,8 @@ class FeedPostModel {
     this.viewerSaved = false,
     this.commentCount = 0,
     this.nextCursor,
+    this.journeyStops = const [],
+    this.journeyTitle,
   });
 
   /// Parse from the get_feed RPC response row.
@@ -144,6 +161,13 @@ class FeedPostModel {
           coerceInt(json[CollabFeedRpcColumns.collabMemberCount]),
       collabMembers: members,
       expiresAt: coerceNullableTimestamp(json['expires_at']),
+      journeyStops: json['journey_stops'] is List
+          ? (json['journey_stops'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map(JourneyPostStop.fromJson)
+              .toList()
+          : const [],
+      journeyTitle: json['journey_title'] as String?,
     );
   }
 
@@ -201,6 +225,11 @@ class FeedPostModel {
       // every optimistic vote, which broke the collab
       // "WAITING FOR" -> "DIDN'T POST" flip that reads it.
       expiresAt: expiresAt,
+      // Forwarded for the same reason as expiresAt, and with the same
+      // consequence if it is not: an optimistic vote on a route post would
+      // drop its stops and redraw it as a single photograph.
+      journeyStops: journeyStops,
+      journeyTitle: journeyTitle,
     );
   }
 
@@ -240,6 +269,8 @@ class FeedPostModel {
         other.collabMode == collabMode &&
         other.collabMemberCount == collabMemberCount &&
         other.expiresAt == expiresAt &&
+        other.journeyTitle == journeyTitle &&
+        listEquals(other.journeyStops, journeyStops) &&
         listEquals(other.collabMembers, collabMembers);
   }
 
@@ -272,6 +303,8 @@ class FeedPostModel {
         collabMode,
         collabMemberCount,
         expiresAt,
+        journeyTitle,
+        ...journeyStops,
         ...collabMembers,
       ]);
 }

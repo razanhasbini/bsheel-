@@ -129,9 +129,17 @@ class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
               ],
             ),
             const SizedBox(height: 3),
+            // Which stage you are standing on AND how many are left, because
+            // the first alone is read as the second. On the last checkpoint
+            // of a three-stop route "STAGE 3 OF 3" is positionally true and
+            // looks exactly like a finished journey — a player who has done
+            // two stops reads it as three done and wonders why nothing says
+            // complete. The count of what remains is the half that cannot be
+            // misread, so it is always present.
             Text(
               run.orderMatters
                   ? 'STAGE ${run.completedSteps + 1} OF ${run.totalSteps}'
+                      ' · ${run.remaining} LEFT'
                   : '${run.remaining} CHECKPOINT${run.remaining == 1 ? '' : 'S'} REMAINING',
               style: QuestTypography.osLabelSmall.copyWith(
                 fontSize: 10,
@@ -196,7 +204,12 @@ class _ActiveJourneyCardState extends ConsumerState<ActiveJourneyCard> {
                   ? 'RETURN TO CHECKPOINT'
                   : _starting
                       ? 'STARTING…'
-                      : 'CONTINUE JOURNEY',
+                      // "Continue" is the wrong word for going back to
+                      // something that was turned down — and the right word
+                      // is also the reassurance: the attempt is not spent.
+                      : run.nextForViewer?.state == StageState.rejected
+                          ? 'TRY CHECKPOINT AGAIN'
+                          : 'CONTINUE JOURNEY',
               isLoading: _starting && !resume,
               onTap: _starting
                   ? null
@@ -283,6 +296,23 @@ class _CurrentSummary extends StatelessWidget {
             color: QuestColors.text(context),
           ),
         ),
+        // Home is where a player learns a checkpoint came back rejected —
+        // they are not going to open the journey to find out, and a card
+        // that says only the checkpoint's name reads like nothing happened.
+        if (stage.state == StageState.rejected) ...[
+          const SizedBox(height: 3),
+          Text(
+            stage.appealed
+                ? 'REJECTED · APPEAL SENT'
+                : 'REJECTED — you can take it again or appeal',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: QuestTypography.osLabelSmall.copyWith(
+                fontSize: 10,
+                letterSpacing: 0.8,
+                color: QuestColors.osRedText),
+          ),
+        ],
         if (context_.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
@@ -321,6 +351,7 @@ class _AnyOrderSummary extends StatelessWidget {
                   StageState.completed => Icons.check_circle_rounded,
                   StageState.inProgress => Icons.play_circle_fill_rounded,
                   StageState.underReview => Icons.hourglass_top_rounded,
+                  StageState.rejected => Icons.refresh_rounded,
                   StageState.available => Icons.radio_button_checked,
                   StageState.locked => Icons.lock_rounded,
                 },
@@ -329,6 +360,7 @@ class _AnyOrderSummary extends StatelessWidget {
                   StageState.completed => QuestColors.osSuccess,
                   StageState.inProgress => QuestColors.osPrimary,
                   StageState.underReview => QuestColors.osAccent,
+                  StageState.rejected => QuestColors.osRed,
                   StageState.available => QuestColors.osPrimary,
                   StageState.locked => QuestColors.osTextMuted,
                 },

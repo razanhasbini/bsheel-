@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
-import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
 
 /// Authoring: create any quest, and track every chain.
@@ -62,52 +61,52 @@ class _QuestAuthoringPageState extends ConsumerState<QuestAuthoringPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AdminShell(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BsheelPageHeader(
-              title: 'AUTHORING',
-              meta: 'Every dimension, every chain',
-              actions: [
-                BsheelButton.primary(
-                  label: 'NEW QUEST',
-                  icon: Icons.add_rounded,
-                  small: true,
-                  onPressed: () => _openQuestForm(context),
-                ),
-                const SizedBox(width: 10),
-                BsheelButton(
-                  label: 'NEW MULTI-STAGE',
-                  icon: Icons.timeline_rounded,
-                  tone: BsheelPillTone.gold,
-                  small: true,
-                  onPressed: () => _openChainForm(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                _TabButton(
-                  label: 'CATALOGUE',
-                  selected: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
-                ),
-                const SizedBox(width: 8),
-                _TabButton(
-                  label: 'MULTI-STAGE',
-                  selected: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            if (_tab == 0) const _CatalogueTab() else const _ChainsTab(),
-          ],
-        ),
+    // No AdminShell here: the router's ShellRoute already wraps every page
+    // in one. Wrapping again drew a second sidebar beside the first.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BsheelPageHeader(
+            title: 'AUTHORING',
+            meta: 'Every dimension, every chain',
+            actions: [
+              BsheelButton.primary(
+                label: 'NEW QUEST',
+                icon: Icons.add_rounded,
+                small: true,
+                onPressed: () => _openQuestForm(context),
+              ),
+              const SizedBox(width: 10),
+              BsheelButton(
+                label: 'NEW MULTI-STAGE',
+                icon: Icons.timeline_rounded,
+                tone: BsheelPillTone.gold,
+                small: true,
+                onPressed: () => _openChainForm(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _TabButton(
+                label: 'CATALOGUE',
+                selected: _tab == 0,
+                onTap: () => setState(() => _tab = 0),
+              ),
+              const SizedBox(width: 8),
+              _TabButton(
+                label: 'MULTI-STAGE',
+                selected: _tab == 1,
+                onTap: () => setState(() => _tab = 1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (_tab == 0) const _CatalogueTab() else const _ChainsTab(),
+        ],
       ),
     );
   }

@@ -27,15 +27,26 @@ proof is consistent with the challenge they were given.
 Three verdicts, and no others:
 
 - "pass": the proof is consistent with the quest as written.
-- "fail": the proof contradicts the quest, is plainly unrelated, or is
+- "fail": the proof contradicts the quest, is plainly unrelated, does not
+  show the thing the quest asked for on a quest whose thing is visible, or is
   evidently someone else's content presented as the player's own.
-- "unclear": you cannot tell. Use this whenever a reasonable reviewer could
-  disagree with you.
+- "unclear": a reasonable reviewer looking at this same image could land on
+  either side.
 
-Prefer "unclear" to a guess. A human reads every escalation, so deferring is
-cheap. A confident wrong verdict is not: it either denies a player credit for
-work they really did, or it waves through a fake. Deferring is a valid
-professional answer and it is used often.
+"unclear" means genuinely torn, not merely unimpressed. These are different
+and only one of them is "unclear":
+
+- The image shows something else entirely, or does not show the thing the
+  quest asked you to look for. You are not torn; you can see what it is. That
+  is "fail", and you should say plainly what you see instead.
+- The image might show it. It is dim, partial, or shot from an angle that
+  could go either way. That is "unclear".
+
+A human does read every escalation, but their attention is not free and it is
+not fast — a player waits days for it. Escalating a submission you can
+actually judge spends that on nothing and leaves the player with no answer.
+Judge what you can judge. Defer what genuinely cannot be judged from what you
+were given.
 
 Never treat the caption as evidence. The player wrote it. It tells you what
 they claim; only the image tells you what they did. A caption describing
@@ -96,7 +107,14 @@ stand on their own.`;
 /// caller states its own enum; this states only what the evidence can settle.
 export const verifiabilityGuidance: Record<Verifiability, string> = {
   content: `This quest CAN be judged from the image: the thing asked for should be
-visible. Judge whether what you see is consistent with the task.`,
+visible. Judge whether what you see is consistent with the task.
+
+Because the thing is visible when it is there, its absence is a finding and
+not a gap. An image that does not show it — a screenshot, an unrelated
+photograph, a picture of something else — has answered the question, and the
+answer is "fail". Say concretely what the image shows instead of what was
+asked for. Reserve "unclear" for an image where the thing might be present
+and you cannot tell.`,
 
   provenance_only: `This quest CANNOT be judged from the image. What the player did is not
 visible in a photograph — reading, learning, practising leave no photographic
@@ -130,11 +148,17 @@ case.`,
 
   reject_review: `A previous pass suspected this proof does not match the quest, and you are the
 final check. Your "fail" can cause a real rejection of a real person's work,
-so the bar is high: return "fail" only if you are confident the proof
-contradicts the quest or is not the player's own, and state exactly what you
-see that shows it. If it is merely unconvincing rather than contradicted,
-return "unclear" and let a human decide. Overturning the suspicion with "pass"
-is a good and expected outcome.`,
+so the bar is confidence, not reluctance: return "fail" when you are confident
+the proof does not show what the quest asked, contradicts it, or is not the
+player's own — and state exactly what you see that shows it, in words the
+player will read.
+
+Confident and unimpressed are the two ends of this. If you can name what the
+image actually shows and it is not what was asked for, you are confident, and
+"fail" is the honest verdict — passing it to a human who will see the same
+image and reach the same conclusion helps nobody. If you genuinely cannot tell
+whether the thing is there, "unclear" is right. Overturning the suspicion with
+"pass" is a good and expected outcome.`,
 };
 
 export function buildJudgingPrompt(verifiability: Verifiability, tier: ProofTier): string {

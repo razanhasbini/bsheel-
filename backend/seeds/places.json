@@ -846,5 +846,104 @@
     "longitude": 12.3388,
     "radiusM": 350,
     "description": "The one square Venice calls a piazza."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-origin",
+    "countryCode": "HU",
+    "name": "Range 0 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.48627617,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "Exactly where the network places the test handset."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-inner",
+    "countryCode": "HU",
+    "name": "Range 100 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.48717448,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "100 m north — inside a 250 m radius."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-edge-in",
+    "countryCode": "HU",
+    "name": "Range 200 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.48807279,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "200 m north — still inside 250 m, but near the edge."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-edge-out",
+    "countryCode": "HU",
+    "name": "Range 300 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.4889711,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "300 m north — just outside a 250 m radius."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-near",
+    "countryCode": "HU",
+    "name": "Range 500 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.49076773,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "500 m north — clearly outside."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-wide",
+    "countryCode": "HU",
+    "name": "Range 500 m (r1000)",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.49076773,
+    "longitude": 19.07915613,
+    "radiusM": 1000,
+    "description": "500 m north with a 1 km radius — inside because the radius is wider."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-km",
+    "countryCode": "HU",
+    "name": "Range 1000 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.49525928,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "1 km north."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-far",
+    "countryCode": "HU",
+    "name": "Range 8000 m",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.55814106,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "8 km north — across the city."
+  },
+  {
+    "seedKey": "bsheel:place:hu-range-city",
+    "countryCode": "HU",
+    "name": "Range 25000 m",
+    "city": "Pest County",
+    "category": "landmark",
+    "latitude": 47.71085396,
+    "longitude": 19.07915613,
+    "radiusM": 250,
+    "description": "25 km north — outside Budapest."
   }
 ]

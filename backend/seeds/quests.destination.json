@@ -274,5 +274,104 @@
     "place": "bsheel:place:it-venice-rialto",
     "requiresVerification": true,
     "description": "Ask a Rialto fishmonger what came in this morning, buy it, and get it cooked somewhere nearby. Film what you were handed and what you ate."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-origin",
+    "title": "Range test — 0 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-origin",
+    "requiresVerification": true,
+    "description": "CALIBRATION. Exactly where the network places the test handset. The handset the network reports at 47.48628, 19.07916 is 0 m from this point, inside a 250 m radius, so location verification should APPROVE. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-inner",
+    "title": "Range test — 100 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-inner",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 100 m north — inside a 250 m radius. The handset the network reports at 47.48628, 19.07916 is 100 m from this point, inside a 250 m radius, so location verification should APPROVE. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-edge-in",
+    "title": "Range test — 200 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-edge-in",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 200 m north — still inside 250 m, but near the edge. The handset the network reports at 47.48628, 19.07916 is 200 m from this point, inside a 250 m radius, so location verification should APPROVE. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-edge-out",
+    "title": "Range test — 300 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-edge-out",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 300 m north — just outside a 250 m radius. The handset the network reports at 47.48628, 19.07916 is 300 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-near",
+    "title": "Range test — 500 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-near",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 500 m north — clearly outside. The handset the network reports at 47.48628, 19.07916 is 500 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-wide",
+    "title": "Range test — 500 m, 1000 m radius",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-wide",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 500 m north with a 1 km radius — inside because the radius is wider. The handset the network reports at 47.48628, 19.07916 is 500 m from this point, inside a 1000 m radius, so location verification should APPROVE. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-km",
+    "title": "Range test — 1000 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-km",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 1 km north. The handset the network reports at 47.48628, 19.07916 is 1000 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-far",
+    "title": "Range test — 8000 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-far",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 8 km north — across the city. The handset the network reports at 47.48628, 19.07916 is 8000 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-range-city",
+    "title": "Range test — 25000 m",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 10,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-range-city",
+    "requiresVerification": true,
+    "description": "CALIBRATION. 25 km north — outside Budapest. The handset the network reports at 47.48628, 19.07916 is 25000 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
   }
 ]

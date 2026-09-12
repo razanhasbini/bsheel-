@@ -39,23 +39,48 @@ export class JourneyService {
    * have been burning their clock before they knew it existed.
    */
   async continueJourney(runId: string, userId: string, questId?: string) {
+    // Sourced from the chain's steps, not from journey_stage_unlocks.
+    //
+    // Unlock rows are written when a checkpoint OPENS behind another one, so
+    // step 1 never has one — nothing opened it. Reading eligibility from
+    // that table alone meant the first checkpoint of every solo journey was
+    // unstartable through this route: a player whose step 1 was rejected
+    // pressed TRY AGAIN and got NO_CHECKPOINT_AVAILABLE forever, because the
+    // one checkpoint they were allowed to take was the one row this query
+    // could not see.
+    //
+    // The eligibility rule below is the same one the projection uses to call
+    // a stage AVAILABLE, deliberately worded to match: if the timeline draws
+    // a checkpoint as startable, this must agree, or the app offers buttons
+    // that fail.
     const unlock = await this.database.query<{ quest_id: string; step_order: number }>(
-      `SELECT u.quest_id, u.step_order
-       FROM journey_stage_unlocks u
-       JOIN quest_chain_runs r ON r.id = u.chain_run_id
-       WHERE u.chain_run_id = $1
-         AND u.target_user_id = $2
+      `SELECT cs.quest_id, cs.step_order
+       FROM quest_chain_runs r
+       JOIN quest_chain_steps cs ON cs.chain_id = r.chain_id
+       JOIN quest_chains ch ON ch.id = r.chain_id
+       LEFT JOIN journey_stage_unlocks u
+              ON u.chain_run_id = r.id AND u.quest_id = cs.quest_id
+             AND u.target_user_id = $2
+       WHERE r.id = $1
          AND r.status = 'active'
-         AND ($3::uuid IS NULL OR u.quest_id = $3)
+         AND ($3::uuid IS NULL OR cs.quest_id = $3)
+         -- Theirs to take: a checkpoint opened for them by name, or any
+         -- checkpoint of a solo run they own.
+         AND (u.target_user_id = $2 OR r.owner_user_id = $2)
+         -- Open to take: opened explicitly, the entry point, or a chain
+         -- with no order to gate.
+         AND (u.target_user_id IS NOT NULL
+              OR cs.step_order = 1
+              OR ch.completion_rule = 'all_steps_any_order')
          -- Already finished or awaiting a decision: there is nothing to
          -- start. An expired or rejected attempt is absent from this test on
          -- purpose, because those stay retryable like any other quest.
          AND NOT EXISTS (
            SELECT 1 FROM user_quests uq
-           WHERE uq.quest_id = u.quest_id AND uq.user_id = $2
+           WHERE uq.quest_id = cs.quest_id AND uq.user_id = $2
              AND uq.status IN ('assigned', 'submitted', 'approved')
          )
-       ORDER BY u.step_order
+       ORDER BY cs.step_order
        LIMIT 1`,
       [runId, userId, questId ?? null],
     );
@@ -78,6 +103,20 @@ export class JourneyService {
   }
 
   /** Marks this viewer's unlocks on a run seen, so the animation plays once. */
+  /**
+   * Records how this journey should reach the feed.
+   *
+   * Reports whether it applied rather than throwing, because every reason it
+   * can fail is a race the player did not lose anything to: they submitted a
+   * checkpoint from another device, or the journey finished while the sheet
+   * was open. The client re-reads the run and shows what is actually true.
+   */
+  async chooseFeedMode(
+    runId: string, userId: string, mode: 'per_stop' | 'one_post',
+  ): Promise<{ applied: boolean }> {
+    return { applied: await this.journeys.chooseFeedMode(runId, userId, mode) };
+  }
+
   async acknowledgeUnlock(runId: string, userId: string): Promise<void> {
     await this.journeys.markUnlockSeen(runId, userId);
   }

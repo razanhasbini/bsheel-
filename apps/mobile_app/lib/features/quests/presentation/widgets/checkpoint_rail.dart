@@ -201,6 +201,7 @@ class _RailPainter extends CustomPainter {
       StageState.completed => QuestColors.osSuccess,
       StageState.underReview => QuestColors.osAccent,
       StageState.inProgress => QuestColors.osPrimary,
+      StageState.rejected => QuestColors.osRed,
       StageState.available => QuestColors.osPrimary,
       StageState.locked => QuestColors.osSurface,
     };
@@ -227,6 +228,10 @@ class _RailPainter extends CustomPainter {
       StageState.completed => Icons.check_rounded,
       StageState.underReview => Icons.hourglass_top_rounded,
       StageState.inProgress => Icons.play_arrow_rounded,
+      // Not a cross. The checkpoint was not lost — it is open again and the
+      // player can walk back to it, which is what a "go again" glyph says
+      // and a cross does not.
+      StageState.rejected => Icons.refresh_rounded,
       StageState.available => Icons.play_arrow_rounded,
       StageState.locked => Icons.lock_rounded,
     };

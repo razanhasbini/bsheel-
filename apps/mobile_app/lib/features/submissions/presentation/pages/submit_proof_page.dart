@@ -620,12 +620,26 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                         const SizedBox(height: 14),
 
                         // ── SHOW IN FEED ────────────────────────
-                        _ShowInFeedCard(
-                          value: _showInFeed,
-                          onChanged: inFlight
-                              ? null
-                              : (v) => setState(() => _showInFeed = v),
-                        ),
+                        // Replaced, not disabled, for a checkpoint of a
+                        // route posting as one. The server withholds it
+                        // whatever this screen sends, and a greyed-out
+                        // switch reads as something broken rather than
+                        // something already decided — by this same player,
+                        // at the start of the journey.
+                        if (ref.watch(withheldForJourneyProvider(
+                            ref.watch(activeQuestProvider).valueOrNull?.questId)))
+                          const _NoticeStrip(
+                            text: 'This checkpoint stays out of the feed. '
+                                'The whole route posts together once the last '
+                                'one clears.',
+                          )
+                        else
+                          _ShowInFeedCard(
+                            value: _showInFeed,
+                            onChanged: inFlight
+                                ? null
+                                : (v) => setState(() => _showInFeed = v),
+                          ),
 
                         // ── Gold validation strip ───────────────
                         if (_showMediaWarning && _files.isEmpty) ...[

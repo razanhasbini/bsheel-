@@ -248,12 +248,19 @@ describe('the vision pass as CV evidence (e2e)', { timeout: 120_000 }, () => {
     // Every category is seeded with may_auto_reject = false on purpose:
     // authority to tell a player their proof is fake is earned from a measured
     // precision number, not granted by enabling a feature.
-    it('grants no rejection authority anywhere in the seeded catalogue', async () => {
-      const rows = await harness.database.query<{ category: string; may_auto_reject: boolean }>(
-        'SELECT category, may_auto_reject FROM quest_verification_defaults',
+    // Rejection authority is granted where the media can settle the quest and
+    // withheld where it cannot (0046) — a photograph cannot show that someone
+    // read twenty pages, so a rejection there could only be an accusation
+    // about the file, which stays a human's call.
+    it('grants rejection authority only where a photograph can settle the quest', async () => {
+      const rows = await harness.database.query<{ category: string; verifiability: string; may_auto_reject: boolean }>(
+        'SELECT category, verifiability, may_auto_reject FROM quest_verification_defaults',
       );
       expect(rows.rows.length).toBeGreaterThan(0);
-      expect(rows.rows.every((row) => row.may_auto_reject === false)).toBe(true);
+      for (const row of rows.rows) {
+        expect(row.may_auto_reject, row.category).toBe(row.verifiability === 'content');
+      }
+      expect(rows.rows.some((row) => row.verifiability !== 'content')).toBe(true);
     });
   });
 

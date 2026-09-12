@@ -1,10 +1,11 @@
+import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/theme/bsheel_design.dart';
-import '../../../../shared/layout/admin_shell.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+import '../../domain/evidence_wording.dart';
 
 /// What the agent decided, and the evidence it decided from.
 ///
@@ -21,50 +22,56 @@ final _evidenceProvider =
   return AppBackend.repositories.admin.agentEvidence(limit: 50);
 });
 
+/// A percentage suffix, or nothing when the signal was never scored.
+String _pct(Object? raw) {
+  final value = coerceNullableDouble(raw);
+  return value == null ? '' : ' (${(value * 100).round()}%)';
+}
+
 class AgentEvidencePage extends ConsumerWidget {
   const AgentEvidencePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_evidenceProvider);
-    return AdminShell(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BsheelPageHeader(
-              title: 'AGENT EVIDENCE',
-              meta: 'Every decision, and what produced it',
-              actions: [
-                BsheelButton(
-                  label: 'REFRESH',
-                  icon: Icons.refresh_rounded,
-                  small: true,
-                  ghost: true,
-                  onPressed: () => ref.invalidate(_evidenceProvider),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            async.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(40),
-                child: Center(child: CircularProgressIndicator()),
+    // No AdminShell here: the router's ShellRoute already wraps every page
+    // in one. Wrapping again drew a second sidebar beside the first.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BsheelPageHeader(
+            title: 'AGENT EVIDENCE',
+            meta: 'Every decision, and what produced it',
+            actions: [
+              BsheelButton(
+                label: 'REFRESH',
+                icon: Icons.refresh_rounded,
+                small: true,
+                ghost: true,
+                onPressed: () => ref.invalidate(_evidenceProvider),
               ),
-              error: (error, _) =>
-                  BsheelCallout.danger('Could not load agent evidence. $error'),
-              data: (rows) => rows.isEmpty
-                  ? const BsheelCallout(
-                      'No verifications yet. Submit proof on a quest and the '
-                      'agent run will appear here with its evidence.',
-                    )
-                  : Column(
-                      children: [for (final row in rows) _Dossier(row: row)],
-                    ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          async.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(40),
+              child: Center(child: CircularProgressIndicator()),
             ),
-          ],
-        ),
+            error: (error, _) =>
+                BsheelCallout.danger('Could not load agent evidence. $error'),
+            data: (rows) => rows.isEmpty
+                ? const BsheelCallout(
+                    'No verifications yet. Submit proof on a quest and the '
+                    'agent run will appear here with its evidence.',
+                  )
+                : Column(
+                    children: [for (final row in rows) _Dossier(row: row)],
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -103,7 +110,10 @@ class _DossierState extends State<_Dossier> {
       'REJECTED' => (BsheelPillTone.coral, BsheelColors.dangerText),
       _ => (BsheelPillTone.gold, BsheelColors.accentText),
     };
-    final confidence = widget.row['confidence'];
+    // Coerced, not type-tested: `is num` on a numeric that arrived as text
+    // silently drew nothing, which reads as "the agent had no confidence"
+    // rather than "this page could not parse it".
+    final confidence = coerceNullableDouble(widget.row['confidence']);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -119,7 +129,7 @@ class _DossierState extends State<_Dossier> {
                 Expanded(
                   child: Text(_s('questTitle'), style: BsheelType.bodyMd),
                 ),
-                if (confidence is num)
+                if (confidence != null)
                   Text('${(confidence * 100).round()}% confident',
                       style: BsheelType.labelSm.copyWith(color: tint)),
                 const SizedBox(width: 10),
@@ -146,14 +156,19 @@ class _DossierState extends State<_Dossier> {
                 for (final n in _network)
                   _Signal(
                     label: _capabilityLabel('${n['capability']}'),
-                    outcome: '${n['outcome']}',
+                    outcome: capabilityAnswer('${n['capability']}', '${n['outcome']}'),
+                    against: n['outcome'] == 'CONTRADICTED',
+                    supports: n['outcome'] == 'SUPPORTED',
                   ),
                 if (_cv != null)
                   _Signal(
-                      label: 'COMPUTER VISION', outcome: '${_cv!['status']}'),
+                    label: 'COMPUTER VISION',
+                    outcome: _cv!['status'] == 'AVAILABLE' ? 'LOOKED' : 'DID NOT LOOK',
+                    supports: _cv!['status'] == 'AVAILABLE',
+                  ),
                 if (_network.isEmpty && _cv == null)
                   const _Signal(
-                      label: 'NO EVIDENCE RECORDED', outcome: 'UNAVAILABLE'),
+                      label: 'NO EVIDENCE RECORDED', outcome: 'NOTHING GATHERED'),
               ],
             ),
             if (_open) ...[
@@ -189,6 +204,17 @@ class _DossierState extends State<_Dossier> {
             padding: const EdgeInsets.only(bottom: 4),
             child: Text('· $reason', style: BsheelType.bodySm),
           ),
+        // The contract, stated next to the escalation it caused. Without it
+        // "a moderator decides" reads as the agent having failed, when the
+        // agent was 99% sure and the quest's own policy is what stopped it.
+        const SizedBox(height: 6),
+        Text(
+          'Contract: auto-approve '
+          '${widget.row['mayAutoApprove'] == true ? 'PERMITTED' : 'WITHHELD'}'
+          ' · auto-reject '
+          '${widget.row['mayAutoReject'] == true ? 'PERMITTED' : 'WITHHELD'}',
+          style: BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
+        ),
         if (human != null && '$human'.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text('Escalated: $human',
@@ -217,8 +243,15 @@ class _DossierState extends State<_Dossier> {
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                '${_capabilityLabel('${n['capability']}')}: ${n['outcome']}'
-                '${_readableDetail(n['detail'])}',
+                '${_capabilityLabel('${n['capability']}')} — '
+                '${capabilityMeasurement(
+                  capability: '${n['capability']}',
+                  outcome: '${n['outcome']}',
+                  detail: n['detail'],
+                  placeName: widget.row['placeName'] as String?,
+                  placeLatitude: coerceNullableDouble(widget.row['placeLatitude']),
+                  placeLongitude: coerceNullableDouble(widget.row['placeLongitude']),
+                )}',
                 style: BsheelType.bodySm,
               ),
             ),
@@ -228,7 +261,7 @@ class _DossierState extends State<_Dossier> {
 
   Widget _cvDetail() {
     final cv = _cv!;
-    final relevance = cv['relevance'];
+    final relevance = coerceNullableDouble(cv['relevance']);
     final observations = (cv['observations'] as List? ?? const [])
         .whereType<Map<String, dynamic>>();
     return Column(
@@ -237,7 +270,7 @@ class _DossierState extends State<_Dossier> {
         const BsheelLabel('WHAT THE MEDIA ANALYSIS SAW'),
         const SizedBox(height: 6),
         Text(
-          relevance is num
+          relevance != null
               ? 'Relevance to the quest: ${(relevance * 100).round()}%'
               : 'No relevance score — the contract did not call for one.',
           style: BsheelType.bodySm,
@@ -245,7 +278,7 @@ class _DossierState extends State<_Dossier> {
         for (final o in observations)
           Text(
             '· ${o['kind']}: ${o['label']}'
-            '${o['confidence'] is num ? ' (${((o['confidence'] as num) * 100).round()}%)' : ''}',
+            '${_pct(o['confidence'])}',
             style: BsheelType.bodySm,
           ),
         if (observations.isEmpty)
@@ -284,42 +317,37 @@ class _DossierState extends State<_Dossier> {
         _ => capability,
       };
 
-  /// A short, readable tail. The raw payload stays out of the console — a
-  /// moderator should not need to understand Nokia's response shapes.
-  String _readableDetail(Object? detail) {
-    if (detail is! Map) return '';
-    final coordinates = detail['coordinates'];
-    if (coordinates is Map) {
-      return ' — reported near ${coordinates['latitude']}, ${coordinates['longitude']}';
-    }
-    final events = detail['events'];
-    if (events is List) {
-      return events.isEmpty
-          ? ' — no entry events while the quest was live'
-          : ' — ${events.length} entry/exit event(s)';
-    }
-    if (detail['reachable'] != null) {
-      return ' — device ${detail['reachable'] == true ? 'reachable' : 'unreachable'}';
-    }
-    return '';
-  }
 }
 
 class _Signal extends StatelessWidget {
-  const _Signal({required this.label, required this.outcome});
+  const _Signal({
+    required this.label,
+    required this.outcome,
+    this.against = false,
+    this.supports = false,
+  });
   final String label;
+
+  /// The answer, in this capability's own words. Never a verdict adjective.
   final String outcome;
+
+  /// Whether this evidence argues against the submission, for the colour.
+  /// Passed rather than inferred from the text: the words differ per
+  /// capability and the meaning must not be re-derived from them.
+  final bool against;
+  final bool supports;
 
   @override
   Widget build(BuildContext context) {
-    // SUPPORTED / CONTRADICTED / UNAVAILABLE are three different things and
-    // must not read alike: the middle one argues against the submission, the
-    // last one argues for nothing at all.
-    final ground = switch (outcome) {
-      'SUPPORTED' || 'OK' || 'COMPLETED' => BsheelColors.jade,
-      'CONTRADICTED' => BsheelColors.danger,
-      _ => BsheelColors.surface,
-    };
+    // Three different things that must not read alike: one argues for the
+    // submission, one against it, and the third argues for nothing at all.
+    // The last is the one worth being careful about — a missing signal in
+    // red reads as an accusation, and it is the absence of one.
+    final ground = against
+        ? BsheelColors.danger
+        : supports
+            ? BsheelColors.jade
+            : BsheelColors.surface;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(

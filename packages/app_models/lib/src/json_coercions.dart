@@ -91,6 +91,21 @@ double coerceDouble(Object? value, {double defaultValue = 0.0}) {
   return double.tryParse(value.toString().trim()) ?? defaultValue;
 }
 
+/// Like [coerceDouble], but keeps "absent" distinct from a real zero.
+///
+/// Confidence is the case that matters: a verification that was never scored
+/// and one the model was 0% sure of are different facts, and a default of
+/// 0.0 would print "0% confident" for a decision nobody measured.
+double? coerceNullableDouble(Object? value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  if (value is bool) return null;
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  return double.tryParse(text);
+}
+
 // ─── Booleans ────────────────────────────────────────────────────────────
 
 /// Coerces a JSON boolean.

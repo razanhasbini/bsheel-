@@ -2,12 +2,19 @@
 /// `inProgress` is deliberately separate from `available`: a checkpoint you
 /// already started has a timer running, so "start" is the wrong verb and
 /// pressing it fails.
-enum StageState { completed, underReview, inProgress, available, locked }
+/// What a checkpoint is doing, for this viewer.
+///
+/// [rejected] is its own state rather than a flag on [available]. The
+/// checkpoint genuinely is open again — a rejection does not consume the
+/// attempt — but a timeline that says only "available" about a checkpoint
+/// the player just failed tells them nothing about what happened.
+enum StageState { completed, underReview, inProgress, rejected, available, locked }
 
 StageState _stageStateFrom(String raw) => switch (raw) {
       'COMPLETED' => StageState.completed,
       'UNDER_REVIEW' => StageState.underReview,
       'IN_PROGRESS' => StageState.inProgress,
+      'REJECTED' => StageState.rejected,
       'AVAILABLE' => StageState.available,
       _ => StageState.locked,
     };
@@ -34,6 +41,9 @@ class JourneyStage {
     this.latitude,
     this.longitude,
     this.targetUsername,
+    this.rejectionNote,
+    this.rejectedSubmissionId,
+    this.appealed = false,
     this.difficulty,
     this.durationHours,
     this.completedAt,
@@ -58,6 +68,22 @@ class JourneyStage {
 
   /// Whose checkpoint this is, on a relay. Null on a solo journey.
   final String? targetUsername;
+
+  /// Why the last attempt was rejected, in the words the player was shown.
+  /// Null unless [state] is [StageState.rejected].
+  final String? rejectionNote;
+
+  /// The rejected proof, so the player can appeal it from the journey.
+  final String? rejectedSubmissionId;
+
+  /// Whether the latest attempt has been appealed. True alongside
+  /// [StageState.underReview] once an appeal is in — a different wait from a
+  /// first review, and the one a player most wants confirmed.
+  final bool appealed;
+
+  /// Waiting on a moderator to read an appeal, rather than a first look.
+  bool get isAppealUnderReview =>
+      state == StageState.underReview && appealed;
 
   final String? difficulty;
   final int? durationHours;
@@ -87,6 +113,9 @@ class JourneyStage {
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         targetUsername: json['targetUsername'] as String?,
+        rejectionNote: json['rejectionNote'] as String?,
+        rejectedSubmissionId: json['rejectedSubmissionId'] as String?,
+        appealed: json['appealed'] == true,
         difficulty: json['difficulty'] as String?,
         durationHours: (json['durationHours'] as num?)?.toInt(),
         completedAt: json['completedAt'] == null
@@ -128,6 +157,8 @@ class JourneyRun {
     required this.stages,
     this.nextForViewer,
     this.unseenUnlock,
+    this.feedMode,
+    this.canChooseFeedMode = false,
   });
 
   final String runId;
@@ -153,10 +184,38 @@ class JourneyRun {
 
   final UnseenUnlock? unseenUnlock;
 
+  /// How this journey reaches the feed: `per_stop`, `one_post`, or null.
+  ///
+  /// Null is not a default — it means the player has not been asked yet, and
+  /// it is the only reason the app knows to ask. A run that has been asked
+  /// and answered "post each stop" reads `per_stop`, which looks the same on
+  /// screen and must never prompt again.
+  final String? feedMode;
+
+  /// Whether the choice is still open. False once a checkpoint has been
+  /// submitted: by then the choice has already been acted on.
+  final bool canChooseFeedMode;
+
+  bool get postsAsOneRoute => feedMode == 'one_post';
+
+  /// Ask exactly once, and only while the answer can still change anything.
+  bool get needsFeedModeChoice => feedMode == null && canChooseFeedMode;
+
   bool get isRelay => runKind == 'group';
   bool get orderMatters => completionRule == 'sequential';
   bool get isCompleted => status == 'completed';
   bool get canContinue => nextForViewer != null;
+
+  /// Whether a checkpoint is genuinely waiting on the player right now.
+  ///
+  /// Narrower than [canContinue] on purpose, and the difference is a
+  /// rejection. A rejected checkpoint is something they MAY come back to,
+  /// not something the journey is holding open — so it must not suppress
+  /// the rest of Home the way a live checkpoint does. Home used to key the
+  /// quest generator off [canContinue], and one rejected photo took every
+  /// quest type off the screen until it was answered.
+  bool get hasCheckpointWaiting =>
+      canContinue && nextForViewer!.state != StageState.rejected;
 
   /// True when the viewer's checkpoint is already under way — the action is
   /// to go back to it, not to start it.
@@ -196,6 +255,8 @@ class JourneyRun {
           next is Map<String, dynamic> ? JourneyStage.fromJson(next) : null,
       unseenUnlock:
           unseen is Map<String, dynamic> ? UnseenUnlock.fromJson(unseen) : null,
+      feedMode: json['feedMode'] as String?,
+      canChooseFeedMode: json['canChooseFeedMode'] == true,
     );
   }
 }

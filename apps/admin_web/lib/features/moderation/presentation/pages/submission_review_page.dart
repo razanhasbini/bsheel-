@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:app_contracts/app_contracts.dart';
+import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -842,8 +843,11 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
     final verdict = (data['ai_verdict'] ?? '').toString();
     if (verdict.isEmpty) return const [];
 
-    final confidence = (data['ai_confidence'] as num?)?.toDouble();
-    final relevance = (data['ai_relevance'] as num?)?.toDouble();
+    // coerceNullableDouble, not a cast: a moderator's queue must not white-
+    // screen because a score arrived as '0.990' instead of 0.99. Nullable so
+    // "never scored" stays distinguishable from a genuine 0%.
+    final confidence = coerceNullableDouble(data['ai_confidence']);
+    final relevance = coerceNullableDouble(data['ai_relevance']);
     final rationale = (data['ai_rationale'] ?? '').toString().trim();
     final escalation = (data['ai_escalation_reason'] ?? '').toString().trim();
     final observations = _observations(data['ai_content_evidence']);
@@ -950,7 +954,7 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
           _Observation(
             label: item['label'].toString(),
             present: item['present'] == true,
-            confidence: (item['confidence'] as num?)?.toDouble() ?? 0,
+            confidence: coerceNullableDouble(item['confidence']) ?? 0,
           ),
     ];
   }

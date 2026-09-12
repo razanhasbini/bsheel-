@@ -58,6 +58,25 @@ void main() {
     });
   });
 
+  group('coerceNullableDouble', () {
+    test("parses the driver's numeric text", () {
+      // numeric(4,3) reaches a client as '0.990'. A hard `as num?` on that
+      // white-screened the moderation queue on every scored submission.
+      expect(coerceNullableDouble('0.990'), 0.99);
+      expect(coerceNullableDouble(0.99), 0.99);
+      expect(coerceNullableDouble(1), 1.0);
+    });
+
+    test('keeps "never scored" distinct from a genuine zero', () {
+      expect(coerceNullableDouble(null), isNull);
+      expect(coerceNullableDouble(''), isNull);
+      expect(coerceNullableDouble('unclear'), isNull);
+      expect(coerceNullableDouble(true), isNull);
+      expect(coerceNullableDouble('0.000'), 0.0);
+      expect(coerceNullableDouble(0), 0.0);
+    });
+  });
+
   group('coerceTimestamp', () {
     test('parses strings and passes DateTimes through', () {
       expect(

@@ -104,6 +104,37 @@ export class FeedRepository {
                              WHERE (b.blocker_id = $1 AND b.blocked_id = mp.id)
                                 OR (b.blocker_id = mp.id AND b.blocked_id = $1))
          ) ELSE NULL END AS collab_members,
+         -- The stops of a journey posted as one route (0047).
+         --
+         -- Same shape as collab_members and for the same reason: one post
+         -- assembled from several submissions, each of which stays an
+         -- ordinary submission with its own verdict. Null on every post that
+         -- is not a route, which is almost all of them.
+         --
+         -- The same status/visibility predicate as the outer CTE, because a
+         -- stop that was later taken down must leave the route rather than
+         -- ride along inside a post whose anchor is still fine.
+         (SELECT json_agg(json_build_object(
+            'submission_id', st.id, 'media_url', st.media_url,
+            'media_type', st.media_type::text, 'caption', st.caption,
+            'step_order', jps.step_order, 'quest_title', sq.title,
+            'place_name', sp.name, 'submitted_at',
+            to_char(st.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+          ) ORDER BY jps.step_order)
+          FROM journey_post_stops jps
+          JOIN submissions st ON st.id = jps.stop_submission_id
+          JOIN user_quests suq ON suq.id = st.user_quest_id
+          JOIN quests sq ON sq.id = suq.quest_id
+          LEFT JOIN quest_destinations sd ON sd.quest_id = sq.id
+          LEFT JOIN map_places sp ON sp.id = sd.place_id AND sp.is_published
+          WHERE jps.anchor_submission_id = s.id
+            AND st.status = 'approved' AND st.visibility = 'visible'
+            AND st.deleted_at IS NULL AND st.moderation_removed_at IS NULL
+         ) AS journey_stops,
+         (SELECT ch.name FROM journey_post_stops jps
+           JOIN quest_chain_runs qcr ON qcr.id = jps.chain_run_id
+           JOIN quest_chains ch ON ch.id = qcr.chain_id
+          WHERE jps.anchor_submission_id = s.id LIMIT 1) AS journey_title,
          uq.expires_at
        FROM ranked JOIN submissions s ON s.id = ranked.id JOIN profiles p ON p.id = s.user_id
        JOIN user_quests uq ON uq.id = s.user_quest_id JOIN quests q ON q.id = uq.quest_id

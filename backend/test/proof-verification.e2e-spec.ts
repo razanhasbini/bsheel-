@@ -119,8 +119,13 @@ describe('AI proof verification (e2e)', { timeout: 120_000 }, () => {
       // Relevance and confidence are different questions and both must
       // survive the trip: a reader who sees only one of them cannot tell a
       // confident "this is a cat, not a sunrise" from a confident approval.
-      expect(Number(row.ai_confidence)).toBeCloseTo(0.4, 2);
-      expect(Number(row.ai_relevance)).toBeCloseTo(0.81, 2);
+      // typeof, not Number(): these are numeric(4,3), which the driver hands
+      // back as the text '0.400'. Number() coerced the string and passed, so
+      // the suite was green while the console crashed on `as num?`.
+      expect(typeof row.ai_confidence).toBe('number');
+      expect(typeof row.ai_relevance).toBe('number');
+      expect(row.ai_confidence).toBeCloseTo(0.4, 2);
+      expect(row.ai_relevance).toBeCloseTo(0.81, 2);
       expect(row.ai_content_evidence.observations[0].label).toBe('sunrise over water');
       expect(row.ai_rationale).toBe('fixture rationale');
     });
@@ -131,7 +136,8 @@ describe('AI proof verification (e2e)', { timeout: 120_000 }, () => {
       await recordVerdict(submission.id, 'unclear', { relevance: 0.04 });
 
       const row = await inQueue(submission.id);
-      expect(Number(row!.relevance)).toBeCloseTo(0.04, 2);
+      expect(typeof row!.relevance).toBe('number');
+      expect(row!.relevance).toBeCloseTo(0.04, 2);
     });
 
     // Null is "not assessed", which is the correct and common state — no
@@ -262,7 +268,8 @@ describe('AI proof verification (e2e)', { timeout: 120_000 }, () => {
     }
     expect(row).toBeDefined();
     expect(row!.ai_verdict).toBe('fail');
-    expect(Number(row!.ai_confidence)).toBeCloseTo(0.81, 2);
+    expect(typeof row!.ai_confidence).toBe('number');
+    expect(row!.ai_confidence).toBeCloseTo(0.81, 2);
   });
 
   it('refuses the unclear queue to a signed-out caller and to an ordinary user', async () => {

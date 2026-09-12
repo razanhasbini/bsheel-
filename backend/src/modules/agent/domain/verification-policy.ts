@@ -234,10 +234,42 @@ export function finalizeDecision(input: FinalizeDecisionInput): VerificationDeci
     );
   }
 
-  if (!input.cvAvailable) {
+  // No vision pass ran, so nobody looked at the media and the media cannot
+  // decide anything.
+  //
+  // The network still can, and that is the one carve-out. A geofence that was
+  // live for the whole quest window and never fired is a measurement about
+  // where the device was, arrived at without looking at any photograph — so a
+  // rejection resting on it does not need one. Refusing to act there sent the
+  // single most conclusive piece of evidence the system collects to a human
+  // for confirmation it could not improve on.
+  const networkDecides = input.isLocationBased
+    && input.mandatoryStatus === 'CONTRADICTED'
+    && modelDecision.decision === 'REJECTED';
+  if (!input.cvAvailable && !networkDecides) {
     return humanReview(
       modelDecision,
       'Computer-vision evidence is unavailable; the agent may not decide the submitted media without it.',
+    );
+  }
+
+  // A rejection on a quest the media is supposed to settle has to rest on the
+  // media actually having been assessed. cvRelevance null here means the
+  // vision pass ran but produced no read on how much this media has to do
+  // with the quest — which is the state the model is told to escalate, and
+  // enforcing it means a confident-sounding rejection can never rest on the
+  // model's unassisted impression of an image it saw only through someone
+  // else's notes.
+  if (
+    modelDecision.decision === 'REJECTED'
+    && contract.verifiability === 'content'
+    && input.cvRelevance === null
+    && !networkDecides
+  ) {
+    return humanReview(
+      modelDecision,
+      'This quest is judged on what the media shows, and no relevance assessment of the media was produced; '
+      + 'a rejection may not rest on an unassessed image.',
     );
   }
 

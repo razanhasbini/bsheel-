@@ -25,6 +25,8 @@ Future<void> pump(WidgetTester tester, JourneyRun journey) async {
 
 void main() {
   underReviewNeverLooksDone();
+  rejectionIsVisibleOnHome();
+  lastStageDoesNotLookFinished();
   testWidgets('a journey survives its first checkpoint being approved',
       (tester) async {
     await pump(
@@ -40,7 +42,7 @@ void main() {
       )),
     );
     expect(find.text('BYBLOS JOURNEY'), findsOneWidget);
-    expect(find.text('STAGE 2 OF 3'), findsOneWidget);
+    expect(find.text('STAGE 2 OF 3 · 2 LEFT'), findsOneWidget);
     // A summary, not the whole journey: the current checkpoint by name,
     // and one action. The rest lives on the detail page.
     expect(find.text('BYBLOS CASTLE'), findsOneWidget);
@@ -188,6 +190,84 @@ void underReviewNeverLooksDone() {
     await pump(tester, journey);
     // One of three, not two: submitting is not finishing.
     expect(journey.completedSteps, 1);
-    expect(find.text('STAGE 2 OF 3'), findsOneWidget);
+    expect(find.text('STAGE 2 OF 3 · 2 LEFT'), findsOneWidget);
+  });
+}
+
+/// The label on the last checkpoint of a route, which used to read as the
+/// whole journey being finished.
+///
+/// "STAGE 3 OF 3" is positionally true and looks exactly like 3/3 complete.
+/// A player two stops into a three-stop route saw it, believed they were
+/// done, and went looking for the completion that was never owed to them.
+/// The count of what remains is the half that cannot be misread.
+void lastStageDoesNotLookFinished() {
+  testWidgets('the final checkpoint says what is left, not just where you are',
+      (tester) async {
+    await pump(
+      tester,
+      JourneyRun.fromJson(run(
+        completed: 2,
+        stages: [
+          stage(1, 'COMPLETED', title: 'Old Souk'),
+          stage(2, 'COMPLETED', title: 'Byblos Castle'),
+          stage(3, 'AVAILABLE', yours: true, title: 'The Last Gate'),
+        ],
+        next: stage(3, 'AVAILABLE', yours: true, title: 'The Last Gate'),
+      )),
+    );
+    expect(find.text('STAGE 3 OF 3'), findsNothing);
+    expect(find.text('STAGE 3 OF 3 · 1 LEFT'), findsOneWidget);
+  });
+}
+
+/// A checkpoint that came back rejected.
+///
+/// The bug: the card said nothing at all. A solo run's step 1 has no unlock
+/// row, so `isYours` was false, so `nextForViewer` skipped it and the
+/// journey reported "nothing to do" over a rejection nobody had answered.
+/// Home is where a player finds out a checkpoint was turned down — they are
+/// not going to open the journey to discover it.
+void rejectionIsVisibleOnHome() {
+  testWidgets('names the rejection and offers the checkpoint again',
+      (tester) async {
+    final rejected = stage(1, 'REJECTED',
+        yours: true,
+        title: 'Find the sea gate',
+        rejectionNote: 'That is a screenshot, not a sea gate.',
+        rejectedSubmissionId: 'sub-1');
+    await pump(
+      tester,
+      JourneyRun.fromJson(run(
+        completed: 0,
+        stages: [rejected, stage(2, 'LOCKED'), stage(3, 'LOCKED')],
+        next: rejected,
+      )),
+    );
+
+    expect(find.textContaining('REJECTED'), findsWidgets);
+    // "Continue" is the wrong word for going back to something turned down,
+    // and the right word is also the reassurance: the attempt is not spent.
+    expect(find.text('TRY CHECKPOINT AGAIN'), findsOneWidget);
+    expect(find.text('CONTINUE JOURNEY'), findsNothing);
+  });
+
+  testWidgets('says an appeal is in rather than asking for another',
+      (tester) async {
+    final appealed = stage(1, 'REJECTED',
+        yours: true,
+        title: 'Find the sea gate',
+        rejectionNote: 'Not the gate.',
+        rejectedSubmissionId: 'sub-1',
+        appealed: true);
+    await pump(
+      tester,
+      JourneyRun.fromJson(run(
+        completed: 0,
+        stages: [appealed, stage(2, 'LOCKED')],
+        next: appealed,
+      )),
+    );
+    expect(find.textContaining('APPEAL SENT'), findsOneWidget);
   });
 }
