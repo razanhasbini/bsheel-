@@ -33,6 +33,42 @@ describe('validateEnvironment', () => {
     ).toBe(false);
   });
 
+  it('has the whole decision path on by default', () => {
+    // The four switches that decide whether anything is actually decided.
+    // They are separate levers with separate jobs, and a deployment with
+    // three of four on reviews nothing while looking like it reviews
+    // everything — which is the failure this pins. The app_config pause
+    // switch is the fifth, flipped by migration 0048.
+    const environment = validateEnvironment({ NODE_ENV: 'test' });
+    expect(environment.AI_VERIFICATION_ENABLED).toBe(true);   // something looks
+    expect(environment.CV_PROVIDER).toBe('local');            // the agent reads it
+    expect(environment.OPENAI_AGENT_ENABLED).toBe(true);      // the agent answers
+    expect(environment.AI_VERIFICATION_SHADOW_MODE).toBe(false); // and it acts
+    expect(environment.CAMARA_ENABLED).toBe(true);            // on network evidence
+  });
+
+  it('lets a laptop boot with the automation on and no credentials', () => {
+    // Enabled-and-unconfigured is the shape a dev machine takes, not a
+    // mistake: the adapters degrade — no client, UNAVAILABLE evidence,
+    // HUMAN_REVIEW — and everything reaches a moderator. Refusing to boot
+    // here would mean every contributor has to hold Nokia and OpenAI keys
+    // to run the app at all.
+    expect(() => validateEnvironment({ NODE_ENV: 'development' })).not.toThrow();
+  });
+
+  it('refuses to deploy the automation without the credentials it needs', () => {
+    // The opposite case, and the one worth failing loudly: a production box
+    // silently verifying nothing while the dashboard says the pipeline is on.
+    const deployed = {
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'a'.repeat(48),
+      JWT_REFRESH_SECRET: 'b'.repeat(48),
+      MEDIA_URL_SIGNING_SECRET: 'c'.repeat(48),
+      DEVICE_TOKEN_ENCRYPTION_KEY: 'd'.repeat(48),
+    };
+    expect(() => validateEnvironment(deployed)).toThrow(/CAMARA_API_KEY|OPENAI_API_KEY/);
+  });
+
   it('rejects an inverted connection-pool range', () => {
     expect(() =>
       validateEnvironment({ DATABASE_POOL_MIN: '21', DATABASE_POOL_MAX: '20' }),

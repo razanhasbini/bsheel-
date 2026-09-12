@@ -83,12 +83,16 @@ const environmentSchema = z
     TELEGRAM_ALLOWED_CHAT_IDS: z.string().default(''),
     TELEGRAM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
     TELEGRAM_API_BASE_URL: z.string().url().default('https://api.telegram.org'),
-    // AI proof verification (#47). Off by default: an unconfigured deployment
-    // must behave exactly as it did before the feature existed, rather than
-    // failing every submission it cannot analyse.
+    // AI proof verification (#47). ON by default: automated verification is
+    // the product, not an add-on, and the agent below needs this pass's
+    // findings as its CV evidence — blind, it escalates everything to a
+    // human. A deployment that cannot analyse degrades rather than fails:
+    // with no key configured the cascade records nothing, the agent sees no
+    // CV evidence and every submission reaches the ordinary moderation
+    // queue, which is what used to happen with the feature off.
     AI_VERIFICATION_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     // Which vision provider runs the analysis. The pipeline is written
     // against an interface, so this is the only place the choice appears.
@@ -96,13 +100,33 @@ const environmentSchema = z
     ANTHROPIC_API_KEY: optionalString,
     OPENAI_API_KEY: optionalString,
 
-    // Shadow mode: the agent analyses and records, and acts on nothing. The
-    // default, and it stays the default until an eval has scored the agent
-    // against real human decisions. Shipping an approval agent whose accuracy
-    // nobody has measured is not a feature.
+    // Shadow mode: the verifier analyses and records, and acts on nothing.
+    // Read by BOTH verifiers, so it is the single "may automation act"
+    // switch for the deployment.
+    //
+    // It was the default while the agent's accuracy was unmeasured. It is
+    // no longer: deciding is now the product's normal operating mode, and a
+    // queue of submissions carrying a conclusion the system already reached
+    // is a worse outcome than the errors the shadow was protecting against.
+    // What survives the change is every narrower guard, and they are what
+    // make this safe rather than optimistic:
+    //
+    //   * a rejection may rest only on a positive statement from the
+    //     network or the media — UNAVAILABLE evidence still goes to a human
+    //     (`mandatoryEvidenceStatus`, `finalizeDecision`);
+    //   * `may_auto_reject` is true only for content-verifiable categories
+    //     (migration 0046), so a quest no photograph can show still cannot
+    //     be rejected automatically;
+    //   * approval needs CV evidence and a relevance above
+    //     AI_VERIFICATION_MIN_RELEVANCE;
+    //   * any integrity finding blocks an automated approval outright.
+    //
+    // Set it back to true to re-open an honest eval slice: `acted = false`
+    // is what `npm run proof:eval` scores, and it only means anything while
+    // nothing acted.
     AI_VERIFICATION_SHADOW_MODE: z
       .enum(['true', 'false'])
-      .default('true')
+      .default('false')
       .transform((value) => value === 'true'),
 
     // Three rungs, because the price spread between them is ~50x and most
@@ -333,9 +357,15 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    // The agent is the decider for a submission (see
+    // `willActOnDecisions`), so it is on by default — off, `verify()`
+    // returns HUMAN_REVIEW for everything and the deployment has an agent
+    // pipeline that cannot answer. Credentials are required to boot only
+    // where a missing one is a broken deployment rather than an ordinary
+    // laptop: see the NODE_ENV-scoped check below.
     OPENAI_AGENT_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     OPENAI_AGENT_MODEL: optionalString,
     OPENAI_AGENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
@@ -350,9 +380,15 @@ const environmentSchema = z
 
     // Nokia Network-as-Code / CAMARA. Provider failures are mapped to
     // UNAVAILABLE so they can never masquerade as negative evidence.
+    // On by default. Network evidence is the mandatory baseline for every
+    // location-based quest, not an optional enrichment, and every account is
+    // already anchored to a CAMARA-verified number — a deployment with this
+    // off is the exception. Unconfigured, the adapters return UNAVAILABLE
+    // (never CONTRADICTED), which routes to a human instead of failing
+    // anybody's submission.
     CAMARA_ENABLED: z
       .enum(['true', 'false'])
-      .default('false')
+      .default('true')
       .transform((value) => value === 'true'),
     CAMARA_BASE_URL: optionalUrl,
     // The official Network-as-Code SDK used by the location/geofencing
@@ -491,7 +527,22 @@ const environmentSchema = z
       }
     }
 
-    if (environment.OPENAI_AGENT_ENABLED) {
+    // The three automation switches below are all ON by default, which
+    // makes "enabled but unconfigured" the shape a laptop takes rather than
+    // a mistake somebody made. So the credential requirement is scoped the
+    // same way the phone-verification one below it is: a deployed
+    // environment missing a key is a broken deployment and must not boot; a
+    // dev or test machine runs the same code paths and degrades, because
+    // every one of these adapters was written to degrade —
+    // `clientOrNull()` returns null, evidence comes back UNAVAILABLE, the
+    // runner answers HUMAN_REVIEW, and the submission reaches a moderator.
+    //
+    // The failure mode this protects against is the one worth naming: a
+    // production box silently reviewing nothing while the dashboard shows a
+    // verification pipeline that is on.
+    const deployed = environment.NODE_ENV === 'production' || environment.NODE_ENV === 'staging';
+
+    if (environment.OPENAI_AGENT_ENABLED && deployed) {
       for (const key of ['OPENAI_API_KEY', 'OPENAI_AGENT_MODEL'] as const) {
         if (!environment[key]) {
           context.addIssue({ code: 'custom', path: [key], message: `${key} is required when OPENAI_AGENT_ENABLED is true` });
@@ -499,7 +550,7 @@ const environmentSchema = z
       }
     }
 
-    if (environment.CAMARA_ENABLED) {
+    if (environment.CAMARA_ENABLED && deployed) {
       if (!environment.CAMARA_API_KEY) {
         context.addIssue({
           code: 'custom',
@@ -550,12 +601,16 @@ const environmentSchema = z
 
     // Fail at boot rather than on the first submission. A deployment that
     // claims to verify proof and silently cannot is worse than one that
-    // refuses to start.
+    // refuses to start. (Deployed environments only — see `deployed`.)
     if (environment.AI_VERIFICATION_ENABLED) {
       const keyForProvider = environment.AI_VERIFICATION_PROVIDER === 'openai'
         ? 'OPENAI_API_KEY' as const
         : 'ANTHROPIC_API_KEY' as const;
-      if (!environment[keyForProvider]) {
+      // Deployed only, for the reason given at `deployed` above. The
+      // confidence-ordering check below is NOT scoped: it is a statement
+      // about the configuration being coherent, and a nonsensical one
+      // should fail everywhere it is written.
+      if (!environment[keyForProvider] && deployed) {
         context.addIssue({
           code: 'custom',
           path: [keyForProvider],

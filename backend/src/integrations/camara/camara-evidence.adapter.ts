@@ -31,13 +31,13 @@ interface CircleAreaResult {
 /**
  * Nokia Network-as-Code / CAMARA adapter for the three mandatory
  * capabilities. Location Verification and Location Retrieval are real,
- * implemented against the official SDK. Geofencing stays fail-closed — the
- * CAMARA Geofencing Subscriptions product is asynchronous (create a
- * subscription with a webhook `sink`, get events later), which needs its
- * own public callback endpoint, signature verification and subscription
- * lifecycle management. That is separate, larger work, not a same-shape
- * synchronous call like the other two. QoS on Demand / Emergency Mode
- * remains out of scope entirely.
+ * implemented against the official SDK and called synchronously here.
+ * Geofencing is not one of them: the CAMARA Geofencing Subscriptions
+ * product is asynchronous (create a subscription with a webhook `sink`, get
+ * events later), so it lives in `camara-geofencing.adapter.ts` with its own
+ * callback controller and subscription lifecycle, and this adapter only
+ * reads the events it recorded. QoS on Demand / Emergency Mode is out of
+ * scope by decision, not by sequencing — see CLAUDE.md.
  *
  * Every call requires a CAMARA-verified phone number
  * (LocationEvidenceQuery.phoneNumber, from users.phone_number — issue #1).

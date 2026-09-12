@@ -45,23 +45,37 @@ catalogue — and it is not a low score.
 
 ## Turning it on
 
-Env, on whatever supplies the **worker**:
+**It is already on.** Every switch below defaults to enabled, and migration
+0048 sets the console toggle. What a deployment actually needs from you is
+the two credentials — without them the pipeline runs, finds it cannot see or
+ask the network, and sends everything to the human queue, which looks
+identical to it being broken.
+
+Env, on whatever supplies the **worker**. Only the two keys are strictly
+required; the rest are the defaults, written out so you can see what is on:
 
 ```bash
-AI_VERIFICATION_ENABLED=true
-AI_VERIFICATION_PROVIDER=openai
-OPENAI_API_KEY=…
+OPENAI_API_KEY=…                         # required for the cascade to see
+OPENAI_AGENT_MODEL=gpt-5.6-sol           # required for the agent to answer
+CAMARA_API_KEY=…                         # required for network evidence
+AI_VERIFICATION_ENABLED=true             # default
+AI_VERIFICATION_PROVIDER=openai          # default
 CV_PROVIDER=local                        # default
-AGENT_SUBMISSION_VERIFICATION_ENABLED=true
-OPENAI_AGENT_ENABLED=true
-OPENAI_AGENT_MODEL=gpt-5.6-sol
-AI_VERIFICATION_SHADOW_MODE=true         # true = records, acts on nothing
+AGENT_SUBMISSION_VERIFICATION_ENABLED=true   # default
+OPENAI_AGENT_ENABLED=true                # default
+CAMARA_ENABLED=true                      # default
+AI_VERIFICATION_SHADOW_MODE=false        # default — it acts; true = records only
 ```
+
+On `NODE_ENV=production` or `staging` a missing key refuses the boot. On a
+laptop it does not, so that you can run the app without holding either
+account — and there the whole path degrades to HUMAN_REVIEW.
 
 **Then the console toggle**, or none of the above runs: admin console →
 Settings → **AI SUBMISSION VERIFICATION**. `AGENT_SUBMISSION_VERIFICATION_ENABLED`
-is necessary and *not sufficient* — there is a second gate in `app_config`
-that migration 0026 seeds `false`, and with it off every job returns
+is necessary and *not sufficient* — there is a second gate in `app_config`.
+Migration 0026 seeded it `false` and 0048 sets it `true`, so a migrated
+database has it on; if somebody has paused it since, every job returns
 `skipped: 'DISABLED'` with no error and nothing saying why. Check it:
 
 ```sql
@@ -111,7 +125,7 @@ right; per-quest is more precise and leaves that invariant standing.
 | An image from another user's approved post | exact duplicate, **decisive** — blocks approval outright |
 | A photo taken before you started the quest | `capture_predates_assignment`, **decisive** |
 | Proof for "compliment a stranger" | **no vision call at all**; relevance `NOT ASSESSED`; decided on provenance |
-| Anything at all while shadow mode is on | verdict recorded, submission untouched |
+| Anything at all while shadow mode is on (not the default) | verdict recorded, submission untouched |
 
 Where to look: the review screen's **Agent's read** panel (verdict, both
 numbers, what it looked for including absences), and `/moderation/unclear`
@@ -152,6 +166,7 @@ means "cannot be fingerprinted", never "matches everything".
 
 `AI_VERIFICATION_SHADOW_MODE=true` stops **both** verifiers acting and keeps
 the recording, so you keep collecting eval data while nothing touches a user.
+It is a change from the default now, not a confirmation of it.
 The console toggle pauses the agent pipeline without a deploy and takes effect
 on the next job. Prefer the toggle for an incident, shadow mode for "we are
 not ready".
@@ -163,8 +178,11 @@ not ready".
   `/api/v1/integrations/camara/geofencing/:subscriptionId`, authenticated by
   a per-subscription bearer secret. Nothing reaches a laptop. Everything else
   CAMARA does works locally.
-- **Optional CAMARA capabilities** — the allowlist is empty, so the agent
-  cannot reach for a fourth API. See #73.
+- **Optional CAMARA capabilities** — the allowlist holds exactly one,
+  `DEVICE_REACHABILITY`, which the agent may request after an inconclusive
+  baseline. QoS on Demand / Emergency Mode is deliberately not in it and is
+  not planned; see the Emergency Mode section in `CLAUDE.md`. See #73 for
+  widening the list.
 - **No leases on the agent-run applied state** — an apply failure marks the
   run failed and retries, which is correct, but "applied" is inferred from
   `agent_runs.status` rather than recorded.

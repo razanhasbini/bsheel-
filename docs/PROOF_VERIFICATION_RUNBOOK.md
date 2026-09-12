@@ -4,14 +4,33 @@ How to go from "the code is there" to "the agent decides submissions", and
 why the order matters. Companion to the `AI proof verification (#47)` section
 in `CLAUDE.md`, which explains the design; this is the operational sequence.
 
-The short version: **four env flags plus one console toggle make it run, a
-sixth switch makes it act, and that last one is earned from a measurement
-rather than chosen.**
+> **Read this first: the shipped defaults are already the end state.**
+> Every switch below is on out of the box, and migration 0048 sets the
+> console toggle to `true`. A fresh deployment with credentials configured
+> decides submissions from its first one; without credentials it degrades to
+> the human queue. So the stages below are no longer a checklist you work
+> through to switch a feature on — they are the map of what each switch
+> does, which one to reach for when something is wrong, and how to get back
+> to a measurable state. **Stage 4 is where you already are.**
+>
+> What that costs and what it does not: the rollout was ordered this way so
+> nobody would ship an unmeasured agent. The defaults now trade that
+> caution for latency, deliberately — a submission carrying a conclusion the
+> system already reached should not wait days for a person to reach it
+> again. The guards that make it defensible are narrower and still in place
+> (a rejection needs positive evidence, `may_auto_reject` is off for the
+> categories a photograph cannot settle, integrity findings block automated
+> approval). If you want the caution back for a window, that is
+> `AI_VERIFICATION_SHADOW_MODE=true`, and it is one variable.
+
+The short version: **four env flags plus one console toggle make it run, and
+a sixth switch decides whether it acts. All six now default to on.**
 
 The console toggle is the one that catches people. `AGENT_SUBMISSION_VERIFICATION_ENABLED=true`
 is necessary and **not sufficient**: the agent pipeline also checks an
-`app_config` row that migration 0026 seeds `false`, so with the env flag on
-and the toggle off every run returns `skipped: 'DISABLED'` and nothing
+`app_config` row. Migration 0026 seeded it `false` and 0048 set it `true`, so
+a database migrated past 0048 has it on — but an operator may have paused it
+since, and with it off every run returns `skipped: 'DISABLED'` and nothing
 happens. Two switches, deliberately — one is a deploy decision, the other is
 an incident brake an admin can pull without one.
 
@@ -39,8 +58,8 @@ and (1) steps aside for it — it sees strictly more evidence.
 ## Stage 1 — run it blind (no API key needed)
 
 ```bash
-AI_VERIFICATION_ENABLED=false     # default
-AGENT_SUBMISSION_VERIFICATION_ENABLED=false
+AI_VERIFICATION_ENABLED=false     # NOT the default any more — both of these
+AGENT_SUBMISSION_VERIFICATION_ENABLED=false   # must now be set explicitly
 ```
 
 Nothing analyses anything, but every submission still gets a
@@ -62,7 +81,7 @@ AI_VERIFICATION_ENABLED=true
 AI_VERIFICATION_PROVIDER=openai        # or anthropic
 OPENAI_API_KEY=sk-…                    # required; boot refuses without it
 CV_PROVIDER=local                      # default
-AI_VERIFICATION_SHADOW_MODE=true       # default — nothing acts
+AI_VERIFICATION_SHADOW_MODE=true       # explicit: nothing acts (default is false)
 ```
 
 Now the cascade runs for real: forensics on every submission, and a vision
@@ -70,9 +89,11 @@ pass on quests whose contract says content can decide. Verdicts, relevance and
 observations land on the row, `acted = false`, and **no submission's status
 changes**.
 
-This is the state to leave it in. It is also where the money starts: the
-cascade is cheap by design (most submissions stop at forensics or the triage
-rung) but it is not free.
+This used to be the state to leave it in, and it is still the state to
+return to when you want a clean eval slice — `acted = false` is only honest
+data while nothing acted. It is also where the money starts: the cascade is
+cheap by design (most submissions stop at forensics or the triage rung) but
+it is not free.
 
 **How to watch it:**
 
@@ -103,14 +124,16 @@ OPENAI_AGENT_MODEL=…              # boot refuses without it, and without OPENA
 none of this runs:
 
 ```sql
--- What the toggle writes. Check it rather than assuming.
+-- What the toggle writes. Check it rather than assuming. Migration 0048
+-- sets it true, so '"false"' here means a person paused it.
 SELECT value FROM app_config WHERE key = 'agent_submission_verification_enabled';
 -- '"false"' → the pipeline is skipping every job
 ```
 
 The agent pipeline now runs too, weighing the three mandatory CAMARA
-capabilities alongside the cascade's findings. Shadow mode still holds, so it
-records and acts on nothing.
+capabilities alongside the cascade's findings. Whether it *acts* on what it
+concludes is the one remaining switch, Stage 4 — which is on by default, so
+unless you set `AI_VERIFICATION_SHADOW_MODE=true` you are there already.
 
 ```sql
 -- Did the agent actually run, and what did it conclude?
@@ -207,14 +230,18 @@ the dry run being the default. Quests whose contract is `provenance_only` or
 `none` make no vision call at all, and the dry run tells you how many of each
 you have before you spend anything.
 
-## Stage 4 — let it act
-
-Only after `npm run proof:eval` reports a precision you are willing to defend
-to a player whose quest it rejects.
+## Stage 4 — let it act (the default)
 
 ```bash
-AI_VERIFICATION_SHADOW_MODE=false
+AI_VERIFICATION_SHADOW_MODE=false   # the default; set it to true to stop acting
 ```
+
+This is where a current deployment starts. The eval has not stopped being
+the right instrument — run `npm run proof:eval` against whatever slice you
+have (the backfill above produces one without waiting) and keep watching the
+precision, because the question "would I defend this to a player whose quest
+it rejected" is still the question. What changed is only which way the
+default answers it while nobody is looking.
 
 Then, per category, from the eval's own numbers — **not** as a batch:
 
@@ -225,10 +252,14 @@ UPDATE quest_verification_defaults
  WHERE category = 'creativity';
 ```
 
-`may_auto_reject` is seeded `false` for every category deliberately. Telling a
-player their proof is fake is the costly error — they carry the appeal — so
-that flag is the last one to move and it should move on a precision number for
-*that category*, not a global one.
+`may_auto_reject` was seeded `false` for every category in 0034; migration
+0046 turned it on for the `content`-verifiable ones, where the absence of the
+asked-for thing is a finding the media actually supports. It stays `false`
+for `provenance_only` and `none`, and that is not an oversight to tidy up:
+telling a player their proof is fake is the costly error — they carry the
+appeal — and on those categories a rejection could only be an accusation
+about the file. Move a per-quest override on a precision number for *that*
+kind of quest, not a global one.
 
 A per-quest override beats the category default, which is how the awkward
 quests get handled:
@@ -244,7 +275,7 @@ UPDATE quests
 
 | If you skip to | You get |
 |---|---|
-| shadow off, before the eval | an unmeasured agent deciding real users' quests |
+| shadow off (the default), with no eval ever run | an unmeasured agent deciding real users' quests — the risk the defaults accept, and the reason to run `proof:backfill` + `proof:eval` early on a new deployment |
 | `may_auto_reject` on, early | honest players told their proof is fake, with an appeal to spend |
 | `CV_PROVIDER=none`, agent on | every submission escalated; the agent knows only that a file exists |
 | agent on, `CAMARA_ENABLED=false` | destination quests all escalate — no location evidence to weigh |
@@ -252,8 +283,8 @@ UPDATE quests
 
 ## Turning it off
 
-`AI_VERIFICATION_SHADOW_MODE=true` is the brake, and it stops **both**
-verifiers acting. It needs no deploy if your config is environment-driven, and
+`AI_VERIFICATION_SHADOW_MODE=true` is the brake — a change from the default
+now, not a confirmation of it — and it stops **both** verifiers acting. It needs no deploy if your config is environment-driven, and
 it leaves the recording intact — so you keep collecting eval data while
 nothing touches a user.
 

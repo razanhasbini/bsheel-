@@ -66,8 +66,14 @@ export interface NetworkEvidenceProvider {
 
   /**
    * One further CAMARA capability the agent asks for after the baseline is
-   * inconclusive. `capability` must be one of `supportedAdditionalCapabilities`;
-   * QoS/Emergency Mode is deliberately never in that list yet.
+   * inconclusive. `capability` must be one of `supportedAdditionalCapabilities`.
+   *
+   * QoS on Demand / Emergency Mode is not in that list and is not meant to
+   * be: Emergency Mode is a decided no, not a not-yet. An SOS button is a
+   * promise that help arrives, and prioritising a data bearer is not rescue
+   * — keeping the promise needs a real route to emergency services and
+   * somebody on the other end of it. See the section in CLAUDE.md before
+   * adding it here.
    */
   getAdditionalEvidence(query: LocationEvidenceQuery, capability: string): Promise<NetworkEvidence>;
 

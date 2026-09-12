@@ -78,9 +78,17 @@ CV is no longer on this list. `CV_PROVIDER=local` (the default) binds the
 #47 vision cascade as the agent's CV provider, so media analysis arrives
 with a relevance score and a typed observation list and content-based
 decisions no longer fall to HUMAN_REVIEW for want of eyes. It needs
-`AI_VERIFICATION_ENABLED=true` and an `OPENAI_API_KEY`; without a key it
-degrades to exactly what `CV_PROVIDER=none` returned, which is the honest
-answer rather than a guess.
+`AI_VERIFICATION_ENABLED=true` (now the default) and an `OPENAI_API_KEY`
+(never a default — supply it); without a key it degrades to exactly what
+`CV_PROVIDER=none` returned, which is the honest answer rather than a
+guess.
+
+The same is true one level up: `CAMARA_ENABLED` and `OPENAI_AGENT_ENABLED`
+default to true as of the defaults change, so a laptop with no keys runs
+the whole pipeline and sends everything to the human queue. If the agent
+looks broken, check the keys before the code — and remember a deployed
+environment (`NODE_ENV=production|staging`) refuses to boot without them
+rather than degrading.
 
 So you can test good-proof and bad-proof against every location outcome
 **except** the ones that need a real geofence entry event, which need the
