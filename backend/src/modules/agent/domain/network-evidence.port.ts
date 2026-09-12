@@ -42,9 +42,27 @@ export interface LocationEvidenceQuery {
    */
   readonly geofence: {
     readonly status: 'active' | 'missing' | 'failed';
+    /**
+     * Whose subscription this is. NOKIA means the network was genuinely
+     * watching, so silence is evidence of absence. DEMO_HARNESS means the
+     * subscription exists only here — nothing was ever watching, and silence
+     * says nothing at all.
+     */
+    readonly origin: 'NOKIA' | 'DEMO_HARNESS';
     readonly events: ReadonlyArray<{
       readonly type: 'ENTER' | 'EXIT';
       readonly occurredAt: string;
+      /**
+       * NOKIA — the network delivered it. DEMO_HARNESS — the hackathon
+       * harness generated it and delivered it through the real webhook.
+       *
+       * Carried so a screen can say which, and say it from persisted data
+       * rather than from wording somebody chose in Flutter. It is never
+       * shown to the model: where an event came from does not change what
+       * it means about the device, and a verdict that moved on provenance
+       * would be a verdict moving on our own bookkeeping.
+       */
+      readonly origin: 'NOKIA' | 'DEMO_HARNESS';
     }>;
   } | null;
 }

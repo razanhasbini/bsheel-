@@ -283,8 +283,17 @@ export const NetworkEvidenceSchema = z.discriminatedUnion('capability', [
           z.object({
             type: z.enum(['ENTER', 'EXIT', 'DWELL']),
             occurredAt: z.string().datetime(),
+            /**
+             * Who delivered it. Recorded because a geofence event generated
+             * by the hackathon harness — real HTTP, real webhook, real
+             * parser — is still not a carrier observation, and must never be
+             * displayed as one.
+             */
+            origin: z.enum(['NOKIA', 'DEMO_HARNESS']).optional(),
           }),
         ),
+        /** Summary of the above, so a reader need not scan the events. */
+        eventSource: z.enum(['NOKIA_CALLBACK', 'DEMO_CLOUDEVENT_HARNESS']).optional(),
       })
       .strict(),
   }),

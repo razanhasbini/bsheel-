@@ -100,6 +100,22 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
       );
     }
     const entered = geofence.events.some((event) => event.type === 'ENTER');
+    // A live NOKIA subscription that never reported an entry is a real
+    // measurement: the network was watching and the device did not arrive.
+    // A DEMO_HARNESS subscription with no events is not that. It exists only
+    // in our database, nothing was ever watching it, and reporting silence
+    // there as CONTRADICTED would manufacture evidence of absence out of our
+    // own bookkeeping — the exact dishonesty the provenance column exists to
+    // prevent. Unavailable is the truthful answer, and it routes to a human.
+    if (!entered && geofence.origin === 'DEMO_HARNESS') {
+      return this.unavailable(
+        query,
+        'GEOFENCING',
+        undefined,
+        'No geofence entry was recorded, and the subscription is a demo harness one — '
+        + 'nothing was watching the area, so this is not evidence the device stayed away',
+      );
+    }
     return {
       provider: 'nokia-network-as-code',
       providerReference: `geofencing:${query.userQuestId}`,
@@ -110,7 +126,18 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
       observedAt: geofence.events[0]?.occurredAt ?? new Date().toISOString(),
       result: {
         zoneId: query.place.placeId,
-        events: geofence.events.map((event) => ({ type: event.type, occurredAt: event.occurredAt })),
+        events: geofence.events.map((event) => ({
+          type: event.type,
+          occurredAt: event.occurredAt,
+          origin: event.origin,
+        })),
+        // Summarised on the evidence itself so a reader does not have to
+        // scan the events: any harness-generated event makes the whole
+        // signal something we produced, and it must never be presented as
+        // "the carrier observed an entry".
+        eventSource: geofence.events.some((event) => event.origin === 'DEMO_HARNESS')
+          ? 'DEMO_CLOUDEVENT_HARNESS'
+          : 'NOKIA_CALLBACK',
       },
     };
   }

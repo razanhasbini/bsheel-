@@ -138,7 +138,7 @@ export class CamaraDemoService {
         },
         windowStart: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
         windowEnd: new Date().toISOString(),
-        geofence: { status: 'missing', events: [] },
+        geofence: { status: 'missing', events: [], origin: 'NOKIA' as const },
       }));
 
     for (const item of verified.value ?? []) {
@@ -248,7 +248,7 @@ export class CamaraDemoService {
           },
           windowStart: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
           windowEnd: new Date().toISOString(),
-          geofence: { status: 'missing', events: [] },
+          geofence: { status: 'missing', events: [], origin: 'NOKIA' as const },
         }));
       const verification = (evidence.value ?? []).find(
         (item) => item.capability === 'LOCATION_VERIFICATION');
