@@ -352,6 +352,10 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
       providerReference: `unavailable:${randomUUID()}`,
       outcome: 'UNAVAILABLE' as const,
       observedAt: new Date().toISOString(),
+      // Carried on the evidence, not only in this debug line: the console
+      // shows it beside the signal, so "NETWORK COULD NOT SAY" comes with
+      // the reason it could not.
+      ...(reason ? { unavailableReason: reason } : {}),
     };
     switch (capability) {
       case 'LOCATION_VERIFICATION':

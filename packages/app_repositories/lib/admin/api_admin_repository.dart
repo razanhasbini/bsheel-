@@ -397,6 +397,22 @@ class ApiAdminRepository implements AdminRepository {
         await _client.get('agent/evidence', query: {'limit': '$limit'}),
       );
 
+  /// The evidence dossier behind one submission — CAMARA location signals,
+  /// the vision read and the agent's decision — or null when no
+  /// verification has run for it yet (paused, pre-CAMARA, or not enqueued).
+  Future<Map<String, dynamic>?> agentEvidenceForSubmission(
+      String submissionId) async {
+    final data = await _client.get('agent/evidence/submissions/$submissionId');
+    return data is Map ? Map<String, dynamic>.from(data) : null;
+  }
+
+  /// Queues a (re-)verification of one submission. Returns once the job is
+  /// accepted; the evidence appears when the worker has finished, so the
+  /// caller re-reads [agentEvidenceForSubmission] a little later.
+  Future<void> rerunAgentVerification(String submissionId) async {
+    await _client.post('agent/evidence/submissions/$submissionId/rerun');
+  }
+
   Future<List<Map<String, dynamic>>> adminMapPlaces() async =>
       apiObjectList(await _client.get('map/admin/places'));
 

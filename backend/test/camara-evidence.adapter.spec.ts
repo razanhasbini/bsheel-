@@ -64,6 +64,25 @@ describe('CAMARA location evidence mapping', () => {
     }
   });
 
+  it('says why a signal is unavailable, so the console can show it', async () => {
+    // The commonest real case: an account with no carrier-verified number.
+    // Three UNAVAILABLE rows with no reason read as "the network failed";
+    // with the reason they read as "nothing to ask the network about".
+    const { adapter } = evidenceAdapter({});
+    const evidence = await adapter.getBaselineEvidence({
+      ...query,
+      phoneNumber: null,
+      geofence: { status: 'missing', events: [] },
+    });
+    expect(evidence).toHaveLength(3);
+    for (const item of evidence) {
+      expect(item.outcome).toBe('UNAVAILABLE');
+      expect(item.unavailableReason).toBeTruthy();
+    }
+    expect(evidence[0].unavailableReason).toMatch(/phone number/i);
+    expect(evidence[2].unavailableReason).toMatch(/geofenc/i);
+  });
+
   it('preserves retrieved coordinates, radius and timestamp', async () => {
     const { adapter } = evidenceAdapter({});
     const evidence = (await adapter.getBaselineEvidence(query))[1];

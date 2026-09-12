@@ -238,6 +238,17 @@ const NetworkEvidenceBase = z.object({
   outcome: z.enum(['SUPPORTED', 'CONTRADICTED', 'UNAVAILABLE', 'ERROR']),
   observedAt: z.string().datetime(),
   validUntil: z.string().datetime().optional(),
+  /**
+   * Why an UNAVAILABLE signal is unavailable, in one plain sentence.
+   *
+   * "No answer" hides three different situations — the account has no
+   * carrier-verified number, CAMARA is switched off, the provider call
+   * failed — and a moderator reading the console needs to know which,
+   * because only one of them is something the player can do anything
+   * about. Kept out of the strict per-capability `result` objects, which
+   * describe measurements; this describes the absence of one.
+   */
+  unavailableReason: z.string().optional(),
 });
 
 export const NetworkEvidenceSchema = z.discriminatedUnion('capability', [

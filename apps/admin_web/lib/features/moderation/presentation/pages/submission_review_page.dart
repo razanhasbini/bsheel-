@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:app_contracts/app_contracts.dart';
@@ -10,6 +11,7 @@ import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
 import '../../../../core/theme/bsheel_design.dart';
 import '../../../../shared/widgets/bsheel_widgets.dart';
+import '../../../agent_evidence/domain/evidence_wording.dart';
 import '../../util/caption_flags.dart';
 import '../providers/moderation_controller.dart';
 import '../providers/pending_submissions_provider.dart';
@@ -802,6 +804,8 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
       ),
       ..._agentRead(),
       const SizedBox(height: 16),
+      _NetworkEvidencePanel(submissionId: widget.submissionId),
+      const SizedBox(height: 16),
       _Block(
         label: 'Reason (optional)',
         child: Column(
@@ -1043,6 +1047,334 @@ class _Observation {
   final String label;
   final bool present;
   final double confidence;
+}
+
+/// What the network said about where the player was.
+///
+/// "Agent's read" above is the vision pass — what the photograph shows.
+/// This is the other half of a location quest's verdict, and until now it
+/// lived only on the AGENT EVIDENCE page: whether the carrier put the device
+/// inside the place's radius (Location Verification), where it actually put
+/// it (Location Retrieval), whether the device crossed into the geofence
+/// while the quest was live, and what the agent concluded from all of it.
+///
+/// Fetched here rather than threaded through the detail row because it is a
+/// different table with its own lifecycle: a submission can sit in the queue
+/// for days before a run exists — everything submitted while automated
+/// verification was paused has none — so the panel can also ask for one.
+class _NetworkEvidencePanel extends StatefulWidget {
+  const _NetworkEvidencePanel({required this.submissionId});
+
+  final String submissionId;
+
+  @override
+  State<_NetworkEvidencePanel> createState() => _NetworkEvidencePanelState();
+}
+
+class _NetworkEvidencePanelState extends State<_NetworkEvidencePanel> {
+  late Future<Map<String, dynamic>?> _future = _load();
+  bool _queued = false;
+  bool _queueing = false;
+  Timer? _poll;
+
+  Future<Map<String, dynamic>?> _load() =>
+      AppBackend.repositories.admin.agentEvidenceForSubmission(
+        widget.submissionId,
+      );
+
+  @override
+  void didUpdateWidget(covariant _NetworkEvidencePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.submissionId != widget.submissionId) {
+      _poll?.cancel();
+      _queued = false;
+      setState(() => _future = _load());
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _rerun() async {
+    setState(() => _queueing = true);
+    try {
+      await AppBackend.repositories.admin.rerunAgentVerification(
+        widget.submissionId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _queued = true;
+        _queueing = false;
+      });
+      // Three carrier calls and a model turn take a few seconds; re-read for
+      // a minute rather than making the moderator press refresh.
+      var attempts = 0;
+      _poll?.cancel();
+      _poll = Timer.periodic(const Duration(seconds: 5), (timer) {
+        attempts += 1;
+        if (!mounted || attempts > 12) {
+          timer.cancel();
+          return;
+        }
+        setState(() => _future = _load());
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _queueing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not queue the network check: $error')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _future,
+      builder: (context, snapshot) {
+        final Widget body;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          body = const LinearProgressIndicator(minHeight: 2);
+        } else if (snapshot.hasError) {
+          body = Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Network evidence could not be loaded.',
+                  style: BsheelType.bodySm,
+                ),
+              ),
+              BsheelButton(
+                label: 'RETRY',
+                small: true,
+                ghost: true,
+                onPressed: () => setState(() => _future = _load()),
+              ),
+            ],
+          );
+        } else if (snapshot.data == null) {
+          body = _empty();
+        } else {
+          body = _dossier(snapshot.data!);
+        }
+        return _Block(label: 'Network · where they were', child: body);
+      },
+    );
+  }
+
+  Widget _empty() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _queued
+              ? 'Network check queued — the worker is asking the carrier now. '
+                  'This refreshes itself for a minute.'
+              : 'No network check has run for this submission.',
+          style: BsheelType.bodySm,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'CAMARA asks the player\'s carrier whether the device was inside the '
+          'place\'s radius, where it actually was, and whether it crossed the '
+          'geofence while the quest was live. It needs the account\'s '
+          'carrier-verified number — a photograph alone cannot answer it.',
+          style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            BsheelButton(
+              label: _queued ? 'RUN AGAIN' : 'RUN NETWORK CHECK',
+              icon: Icons.cell_tower_rounded,
+              small: true,
+              loading: _queueing,
+              onPressed: _queueing ? null : _rerun,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'If nothing appears after a minute, automated verification is '
+                'paused: Settings → AI SUBMISSION VERIFICATION.',
+                style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _dossier(Map<String, dynamic> d) {
+    final network = [
+      for (final n in (d['network'] as List? ?? const []))
+        if (n is Map) Map<String, dynamic>.from(n),
+    ];
+    final needsLocation = d['needsLocation'] == true;
+    final placeName = d['placeName'] as String?;
+    final radius = coerceNullableDouble(d['placeRadiusMeters']);
+    final placeLatitude = coerceNullableDouble(d['placeLatitude']);
+    final placeLongitude = coerceNullableDouble(d['placeLongitude']);
+    final decision = (d['decision'] ?? '').toString();
+    final confidence = coerceNullableDouble(d['confidence']);
+    final reasons = [
+      for (final r in (d['reasons'] as List? ?? const [])) '$r',
+    ];
+    final human = (d['humanReviewReason'] ?? '').toString().trim();
+    final shadow = d['shadow'] == true;
+
+    // The one-line answer, from the network signals alone. A CONTRADICTED
+    // signal is a measurement that the device was elsewhere and outranks a
+    // SUPPORTED one from a weaker capability; nothing measured is UNKNOWN,
+    // never "no".
+    final outcomes = [for (final n in network) '${n['outcome']}'];
+    final String there;
+    Color? thereTone;
+    if (!needsLocation) {
+      there = 'NOT A LOCATION QUEST';
+    } else if (outcomes.contains('CONTRADICTED')) {
+      there = 'NO';
+      thereTone = BsheelColors.dangerText;
+    } else if (outcomes.contains('SUPPORTED')) {
+      there = 'YES';
+      thereTone = BsheelColors.successText;
+    } else {
+      there = 'UNKNOWN';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BsheelKeyValues(
+          entries: [
+            BsheelKeyValue(
+              'Place',
+              placeName == null
+                  ? '—'
+                  : '$placeName'
+                      '${radius == null ? '' : ' · within ${radius.round()} m'}',
+            ),
+            BsheelKeyValue('Device at the place', there, emphasis: thereTone),
+            BsheelKeyValue(
+              'Agent decision',
+              decision.isEmpty
+                  ? 'NO DECISION'
+                  : '$decision'
+                      '${confidence == null ? '' : ' · ${(confidence * 100).round()}%'}',
+              emphasis: switch (decision) {
+                'REJECTED' => BsheelColors.dangerText,
+                'APPROVED' => BsheelColors.successText,
+                _ => null,
+              },
+            ),
+          ],
+        ),
+        if (needsLocation) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final n in network)
+                BsheelPill(
+                  '${_capabilityLabel('${n['capability']}')} · '
+                  '${capabilityAnswer('${n['capability']}', '${n['outcome']}')}',
+                  tone: switch ('${n['outcome']}') {
+                    'SUPPORTED' => BsheelPillTone.green,
+                    'CONTRADICTED' => BsheelPillTone.coral,
+                    _ => BsheelPillTone.ghost,
+                  },
+                  small: true,
+                ),
+              if (network.isEmpty)
+                const BsheelPill(
+                  'NO NETWORK SIGNAL RECORDED',
+                  tone: BsheelPillTone.ghost,
+                  small: true,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final n in network)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '${_capabilityLabel('${n['capability']}')} — '
+                '${capabilityMeasurement(
+                  capability: '${n['capability']}',
+                  outcome: '${n['outcome']}',
+                  detail: n['detail'],
+                  placeName: placeName,
+                  placeLatitude: placeLatitude,
+                  placeLongitude: placeLongitude,
+                )}'
+                // Why a signal is missing, when the worker recorded why:
+                // "no carrier-verified number" and "the provider failed"
+                // call for different actions and must not read alike.
+                '${_unavailableReason(n['detail'])}',
+                style: BsheelType.bodyXs,
+              ),
+            ),
+        ],
+        if (reasons.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const BsheelLabel('Agent reasons'),
+          const SizedBox(height: 4),
+          for (final r in reasons)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text('• $r', style: BsheelType.bodySm),
+            ),
+        ],
+        if (human.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          BsheelCallout(human),
+        ],
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                shadow
+                    ? 'Shadow mode — recorded, nothing applied. You decide.'
+                    : 'Advisory. You decide.',
+                style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
+              ),
+            ),
+            BsheelButton(
+              label: 'RE-RUN',
+              icon: Icons.cell_tower_rounded,
+              small: true,
+              ghost: true,
+              loading: _queueing,
+              onPressed: _queueing ? null : _rerun,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Nokia's capability names, in words a moderator can act on. Mirrors the
+  /// AGENT EVIDENCE page so the two screens never disagree about a label.
+  String _capabilityLabel(String capability) => switch (capability) {
+        'LOCATION_VERIFICATION' => 'WAS THE DEVICE THERE',
+        'LOCATION_RETRIEVAL' => 'WHERE THE NETWORK PUT IT',
+        'GEOFENCING' => 'DID IT ENTER DURING THE QUEST',
+        'ADDITIONAL' => 'EXTRA NETWORK CONTEXT',
+        _ => capability,
+      };
+
+  String _unavailableReason(Object? detail) {
+    if (detail is! Map) return '';
+    final reason = detail['unavailableReason'];
+    if (reason is! String || reason.isEmpty) return '';
+    return ' — ${reason[0].toLowerCase()}${reason.substring(1)}';
+  }
 }
 
 class _Block extends StatelessWidget {

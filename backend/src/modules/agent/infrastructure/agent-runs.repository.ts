@@ -104,7 +104,14 @@ export class AgentRunsRepository {
         evidence.provider,
         evidence.providerReference,
         evidence.outcome,
-        JSON.stringify(evidence.result),
+        // The reason an UNAVAILABLE signal is unavailable rides inside the
+        // stored result, so the dossier (which reads `result` as-is) can
+        // show it without a schema change to the table.
+        JSON.stringify(
+          evidence.unavailableReason
+            ? { ...evidence.result, unavailableReason: evidence.unavailableReason }
+            : evidence.result,
+        ),
         evidence.observedAt,
         evidence.validUntil ?? null,
       ],
