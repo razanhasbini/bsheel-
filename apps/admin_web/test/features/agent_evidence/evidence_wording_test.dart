@@ -30,9 +30,12 @@ void main() {
       for (final capability in capabilities) {
         for (final outcome in outcomes) {
           final answer = capabilityAnswer(capability, outcome);
-          expect(answer, isNot(contains('CONTRADICT')), reason: '$capability/$outcome');
-          expect(answer, isNot(contains('SUPPORTED')), reason: '$capability/$outcome');
-          expect(answer, isNot(contains('UNAVAILABLE')), reason: '$capability/$outcome');
+          expect(answer, isNot(contains('CONTRADICT')),
+              reason: '$capability/$outcome');
+          expect(answer, isNot(contains('SUPPORTED')),
+              reason: '$capability/$outcome');
+          expect(answer, isNot(contains('UNAVAILABLE')),
+              reason: '$capability/$outcome');
         }
       }
     });
@@ -82,7 +85,9 @@ void main() {
     test('says what the geofence did, not what it proved', () {
       expect(
         capabilityMeasurement(
-            capability: 'GEOFENCING', outcome: 'CONTRADICTED', detail: {'events': []}),
+            capability: 'GEOFENCING',
+            outcome: 'CONTRADICTED',
+            detail: {'events': []}),
         contains('never crossed into it'),
       );
       expect(
@@ -104,7 +109,10 @@ void main() {
       final line = capabilityMeasurement(
         capability: 'ADDITIONAL',
         outcome: 'SUPPORTED',
-        detail: {'reachable': true, 'connectivity': ['DATA']},
+        detail: {
+          'reachable': true,
+          'connectivity': ['DATA']
+        },
       );
       expect(line, contains('context only'));
       expect(line, contains('DATA'));

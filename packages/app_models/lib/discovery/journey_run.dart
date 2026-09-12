@@ -8,7 +8,14 @@
 /// checkpoint genuinely is open again — a rejection does not consume the
 /// attempt — but a timeline that says only "available" about a checkpoint
 /// the player just failed tells them nothing about what happened.
-enum StageState { completed, underReview, inProgress, rejected, available, locked }
+enum StageState {
+  completed,
+  underReview,
+  inProgress,
+  rejected,
+  available,
+  locked
+}
 
 StageState _stageStateFrom(String raw) => switch (raw) {
       'COMPLETED' => StageState.completed,
@@ -82,8 +89,7 @@ class JourneyStage {
   final bool appealed;
 
   /// Waiting on a moderator to read an appeal, rather than a first look.
-  bool get isAppealUnderReview =>
-      state == StageState.underReview && appealed;
+  bool get isAppealUnderReview => state == StageState.underReview && appealed;
 
   final String? difficulty;
   final int? durationHours;

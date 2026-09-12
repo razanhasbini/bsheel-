@@ -156,19 +156,23 @@ class _DossierState extends State<_Dossier> {
                 for (final n in _network)
                   _Signal(
                     label: _capabilityLabel('${n['capability']}'),
-                    outcome: capabilityAnswer('${n['capability']}', '${n['outcome']}'),
+                    outcome: capabilityAnswer(
+                        '${n['capability']}', '${n['outcome']}'),
                     against: n['outcome'] == 'CONTRADICTED',
                     supports: n['outcome'] == 'SUPPORTED',
                   ),
                 if (_cv != null)
                   _Signal(
                     label: 'COMPUTER VISION',
-                    outcome: _cv!['status'] == 'AVAILABLE' ? 'LOOKED' : 'DID NOT LOOK',
+                    outcome: _cv!['status'] == 'AVAILABLE'
+                        ? 'LOOKED'
+                        : 'DID NOT LOOK',
                     supports: _cv!['status'] == 'AVAILABLE',
                   ),
                 if (_network.isEmpty && _cv == null)
                   const _Signal(
-                      label: 'NO EVIDENCE RECORDED', outcome: 'NOTHING GATHERED'),
+                      label: 'NO EVIDENCE RECORDED',
+                      outcome: 'NOTHING GATHERED'),
               ],
             ),
             if (_open) ...[
@@ -249,8 +253,10 @@ class _DossierState extends State<_Dossier> {
                   outcome: '${n['outcome']}',
                   detail: n['detail'],
                   placeName: widget.row['placeName'] as String?,
-                  placeLatitude: coerceNullableDouble(widget.row['placeLatitude']),
-                  placeLongitude: coerceNullableDouble(widget.row['placeLongitude']),
+                  placeLatitude:
+                      coerceNullableDouble(widget.row['placeLatitude']),
+                  placeLongitude:
+                      coerceNullableDouble(widget.row['placeLongitude']),
                 )}',
                 style: BsheelType.bodySm,
               ),
@@ -316,7 +322,6 @@ class _DossierState extends State<_Dossier> {
         'ADDITIONAL' => 'EXTRA NETWORK CONTEXT',
         _ => capability,
       };
-
 }
 
 class _Signal extends StatelessWidget {

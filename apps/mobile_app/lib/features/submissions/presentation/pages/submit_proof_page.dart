@@ -626,8 +626,10 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
                         // switch reads as something broken rather than
                         // something already decided — by this same player,
                         // at the start of the journey.
-                        if (ref.watch(withheldForJourneyProvider(
-                            ref.watch(activeQuestProvider).valueOrNull?.questId)))
+                        if (ref.watch(withheldForJourneyProvider(ref
+                            .watch(activeQuestProvider)
+                            .valueOrNull
+                            ?.questId)))
                           const _NoticeStrip(
                             text: 'This checkpoint stays out of the feed. '
                                 'The whole route posts together once the last '

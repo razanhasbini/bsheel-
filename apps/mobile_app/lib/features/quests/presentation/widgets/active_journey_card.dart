@@ -308,9 +308,7 @@ class _CurrentSummary extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: QuestTypography.osLabelSmall.copyWith(
-                fontSize: 10,
-                letterSpacing: 0.8,
-                color: QuestColors.osRedText),
+                fontSize: 10, letterSpacing: 0.8, color: QuestColors.osRedText),
           ),
         ],
         if (context_.isNotEmpty) ...[

@@ -64,7 +64,8 @@ class _JourneyDetailPageState extends ConsumerState<JourneyDetailPage> {
   /// time a player is staring at a submit screen the question is already too
   /// late for the checkpoints behind it — and the server refuses the change
   /// then for exactly that reason.
-  Future<void> _chooseFeedMode(JourneyRun run, {required bool oneRoutePost}) async {
+  Future<void> _chooseFeedMode(JourneyRun run,
+      {required bool oneRoutePost}) async {
     setState(() => _choosingFeedMode = true);
     try {
       await AppBackend.repositories.journeys
@@ -290,8 +291,8 @@ class _FeedModeChoice extends StatelessWidget {
             Text(
               'Pick now — it applies to the whole route, and it cannot change '
               'once you have submitted a checkpoint.',
-              style: QuestTypography.osBodySmall.copyWith(
-                  fontSize: 12, color: QuestColors.osTextSecondary),
+              style: QuestTypography.osBodySmall
+                  .copyWith(fontSize: 12, color: QuestColors.osTextSecondary),
             ),
             const SizedBox(height: QuestSpacing.md),
             ArcadeButton(
@@ -303,8 +304,8 @@ class _FeedModeChoice extends StatelessWidget {
             Text(
               'Nothing shows in the feed until the last checkpoint clears, '
               'then the whole route posts together.',
-              style: QuestTypography.osBodySmall.copyWith(
-                  fontSize: 11, color: QuestColors.osTextSecondary),
+              style: QuestTypography.osBodySmall
+                  .copyWith(fontSize: 11, color: QuestColors.osTextSecondary),
             ),
             const SizedBox(height: QuestSpacing.md),
             ArcadeButton(
@@ -315,8 +316,8 @@ class _FeedModeChoice extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Each checkpoint posts on its own as it is approved.',
-              style: QuestTypography.osBodySmall.copyWith(
-                  fontSize: 11, color: QuestColors.osTextSecondary),
+              style: QuestTypography.osBodySmall
+                  .copyWith(fontSize: 11, color: QuestColors.osTextSecondary),
             ),
           ],
         ),
@@ -337,7 +338,7 @@ class _FeedModeNote extends StatelessWidget {
             horizontal: QuestSpacing.md, vertical: QuestSpacing.sm),
         decoration: BoxDecoration(
           color: QuestColors.osSurface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
           border: Border.all(color: QuestColors.osTextPrimary, width: 2),
         ),
         child: Text(
@@ -541,7 +542,7 @@ class _RejectionBlock extends StatelessWidget {
       padding: const EdgeInsets.all(QuestSpacing.md),
       decoration: BoxDecoration(
         color: QuestColors.osRed.withAlpha(30),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(QuestSpacing.radiusControl),
         border: Border.all(color: QuestColors.osRed, width: 2),
       ),
       child: Column(
@@ -550,9 +551,7 @@ class _RejectionBlock extends StatelessWidget {
           Text(
             stage.appealed ? 'APPEAL SENT' : 'THIS CHECKPOINT WAS REJECTED',
             style: QuestTypography.osLabelSmall.copyWith(
-                fontSize: 10,
-                letterSpacing: 1.0,
-                color: QuestColors.osRedText),
+                fontSize: 10, letterSpacing: 1.0, color: QuestColors.osRedText),
           ),
           const SizedBox(height: 6),
           Text(

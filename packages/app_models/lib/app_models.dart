@@ -8,7 +8,12 @@ library;
 /// confidence and crashed the page — a bug this file had already solved for
 /// hot_score and simply could not be reached to reuse.
 export 'src/json_coercions.dart'
-    show coerceInt, coerceNullableInt, coerceDouble, coerceNullableDouble, coerceBool;
+    show
+        coerceInt,
+        coerceNullableInt,
+        coerceDouble,
+        coerceNullableDouble,
+        coerceBool;
 
 export 'journey_post_stop.dart';
 export 'profile_model.dart';

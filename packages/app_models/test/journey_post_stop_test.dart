@@ -44,7 +44,8 @@ void main() {
   // off this, and a single stop would relabel a normal proof with a route
   // title it does not have.
   test('an ordinary post is not a journey post', () {
-    final plain = FeedPostModel.fromRpc({'submission_id': 's', 'media_url': 'a.jpg'});
+    final plain =
+        FeedPostModel.fromRpc({'submission_id': 's', 'media_url': 'a.jpg'});
     expect(plain.journeyStops, isEmpty);
     expect(plain.isJourneyPost, isFalse);
 

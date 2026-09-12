@@ -236,6 +236,13 @@ export interface Database {
     "expires_at": Timestamp;
     "created_at": Generated<Timestamp>;
   };
+  "journey_post_stops": {
+    "anchor_submission_id": string;
+    "stop_submission_id": string;
+    "chain_run_id": string;
+    "step_order": number;
+    "created_at": Generated<Timestamp>;
+  };
   "journey_stage_unlocks": {
     "chain_run_id": string;
     "step_order": number;
@@ -426,6 +433,7 @@ export interface Database {
     "completed_at": Timestamp | null;
     "created_at": Generated<Timestamp>;
     "updated_at": Generated<Timestamp>;
+    "feed_mode": string | null;
   };
   "quest_chain_steps": {
     "chain_id": string;
