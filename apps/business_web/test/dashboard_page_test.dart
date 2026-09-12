@@ -441,7 +441,12 @@ void main() {
         ),
       );
 
-      expect(find.text('Screens, not people'), findsOneWidget);
+      // The note on the tile, not a footnote elsewhere: 100 card views and
+      // 60 people are different facts, and the figure that is not people has
+      // to say so where it is read. The wording changed when the app started
+      // actually reporting impressions — it counts a card that was on screen
+      // and stayed, once per visit — but what it must keep apart did not.
+      expect(find.text('Views of the card, not people'), findsOneWidget);
       expect(find.text('60'), findsOneWidget);
     });
 
