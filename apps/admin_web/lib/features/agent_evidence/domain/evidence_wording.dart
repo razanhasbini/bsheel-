@@ -55,7 +55,13 @@ String capabilityMeasurement({
 
   if (capability == 'GEOFENCING') {
     final events = map['events'];
-    if (events is! List) return 'no geofence covered this attempt';
+    // An UNAVAILABLE geofence also carries an empty event list, and "the
+    // geofence was live and never fired" is the opposite of what happened
+    // — nothing was watching. Only an ACTIVE fence with no events means
+    // the device stayed out.
+    if (events is! List || outcome == 'UNAVAILABLE') {
+      return 'no geofence covered this attempt';
+    }
     if (events.isEmpty) {
       return 'the geofence was live for the whole quest and the device never '
           'crossed into it';
