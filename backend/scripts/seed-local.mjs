@@ -26,6 +26,19 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required');
 if (/(^|@)([^/]*\.)?bsheel\.app/.test(databaseUrl)) {
   throw new Error('Refusing to seed what looks like a production database');
 }
+// Two guards rather than one, because of what this seed now writes.
+//
+// The moment fixtures are ffmpeg test patterns — colour bars and gradients,
+// which is fine on a laptop and would be humiliating on TestFlight. A
+// hostname check alone stops the database everyone knows about; it does not
+// stop a staging URL, a tunnel, or a copied .env. NODE_ENV is what the
+// deployment itself asserts, so the two fail independently.
+if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+  throw new Error(
+    `Refusing to seed with NODE_ENV=${process.env.NODE_ENV}. This script writes `
+    + 'synthetic test-pattern media, which must never reach a real build.',
+  );
+}
 const reset = process.argv.includes('--reset');
 const camaraPersonas = process.argv.includes('--camara-personas');
 

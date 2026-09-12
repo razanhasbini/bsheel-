@@ -47,7 +47,20 @@ class _MapRepo extends Fake implements MapRepository {
                   category: 'landmark',
                   latitude: 33.9,
                   longitude: 35.5,
-                  saved: saved)
+                  saved: saved),
+              // A second place with NO proof on it, because the board is
+              // meant to be a mix: a place that has proof shows the proof,
+              // a place that has none shows its pin. One place could not
+              // exercise both halves of that rule.
+              const MapPlace(
+                  id: 'quiet-place',
+                  countryCode: 'LB',
+                  name: 'Quiet landmark',
+                  description: 'Nobody has posted here',
+                  city: 'Test',
+                  category: 'landmark',
+                  latitude: 33.91,
+                  longitude: 35.51),
             ];
   @override
   Future<MapPlaceDetail> detail(String id) async => const MapPlaceDetail(
@@ -186,9 +199,11 @@ void main() {
     expect(find.bySemanticsLabel(RegExp(r'^Lebanon, ')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 2300));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Test landmark'));
+    // The quiet place, because 'Test landmark' now draws its proof instead
+    // of its pin — see the moments test below for that rule.
+    await tester.tap(find.byTooltip('Quiet landmark'));
     await tester.pumpAndSettle();
-    expect(find.text('Fixture description'), findsOneWidget);
+    expect(find.text('Nobody has posted here'), findsOneWidget);
     await tester.tap(find.text('SAVE FOR LATER'));
     await tester.pumpAndSettle();
     expect(repo.saved, isTrue);
@@ -310,14 +325,27 @@ void main() {
         reason: 'labels on screen: $labels');
     // The "+N more" summary is drawn, not the four extra cards.
     expect(find.text('+4 more'), findsOneWidget);
-    // The quest pin is still there — moments are an addition to the board,
-    // never a replacement for the thing that starts a quest.
-    expect(find.byTooltip('Test landmark'), findsOneWidget);
+    // A place shows EITHER its proof or its pin, never both on one point.
+    //
+    // They used to draw on top of each other, and at anything below street
+    // zoom the scatter is a few pixels — so the photograph and the pin were
+    // one tap target and which you got depended on draw order. The tile is
+    // not a lesser thing to land on: its ⚑N badge counts the quests here and
+    // its sheet carries DO THIS QUEST and EVERYTHING AT <place>, so nothing
+    // the pin offered is lost.
+    expect(find.byTooltip('Test landmark'), findsNothing);
+    // And the rule is per place, not global: somewhere with no proof still
+    // draws its pin, which is what makes the board a mix rather than a
+    // gallery.
+    expect(find.byTooltip('Quiet landmark'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Hide quest moments'));
     await tester.pumpAndSettle();
     expect(cardLabels(), isEmpty);
+    // With the layer off there is no proof speaking for the place, so its
+    // pin comes back. Suppression follows what is actually drawn.
     expect(find.byTooltip('Test landmark'), findsOneWidget);
+    expect(find.byTooltip('Quiet landmark'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

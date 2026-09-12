@@ -231,6 +231,11 @@ class _MapPageState extends ConsumerState<MapPage>
             const <MapMoment>[]
         : const <MapMoment>[];
 
+    // Which places are already speaking for themselves with a piece of
+    // proof. Their pins are suppressed below so the two never stack on one
+    // point and compete for the same tap.
+    final momentPlaceIds = {for (final moment in moments) moment.placeId};
+
     final countryRows = countries.valueOrNull ?? const <MapCountry>[];
     final rows = (places.valueOrNull ?? const <MapPlace>[])
         .where((p) => !_savedOnly || p.saved)
@@ -349,9 +354,21 @@ class _MapPageState extends ConsumerState<MapPage>
                           onTap: () => _travelTo(c, everyPlace, navInset),
                         ),
                       ),
-                    // Moments first, so a place pin is always the thing on
-                    // top: the pin is what starts a quest, and a photo
-                    // covering it would cost the player the action.
+                    // A place shows EITHER its proof or its pin, never both
+                    // stacked on the same point.
+                    //
+                    // They used to draw on top of each other — the tile
+                    // scattered inside the place radius, which at low zoom
+                    // is a few pixels — so the two things a player might
+                    // want were the same tap target, and which one they got
+                    // depended on draw order rather than on where they
+                    // pressed. Hiding the pin under a tile costs nothing,
+                    // because the tile carries the same two actions: its ⚑N
+                    // badge counts the quests here, and its sheet offers DO
+                    // THIS QUEST and EVERYTHING AT <place>.
+                    //
+                    // The result is the mix asked for: some places show a
+                    // piece of proof, the rest show their pin.
                     if (showPins)
                       for (final moment in moments)
                         Marker(
@@ -370,14 +387,15 @@ class _MapPageState extends ConsumerState<MapPage>
                         ),
                     if (showPins)
                       for (final p in rows)
-                        Marker(
-                          point: LatLng(p.latitude, p.longitude),
-                          width: 52,
-                          height: 62,
-                          alignment: Alignment.topCenter,
-                          child:
-                              _PlacePin(place: p, onTap: () => _openPlace(p)),
-                        ),
+                        if (!momentPlaceIds.contains(p.id))
+                          Marker(
+                            point: LatLng(p.latitude, p.longitude),
+                            width: 52,
+                            height: 62,
+                            alignment: Alignment.topCenter,
+                            child:
+                                _PlacePin(place: p, onTap: () => _openPlace(p)),
+                          ),
                     if (fix != null)
                       Marker(
                         point: fix,

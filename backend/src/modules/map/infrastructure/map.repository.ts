@@ -165,6 +165,9 @@ export class MapRepository {
           p.latitude, p.longitude,
           pr.id AS user_id, pr.username::text AS username, pr.avatar_url,
           row_number() OVER (PARTITION BY p.id ORDER BY s.submitted_at DESC, s.id DESC) AS place_rank,
+          -- Where this country sits in its own recency order. Used only to
+          -- interleave the result below, never to filter.
+          row_number() OVER (PARTITION BY p.country_code ORDER BY s.submitted_at DESC, s.id DESC) AS country_rank,
           -- Everything else standing at this place. Drawn as "+N more" on
           -- the tile rather than as N more tiles.
           count(*) OVER (PARTITION BY p.id) - ${MOMENTS_PER_PLACE} AS more_count,
@@ -198,7 +201,23 @@ export class MapRepository {
         avatar_url, GREATEST(more_count, 0)::int AS more_count, quest_count
       FROM visible_moments
       WHERE place_rank <= ${MOMENTS_PER_PLACE}
-      ORDER BY submitted_at DESC, id DESC
+      -- Interleaved, not simply newest-first, and this is the difference
+      -- between a map of the whole board and a map of wherever happened to
+      -- be busy last week.
+      --
+      -- ORDER BY submitted_at DESC LIMIT n spends the entire budget on the
+      -- most recent submissions, and recency clusters: a country that ran an
+      -- event, or a landmark somebody posted six clips from, takes every
+      -- tile and the other ten countries draw nothing. The layer is a SAMPLE
+      -- of what is happening on the board, so the sample has to be spread
+      -- over the board.
+      --
+      -- Taking place_rank first gives every place its first piece of proof
+      -- before any place gets a second; country_rank next rotates between
+      -- countries rather than draining one; recency only breaks the tie.
+      -- The result is still every row's genuine submitted_at — nothing is
+      -- reordered in time, only chosen more evenly.
+      ORDER BY place_rank, country_rank, submitted_at DESC, id DESC
       LIMIT $3`, [userId, query.country ?? null, query.limit])).rows;
   }
 

@@ -29,10 +29,16 @@ import '../../../../l10n/app_localizations.dart';
 /// submission is checked against. Email and password are the optional extra,
 /// and the page is ordered to say so.
 ///
-/// Email + password on top, not phone + password: a phone account's
-/// credential is the carrier check, which is the phone button below — the
-/// password form is for the accounts that have one, and those are keyed by
-/// email.
+/// Phone is the PRIMARY action and sits at the top, above Apple and Google.
+/// The email/password form is below them, behind a disclosure, because it is
+/// the path fewest accounts can even use: a phone account has no password,
+/// and its credential is the carrier check rather than anything typed. A
+/// form asking for an email first told most arrivals to produce something
+/// they never set.
+///
+/// The form is not removed — accounts made with email before phone existed
+/// still sign in with it, and so do the seeded test accounts — it is
+/// demoted. One tap opens it, and it stays open once opened.
 ///
 /// There is no card behind the fields and no wordmark above the title — both
 /// were inventions of the previous pass. The fields carry no shadow and no
@@ -53,6 +59,14 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
 
   bool _isLoading = false;
   String? _emailError;
+
+  /// The email/password form starts closed and never closes again.
+  ///
+  /// Opened on demand rather than shown by default, because the page's job
+  /// is to get somebody signed in by the means they actually have — and for
+  /// most accounts that is the carrier check above. Once opened it stays
+  /// open: collapsing a form somebody is typing into would lose the typing.
+  bool _emailFormOpen = false;
   String? _passwordError;
 
   /// True once the pending-error dialog for this failure has been raised,
@@ -194,11 +208,29 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        // Email and password lead, then Apple, Google and
-                        // the phone number below the LOG IN button — the
-                        // owner's decision for this page. The phone path
-                        // stays available as one of the three alternatives
-                        // rather than being hoisted above the form.
+                        // Phone first, and on its own: the carrier check is
+                        // the credential every account has.
+                        const PhoneAuthButton(
+                          label: 'LOG IN WITH PHONE',
+                          variant: ArcadeButtonVariant.primary,
+                        ),
+                        // Apple and Google next. `includePhone: false` —
+                        // the button above is the phone path, and two of
+                        // them on one page is a choice nobody can make.
+                        const SocialSignInButtons(
+                          labelPrefix: 'LOG IN WITH',
+                          includePhone: false,
+                        ),
+                        const SizedBox(height: 6),
+                        if (!_emailFormOpen)
+                          _MonoLink(
+                            label: 'LOG IN WITH EMAIL INSTEAD',
+                            alignment: Alignment.center,
+                            onTap: () =>
+                                setState(() => _emailFormOpen = true),
+                          ),
+                        if (_emailFormOpen) ...[
+                        const SizedBox(height: 9),
                         AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
@@ -240,15 +272,15 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                               context.pushNamed(RouteNames.forgotPassword),
                         ),
                         ArcadeButton(
-                          // The frame's primary: violet ground, white label,
-                          // 56pt, r14, 5px shadow. No icon.
+                          // Ghost, not the frame's primary: the violet
+                          // button on this page is the phone one at the top,
+                          // and two primaries would say they are equals.
                           label: _isLoading ? l.loading : l.login,
+                          variant: ArcadeButtonVariant.ghost,
                           isLoading: _isLoading,
                           onTap: _isLoading ? null : _login,
                         ),
-                        // Apple, Google, then phone — the three alternatives
-                        // to the form above, in that order.
-                        const SocialSignInButtons(labelPrefix: 'LOG IN WITH'),
+                        ],
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin
                         // does, without the hit target moving it.

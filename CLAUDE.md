@@ -355,12 +355,20 @@ evidence.
 
 ### Moments: proof pinned where it happened
 
-Over the pins sits a second layer, Snap/Instagram-map shaped: one small
+Beside the pins sits a second layer, Snap/Instagram-map shaped: one small
 square per approved, feed-visible submission, sitting at the place the quest
 belonged to. `GET map/moments` (bounded, country-filterable) and
-`_MomentTile` on the client. It is an **addition** to the pins, never a
-replacement — a moment shows that somebody did this here; the pin is what
-starts a quest, so pins draw last and stay on top.
+`_MomentTile` on the client.
+
+**A place draws EITHER its proof or its pin, never both on one point.** They
+used to stack — the tile scatters inside the place radius, which below street
+zoom is a few pixels — so the two things a player might want were one tap
+target and which one they got depended on draw order. Suppressing the pin
+under a tile costs nothing, because the tile carries the same two actions:
+its ⚑N badge counts the quests here, and its sheet offers DO THIS QUEST and
+EVERYTHING AT <place>. The board reads as a mix — somewhere with proof shows
+the proof, somewhere without shows its pin — and turning the layer off brings
+every pin back, because the suppression follows what is actually drawn.
 
 **It is a sample, not the feed on a map.** Two cuts, both deliberate and
 both pinned by `map.e2e-spec.ts`:
