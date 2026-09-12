@@ -707,6 +707,12 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
         ].join(' · ').toUpperCase(),
         style: BsheelType.labelSm,
       ),
+      // The network's half of the verdict lives with the evidence, at full
+      // width, not in the 346px decision rail: it carries a map and two
+      // location columns, and a moderator reads it before deciding, not
+      // beside the buttons.
+      const SizedBox(height: 20),
+      _NetworkEvidencePanel(submissionId: widget.submissionId),
     ];
   }
 
@@ -805,8 +811,6 @@ class SubmissionReviewSurfaceState extends State<SubmissionReviewSurface> {
         ),
       ),
       ..._agentRead(),
-      const SizedBox(height: 16),
-      _NetworkEvidencePanel(submissionId: widget.submissionId),
       const SizedBox(height: 16),
       _Block(
         label: 'Reason (optional)',
