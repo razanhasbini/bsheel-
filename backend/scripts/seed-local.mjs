@@ -692,15 +692,30 @@ async function main() {
     // invented here: a place is a real location, and seeds/validate.mjs
     // refuses fabricated ones for exactly that reason.
     //
-    // Spread wide, not deep. Eight places out of the hundred-odd this
-    // database publishes put proof on 7% of the board: panning the map you
-    // saw a tile, then nothing for a country and a half, which reads as the
-    // layer being broken rather than as the game being new. The cap is here
-    // only to keep the seed quick — every place would be ~230 submissions.
+    // Spread wide, not deep, and spread EVENLY — which a plain
+    // `ORDER BY country_code, name LIMIT 40` does not.
+    //
+    // That ordering is alphabetical by country code, so the limit was spent
+    // entirely on AE, EG, ES, HU, IT and a single place in JO. Lebanon —
+    // forty-one published places, the densest part of the board — received
+    // nothing at all, and neither did PS, QA, SA or TR. The map looked like
+    // proof existed in five countries and nowhere else, which is worse than
+    // the eight-place version it replaced: it is not sparse, it is lopsided.
+    //
+    // Partitioning by country takes the same budget and spends it across all
+    // of them. Ordered by name within a country rather than by anything
+    // spatial, because a place is not guaranteed a sensible geometry and a
+    // deterministic pick matters more here than a geometric one.
     const momentPlaces = (await client.query(
-      `SELECT id, name, country_code FROM map_places
-        WHERE is_published AND category <> 'hidden'
-        ORDER BY country_code, name LIMIT 40`,
+      `WITH ranked AS (
+         SELECT id, name, country_code,
+                row_number() OVER (PARTITION BY country_code ORDER BY name) AS rank
+           FROM map_places
+          WHERE is_published AND category <> 'hidden'
+       )
+       SELECT id, name, country_code FROM ranked
+        WHERE rank <= 6
+        ORDER BY country_code, name`,
     )).rows;
 
     // A sample clip, synthesised rather than committed.
@@ -717,13 +732,38 @@ async function main() {
     // the map's poster frames visible at all, and a poster is cut by the
     // same ffmpeg — so the two are absent together or present together,
     // never one without the other.
+    //
+    // The photographs are synthesised too, and for a reason beyond variety.
+    // Every other seeded submission shares one 1x1 transparent PNG, which is
+    // correct there — it exercises exact-duplicate detection, and nothing
+    // renders it at size. A map tile does render it at size, and a
+    // transparent pixel stretched over a 54x66 square is indistinguishable
+    // from the tile having failed to load: the board looked like flat
+    // coloured squares whether or not the media had arrived, so a real bug
+    // and a working layer were the same picture.
+    //
+    // Eight different lavfi sources, picked per place, so tiles differ from
+    // each other the way real proof does.
+    const MOMENT_IMAGE_SOURCES = [
+      'mandelbrot=size=480x854',
+      'testsrc2=size=480x854',
+      'rgbtestsrc=size=480x854',
+      'smptebars=size=480x854',
+      'gradients=size=480x854:c0=0x1A1330:c1=0x6B3BFF',
+      'gradients=size=480x854:c0=0xFF5A6E:c1=0xFFC224',
+      'life=size=480x854:mold=10:r=20',
+      'cellauto=size=480x854:rule=110',
+    ];
+
     let sampleVideo = null;
+    let momentImages = [];
     try {
       const { execFileSync } = await import('node:child_process');
       const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
       const { tmpdir } = await import('node:os');
       const { join } = await import('node:path');
-      const directory = mkdtempSync(join(tmpdir(), 'bsheel-seed-video-'));
+      const directory = mkdtempSync(join(tmpdir(), 'bsheel-seed-media-'));
+
       const file = join(directory, 'sample.mp4');
       execFileSync('ffmpeg', [
         '-f', 'lavfi', '-i', 'testsrc=size=480x854:rate=24:duration=3',
@@ -731,9 +771,20 @@ async function main() {
         '-movflags', '+faststart', '-y', file,
       ], { stdio: 'ignore' });
       sampleVideo = readFileSync(file);
+
+      momentImages = MOMENT_IMAGE_SOURCES.map((source, variant) => {
+        const output = join(directory, `moment-${variant}.jpg`);
+        execFileSync('ffmpeg', [
+          '-f', 'lavfi', '-i', source, '-frames:v', '1', '-q:v', '4',
+          '-y', output,
+        ], { stdio: 'ignore' });
+        const bytes = readFileSync(output);
+        return { bytes, md5: createHash('md5').update(bytes).digest('hex') };
+      });
+
       rmSync(directory, { recursive: true, force: true });
     } catch {
-      log('moments: ffmpeg unavailable, seeding photos only');
+      log('moments: ffmpeg unavailable, seeding the placeholder pixel only');
     }
     const videoMd5 = sampleVideo
       ? createHash('md5').update(sampleVideo).digest('hex')
@@ -777,9 +828,23 @@ async function main() {
       // a map of nothing but play glyphs would hide the photographs, which
       // are still what most proof is.
       const isVideoPlace = sampleVideo !== null && index % 3 === 2;
+      // Falls back to the shared transparent pixel where ffmpeg is absent,
+      // which is the same deployment in which no poster could be cut either.
+      const photo = momentImages.length > 0
+        ? momentImages[index % momentImages.length]
+        : { bytes: pngBytes, md5: pngMd5 };
+      const photoType = momentImages.length > 0 ? 'image/jpeg' : 'image/png';
+      const photoExtension = momentImages.length > 0 ? 'jpg' : 'png';
 
       for (let copy = 0; copy < 3; copy += 1) {
-        const daysAgo = index + copy + 1;
+        // Deliberately NOT `index + copy`. The moments query takes the
+        // newest N overall after ranking within each place, so a date that
+        // climbed with the place index handed every drawn tile to the first
+        // few places in the list and starved the rest — the same lopsided
+        // board, arriving by a different route. Stepping by a number coprime
+        // with the window scatters the dates across a month without
+        // correlating with position.
+        const daysAgo = ((index * 7 + copy * 11) % 29) + 1;
         const assignment = (await client.query(
           `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
            VALUES ($1, $2, 'approved', now() - make_interval(days => $3),
@@ -789,11 +854,11 @@ async function main() {
         )).rows[0];
         const key = isVideoPlace
           ? `submissions/${traveller.id}/${randomUUID()}.mp4`
-          : `submissions/${traveller.id}/${randomUUID()}.png`;
+          : `submissions/${traveller.id}/${randomUUID()}.${photoExtension}`;
         await putObject(
           key,
-          isVideoPlace ? sampleVideo : pngBytes,
-          isVideoPlace ? 'video/mp4' : 'image/png',
+          isVideoPlace ? sampleVideo : photo.bytes,
+          isVideoPlace ? 'video/mp4' : photoType,
         );
         const submission = (await client.query(
           `INSERT INTO submissions
@@ -822,10 +887,10 @@ async function main() {
                    now() - make_interval(days => $6))`,
           [
             traveller.id, key,
-            isVideoPlace ? sampleVideo.length : pngBytes.length,
-            isVideoPlace ? videoMd5 : pngMd5,
+            isVideoPlace ? sampleVideo.length : photo.bytes.length,
+            isVideoPlace ? videoMd5 : photo.md5,
             submission.id, daysAgo,
-            isVideoPlace ? 'video/mp4' : 'image/png',
+            isVideoPlace ? 'video/mp4' : photoType,
           ],
         );
         await client.query(

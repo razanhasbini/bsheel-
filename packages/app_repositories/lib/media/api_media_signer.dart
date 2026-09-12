@@ -8,6 +8,17 @@ class ApiMediaSigner {
   final ApiClient _client;
   final Map<String, String> _signedToRaw = {};
 
+  /// The server's `ArrayMaxSize` on `POST media/sign`. Exceeding it is a 400
+  /// for the WHOLE request, not a truncation — and `signMany` answers a
+  /// failure with an empty map, so one oversized batch leaves every caller
+  /// with unsigned keys and every tile drawing its placeholder. That is what
+  /// the map's moments layer hit the moment it drew more tiles: forty
+  /// moments carry a media key, an avatar and a poster, which is 120.
+  ///
+  /// Kept just under the server's 100 so a caller cannot be the thing that
+  /// has to know the limit.
+  static const int _batchSize = 90;
+
   Future<Map<String, String>> signMany(Iterable<String> rawValues) async {
     final values = rawValues
         .map((value) => value.trim())
@@ -15,6 +26,20 @@ class ApiMediaSigner {
         .toSet()
         .toList(growable: false);
     if (values.isEmpty) return const {};
+
+    final result = <String, String>{};
+    for (var start = 0; start < values.length; start += _batchSize) {
+      final end =
+          start + _batchSize < values.length ? start + _batchSize : values.length;
+      // Each chunk stands alone: one failing batch costs its own keys, not
+      // every key in the request. A screen with a hundred images should lose
+      // the ones it could not sign, never all of them.
+      result.addAll(await _signChunk(values.sublist(start, end)));
+    }
+    return result;
+  }
+
+  Future<Map<String, String>> _signChunk(List<String> values) async {
     try {
       final data = apiObject(
         await _client.post(
