@@ -28,6 +28,8 @@ import '../../../comments/application/mention_controller.dart';
 import '../../../comments/presentation/widgets/mention_picker.dart';
 import '../../data/submission_providers.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../camara_demo/data/camara_demo_repository.dart';
+import '../../../camara_demo/presentation/camara_demo_sheet.dart';
 
 // Holds a picked file, its detected type, and cached bytes for images.
 class _PickedFile {
@@ -515,6 +517,25 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
             content: Text(AppLocalizations.of(context)!.proofSubmittedSuccess),
           ),
         );
+      // TEMPORARY (hackathon). Offered only where the BACKEND has said this
+      // account is eligible — the app asking first is a courtesy so an
+      // ordinary player never sees a button they would be refused for; the
+      // API refuses it regardless of what was drawn.
+      // Asked per submission, not per account: the panel is only meaningful
+      // for a quest with a destination, because the four Nokia personas
+      // differ only in what the network says about location.
+      final demo =
+          await ref.read(camaraDemoRepositoryProvider).offerFor(created.id);
+      if (mounted && demo.usable && await askToOpenCamaraDemo(context)) {
+        if (!mounted) return;
+        await showCamaraDemoSheet(
+          context,
+          submissionId: created.id,
+          personas: demo.personas,
+        );
+      }
+
+      if (!mounted) return;
       context.goNamed(
         RouteNames.submissionStatus,
         pathParameters: {'id': created.id},

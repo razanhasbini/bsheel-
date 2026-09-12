@@ -17,6 +17,8 @@ import '../../data/submission_providers.dart';
 import '../../../quests/data/quest_providers.dart';
 import '../../../feed/presentation/providers/feed_provider.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../camara_demo/data/camara_demo_repository.dart';
+import '../../../camara_demo/presentation/camara_demo_sheet.dart';
 
 /// Submission status and the appeal, drawn to
 /// `export/mobile/08-submission-rejected.jpg` plus the SUBMISSION · STATE
@@ -269,6 +271,30 @@ class _SubmissionStatusPageState extends ConsumerState<SubmissionStatusPage> {
         // ── Verdict ─────────────────────────────────────────────
         _VerdictCard(submission: submission),
         const SizedBox(height: 14),
+
+        // ── TEMPORARY (hackathon): reopen the CAMARA demo panel ──
+        // Here rather than only after submitting, so the panel can be shown
+        // again during a judging session without uploading another photo.
+        // Drawn only when the backend says this account is eligible; the API
+        // enforces both that and ownership regardless.
+        Consumer(builder: (context, ref, _) {
+          final demo =
+              ref.watch(camaraDemoOfferProvider(submissionId)).valueOrNull;
+          if (demo == null || !demo.usable) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: ArcadeButton(
+              label: 'TEST NETWORK EVIDENCE',
+              icon: Icons.cell_tower,
+              variant: ArcadeButtonVariant.ghost,
+              onTap: () => showCamaraDemoSheet(
+                context,
+                submissionId: submissionId,
+                personas: demo.personas,
+              ),
+            ),
+          );
+        }),
 
         // ── Moderator feedback ──────────────────────────────────
         // On a rejection the note is also the source of the reason chips,
