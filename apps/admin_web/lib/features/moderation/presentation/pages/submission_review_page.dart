@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:app_contracts/app_contracts.dart';
 import 'package:app_models/app_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/router/admin_route_names.dart';
@@ -1214,6 +1216,18 @@ class _NetworkEvidencePanelState extends State<_NetworkEvidencePanel> {
       for (final n in (d['network'] as List? ?? const []))
         if (n is Map) Map<String, dynamic>.from(n),
     ];
+    Map<String, dynamic>? signal(String capability) {
+      for (final n in network) {
+        if ('${n['capability']}' == capability) return n;
+      }
+      return null;
+    }
+
+    Map<String, dynamic> detailOf(Map<String, dynamic>? n) =>
+        n?['detail'] is Map
+            ? Map<String, dynamic>.from(n!['detail'] as Map)
+            : const {};
+
     final needsLocation = d['needsLocation'] == true;
     final placeName = d['placeName'] as String?;
     final radius = coerceNullableDouble(d['placeRadiusMeters']);
@@ -1226,6 +1240,37 @@ class _NetworkEvidencePanelState extends State<_NetworkEvidencePanel> {
     ];
     final human = (d['humanReviewReason'] ?? '').toString().trim();
     final shadow = d['shadow'] == true;
+    final ranAt = _when(d['ranAt']);
+
+    // The carrier's fix for the device, when it gave one.
+    final retrieval = signal('LOCATION_RETRIEVAL');
+    final retrievalDetail = detailOf(retrieval);
+    final coordinates = retrievalDetail['coordinates'] is Map
+        ? Map<Object?, Object?>.from(retrievalDetail['coordinates'] as Map)
+        : null;
+    final deviceLatitude = coordinates == null
+        ? null
+        : coerceNullableDouble(coordinates['latitude']);
+    final deviceLongitude = coordinates == null
+        ? null
+        : coerceNullableDouble(coordinates['longitude']);
+    final accuracy = coordinates == null
+        ? null
+        : coerceNullableDouble(coordinates['accuracyMeters']) ??
+            coerceNullableDouble(retrievalDetail['radiusMeters']);
+    final distance = coordinates == null
+        ? null
+        : distanceFromDestination(
+            coordinates: coordinates,
+            placeLatitude: placeLatitude,
+            placeLongitude: placeLongitude,
+          );
+    final verification = signal('LOCATION_VERIFICATION');
+    final geofence = signal('GEOFENCING');
+    final geofenceEvents = [
+      for (final e in (detailOf(geofence)['events'] as List? ?? const []))
+        if (e is Map) Map<String, dynamic>.from(e),
+    ];
 
     // The one-line answer, from the network signals alone. A CONTRADICTED
     // signal is a measurement that the device was elsewhere and outranks a
@@ -1233,130 +1278,356 @@ class _NetworkEvidencePanelState extends State<_NetworkEvidencePanel> {
     // never "no".
     final outcomes = [for (final n in network) '${n['outcome']}'];
     final String there;
-    Color? thereTone;
+    final BsheelPillTone thereTone;
+    final String thereExplained;
+    final firstReason = network
+        .map((n) => detailOf(n)['unavailableReason'])
+        .whereType<String>()
+        .cast<String?>()
+        .firstWhere((r) => r != null && r.isNotEmpty, orElse: () => null);
     if (!needsLocation) {
       there = 'NOT A LOCATION QUEST';
+      thereTone = BsheelPillTone.ghost;
+      thereExplained =
+          'This quest has no destination, so the network is not asked where '
+          'the device was. The verdict rests on the media alone.';
     } else if (outcomes.contains('CONTRADICTED')) {
       there = 'NO';
-      thereTone = BsheelColors.dangerText;
+      thereTone = BsheelPillTone.coral;
+      thereExplained = distance != null
+          ? 'The carrier put the device ${readableDistance(distance)} from '
+              '${placeName ?? 'the place'}'
+              '${radius == null ? '.' : ' — outside the ${radius.round()} m radius.'}'
+          : 'The carrier answered that the device was not inside the '
+              'place\'s radius while the quest was live.';
     } else if (outcomes.contains('SUPPORTED')) {
       there = 'YES';
-      thereTone = BsheelColors.successText;
+      thereTone = BsheelPillTone.green;
+      thereExplained = distance != null
+          ? 'The carrier put the device ${readableDistance(distance)} from '
+              '${placeName ?? 'the place'}'
+              '${radius == null ? '.' : ' — inside the ${radius.round()} m radius.'}'
+          : geofenceEvents.isNotEmpty
+              ? 'The device crossed into the geofence while the quest was live.'
+              : 'The carrier confirmed the device was inside the place\'s '
+                  'radius.';
     } else {
       there = 'UNKNOWN';
+      thereTone = BsheelPillTone.gold;
+      thereExplained = firstReason != null
+          ? 'The network could not be asked — '
+              '${firstReason[0].toLowerCase()}${firstReason.substring(1)}.'
+          : 'The network gave no usable answer for this attempt.';
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BsheelKeyValues(
-          entries: [
-            BsheelKeyValue(
-              'Place',
-              placeName == null
-                  ? '—'
-                  : '$placeName'
-                      '${radius == null ? '' : ' · within ${radius.round()} m'}',
+    final hasPlace = placeLatitude != null && placeLongitude != null;
+    final hasDevice = deviceLatitude != null && deviceLongitude != null;
+
+    Widget locationColumns() => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const BsheelLabel('Quest location'),
+            const SizedBox(height: 6),
+            BsheelKeyValues(
+              entries: [
+                BsheelKeyValue('Place', placeName ?? '—'),
+                BsheelKeyValue(
+                  'Coordinates',
+                  hasPlace ? _coords(placeLatitude, placeLongitude) : '—',
+                ),
+                BsheelKeyValue(
+                  'Accepted radius',
+                  radius == null ? '—' : '${radius.round()} m around it',
+                ),
+              ],
             ),
-            BsheelKeyValue('Device at the place', there, emphasis: thereTone),
-            BsheelKeyValue(
-              'Agent decision',
-              decision.isEmpty
-                  ? 'NO DECISION'
-                  : '$decision'
-                      '${confidence == null ? '' : ' · ${(confidence * 100).round()}%'}',
-              emphasis: switch (decision) {
-                'REJECTED' => BsheelColors.dangerText,
-                'APPROVED' => BsheelColors.successText,
-                _ => null,
+            if (hasPlace)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _openMap(placeLatitude, placeLongitude),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                  label: const Text('OPEN QUEST LOCATION IN MAPS'),
+                ),
+              ),
+            const SizedBox(height: 10),
+            const BsheelLabel('Device, according to the carrier'),
+            const SizedBox(height: 6),
+            BsheelKeyValues(
+              entries: [
+                BsheelKeyValue(
+                  'Position',
+                  hasDevice
+                      ? _coords(deviceLatitude, deviceLongitude)
+                      : 'NO FIX',
+                  emphasis: hasDevice ? null : BsheelColors.inkMuted,
+                ),
+                BsheelKeyValue(
+                  'Accuracy',
+                  accuracy == null ? '—' : '± ${accuracy.round()} m',
+                ),
+                BsheelKeyValue(
+                  'Distance to the place',
+                  distance == null
+                      ? '—'
+                      : '${readableDistance(distance)}'
+                          '${radius == null ? '' : distance <= radius ? ' · INSIDE' : ' · OUTSIDE'}',
+                  emphasis: distance == null || radius == null
+                      ? null
+                      : distance <= radius
+                          ? BsheelColors.successText
+                          : BsheelColors.dangerText,
+                ),
+                BsheelKeyValue(
+                  'Measured at',
+                  _when(retrievalDetail['lastLocationTime']) ??
+                      _when(retrieval?['observedAt']) ??
+                      '—',
+                ),
+              ],
+            ),
+            if (hasDevice)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _openMap(deviceLatitude, deviceLongitude),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                  label: const Text('OPEN DEVICE POSITION IN MAPS'),
+                ),
+              ),
+          ],
+        );
+
+    return BsheelCard.flat(
+      color: BsheelColors.card,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── The answer ───────────────────────────────────────────────
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              BsheelPill('DEVICE AT THE PLACE · $there', tone: thereTone),
+              if (ranAt != null)
+                Text(
+                  'checked $ranAt',
+                  style:
+                      BsheelType.labelSm.copyWith(color: BsheelColors.inkMuted),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(thereExplained, style: BsheelType.bodyMd),
+
+          // ── Map + the two locations ──────────────────────────────────
+          if (needsLocation && hasPlace) ...[
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 640;
+                final map = _MiniMap(
+                  placeLatitude: placeLatitude,
+                  placeLongitude: placeLongitude,
+                  radiusMeters: radius ?? 250,
+                  deviceLatitude: deviceLatitude,
+                  deviceLongitude: deviceLongitude,
+                  accuracyMeters: accuracy,
+                  distanceLabel:
+                      distance == null ? null : readableDistance(distance),
+                  width: wide ? 320 : constraints.maxWidth,
+                  height: wide ? 300 : 240,
+                );
+                if (wide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      map,
+                      const SizedBox(width: 16),
+                      Expanded(child: locationColumns()),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    map,
+                    const SizedBox(height: 12),
+                    locationColumns(),
+                  ],
+                );
               },
             ),
           ],
-        ),
-        if (needsLocation) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final n in network)
-                BsheelPill(
-                  '${_capabilityLabel('${n['capability']}')} · '
-                  '${capabilityAnswer('${n['capability']}', '${n['outcome']}')}',
+
+          // ── What each network signal said ───────────────────────────
+          if (needsLocation) ...[
+            const SizedBox(height: 14),
+            const BsheelLabel('What the network said'),
+            const SizedBox(height: 6),
+            if (network.isEmpty)
+              Text(
+                'No network signal was recorded for this run.',
+                style: BsheelType.bodySm.copyWith(color: BsheelColors.inkMuted),
+              ),
+            for (final n in [verification, retrieval, geofence])
+              if (n != null)
+                _SignalCard(
+                  title: _capabilityLabel('${n['capability']}'),
+                  answer:
+                      capabilityAnswer('${n['capability']}', '${n['outcome']}'),
                   tone: switch ('${n['outcome']}') {
                     'SUPPORTED' => BsheelPillTone.green,
                     'CONTRADICTED' => BsheelPillTone.coral,
                     _ => BsheelPillTone.ghost,
                   },
-                  small: true,
+                  sentence: capabilityMeasurement(
+                    capability: '${n['capability']}',
+                    outcome: '${n['outcome']}',
+                    detail: n['detail'],
+                    placeName: placeName,
+                    placeLatitude: placeLatitude,
+                    placeLongitude: placeLongitude,
+                  ),
+                  reason: _unavailableReason(n['detail']),
+                  facts: [
+                    if ('${n['capability']}' == 'LOCATION_VERIFICATION') ...[
+                      if (detailOf(n)['verificationResult'] != null)
+                        'carrier answer: ${detailOf(n)['verificationResult']}',
+                      if (coerceNullableDouble(detailOf(n)['matchRate']) !=
+                          null)
+                        'match rate: ${coerceNullableDouble(detailOf(n)['matchRate'])!.round()}%',
+                    ],
+                    if ('${n['capability']}' == 'GEOFENCING')
+                      for (final e in geofenceEvents)
+                        '${e['type']}${_when(e['occurredAt']) == null ? '' : ' at ${_when(e['occurredAt'])}'}',
+                    if (_when(n['observedAt']) != null)
+                      'observed ${_when(n['observedAt'])}',
+                  ],
                 ),
-              if (network.isEmpty)
-                const BsheelPill(
-                  'NO NETWORK SIGNAL RECORDED',
+            for (final n in network)
+              if (!['LOCATION_VERIFICATION', 'LOCATION_RETRIEVAL', 'GEOFENCING']
+                  .contains('${n['capability']}'))
+                _SignalCard(
+                  title: _capabilityLabel('${n['capability']}'),
+                  answer:
+                      capabilityAnswer('${n['capability']}', '${n['outcome']}'),
                   tone: BsheelPillTone.ghost,
-                  small: true,
+                  sentence: capabilityMeasurement(
+                    capability: '${n['capability']}',
+                    outcome: '${n['outcome']}',
+                    detail: n['detail'],
+                  ),
+                  reason: _unavailableReason(n['detail']),
+                  facts: const [],
+                ),
+          ],
+
+          // ── The agent ────────────────────────────────────────────────
+          const SizedBox(height: 14),
+          const BsheelLabel('Agent decision'),
+          const SizedBox(height: 6),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              BsheelPill(
+                decision.isEmpty ? 'NO DECISION' : decision,
+                tone: switch (decision) {
+                  'REJECTED' => BsheelPillTone.coral,
+                  'APPROVED' => BsheelPillTone.green,
+                  'HUMAN_REVIEW' => BsheelPillTone.gold,
+                  _ => BsheelPillTone.ghost,
+                },
+              ),
+              if (confidence != null)
+                Text(
+                  '${(confidence * 100).round()}% confident',
+                  style:
+                      BsheelType.labelSm.copyWith(color: BsheelColors.inkSoft),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          for (final n in network)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                '${_capabilityLabel('${n['capability']}')} — '
-                '${capabilityMeasurement(
-                  capability: '${n['capability']}',
-                  outcome: '${n['outcome']}',
-                  detail: n['detail'],
-                  placeName: placeName,
-                  placeLatitude: placeLatitude,
-                  placeLongitude: placeLongitude,
-                )}'
-                // Why a signal is missing, when the worker recorded why:
-                // "no carrier-verified number" and "the provider failed"
-                // call for different actions and must not read alike.
-                '${_unavailableReason(n['detail'])}',
-                style: BsheelType.bodyXs,
+          if (reasons.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final r in reasons)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('• $r', style: BsheelType.bodySm),
               ),
-            ),
-        ],
-        if (reasons.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          const BsheelLabel('Agent reasons'),
-          const SizedBox(height: 4),
-          for (final r in reasons)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text('• $r', style: BsheelType.bodySm),
-            ),
-        ],
-        if (human.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          BsheelCallout(human),
-        ],
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                shadow
-                    ? 'Shadow mode — recorded, nothing applied. You decide.'
-                    : 'Advisory. You decide.',
-                style: BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
-              ),
-            ),
-            BsheelButton(
-              label: 'RE-RUN',
-              icon: Icons.cell_tower_rounded,
-              small: true,
-              ghost: true,
-              loading: _queueing,
-              onPressed: _queueing ? null : _rerun,
-            ),
           ],
-        ),
-      ],
+          if (human.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            BsheelCallout(human),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  shadow
+                      ? 'Shadow mode — recorded, nothing applied. You decide.'
+                      : 'Advisory. You decide.',
+                  style:
+                      BsheelType.bodyXs.copyWith(color: BsheelColors.inkMuted),
+                ),
+              ),
+              BsheelButton(
+                label: 'RE-RUN NETWORK CHECK',
+                icon: Icons.cell_tower_rounded,
+                small: true,
+                ghost: true,
+                loading: _queueing,
+                onPressed: _queueing ? null : _rerun,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+
+  static String _coords(double latitude, double longitude) =>
+      '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}';
+
+  /// A timestamp a person can read, in their own timezone. Null when the
+  /// value is missing or not a date, so callers can leave the line out.
+  static String? _when(Object? raw) {
+    final parsed = DateTime.tryParse('$raw');
+    if (raw == null || parsed == null) return null;
+    final t = parsed.toLocal();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${t.day} ${months[t.month - 1]} ${two(t.hour)}:${two(t.minute)}';
+  }
+
+  Future<void> _openMap(double latitude, double longitude) async {
+    final uri = Uri.parse(
+      'https://www.openstreetmap.org/?mlat=$latitude&mlon=$longitude'
+      '#map=16/$latitude/$longitude',
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the map.')),
+      );
+    }
   }
 
   /// Nokia's capability names, in words a moderator can act on. Mirrors the
@@ -1558,4 +1829,317 @@ bool _isVideoUrl(String url) {
       lower.endsWith('.mov') ||
       lower.endsWith('.webm') ||
       lower.endsWith('.m4v');
+}
+
+/// One network signal, as a card: the question, the answer in the
+/// capability's own words, the measurement sentence, and the small facts
+/// behind it (carrier verdict, match rate, geofence events, timestamps).
+class _SignalCard extends StatelessWidget {
+  const _SignalCard({
+    required this.title,
+    required this.answer,
+    required this.tone,
+    required this.sentence,
+    required this.reason,
+    required this.facts,
+  });
+
+  final String title;
+  final String answer;
+  final BsheelPillTone tone;
+  final String sentence;
+
+  /// Already prefixed with " — " (or empty), from `_unavailableReason`.
+  final String reason;
+  final List<String> facts;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: BsheelColors.surface,
+        borderRadius: BorderRadius.circular(BsheelRadii.card),
+        border: const Border.fromBorderSide(BsheelBorders.inkSide),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              Text(title, style: BsheelType.labelSm),
+              BsheelPill(answer, tone: tone, small: true),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${sentence[0].toUpperCase()}${sentence.substring(1)}$reason.',
+            style: BsheelType.bodySm,
+          ),
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              facts.join(' · '),
+              style: BsheelType.monoSm.copyWith(color: BsheelColors.inkMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The quest's place and the carrier's fix for the device, on real map
+/// tiles, at a zoom that shows both.
+///
+/// Drawn from OpenStreetMap tiles arranged by hand rather than through a map
+/// widget: the admin console has no map dependency, and a moderator needs a
+/// glance, not a pannable map. The place's accepted radius and the fix's
+/// accuracy are drawn to scale, so "3 km away from a 400 m circle" is
+/// something the eye can weigh before the numbers are read.
+class _MiniMap extends StatelessWidget {
+  const _MiniMap({
+    required this.placeLatitude,
+    required this.placeLongitude,
+    required this.radiusMeters,
+    required this.width,
+    required this.height,
+    this.deviceLatitude,
+    this.deviceLongitude,
+    this.accuracyMeters,
+    this.distanceLabel,
+  });
+
+  final double placeLatitude;
+  final double placeLongitude;
+  final double radiusMeters;
+  final double? deviceLatitude;
+  final double? deviceLongitude;
+  final double? accuracyMeters;
+  final String? distanceLabel;
+  final double width;
+  final double height;
+
+  static const double _tile = 256;
+
+  static double _x(double longitude, int zoom) =>
+      (longitude + 180) / 360 * (1 << zoom) * _tile;
+
+  static double _y(double latitude, int zoom) {
+    final r = latitude * math.pi / 180;
+    return (1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) /
+        2 *
+        (1 << zoom) *
+        _tile;
+  }
+
+  /// Ground metres per pixel at this latitude and zoom (Web Mercator).
+  static double _metresPerPixel(double latitude, int zoom) =>
+      156543.03392 * math.cos(latitude * math.pi / 180) / (1 << zoom);
+
+  /// The tightest zoom at which both markers, the accepted radius and the
+  /// accuracy ring fit inside the frame with some air around them.
+  int _zoom() {
+    final hasDevice = deviceLatitude != null && deviceLongitude != null;
+    for (var zoom = 17; zoom >= 2; zoom--) {
+      final mpp = _metresPerPixel(placeLatitude, zoom);
+      final radiusPx = radiusMeters / mpp;
+      if (!hasDevice) {
+        if (radiusPx * 2 <= math.min(width, height) * 0.6) return zoom;
+        continue;
+      }
+      final dx = (_x(deviceLongitude!, zoom) - _x(placeLongitude, zoom)).abs();
+      final dy = (_y(deviceLatitude!, zoom) - _y(placeLatitude, zoom)).abs();
+      final ring = (accuracyMeters ?? 0) / mpp;
+      final pad = math.max(radiusPx, ring) + 28;
+      if (dx + 2 * pad <= width && dy + 2 * pad <= height) return zoom;
+    }
+    return 2;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final zoom = _zoom();
+    final hasDevice = deviceLatitude != null && deviceLongitude != null;
+    final centreLatitude =
+        hasDevice ? (placeLatitude + deviceLatitude!) / 2 : placeLatitude;
+    final centreLongitude =
+        hasDevice ? (placeLongitude + deviceLongitude!) / 2 : placeLongitude;
+    final cx = _x(centreLongitude, zoom), cy = _y(centreLatitude, zoom);
+    final left = cx - width / 2, top = cy - height / 2;
+    final tiles = 1 << zoom;
+    final firstX = (left / _tile).floor(),
+        lastX = ((left + width) / _tile).floor();
+    final firstY = (top / _tile).floor(),
+        lastY = ((top + height) / _tile).floor();
+    final mpp = _metresPerPixel(placeLatitude, zoom);
+
+    Offset at(double latitude, double longitude) =>
+        Offset(_x(longitude, zoom) - left, _y(latitude, zoom) - top);
+    final place = at(placeLatitude, placeLongitude);
+    final device = hasDevice ? at(deviceLatitude!, deviceLongitude!) : null;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(BsheelRadii.card),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: BsheelColors.surface,
+          border: const Border.fromBorderSide(BsheelBorders.inkSide),
+          borderRadius: BorderRadius.circular(BsheelRadii.card),
+        ),
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            for (var tx = firstX; tx <= lastX; tx++)
+              for (var ty = firstY; ty <= lastY; ty++)
+                if (ty >= 0 && ty < tiles)
+                  Positioned(
+                    left: tx * _tile - left,
+                    top: ty * _tile - top,
+                    width: _tile,
+                    height: _tile,
+                    child: Image.network(
+                      'https://tile.openstreetmap.org/$zoom/'
+                      '${((tx % tiles) + tiles) % tiles}/$ty.png',
+                      fit: BoxFit.fill,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _MiniMapPainter(
+                  place: place,
+                  radiusPx: radiusMeters / mpp,
+                  device: device,
+                  accuracyPx:
+                      accuracyMeters == null ? 0 : accuracyMeters! / mpp,
+                ),
+              ),
+            ),
+            if (device != null && distanceLabel != null)
+              Positioned(
+                left: ((place.dx + device.dx) / 2 - 44).clamp(4, width - 92),
+                top: ((place.dy + device.dy) / 2 - 24).clamp(4, height - 28),
+                child: BsheelPill(distanceLabel!,
+                    tone: BsheelPillTone.ink, small: true),
+              ),
+            Positioned(
+              left: 8,
+              bottom: 6,
+              child: Row(
+                children: [
+                  _legendDot(BsheelColors.violet),
+                  const SizedBox(width: 4),
+                  Text('quest',
+                      style: BsheelType.labelSm.copyWith(fontSize: 9)),
+                  const SizedBox(width: 10),
+                  _legendDot(BsheelColors.sky),
+                  const SizedBox(width: 4),
+                  Text(hasDevice ? 'device (carrier)' : 'device: no fix',
+                      style: BsheelType.labelSm.copyWith(fontSize: 9)),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 6,
+              bottom: 4,
+              child: Text(
+                '© OpenStreetMap',
+                style: BsheelType.labelSm
+                    .copyWith(fontSize: 8, color: BsheelColors.inkMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color) => Container(
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: BsheelColors.ink, width: 1.5),
+        ),
+      );
+}
+
+class _MiniMapPainter extends CustomPainter {
+  const _MiniMapPainter({
+    required this.place,
+    required this.radiusPx,
+    required this.device,
+    required this.accuracyPx,
+  });
+
+  final Offset place;
+  final double radiusPx;
+  final Offset? device;
+  final double accuracyPx;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The accepted radius, to scale: where the player had to be.
+    canvas.drawCircle(
+      place,
+      math.max(radiusPx, 6),
+      Paint()..color = BsheelColors.violet.withAlpha(60),
+    );
+    canvas.drawCircle(
+      place,
+      math.max(radiusPx, 6),
+      Paint()
+        ..color = BsheelColors.violet
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    final d = device;
+    if (d != null) {
+      // Where the carrier put the device, with its accuracy ring, and the
+      // gap between the two.
+      if (accuracyPx > 4) {
+        canvas.drawCircle(
+            d, accuracyPx, Paint()..color = BsheelColors.sky.withAlpha(50));
+        canvas.drawCircle(
+          d,
+          accuracyPx,
+          Paint()
+            ..color = BsheelColors.sky
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+      }
+      canvas.drawLine(
+        place,
+        d,
+        Paint()
+          ..color = BsheelColors.ink
+          ..strokeWidth = 2,
+      );
+      _pin(canvas, d, BsheelColors.sky);
+    }
+    _pin(canvas, place, BsheelColors.violet);
+  }
+
+  void _pin(Canvas canvas, Offset at, Color color) {
+    canvas.drawCircle(at, 9, Paint()..color = BsheelColors.ink);
+    canvas.drawCircle(at, 7, Paint()..color = color);
+    canvas.drawCircle(at, 2.5, Paint()..color = BsheelColors.card);
+  }
+
+  @override
+  bool shouldRepaint(_MiniMapPainter old) =>
+      old.place != place ||
+      old.radiusPx != radiusPx ||
+      old.device != device ||
+      old.accuracyPx != accuracyPx;
 }
