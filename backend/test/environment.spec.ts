@@ -56,6 +56,85 @@ describe('validateEnvironment', () => {
     expect(() => validateEnvironment({ NODE_ENV: 'development' })).not.toThrow();
   });
 
+  it('refuses to boot production with either demo switch on', () => {
+    // The switches let a chosen Nokia simulator device decide a real user's
+    // quest. On production the only way they can appear is by mistake, and
+    // a mistake that is silently ignored is one nobody finds. Fail the
+    // deploy instead.
+    const base = {
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'a'.repeat(48),
+      JWT_REFRESH_SECRET: 'b'.repeat(48),
+      MEDIA_URL_SIGNING_SECRET: 'c'.repeat(48),
+      DEVICE_TOKEN_ENCRYPTION_KEY: 'd'.repeat(48),
+      CAMARA_API_KEY: 'key',
+      OPENAI_API_KEY: 'key',
+      OPENAI_AGENT_MODEL: 'model',
+      CAMARA_NUMBER_VERIFICATION_REDIRECT_URI: 'https://api.example.test/cb',
+      PHONE_SIGNIN_MOBILE_REDIRECT_URL: 'https://api.example.test/p',
+    };
+    expect(() => validateEnvironment({ ...base, CAMARA_DEMO_PERSONAS_ENABLED: 'true' }))
+      .toThrow(/CAMARA_DEMO_PERSONAS_ENABLED/);
+    expect(() => validateEnvironment({
+      ...base,
+      CAMARA_DEMO_PERSONAS_ENABLED: 'true',
+      CAMARA_DEMO_MUTATION_ENABLED: 'true',
+    })).toThrow(/must not be enabled on production/);
+    // And nothing complains about them when they are absent. Asserted on the
+    // message rather than on "does not throw", because this fixture is a
+    // deliberately partial production file — other secrets are missing, and
+    // this test is about the demo switches, not about them.
+    let message = '';
+    try { validateEnvironment(base); } catch (error) { message = String(error); }
+    expect(message).not.toMatch(/CAMARA_DEMO/);
+  });
+
+  it('allows the demo switches on staging, which is where the demo runs', () => {
+    const environment = validateEnvironment({
+      NODE_ENV: 'staging',
+      JWT_ACCESS_SECRET: 'a'.repeat(48),
+      JWT_REFRESH_SECRET: 'b'.repeat(48),
+      MEDIA_URL_SIGNING_SECRET: 'c'.repeat(48),
+      DEVICE_TOKEN_ENCRYPTION_KEY: 'd'.repeat(48),
+      CAMARA_API_KEY: 'key',
+      OPENAI_API_KEY: 'key',
+      OPENAI_AGENT_MODEL: 'model',
+      CAMARA_NUMBER_VERIFICATION_REDIRECT_URI: 'https://api.example.test/cb',
+      PHONE_SIGNIN_MOBILE_REDIRECT_URL: 'https://api.example.test/p',
+      CAMARA_DEMO_PERSONAS_ENABLED: 'true',
+    });
+    expect(environment.CAMARA_DEMO_PERSONAS_ENABLED).toBe(true);
+  });
+
+  it('refuses the retired mutation switch anywhere, with a message that says why', () => {
+    // The flag is a trap, not a feature. It named a demo mode whose
+    // decisions were applied for real; that was dropped because approval is
+    // irreversible in places (journeys, unlocks, the append-only audit log,
+    // a delivered push). A deployment still carrying it from that design is
+    // describing a system nobody built, so it fails the boot rather than
+    // being quietly ignored — on every environment, not just production.
+    for (const nodeEnv of ['test', 'development', 'staging']) {
+      expect(() => validateEnvironment({
+        NODE_ENV: nodeEnv,
+        CAMARA_DEMO_PERSONAS_ENABLED: 'true',
+        CAMARA_DEMO_MUTATION_ENABLED: 'true',
+      }), nodeEnv).toThrow(/demo mutation was removed/);
+    }
+  });
+
+  it('is unbothered by the retired switch when it is false or absent', () => {
+    expect(() => validateEnvironment({ NODE_ENV: 'test', CAMARA_DEMO_MUTATION_ENABLED: 'false' }))
+      .not.toThrow();
+    expect(() => validateEnvironment({ NODE_ENV: 'test' })).not.toThrow();
+  });
+
+  it('defaults both demo switches off', () => {
+    const environment = validateEnvironment({ NODE_ENV: 'test' });
+    expect(environment.CAMARA_DEMO_PERSONAS_ENABLED).toBe(false);
+    expect(environment.CAMARA_DEMO_MUTATION_ENABLED).toBe(false);
+    expect(environment.CAMARA_DEMO_USER_IDS).toBe('');
+  });
+
   it('refuses to deploy the automation without the credentials it needs', () => {
     // The opposite case, and the one worth failing loudly: a production box
     // silently verifying nothing while the dashboard says the pipeline is on.

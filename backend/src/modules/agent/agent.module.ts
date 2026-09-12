@@ -7,6 +7,8 @@ import { QuestAssignmentAgentService } from './application/quest-assignment-agen
 import { QuestTimeRecommendationService } from './application/quest-time-recommendation.service.js';
 import { SubmissionVerificationService } from './application/submission-verification.service.js';
 import { XpRecommendationService } from './application/xp-recommendation.service.js';
+import { NETWORK_DEVICE_RESOLVER } from './domain/network-device.port.js';
+import { ConfigurableNetworkDeviceResolver } from './infrastructure/network-device.resolver.js';
 import { GeofencingModule } from './geofencing.module.js';
 import { AgentContextRepository } from './infrastructure/agent-context.repository.js';
 import { AgentRunsRepository } from './infrastructure/agent-runs.repository.js';
@@ -34,6 +36,9 @@ import { OpenAiAgentRunner } from './infrastructure/openai/openai-agent.runner.j
     QuestAssignmentAgentService,
     QuestTimeRecommendationService,
     XpRecommendationService,
+    // One binding for "which device does CAMARA answer about". Swapping it
+    // is how a future live-only deployment could refuse personas outright.
+    { provide: NETWORK_DEVICE_RESOLVER, useClass: ConfigurableNetworkDeviceResolver },
   ],
   exports: [
     // Exported for SubmissionVerificationProcessor, which is registered on

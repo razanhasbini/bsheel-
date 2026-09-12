@@ -399,6 +399,59 @@ const environmentSchema = z
     CAMARA_CLIENT_SECRET: optionalString,
     CAMARA_SCOPE: optionalString,
     CAMARA_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
+
+    // ── Hackathon demo (temporary) ───────────────────────────────────────
+    //
+    // Two switches, and they are separate because they carry different
+    // risks. PERSONAS lets an authorised operator choose which Nokia
+    // simulator device a verification run asks about — the run is still a
+    // real call to Nokia. MUTATION lets that run's decision be APPLIED to
+    // the submission, with every ordinary downstream effect.
+    //
+    // Neither is accepted on production at all: the refinement below refuses
+    // the boot rather than ignoring the flag, because a demo switch that is
+    // quietly dropped is worse than one that stops the deploy.
+    CAMARA_DEMO_PERSONAS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    /**
+     * @deprecated Not a feature flag. A trap, kept deliberately.
+     *
+     * There was going to be a demo mode whose decisions were applied to the
+     * real submission — XP, journeys, unlocks, the lot — with a reset
+     * service to undo them between personas. Inspecting what approval
+     * actually does killed it: journey progression, hidden unlocks, the
+     * audit log and a delivered push are append-only or irreversible, so
+     * "undo" would have been a story rather than a mechanism.
+     *
+     * Demo evaluation is now non-authoritative by construction. This
+     * variable therefore gates nothing — which is exactly why it still
+     * exists. A stale deployment carrying `=true` from that design would
+     * otherwise imply behaviour that is gone, and nobody would find out.
+     * Setting it true refuses the boot, anywhere, with a message that says
+     * what happened. Remove the variable once no environment file has it.
+     */
+    CAMARA_DEMO_MUTATION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    /**
+     * Comma-separated user ids allowed to run a demo evaluation.
+     *
+     * The app can hide the modal, but the app is not the authority: an
+     * ordinary TestFlight account must be refused by the API even if it
+     * sends the request by hand. Empty means nobody, which is the right
+     * default for a switch that changes verification outcomes.
+     */
+    CAMARA_DEMO_USER_IDS: z.string().default(''),
+    /**
+     * Where the geofence harness POSTs its CloudEvent — our own API, not the
+     * public CAMARA sink. Defaults to this process's own port, which is right
+     * for a laptop and for a single-container staging box; set it explicitly
+     * when the API is behind a proxy the harness cannot reach directly.
+     */
+    DEMO_HARNESS_CALLBACK_BASE_URL: optionalUrl,
     // Public base URL CAMARA posts geofence entry/exit events to. The local
     // subscription id is appended; authentication uses a bearer sink
     // credential and the secret never appears in the URL, e.g.
@@ -541,6 +594,34 @@ const environmentSchema = z
     // production box silently reviewing nothing while the dashboard shows a
     // verification pipeline that is on.
     const deployed = environment.NODE_ENV === 'production' || environment.NODE_ENV === 'staging';
+
+    // The demo switches are a staging-and-below concept. On production they
+    // do not merely have no effect — they stop the boot, because the only
+    // way they can appear in a production environment file is by mistake,
+    // and the mistake is one that would let a chosen simulator device decide
+    // a real user's quest.
+    if (environment.NODE_ENV === 'production') {
+      for (const key of ['CAMARA_DEMO_PERSONAS_ENABLED'] as const) {
+        if (environment[key]) {
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} must not be enabled on production: simulator-driven verification is a staging-only demo`,
+          });
+        }
+      }
+    }
+
+    // Refused everywhere, not only on production: the behaviour it used to
+    // name does not exist any more, and an environment file that still sets
+    // it is describing a system we deliberately did not build.
+    if (environment.CAMARA_DEMO_MUTATION_ENABLED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['CAMARA_DEMO_MUTATION_ENABLED'],
+        message: 'demo mutation was removed; demo evaluation is non-authoritative. Remove this variable.',
+      });
+    }
 
     if (environment.OPENAI_AGENT_ENABLED && deployed) {
       for (const key of ['OPENAI_API_KEY', 'OPENAI_AGENT_MODEL'] as const) {
