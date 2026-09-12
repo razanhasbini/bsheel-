@@ -50,9 +50,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   late int _currentPage;
   bool _feedViewTracked = false;
 
-  /// #81 §28. The feed is the only surface that can honestly claim an
-  /// impression, because one post fills the viewport — see
-  /// [ImpressionTracker] for why a list surface still cannot.
+  /// #81 §28. One post fills the viewport here, so the settled page is the
+  /// card being looked at — [ImpressionTracker] turns that plus a dwell into
+  /// an impression. The list surfaces use `QuestImpression` instead.
   late final ImpressionTracker _impressions;
 
   @override
@@ -62,11 +62,13 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     _pageController = PageController(initialPage: _currentPage);
     _pageController.addListener(_onScroll);
     _impressions = ImpressionTracker(
-      onImpression: (questId) => ref.read(analyticsReporterProvider).report(
-            eventType: AnalyticsEvents.questImpression,
-            questId: questId,
-            surface: AnalyticsSurfaces.feed,
-          ),
+      // The post is the source: its author is credited with the exposure.
+      onImpression: (questId, sourceSubmissionId) =>
+          ref.read(analyticsReporterProvider).impression(
+                questId: questId,
+                surface: AnalyticsSurfaces.feed,
+                sourceSubmissionId: sourceSubmissionId,
+              ),
       isForeground: () =>
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
     );
@@ -92,7 +94,8 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   void _markVisible(int index) {
     final posts = ref.read(feedProvider).valueOrNull?.posts;
     if (posts == null || index < 0 || index >= posts.length) return;
-    _impressions.onVisible(posts[index].questId);
+    _impressions.onVisible(posts[index].questId,
+        sourceSubmissionId: posts[index].id);
   }
 
   void _onScroll() {

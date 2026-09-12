@@ -96,6 +96,25 @@ export interface BusinessFunnel {
   };
 }
 
+/// What one post caused, downstream (migration 0049).
+///
+/// The first three are client-attested events raised *from this post's
+/// card*. `activations` and `completions` are server facts: a BSHEEEL from
+/// the post, followed by that same person taking the quest, followed by
+/// an approved submission — joined from the tables that own each step, so
+/// the credit can never say more than the ledgers do. Counts of people,
+/// never lists of them: the author learns their post led to three
+/// completions, not who completed.
+export interface PostAttribution {
+  readonly submissionId: string;
+  readonly detailViews: number;
+  readonly viewers: number;
+  readonly bsheeels: number;
+  readonly shares: number;
+  readonly activations: number;
+  readonly completions: number;
+}
+
 /// A stage-to-stage conversion, or null when the stage above it is empty.
 ///
 /// Null rather than zero for the same reason `completionRate` is: a ratio

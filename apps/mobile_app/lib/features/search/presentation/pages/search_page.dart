@@ -9,7 +9,9 @@ import 'package:shared_ui/shared_ui.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
+import '../../../../core/services/analytics_reporter.dart';
 import '../../../../core/utils/account_lock_guard.dart';
+import '../../../../core/widgets/quest_impression.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../follows/presentation/widgets/follow_button.dart';
 import '../../../profile/domain/player_class.dart';
@@ -742,106 +744,110 @@ class _QuestResultCardState extends ConsumerState<_QuestResultCard> {
             false);
     final tint = QuestColors.category(quest.category);
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: QuestColors.osCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: QuestColors.osTextPrimary, width: 2),
-          boxShadow: [
-            // The category shadow, as on the feed card.
-            BoxShadow(color: tint, offset: const Offset(3, 3), blurRadius: 0),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Flexible(
-                  child: ArcadeCategoryTag(
-                    label: quest.category,
-                    tint: tint,
+    return QuestImpression(
+      questId: quest.id,
+      surface: AnalyticsSurfaces.search,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: QuestColors.osTextPrimary, width: 2),
+            boxShadow: [
+              // The category shadow, as on the feed card.
+              BoxShadow(color: tint, offset: const Offset(3, 3), blurRadius: 0),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: ArcadeCategoryTag(
+                      label: quest.category,
+                      tint: tint,
+                      compact: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ArcadeCategoryTag(
+                    label: '+${quest.xpReward} XP',
+                    tint: QuestColors.osAccent,
                     compact: true,
                   ),
-                ),
-                const SizedBox(width: 8),
-                ArcadeCategoryTag(
-                  label: '+${quest.xpReward} XP',
-                  tint: QuestColors.osAccent,
-                  compact: true,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              quest.title.toUpperCase(),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: QuestTypography.osHeadlineLarge
-                  .copyWith(fontSize: 18, height: 1.15),
-            ),
-            if (quest.description.isNotEmpty) ...[
-              const SizedBox(height: 4),
+                ],
+              ),
+              const SizedBox(height: 10),
               Text(
-                quest.description,
+                quest.title.toUpperCase(),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: QuestTypography.osBodySmall.copyWith(fontSize: 13),
+                style: QuestTypography.osHeadlineLarge
+                    .copyWith(fontSize: 18, height: 1.15),
               ),
-            ],
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _busy ? null : _toggleSave,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minHeight: QuestSpacing.minTouchTarget,
-                  ),
-                  child: Center(
-                    child: Container(
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color:
-                            saved ? QuestColors.osAccent : QuestColors.osCard,
-                        borderRadius:
-                            BorderRadius.circular(QuestSpacing.radiusButton),
-                        border: Border.all(
-                          color: QuestColors.osTextPrimary,
-                          width: 2,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
+              if (quest.description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  quest.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osBodySmall.copyWith(fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _busy ? null : _toggleSave,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: QuestSpacing.minTouchTarget,
+                    ),
+                    child: Center(
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              saved ? QuestColors.osAccent : QuestColors.osCard,
+                          borderRadius:
+                              BorderRadius.circular(QuestSpacing.radiusButton),
+                          border: Border.all(
                             color: QuestColors.osTextPrimary,
-                            offset: Offset(3, 3),
-                            blurRadius: 0,
+                            width: 2,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        saved ? 'SAVED' : 'BSHEEEL',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: QuestTypography.osHeadlineSmall.copyWith(
-                          fontSize: 13,
-                          letterSpacing: 1.2,
-                          height: 1,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: QuestColors.osTextPrimary,
+                              offset: Offset(3, 3),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          saved ? 'SAVED' : 'BSHEEEL',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: QuestTypography.osHeadlineSmall.copyWith(
+                            fontSize: 13,
+                            letterSpacing: 1.2,
+                            height: 1,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

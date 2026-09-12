@@ -74,7 +74,13 @@ describe('VideoFrameExtractor', () => {
     const hashes = await Promise.all(
       frames.map(async (frame) => differenceHash(await grayscale9x8(frame))),
     );
-    expect(hammingDistance(hashes[0], hashes[hashes.length - 1])).toBeGreaterThan(0);
+    // A null hash means a flat frame that cannot be fingerprinted; the
+    // synthetic clip is a moving gradient, so both ends must hash.
+    const first = hashes[0];
+    const last = hashes[hashes.length - 1];
+    expect(first).not.toBeNull();
+    expect(last).not.toBeNull();
+    expect(hammingDistance(first!, last!)).toBeGreaterThan(0);
   });
 
   it.runIf(available)('honours the frame count', async () => {

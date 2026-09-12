@@ -78,6 +78,9 @@ Future<void> showBsheeelDialog({
   // different question nobody has asked for yet.
   ref.read(analyticsReporterProvider).report(
         eventType: AnalyticsEvents.questBsheeel,
+        // The post this BSHEEEL was pressed on: what lets the server credit
+        // its author when the quest is later taken and completed.
+        sourceSubmissionId: submissionId,
         questId: questId,
         surface: AnalyticsSurfaces.feed,
       );

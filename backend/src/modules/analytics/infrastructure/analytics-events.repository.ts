@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
-import type { AnalyticsEventType, AnalyticsSurface, ExposureCounts } from '../domain/analytics-events.js';
+import type {
+  AnalyticsEventType,
+  AnalyticsSurface,
+  ExposureCounts,
+  PostAttribution,
+} from '../domain/analytics-events.js';
 
 export interface RecordableEvent {
   readonly clientEventId: string;
@@ -8,6 +13,8 @@ export interface RecordableEvent {
   readonly questId: string;
   readonly surface: AnalyticsSurface;
   readonly occurredAt: Date;
+  /// The post the event was raised from, if any (0049).
+  readonly sourceSubmissionId: string | null;
 }
 
 @Injectable()
@@ -34,11 +41,16 @@ export class AnalyticsEventsRepository {
     if (events.length === 0) return 0;
     const result = await this.database.query<{ id: string }>(
       `INSERT INTO analytics_events
-         (client_event_id, user_id, event_type, quest_id, surface, occurred_at)
-       SELECT e.client_event_id, $1, e.event_type, e.quest_id, e.surface, e.occurred_at
+         (client_event_id, user_id, event_type, quest_id, surface, occurred_at, source_submission_id)
+       SELECT e.client_event_id, $1, e.event_type, e.quest_id, e.surface, e.occurred_at,
+              -- A source post that no longer exists is dropped from the
+              -- event, not the event from the batch: the BSHEEEL still
+              -- happened and still counts for the quest.
+              CASE WHEN EXISTS (SELECT 1 FROM submissions sp WHERE sp.id = e.source_submission_id)
+                   THEN e.source_submission_id END
        FROM unnest(
-              $2::uuid[], $3::text[], $4::uuid[], $5::text[], $6::timestamptz[]
-            ) AS e(client_event_id, event_type, quest_id, surface, occurred_at)
+              $2::uuid[], $3::text[], $4::uuid[], $5::text[], $6::timestamptz[], $7::uuid[]
+            ) AS e(client_event_id, event_type, quest_id, surface, occurred_at, source_submission_id)
        -- Skips an event whose quest has since been deleted, rather than
        -- failing the whole flush on the foreign key.
        WHERE EXISTS (SELECT 1 FROM quests q WHERE q.id = e.quest_id)
@@ -51,9 +63,78 @@ export class AnalyticsEventsRepository {
         events.map((event) => event.questId),
         events.map((event) => event.surface),
         events.map((event) => event.occurredAt),
+        events.map((event) => event.sourceSubmissionId),
       ],
     );
     return result.rows.length;
+  }
+
+  /// Who wrote a post, or null when there is no such live post.
+  async postAuthor(submissionId: string): Promise<string | null> {
+    const result = await this.database.query<{ user_id: string }>(
+      'SELECT user_id FROM submissions WHERE id = $1 AND deleted_at IS NULL',
+      [submissionId],
+    );
+    return result.rows[0]?.user_id ?? null;
+  }
+
+  /// Everything one post led to (0049).
+  ///
+  /// Events raised from the post are read directly. Activations and
+  /// completions are joined: a person who pressed BSHEEEL *from this post*,
+  /// then was assigned the same quest at or after that press, then had a
+  /// submission for it approved. The author's own events are excluded — a
+  /// post cannot inspire its author. Fourteen days between the press and
+  /// the assignment is generous on purpose: the roll is random and the
+  /// saved quest may take a while to come up, and a stricter window would
+  /// systematically under-credit the posts that made people wait for it.
+  async attributionFor(submissionId: string): Promise<PostAttribution | null> {
+    const result = await this.database.query<{
+      exists: boolean; detail_views: number; viewers: number; bsheeels: number;
+      shares: number; activations: number; completions: number;
+    }>(
+      `WITH src AS (
+         SELECT s.id, s.user_id AS author_id, uq.quest_id
+         FROM submissions s JOIN user_quests uq ON uq.id = s.user_quest_id
+         WHERE s.id = $1
+       ), raised AS (
+         SELECT e.user_id, e.event_type, e.occurred_at
+         FROM analytics_events e JOIN src ON e.source_submission_id = src.id
+         WHERE e.user_id <> src.author_id
+       ), pressed AS (
+         SELECT user_id, min(occurred_at) AS first_press FROM raised
+         WHERE event_type = 'quest_bsheeel' GROUP BY user_id
+       ), activated AS (
+         SELECT DISTINCT p.user_id, uq.id AS user_quest_id
+         FROM pressed p JOIN src ON true
+         JOIN user_quests uq ON uq.user_id = p.user_id AND uq.quest_id = src.quest_id
+                            AND uq.assigned_at >= p.first_press
+                            AND uq.assigned_at < p.first_press + interval '14 days'
+       )
+       SELECT
+         EXISTS (SELECT 1 FROM src) AS exists,
+         (SELECT count(*)::int FROM raised WHERE event_type = 'quest_detail_view') AS detail_views,
+         (SELECT count(DISTINCT user_id)::int FROM raised
+           WHERE event_type IN ('quest_detail_view', 'quest_impression')) AS viewers,
+         (SELECT count(*)::int FROM pressed) AS bsheeels,
+         (SELECT count(*)::int FROM raised WHERE event_type = 'quest_share') AS shares,
+         (SELECT count(DISTINCT user_id)::int FROM activated) AS activations,
+         (SELECT count(DISTINCT a.user_id)::int FROM activated a
+           JOIN submissions s2 ON s2.user_quest_id = a.user_quest_id
+          WHERE s2.status = 'approved' AND s2.deleted_at IS NULL) AS completions`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    if (!row?.exists) return null;
+    return {
+      submissionId,
+      detailViews: row.detail_views,
+      viewers: row.viewers,
+      bsheeels: row.bsheeels,
+      shares: row.shares,
+      activations: row.activations,
+      completions: row.completions,
+    };
   }
 
   /// Exposure for one business's quests over a window.

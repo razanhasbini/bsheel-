@@ -1,9 +1,14 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 import { CurrentUser } from '../../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../../common/auth/auth-user.js';
 import { AnalyticsService } from '../application/analytics.service.js';
 import { AnalyticsBatchDto } from './analytics.dto.js';
+
+export class PostIdParam {
+  @IsUUID() id!: string;
+}
 
 /// Exposure telemetry ingest (#81 §28).
 ///
@@ -24,5 +29,14 @@ export class AnalyticsController {
   @HttpCode(202)
   record(@CurrentUser() user: AuthUser, @Body() body: AnalyticsBatchDto) {
     return this.analytics.record(user.id, body);
+  }
+
+  /// What a post led to — views, BSHEEELs, activations, verified
+  /// completions — for its author and for moderators. Counts, never people.
+  @Get('attribution/posts/:id')
+  @ApiOperation({ summary: "A post's downstream credit: views, BSHEEELs, activations, verified completions" })
+  attribution(@CurrentUser() user: AuthUser, @Param() param: PostIdParam) {
+    const isModerator = user.role === 'moderator' || user.role === 'super_admin';
+    return this.analytics.attribution(user.id, isModerator, param.id);
   }
 }

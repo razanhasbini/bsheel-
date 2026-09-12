@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
+import { submissionSocialRank } from '../../../common/ranking/social-rank.sql.js';
 
 export interface SearchResult {
   readonly users: readonly Record<string, unknown>[];
@@ -74,7 +75,10 @@ export class SearchRepository {
              WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
                 OR (b.blocker_id = s.user_id AND b.blocked_id = $1)
            )
-         ORDER BY s.submitted_at DESC, s.id DESC
+         -- Matching posts in the same order the feed would rank them
+         -- (common/ranking), so search and HOT never disagree about which
+         -- post for a quest is the one worth seeing first.
+         ORDER BY ${submissionSocialRank('s', 'now()')} DESC, s.submitted_at DESC, s.id DESC
          LIMIT $3 OFFSET $4`,
         [viewerId, pattern, Math.min(limit, 24), offset],
       ),

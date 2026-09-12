@@ -194,18 +194,11 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        // Phone first, and as the violet primary: a verified
-                        // number is what every account is anchored to, and
-                        // the only credential that is never optional. Email
-                        // and password are a convenience on top of it, so
-                        // they sit below the rule rather than above it.
-                        const PhoneAuthButton(
-                          label: 'LOG IN WITH PHONE NUMBER',
-                          variant: ArcadeButtonVariant.primary,
-                        ),
-                        const SizedBox(height: 17),
-                        const OrRule(label: 'OR USE EMAIL'),
-                        const SizedBox(height: 17),
+                        // Email and password lead, then Apple, Google and
+                        // the phone number below the LOG IN button — the
+                        // owner's decision for this page. The phone path
+                        // stays available as one of the three alternatives
+                        // rather than being hoisted above the form.
                         AuthField(
                           controller: _emailController,
                           focusNode: _emailFocus,
@@ -253,13 +246,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           isLoading: _isLoading,
                           onTap: _isLoading ? null : _login,
                         ),
-                        // Apple / Google only — the phone button is hoisted
-                        // to the top of this page as the primary path, the
-                        // way the signup page leads with the phone form.
-                        const SocialSignInButtons(
-                          includePhone: false,
-                          labelPrefix: 'LOG IN WITH',
-                        ),
+                        // Apple, Google, then phone — the three alternatives
+                        // to the form above, in that order.
+                        const SocialSignInButtons(labelPrefix: 'LOG IN WITH'),
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin
                         // does, without the hit target moving it.

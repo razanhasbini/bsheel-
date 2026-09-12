@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { E2eHarness } from './support/e2e-harness.js';
+import { E2eHarness, type TestUser } from './support/e2e-harness.js';
 
 /**
  * Multi-stage progression: what happens when a checkpoint is approved.

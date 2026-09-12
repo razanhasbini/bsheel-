@@ -110,6 +110,24 @@ export class ObjectStorageService implements OnModuleDestroy {
     );
   }
 
+  /// Stores a rendered object this process produced (a branded export).
+  ///
+  /// Distinct from the upload path, where the browser PUTs to a presigned
+  /// URL and this process only verifies afterwards: here the bytes are ours,
+  /// already on disk, and the size is bounded by the render itself.
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.requiredInternalClient().send(
+      new PutObjectCommand({
+        Bucket: this.requiredBucket(),
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ContentLength: body.length,
+      }),
+      { abortSignal: AbortSignal.timeout(60_000) },
+    );
+  }
+
   async putPrivateJson(key: string, document: Record<string, unknown>): Promise<void> {
     await this.requiredInternalClient().send(
       new PutObjectCommand({

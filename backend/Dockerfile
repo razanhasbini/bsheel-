@@ -50,6 +50,9 @@ COPY scripts ./scripts
 # without them a production deploy has the schema and no content — which is
 # exactly what an empty Home looked like.
 COPY seeds ./seeds
+# Brand fonts for the burned-in video band (branded exports, 0050). ffmpeg's
+# drawtext needs a font file on disk; the image has none of its own.
+COPY assets ./assets
 USER bsheel
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "dist/main.js"]

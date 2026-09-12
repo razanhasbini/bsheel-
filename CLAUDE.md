@@ -651,27 +651,43 @@ Three smaller things that are load-bearing:
   costs a rounding error; a retry queue costs the user battery and
   eventually replays stale events into the wrong day.
 
-**Impressions are emitted from the feed, and only from the feed.** The
-blocker was never the event type or the aggregation — both existed — it was
-that an over-counted impression is worse than an absent one, because a
-business is shown it as a measurement, and `itemBuilder` running is not
-somebody seeing a card.
+**Impressions are emitted only where visibility is measured, never from
+`itemBuilder`.** The blocker was never the event type or the aggregation —
+both existed — it was that an over-counted impression is worse than an
+absent one, because a business is shown it as a measurement, and
+`itemBuilder` running is not somebody seeing a card.
 
-`ImpressionTracker` (`core/services/impression_tracker.dart`) is what makes
-the claim defensible, and it rests on a property of that screen: the feed is
-a full-screen vertical PageView, so the post on screen is the settled page
-rather than an estimate. It counts a view when the card was the visible one
-*and* stayed for a dwell (1s), once per **quest** per tracker, and never
-while the app is backgrounded. Keyed on the quest, not the post, because
-several completions of one quest can sit in a feed and counting each would
-distort impression → detail-view conversion by however many people posted
-it. Scrolling back up to a post is not a second view.
+Two mechanisms make the claim defensible, one per kind of screen:
 
-The list surfaces — map, search, home — still do not emit. A row in a
-scrolling list needs real visibility detection to make the same claim, and
-guessing there would put exactly the unauditable number in front of a
-business that this was withheld to avoid. That is the shape of the work if
-someone widens it: a visibility signal per surface, then the same tracker.
+- **The feed** uses `ImpressionTracker`
+  (`core/services/impression_tracker.dart`), which rests on a property of
+  that screen: it is a full-screen vertical PageView, so the post on screen
+  is the settled page rather than an estimate. It counts a view when the
+  card was the visible one *and* stayed for a dwell (1s), once per **quest**
+  per tracker, and never while the app is backgrounded. Keyed on the quest,
+  not the post, because several completions of one quest can sit in a feed
+  and counting each would distort impression → detail-view conversion by
+  however many people posted it. Scrolling back up to a post is not a second
+  view. It carries the post id through as `sourceSubmissionId`, so the
+  post's author is credited (below) without that changing whether a view
+  counts.
+- **The list surfaces** — home, map, search — wrap each quest card in
+  `QuestImpression` (`core/widgets/quest_impression.dart`), a real
+  visibility signal (`visibility_detector`): at least half the card on screen
+  for a full second, once per surface/quest/post per process, through
+  `AnalyticsReporter.impression`. Never call `report` with
+  `quest_impression` directly.
+
+**Virality attribution** rides on the same events. `quest_bsheeel`,
+`quest_detail_view` and `quest_impression` carry an optional
+`source_submission_id` (migration 0049) naming the post the viewer was
+looking at; `GET analytics/attribution/posts/:id` turns that into what a
+post led to — detail views, viewers, BSHEEELs, shares, activations and
+verified completions within 14 days, the author excluded — for the author
+and moderators only, as counts and never people. The same credit feeds the
+one social ranking model (`common/ranking/social-rank.sql.ts`) that the
+feed's HOT/GRAVEYARD, the map's trending quests and search all embed, so a
+post that gets people to do the quest rises everywhere at once.
 
 The dashboard shows reach, opens, BSHEEELs and now impressions — every
 number on it is one somebody actually reported, and the funnel keeps the

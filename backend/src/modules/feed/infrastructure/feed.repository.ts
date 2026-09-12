@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { FeedQueryDto } from '../presentation/feed.dto.js';
 import { decodeCursor, encodeCursor } from '../../../common/pagination/keyset-cursor.js';
+import { submissionSocialRank } from '../../../common/ranking/social-rank.sql.js';
 
 @Injectable()
 export class FeedRepository {
@@ -15,8 +16,12 @@ export class FeedRepository {
     const timeWeighted = query.sort === 'hot' || query.sort === 'graveyard';
     const ranked = query.sort !== 'recent';
     const ascending = query.sort === 'bottom' || query.sort === 'graveyard';
+    // HOT and GRAVEYARD use the one social score every surface shares
+    // (common/ranking): votes, comments, saves, BSHEEELs from the post and
+    // the completions they led to, decayed by age. TOP/BOTTOM stay pure
+    // net votes on purpose — "most upvoted ever" is a different question.
     const score = timeWeighted
-      ? 's.net_score::double precision / power(GREATEST(EXTRACT(EPOCH FROM ($4::timestamptz - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5)'
+      ? submissionSocialRank('s', '$4::timestamptz')
       : 's.net_score';
     const order = `${ranked ? `${score} ${ascending ? 'ASC' : 'DESC'}, ` : ''}s.submitted_at DESC, s.id DESC`;
     const seek = cursor

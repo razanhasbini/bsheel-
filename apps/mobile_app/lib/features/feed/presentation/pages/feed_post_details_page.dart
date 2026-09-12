@@ -30,6 +30,7 @@ import '../../../leaderboard/presentation/providers/leaderboard_provider.dart';
 import '../widgets/collab_vote_button.dart';
 import '../widgets/post_action_row.dart';
 import '../widgets/post_avatar.dart';
+import '../widgets/post_impact_strip.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
 import '../../../comments/application/mention_controller.dart';
 import '../../../comments/presentation/widgets/comment_composer.dart';
@@ -531,6 +532,13 @@ class _FeedPostDetailsPageState extends ConsumerState<FeedPostDetailsPage> {
                             timeAgoLabel: _timeAgo(post.submittedAt),
                           ),
                         ),
+
+                        // What this post led to — the author's, and only
+                        // when there is something to say.
+                        if (currentUser?.id == post.userId)
+                          SliverToBoxAdapter(
+                            child: PostImpactStrip(postId: post.id),
+                          ),
 
                         // Collab participants header (avatar = vote button + name + bio + follow)
                         if (post.isCollab && post.collabMembers.isNotEmpty)

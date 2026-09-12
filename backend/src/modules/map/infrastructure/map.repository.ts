@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
 import type { MapMomentsQueryDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
 import { confirmedPlaceIds, locked, visible } from './map-visibility.sql.js';
+import { submissionSocialRank } from '../../../common/ranking/social-rank.sql.js';
 
 // A locked pin still marks the area — that is the invitation to go and earn
 // it — but not the spot: two decimals is roughly a kilometre, wider than
@@ -301,10 +302,12 @@ export class MapRepository {
           AND (q.available_until IS NULL OR q.available_until > now())
       ), scored AS (
         SELECT c.*,
-          (SELECT COALESCE(sum(s.net_score::double precision
-              / power(GREATEST(EXTRACT(EPOCH FROM (now() - s.submitted_at)) / 3600.0, 0) + 2.0, 1.5)), 0)
+          -- A quest trends by the sum of its approved posts' social score —
+          -- the SAME score the feed ranks those posts by (common/ranking) —
+          -- plus a flat 1.5 per completion, so a place people actually go
+          -- to outranks one they only argue about.
+          (SELECT COALESCE(sum(${submissionSocialRank('s', 'now()')}), 0)
              + 1.5 * count(*) FILTER (WHERE s.status='approved')
-             + 0.5 * (SELECT count(*) FROM comments cm WHERE cm.submission_id = ANY(array_agg(s.id)))
            FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
            WHERE uq.quest_id=c.id AND s.status='approved' AND ${standing}) AS engagement,
           (SELECT count(*)::int FROM saved_quests sq WHERE sq.quest_id=c.id) AS saves,

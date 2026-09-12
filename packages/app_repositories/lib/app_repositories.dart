@@ -95,6 +95,7 @@ export 'admin/api_admin_repository.dart';
 export 'public_config/api_public_config_repository.dart';
 
 // ── Media ────────────────────────────────────────────────────────────────
+export 'media/api_media_export_repository.dart';
 export 'media/api_media_signer.dart';
 export 'media/api_media_uploader.dart';
 
