@@ -12,7 +12,7 @@ void main() {
     final seen = <String>[];
     return (
       tracker: ImpressionTracker(
-        onImpression: seen.add,
+        onImpression: (questId, _) => seen.add(questId),
         dwell: dwell,
         isForeground: isForeground,
       ),

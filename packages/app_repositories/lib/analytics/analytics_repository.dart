@@ -12,7 +12,13 @@ class AnalyticsEvent {
     required this.questId,
     required this.surface,
     required this.occurredAt,
+    this.sourceSubmissionId,
   });
+
+  /// The post this was raised from, when there was one — a BSHEEEL pressed
+  /// on a feed card, a quest opened from a post. What lets the server say
+  /// "this post led to that completion". Null for events with no post.
+  final String? sourceSubmissionId;
 
   final String clientEventId;
 
@@ -32,12 +38,55 @@ class AnalyticsEvent {
         'questId': questId,
         'surface': surface,
         'occurredAt': occurredAt.toUtc().toIso8601String(),
+        if (sourceSubmissionId != null)
+          'sourceSubmissionId': sourceSubmissionId,
       };
+}
+
+/// What one of the viewer's own posts led to (server-computed; counts only).
+class PostAttribution {
+  const PostAttribution({
+    required this.detailViews,
+    required this.viewers,
+    required this.bsheeels,
+    required this.shares,
+    required this.activations,
+    required this.completions,
+  });
+
+  factory PostAttribution.fromJson(Map<String, dynamic> json) =>
+      PostAttribution(
+        detailViews: (json['detailViews'] as num?)?.toInt() ?? 0,
+        viewers: (json['viewers'] as num?)?.toInt() ?? 0,
+        bsheeels: (json['bsheeels'] as num?)?.toInt() ?? 0,
+        shares: (json['shares'] as num?)?.toInt() ?? 0,
+        activations: (json['activations'] as num?)?.toInt() ?? 0,
+        completions: (json['completions'] as num?)?.toInt() ?? 0,
+      );
+
+  final int detailViews;
+  final int viewers;
+  final int bsheeels;
+  final int shares;
+  final int activations;
+  final int completions;
+
+  bool get isEmpty =>
+      viewers == 0 &&
+      bsheeels == 0 &&
+      shares == 0 &&
+      activations == 0 &&
+      completions == 0;
 }
 
 abstract class AnalyticsRepository {
   /// Reports a batch. Bounded at 200 by the server.
   Future<void> record(List<AnalyticsEvent> events);
+
+  /// What one of the caller's own posts led to. 404 (thrown) for a post
+  /// that is not theirs — the server does not confirm other people's posts
+  /// have numbers.
+  Future<PostAttribution> attributionForPost(String submissionId);
 }
 
 class ApiAnalyticsRepository implements AnalyticsRepository {
@@ -51,4 +100,11 @@ class ApiAnalyticsRepository implements AnalyticsRepository {
       'events': events.map((event) => event.toJson()).toList(),
     });
   }
+
+  @override
+  Future<PostAttribution> attributionForPost(String submissionId) async =>
+      PostAttribution.fromJson(
+        apiObject(
+            await _client.get('analytics/attribution/posts/$submissionId')),
+      );
 }

@@ -16,6 +16,8 @@ import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/providers/current_profile_provider.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/providers/streak_provider.dart';
+import '../../../../core/services/analytics_reporter.dart';
+import '../../../../core/widgets/quest_impression.dart';
 import '../../../../core/utils/streak_utils.dart';
 import '../../../notifications/presentation/providers/notifications_provider.dart';
 import '../../../collab/presentation/pages/collab_page.dart';
@@ -1769,18 +1771,24 @@ class _RollPickerSheetState extends ConsumerState<_RollPickerSheet> {
                   children: [
                     for (var i = 0; i < options.length; i++) ...[
                       if (i > 0) const SizedBox(height: 12),
-                      _QuestChoiceCard(
-                        quest: options[i],
-                        selected: i == _selected,
-                        disabled: busy,
-                        onSelect: () => setState(() => _selected = i),
-                        onPreview: () => _showQuestPreview(
-                          context,
+                      // A rolled option the player actually looked at is an
+                      // impression on the home surface.
+                      QuestImpression(
+                        questId: options[i].id,
+                        surface: AnalyticsSurfaces.home,
+                        child: _QuestChoiceCard(
                           quest: options[i],
-                          onPick: () {
-                            setState(() => _selected = i);
-                            _accept();
-                          },
+                          selected: i == _selected,
+                          disabled: busy,
+                          onSelect: () => setState(() => _selected = i),
+                          onPreview: () => _showQuestPreview(
+                            context,
+                            quest: options[i],
+                            onPick: () {
+                              setState(() => _selected = i);
+                              _accept();
+                            },
+                          ),
                         ),
                       ),
                     ],

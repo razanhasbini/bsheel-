@@ -22,6 +22,8 @@ import '../../../core/providers/auth_session_provider.dart';
 import '../../../core/router/route_names.dart';
 import '../../reactions/presentation/widgets/bsheeel_dialog.dart'
     show assignQuestFlow;
+import '../../../core/services/analytics_reporter.dart';
+import '../../../core/widgets/quest_impression.dart';
 import '../data/live_location_provider.dart';
 import '../data/map_providers.dart';
 import '../domain/map_geometry.dart';
@@ -2398,16 +2400,24 @@ class _DiscoverSheet extends ConsumerWidget {
                 Text('🔥 TRENDING', style: QuestTypography.osHeadlineMedium),
                 const SizedBox(height: 8),
                 for (final q in d.trending)
-                  _SnippetCard(
-                      snippet: q, trending: true, onTap: () => open(q)),
+                  QuestImpression(
+                    questId: q.id,
+                    surface: AnalyticsSurfaces.country,
+                    child: _SnippetCard(
+                        snippet: q, trending: true, onTap: () => open(q)),
+                  ),
               ],
               if (d.discovery.isNotEmpty) ...[
                 const SizedBox(height: 18),
                 Text('🎲 DISCOVER', style: QuestTypography.osHeadlineMedium),
                 const SizedBox(height: 8),
                 for (final q in d.discovery)
-                  _SnippetCard(
-                      snippet: q, trending: false, onTap: () => open(q)),
+                  QuestImpression(
+                    questId: q.id,
+                    surface: AnalyticsSurfaces.country,
+                    child: _SnippetCard(
+                        snippet: q, trending: false, onTap: () => open(q)),
+                  ),
               ],
               if (d.collections.isNotEmpty) ...[
                 const SizedBox(height: 18),

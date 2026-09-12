@@ -37,28 +37,35 @@ import 'dart:async';
 ///   otherwise report a view of a screen nobody is looking at.
 class ImpressionTracker {
   ImpressionTracker({
-    required void Function(String questId) onImpression,
+    required void Function(String questId, String? sourceSubmissionId)
+        onImpression,
     Duration dwell = const Duration(seconds: 1),
     bool Function()? isForeground,
   })  : _onImpression = onImpression,
         _dwell = dwell,
         _isForeground = isForeground ?? (() => true);
 
-  final void Function(String questId) _onImpression;
+  final void Function(String questId, String? sourceSubmissionId)
+      _onImpression;
   final Duration _dwell;
   final bool Function() _isForeground;
 
   final Set<String> _counted = <String>{};
   Timer? _pending;
   String? _visible;
+  /// The post through which the visible quest is being seen, if any. Carried
+  /// through to the report so the post's author is credited with the exposure
+  /// (virality attribution); it never affects whether a view counts.
+  String? _visibleSource;
 
   /// The card now occupying the viewport. Safe to call repeatedly with the
   /// same id — a rebuild is not a new view, so the running dwell is left
   /// alone rather than restarted, which would let a widget that rebuilds
   /// every second postpone the impression forever.
-  void onVisible(String questId) {
+  void onVisible(String questId, {String? sourceSubmissionId}) {
     if (_visible == questId) return;
     _visible = questId;
+    _visibleSource = sourceSubmissionId;
     _pending?.cancel();
     if (_counted.contains(questId)) {
       _pending = null;
@@ -72,7 +79,7 @@ class ImpressionTracker {
       if (_visible != questId) return;
       if (!_isForeground()) return;
       if (!_counted.add(questId)) return;
-      _onImpression(questId);
+      _onImpression(questId, _visibleSource);
     });
   }
 
@@ -83,6 +90,7 @@ class ImpressionTracker {
     _pending?.cancel();
     _pending = null;
     _visible = null;
+    _visibleSource = null;
   }
 
   void dispose() {

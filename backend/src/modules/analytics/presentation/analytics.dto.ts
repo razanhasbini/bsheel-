@@ -5,6 +5,7 @@ import {
   IsArray,
   IsIn,
   IsISO8601,
+  IsOptional,
   IsUUID,
   ValidateNested,
 } from 'class-validator';
@@ -19,6 +20,12 @@ export class AnalyticsEventDto {
   @IsUUID() questId!: string;
 
   @IsIn(analyticsSurfaces) surface!: (typeof analyticsSurfaces)[number];
+
+  /// The post whose card this was raised from, when there was one — a
+  /// BSHEEEL pressed on a feed post, a quest opened from a post. This is
+  /// what makes "User A's post led to User B's completion" computable
+  /// (migration 0049). Absent for events with no source post.
+  @IsOptional() @IsUUID() sourceSubmissionId?: string;
 
   /// When the client says it happened. Clamped server-side into a sane
   /// window around receipt — see `clampOccurredAt` — because a device clock

@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { clampOccurredAt } from '../domain/analytics-events.js';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { clampOccurredAt, type PostAttribution } from '../domain/analytics-events.js';
 import { AnalyticsEventsRepository } from '../infrastructure/analytics-events.repository.js';
 import type { AnalyticsBatchDto } from '../presentation/analytics.dto.js';
 
@@ -29,6 +29,7 @@ export class AnalyticsService {
         // The client's own timestamp, brought into a window we are willing
         // to chart. Both values are stored so the clamp is visible.
         occurredAt: clampOccurredAt(new Date(event.occurredAt), receivedAt),
+        sourceSubmissionId: event.sourceSubmissionId ?? null,
       })),
     );
     if (recorded < batch.events.length) {
@@ -38,5 +39,20 @@ export class AnalyticsService {
       );
     }
     return { recorded };
+  }
+
+  /// What one post led to (0049), for its author or a moderator.
+  ///
+  /// 404 for anyone else — the same shape as every other "not yours" in this
+  /// API: a 403 would confirm the post exists and that someone else owns
+  /// the numbers about it. Counts only; never who.
+  async attribution(viewerId: string, isModerator: boolean, submissionId: string): Promise<PostAttribution> {
+    const author = await this.events.postAuthor(submissionId);
+    if (!author || (author !== viewerId && !isModerator)) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Post not found' });
+    }
+    const attribution = await this.events.attributionFor(submissionId);
+    if (!attribution) throw new NotFoundException({ code: 'NOT_FOUND', message: 'Post not found' });
+    return attribution;
   }
 }

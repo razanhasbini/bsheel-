@@ -68,6 +68,7 @@ export interface Database {
     "surface": string;
     "occurred_at": Timestamp;
     "received_at": Generated<Timestamp>;
+    "source_submission_id": string | null;
   };
   "app_config": {
     "key": string;
@@ -100,6 +101,17 @@ export interface Database {
     "blocker_id": string;
     "blocked_id": string;
     "created_at": Generated<Timestamp>;
+  };
+  "branded_exports": {
+    "id": Generated<string>;
+    "submission_id": string;
+    "requested_by": string;
+    "status": Generated<string>;
+    "object_key": string | null;
+    "error": string | null;
+    "created_at": Generated<Timestamp>;
+    "updated_at": Generated<Timestamp>;
+    "completed_at": Timestamp | null;
   };
   "business_members": {
     "business_id": string;

@@ -49,11 +49,18 @@ class AnalyticsReporter {
   /// deferred, never dropped, and `flush()` resolves after its own turn.
   Future<void> _chain = Future<void>.value();
 
+  /// Impressions already reported this process, keyed by surface + quest
+  /// (+ post). A card scrolled past twice was seen once as far as a
+  /// business is concerned; counting it twice is the over-count that kept
+  /// impressions unimplemented until visibility detection existed.
+  final Set<String> _impressed = {};
+
   /// Queues one event. Never throws, never blocks.
   void report({
     required String eventType,
     required String questId,
     required String surface,
+    String? sourceSubmissionId,
   }) {
     if (_session() == null) return;
     _pending.add(AnalyticsEvent(
@@ -63,6 +70,7 @@ class AnalyticsReporter {
       questId: questId,
       surface: surface,
       occurredAt: DateTime.now().toUtc(),
+      sourceSubmissionId: sourceSubmissionId,
     ));
     if (_pending.length >= _batchSize) {
       unawaited(flush());
@@ -93,6 +101,24 @@ class AnalyticsReporter {
       // Deliberately not requeued. See the class comment.
       AppLogger.info('[Analytics] dropped ${batch.length} events: $error');
     }
+  }
+
+  /// Reports that a quest card was actually seen — called by
+  /// `QuestImpression` only once the card has been at least half visible
+  /// for a full second. Once per surface, quest and post per process.
+  void impression({
+    required String questId,
+    required String surface,
+    String? sourceSubmissionId,
+  }) {
+    final key = '$surface|$questId|${sourceSubmissionId ?? ''}';
+    if (!_impressed.add(key)) return;
+    report(
+      eventType: AnalyticsEvents.questImpression,
+      questId: questId,
+      surface: surface,
+      sourceSubmissionId: sourceSubmissionId,
+    );
   }
 
   /// Arms the idle flush when anything is waiting, and only then.
@@ -135,13 +161,14 @@ abstract final class AnalyticsEvents {
   static const questBsheeel = 'quest_bsheeel';
   static const questShare = 'quest_share';
 
-  /// Emitted from the feed only, through [ImpressionTracker]: one post
-  /// fills the viewport there, so "it was on screen" is a settled fact
-  /// rather than an estimate. The list surfaces (map, search, home) still
-  /// do not emit it — a row in a scrolling list needs real visibility
-  /// detection to make the same claim, and an over-counted impression is
-  /// worse than an absent one because a business is shown it as a
-  /// measurement.
+  /// Emitted only where a card's visibility is a measured fact, never from
+  /// `itemBuilder`: on the feed through [ImpressionTracker] (one post fills
+  /// the viewport there, so the settled page is the one on screen), and on
+  /// the list surfaces (map, search, home) through `QuestImpression`
+  /// (core/widgets) — at least half visible for a full second, once per
+  /// surface/quest/post per process. Never call `report` with this type
+  /// directly: an over-counted impression is worse than an absent one,
+  /// because a business is shown it as a measurement.
   static const questImpression = 'quest_impression';
 }
 

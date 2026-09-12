@@ -198,6 +198,10 @@ void main() {
 }
 
 class _FakeAnalytics implements AnalyticsRepository {
+  @override
+  Future<PostAttribution> attributionForPost(String submissionId) =>
+      throw UnimplementedError('not used by the reporter');
+
   _FakeAnalytics({this.fail = false});
 
   bool fail;
