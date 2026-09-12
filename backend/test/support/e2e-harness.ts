@@ -456,9 +456,10 @@ export class E2eHarness {
       deleted_at: Date | null;
       show_in_feed: boolean;
       appeal_note: string | null;
+      reviewed_by: string | null;
     }>(
       `SELECT status::text, visibility::text, appealed, xp_awarded, xp_awarded_amount,
-              deleted_at, show_in_feed, appeal_note
+              deleted_at, show_in_feed, appeal_note, reviewed_by
        FROM submissions WHERE id = $1`,
       [id],
     );

@@ -35,7 +35,7 @@ describe('business domain rules', () => {
 
   describe('who may read the dashboard', () => {
     it('lets a member of an active business read it', () => {
-      expect(canReadDashboard({ businessId: 'b', role: 'manager', status: 'active' })).toBe(true);
+      expect(canReadDashboard({ businessId: 'b', role: 'manager', status: 'active', analyticsSubscribedAt: null })).toBe(true);
     });
 
     // Membership alone is never sufficient — suspension has to bite for
@@ -43,7 +43,7 @@ describe('business domain rules', () => {
     // nothing to the person disputing it.
     it('refuses every member of a suspended business, owners included', () => {
       for (const role of businessMemberRoles) {
-        expect(canReadDashboard({ businessId: 'b', role, status: 'suspended' }), role).toBe(false);
+        expect(canReadDashboard({ businessId: 'b', role, status: 'suspended', analyticsSubscribedAt: null }), role).toBe(false);
       }
     });
   });

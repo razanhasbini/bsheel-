@@ -12,6 +12,9 @@ import type { RealtimeEventPublisher } from '../src/infrastructure/realtime/real
 import type { TelegramEventService } from '../src/integrations/telegram/telegram-event.service.js';
 import type { Environment } from '../src/config/environment.js';
 import type { ProofVerificationService } from '../src/modules/submissions/application/proof-verification.service.js';
+import type { JourneyProgressionService } from '../src/modules/quests/application/journey-progression.service.js';
+import type { JourneyNotifier } from '../src/modules/quests/application/journey-notifier.service.js';
+import type { QuestUnlockService } from '../src/modules/discovery/application/quest-unlock.service.js';
 
 function notificationJob(data: Record<string, unknown>) {
   return {
@@ -69,6 +72,10 @@ function setup(pushResult: { invalidToken: boolean; messageName?: string }) {
     // AI proof verification (#47) runs off submission.created; stubbed
     // because these cases exercise the other side effects.
     { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+    // Journeys and hidden-quest unlocks are not exercised here.
+    {} as JourneyProgressionService,
+    {} as JourneyNotifier,
+    {} as QuestUnlockService,
   );
   return { processor, repository, cipher, push, realtime, submissionVerificationQueue };
 }
@@ -258,6 +265,10 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       // AI proof verification (#47) runs off submission.created; stubbed
       // because these cases exercise the other side effects.
       { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      // Journeys and hidden-quest unlocks are not exercised here.
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await processor.process({
@@ -310,6 +321,10 @@ describe('DomainEventsProcessor password recovery delivery', () => {
       // AI proof verification (#47) runs off submission.created; stubbed
       // because these cases exercise the other side effects.
       { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      // Journeys and hidden-quest unlocks are not exercised here.
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await expect(
@@ -357,6 +372,10 @@ describe('DomainEventsProcessor email confirmation delivery', () => {
       // AI proof verification (#47) runs off submission.created; stubbed
       // because these cases exercise the other side effects.
       { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      // Journeys and hidden-quest unlocks are not exercised here.
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await processor.process({
@@ -381,7 +400,7 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       id: 'a1a1a1a1-0000-0000-0000-000000000001',
       name: 'submission.created',
       data: { submissionId: 'submission-id', userId: 'user-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(submissionVerificationQueue.add).not.toHaveBeenCalled();
     expect(repository.markProcessed).toHaveBeenCalledOnce();
@@ -408,13 +427,17 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       // AI proof verification (#47) runs off submission.created; stubbed
       // because these cases exercise the CAMARA/agent enqueue instead.
       { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      // Journeys and hidden-quest unlocks are not exercised here.
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await processor.process({
       id: 'a1a1a1a1-0000-0000-0000-000000000002',
       name: 'submission.created',
       data: { submissionId: 'submission-id', userId: 'user-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(submissionVerificationQueue.add).toHaveBeenCalledWith(
       'submission.verify',
@@ -445,13 +468,17 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       // Stubbed: this case asserts the assignment-agent enqueue, not the
       // proof-verification side effect.
       { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+      // Journeys and hidden-quest unlocks are not exercised here.
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await processor.process({
       id: 'b2b2b2b2-0000-0000-0000-000000000001',
       name: 'quest.assigned',
       data: { userId: 'user-id', userQuestId: 'assignment-id', questId: 'quest-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(questAssignmentQueue.add).toHaveBeenCalledWith(
       'quest.assignment-agent',
@@ -468,7 +495,7 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       id: 'b2b2b2b2-0000-0000-0000-000000000002',
       name: 'quest.assigned',
       data: { userId: 'user-id', userQuestId: 'assignment-id', questId: 'quest-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(repository.markProcessed).toHaveBeenCalledOnce();
   });
@@ -520,6 +547,9 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       submissionVerificationQueue,
       fakeQueue(),
       proofVerification,
+      {} as JourneyProgressionService,
+      {} as JourneyNotifier,
+      {} as QuestUnlockService,
     );
 
     await processor.process({
@@ -538,7 +568,7 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
       id: 'a1a1a1a1-0000-0000-0000-000000000003',
       name: 'submission.appealed',
       data: { submissionId: 'submission-id', userId: 'user-id' },
-    } as Job<Record<string, unknown>, unknown, string>);
+    } as unknown as Job<Record<string, unknown>, unknown, string>);
 
     expect(submissionVerificationQueue.add).not.toHaveBeenCalled();
     expect(repository.markProcessed).toHaveBeenCalledOnce();
@@ -572,6 +602,10 @@ describe('DomainEventsProcessor submission verification enqueue', () => {
         queues[0],
         queues[1],
         { verify: vi.fn().mockResolvedValue(undefined) } as unknown as ProofVerificationService,
+        // Journeys and hidden-quest unlocks are not exercised here.
+        {} as JourneyProgressionService,
+        {} as JourneyNotifier,
+        {} as QuestUnlockService,
       );
 
       await processor.process({
