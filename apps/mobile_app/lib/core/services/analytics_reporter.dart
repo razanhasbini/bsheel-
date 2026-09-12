@@ -37,7 +37,17 @@ class AnalyticsReporter {
 
   final List<AnalyticsEvent> _pending = [];
   Timer? _timer;
-  bool _flushing = false;
+
+  /// Sends are serialised through this chain rather than guarded by a
+  /// boolean.
+  ///
+  /// A boolean guard was wrong in a way that lost almost everything: a
+  /// flush requested while one was in flight returned immediately *and*
+  /// left the queue with no timer armed, so a burst past the batch size
+  /// stranded the remainder until something else happened to flush. A
+  /// measured burst of 500 events delivered 25. Chaining means a request is
+  /// deferred, never dropped, and `flush()` resolves after its own turn.
+  Future<void> _chain = Future<void>.value();
 
   /// Queues one event. Never throws, never blocks.
   void report({
@@ -56,30 +66,44 @@ class AnalyticsReporter {
     ));
     if (_pending.length >= _batchSize) {
       unawaited(flush());
-      return;
     }
-    // Coalesces a burst — opening five quests in a row is one request.
-    _timer ??= Timer(_flushAfter, () => unawaited(flush()));
+    // Always, including right after a size-triggered flush: whatever is
+    // still queued needs something scheduled to send it.
+    _ensureTimer();
   }
 
-  /// Sends whatever is queued. Safe to call at any time, including twice.
-  Future<void> flush() async {
+  /// Sends whatever is queued. Safe to call at any time, including
+  /// concurrently — calls are serialised, not discarded.
+  Future<void> flush() {
     _timer?.cancel();
     _timer = null;
-    if (_flushing || _pending.isEmpty) return;
-    // Taken before the await, so events queued during the request are not
-    // lost and not sent twice.
+    _chain = _chain.then((_) => _send());
+    return _chain;
+  }
+
+  Future<void> _send() async {
+    if (_pending.isEmpty) return;
+    // Taken before the await so events queued during the request belong to
+    // the next batch rather than being lost or sent twice.
     final batch = List<AnalyticsEvent>.of(_pending);
     _pending.clear();
-    _flushing = true;
     try {
       await _repository.record(batch);
     } catch (error) {
       // Deliberately not requeued. See the class comment.
       AppLogger.info('[Analytics] dropped ${batch.length} events: $error');
-    } finally {
-      _flushing = false;
     }
+  }
+
+  /// Arms the idle flush when anything is waiting, and only then.
+  void _ensureTimer() {
+    if (_pending.isEmpty) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+    // Coalesces a burst — opening five quests in a row is one request.
+    _timer ??= Timer(_flushAfter, () => unawaited(flush()));
   }
 
   void dispose() {

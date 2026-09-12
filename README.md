@@ -18,6 +18,13 @@ docker compose up --build
 ```
 
 ```bash
+# Something to look at: an admin, users, quests, submissions in every
+# review state, and a partner account with enough activity that every
+# dashboard section renders. Safe to re-run; refuses to touch production.
+cd backend && DATABASE_URL=… node scripts/seed-local.mjs --reset
+```
+
+```bash
 # Flutter monorepo
 ./scripts/bootstrap.sh          # installs melos, pub get everywhere
 cd apps/mobile_app   && flutter run
