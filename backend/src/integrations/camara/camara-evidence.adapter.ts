@@ -5,7 +5,11 @@ import { NetworkAsCodeApiClient } from 'network-as-code';
 import type { Environment } from '../../config/environment.js';
 import type { NetworkEvidence } from '../../modules/agent/domain/agent.schemas.js';
 import { haversineMeters } from '../../modules/agent/domain/geo.js';
-import type { LocationEvidenceQuery, NetworkEvidenceProvider } from '../../modules/agent/domain/network-evidence.port.js';
+import {
+  watchesTheRealDevice,
+  type LocationEvidenceQuery,
+  type NetworkEvidenceProvider,
+} from '../../modules/agent/domain/network-evidence.port.js';
 import { CamaraClientFactory } from './camara-client.factory.js';
 import { describeCamaraError } from './camara-error.js';
 
@@ -101,19 +105,31 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
     }
     const entered = geofence.events.some((event) => event.type === 'ENTER');
     // A live NOKIA subscription that never reported an entry is a real
-    // measurement: the network was watching and the device did not arrive.
-    // A DEMO_HARNESS subscription with no events is not that. It exists only
-    // in our database, nothing was ever watching it, and reporting silence
-    // there as CONTRADICTED would manufacture evidence of absence out of our
-    // own bookkeeping — the exact dishonesty the provenance column exists to
-    // prevent. Unavailable is the truthful answer, and it routes to a human.
-    if (!entered && geofence.origin === 'DEMO_HARNESS') {
+    // measurement: the network was watching THIS device and it did not arrive.
+    // Neither other origin supports that inference, for two different reasons:
+    //
+    //   * DEMO_HARNESS exists only in our database. Nothing was ever watching
+    //     it, so reporting silence as CONTRADICTED would manufacture evidence
+    //     of absence out of our own bookkeeping.
+    //   * NOKIA_SIMULATOR is a real subscription Nokia really holds — but it
+    //     watches a simulator identity standing in for the player's device,
+    //     because the sandbox network does not know the player's number at
+    //     all. Nokia not reporting an entry for +99999991001 is a true fact
+    //     about +99999991001 and says nothing whatever about the player.
+    //
+    // Both are the same dishonesty at the end: a claim about a device nobody
+    // measured. Unavailable is the truthful answer, and it routes to a human.
+    if (!entered && !watchesTheRealDevice(geofence.origin)) {
       return this.unavailable(
         query,
         'GEOFENCING',
         undefined,
-        'No geofence entry was recorded, and the subscription is a demo harness one — '
-        + 'nothing was watching the area, so this is not evidence the device stayed away',
+        geofence.origin === 'NOKIA_SIMULATOR'
+          ? 'No geofence entry was recorded, but the subscription watches a Nokia simulator '
+            + 'device standing in for this one — the network was not watching this device, '
+            + 'so this is not evidence it stayed away'
+          : 'No geofence entry was recorded, and the subscription is a demo harness one — '
+            + 'nothing was watching the area, so this is not evidence the device stayed away',
       );
     }
     return {
@@ -137,7 +153,9 @@ export class CamaraEvidenceAdapter implements NetworkEvidenceProvider {
         // "the carrier observed an entry".
         eventSource: geofence.events.some((event) => event.origin === 'DEMO_HARNESS')
           ? 'DEMO_CLOUDEVENT_HARNESS'
-          : 'NOKIA_CALLBACK',
+          : geofence.events.some((event) => event.origin === 'NOKIA_SIMULATOR')
+            ? 'NOKIA_CALLBACK_SIMULATOR_DEVICE'
+            : 'NOKIA_CALLBACK',
       },
     };
   }

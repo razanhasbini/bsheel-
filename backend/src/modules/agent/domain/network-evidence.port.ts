@@ -42,29 +42,49 @@ export interface LocationEvidenceQuery {
    */
   readonly geofence: {
     readonly status: 'active' | 'missing' | 'failed';
-    /**
-     * Whose subscription this is. NOKIA means the network was genuinely
-     * watching, so silence is evidence of absence. DEMO_HARNESS means the
-     * subscription exists only here — nothing was ever watching, and silence
-     * says nothing at all.
-     */
-    readonly origin: 'NOKIA' | 'DEMO_HARNESS';
+    /** Whose subscription this is, and therefore whose silence it is. */
+    readonly origin: GeofenceOrigin;
     readonly events: ReadonlyArray<{
       readonly type: 'ENTER' | 'EXIT';
       readonly occurredAt: string;
       /**
-       * NOKIA — the network delivered it. DEMO_HARNESS — the hackathon
-       * harness generated it and delivered it through the real webhook.
-       *
-       * Carried so a screen can say which, and say it from persisted data
-       * rather than from wording somebody chose in Flutter. It is never
-       * shown to the model: where an event came from does not change what
-       * it means about the device, and a verdict that moved on provenance
-       * would be a verdict moving on our own bookkeeping.
+       * Carried so a screen can say where the event came from, and say it
+       * from persisted data rather than from wording somebody chose in
+       * Flutter. It is never shown to the model: where an event came from
+       * does not change what it means about the device, and a verdict that
+       * moved on provenance would be a verdict moving on our own bookkeeping.
        */
-      readonly origin: 'NOKIA' | 'DEMO_HARNESS';
+      readonly origin: GeofenceOrigin;
     }>;
   } | null;
+}
+
+/**
+ * Whose device a geofence subscription is actually watching.
+ *
+ * - `NOKIA` — the player's own device, registered with Network-as-Code.
+ * - `NOKIA_SIMULATOR` — a real Network-as-Code subscription that Nokia holds
+ *   and would deliver on, but registered for one of Nokia's simulator
+ *   identities standing in for the player's device. A simulator-backed
+ *   deployment has no other option: Nokia answers `404 Target not found` for
+ *   any device the network does not know, and it knows only its own MSISDNs.
+ * - `DEMO_HARNESS` — no subscription exists anywhere but in our database.
+ *
+ * This lives in the domain rather than next to the SQL because one rule
+ * depends on it, and it is a safety rule.
+ */
+export type GeofenceOrigin = 'NOKIA' | 'NOKIA_SIMULATOR' | 'DEMO_HARNESS';
+
+/**
+ * Whether silence on this subscription is evidence of absence.
+ *
+ * Only `NOKIA` qualifies. The other two either watched a different device or
+ * watched nothing, and "no entry was reported" from them is a fact about
+ * something other than the player — which is exactly the claim a rejection
+ * would be making.
+ */
+export function watchesTheRealDevice(origin: GeofenceOrigin): boolean {
+  return origin === 'NOKIA';
 }
 
 /**

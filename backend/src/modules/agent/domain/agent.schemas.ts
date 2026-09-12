@@ -289,11 +289,18 @@ export const NetworkEvidenceSchema = z.discriminatedUnion('capability', [
              * parser — is still not a carrier observation, and must never be
              * displayed as one.
              */
-            origin: z.enum(['NOKIA', 'DEMO_HARNESS']).optional(),
+            origin: z.enum(['NOKIA', 'NOKIA_SIMULATOR', 'DEMO_HARNESS']).optional(),
           }),
         ),
-        /** Summary of the above, so a reader need not scan the events. */
-        eventSource: z.enum(['NOKIA_CALLBACK', 'DEMO_CLOUDEVENT_HARNESS']).optional(),
+        /**
+         * Summary of the above, so a reader need not scan the events.
+         * NOKIA_CALLBACK_SIMULATOR_DEVICE is a genuine Nokia delivery about a
+         * simulator identity standing in for the player's device — the network
+         * really spoke, just not about this player.
+         */
+        eventSource: z
+          .enum(['NOKIA_CALLBACK', 'NOKIA_CALLBACK_SIMULATOR_DEVICE', 'DEMO_CLOUDEVENT_HARNESS'])
+          .optional(),
       })
       .strict(),
   }),

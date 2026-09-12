@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { deterministicXp, explainXp } from '../src/modules/agent/domain/verification-policy.js';
 
-const bounds = { minXp: 5, maxXp: 100, minDurationMinutes: 240, maxDurationMinutes: 20_160 };
+// The thresholds play no part in either explanation — they gate a model's
+// confidence, not an award — but PolicyBounds is one object, so they are
+// supplied rather than the type widened.
+const bounds = {
+  minXp: 5,
+  maxXp: 100,
+  minDurationMinutes: 240,
+  maxDurationMinutes: 20_160,
+  approveThreshold: 0.75,
+  rejectThreshold: 0.85,
+};
 
 const shape = (overrides: Partial<Parameters<typeof explainXp>[0]> = {}) => ({
   distanceMeters: null,

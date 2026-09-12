@@ -92,7 +92,7 @@ export class CamaraGeofencingAdapter {
     } catch (error) {
       await Promise.all(created.map((id) => this.deleteSubscription(id)));
       const descriptor = describeCamaraError(error);
-      const reason = descriptor.status ? `Provider returned HTTP ${descriptor.status}` : 'Geofencing subscription failed';
+      const reason = describeSubscriptionFailure(descriptor);
       this.logger.warn({ providerError: descriptor }, 'CAMARA geofencing subscription failed');
       return { ok: false, reason };
     }
@@ -113,5 +113,51 @@ export class CamaraGeofencingAdapter {
   private clientOrNull(): NetworkAsCodeApiClient | null {
     if (!this.isConfigured()) return null;
     return this.clients.clientOrNull();
+  }
+}
+
+/**
+ * Turn a provider error into something an operator can act on.
+ *
+ * This function exists because the previous one line — "Provider returned
+ * HTTP ${status}" — cost a day. Every geofence in this deployment was failing
+ * with HTTP 404, which reads as "the API is not there" and sent the
+ * investigation at routing and entitlement. It was neither. Measured against
+ * the live gateway on 2026-09-13, on the same key and the same client that
+ * Location Verification succeeds on:
+ *
+ *   POST geofencing-subscriptions/v0.3/subscriptions, device +99999991001
+ *     → 201 Created
+ *   the same request, device +96170123456
+ *     → 404 { "detail": "Target not found" }
+ *
+ * So the 404 is about the DEVICE, not the endpoint: Nokia will only watch a
+ * device the network knows, and in a simulator-backed sandbox the only such
+ * devices are the simulator MSISDNs. A real player's number cannot be watched
+ * here, and no amount of configuration changes that.
+ *
+ * The three cases are kept apart because they have three different fixes —
+ * change the device, buy the entitlement, call support — and a reason string
+ * that collapses them sends whoever reads it to the wrong one.
+ */
+export function describeSubscriptionFailure(descriptor: {
+  readonly status?: number;
+  readonly detail?: string;
+}): string {
+  const detail = descriptor.detail ? ` — the provider said: ${descriptor.detail}` : '';
+  switch (descriptor.status) {
+    case 404:
+      return 'The network does not know this device, so there is nothing to watch. '
+        + 'Geofencing can only be opened for a device provisioned on the operator; '
+        + 'on a simulator-backed deployment that means one of Nokia\'s simulator '
+        + `MSISDNs${detail}`;
+    case 403:
+      return `This deployment is not entitled to CAMARA Geofencing Subscriptions${detail}`;
+    case 401:
+      return `The CAMARA credentials were rejected${detail}`;
+    default:
+      return descriptor.status
+        ? `Geofencing subscription failed: provider returned HTTP ${descriptor.status}${detail}`
+        : 'Geofencing subscription failed before the provider answered';
   }
 }

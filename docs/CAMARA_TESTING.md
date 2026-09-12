@@ -70,7 +70,8 @@ round-trip time, then the four-outcome matrix.
 - **Geofencing events** — Nokia POSTs entry/exit to a public webhook, so
   they cannot arrive at a laptop. Needs the deployed backend and
   `CAMARA_GEOFENCING_SINK_BASE_URL` pointing at it. Subscription creation
-  and deletion work locally; only inbound events do not.
+  and deletion work locally — but only for a device the network knows; see
+  the section below, which is the thing that actually stopped this working.
 - **`map_location_evidence`** — still has readers and no writer (#53). The
   hidden-quest geofence unlock stays blocked on it.
 
@@ -93,6 +94,64 @@ rather than degrading.
 So you can test good-proof and bad-proof against every location outcome
 **except** the ones that need a real geofence entry event, which need the
 live server regardless of CV.
+
+## Geofencing needs a device the network knows
+
+This cost a day, so it is written down in full.
+
+Every geofence in the local deployment was failing, and the recorded reason
+was `Provider returned HTTP 404`. A 404 from this gateway has a well-known
+meaning in this repo — `camara-client.factory.ts` documents that the wrong
+`x-rapidapi-host` produces `404 "API doesn't exists"` — so the obvious
+reading was that geofencing was mis-routed or not entitled.
+
+It was neither. Measured against the live gateway on 2026-09-13, on the same
+API key and the same SDK client that Location Verification succeeds on:
+
+| Request | Answer |
+|---|---|
+| `POST geofencing-subscriptions/v0.3/subscriptions`, device `+99999991001` | **201 Created** |
+| the same request, device `+96170123456` | **404** `{"detail": "Target not found"}` |
+| `POST geofencing-subscriptions/v0/…`, `…/v0.4/…`, `…/v1/…` | 404 `Endpoint … does not exist` |
+
+Two different 404s, and the body is the only thing that tells them apart —
+which is why `describeCamaraError` now keeps the problem-details `detail`
+and `describeSubscriptionFailure` maps 404 / 403 / 401 to three different
+sentences. "HTTP 404" sent the investigation to the wrong place.
+
+**The product is entitled and the routing is correct. Nokia simply will not
+watch a device it does not know**, and the simulator knows only its own
+MSISDNs. Every seeded account here has a `+961` number, so on a
+simulator-backed deployment *every* geofence failed, on every quest.
+
+So a deployment with `CAMARA_DEMO_PERSONAS_ENABLED=true` opens the watch
+against `GEOFENCE_SIMULATOR_DEVICE` (`+99999991001` — the identity whose
+Location Verification agrees with the Budapest coordinate Location Retrieval
+reports, so the three capabilities tell one story) and records the
+subscription with `origin = 'NOKIA_SIMULATOR'`. That flag is refused on
+production by the environment schema, so a live deployment cannot take this
+branch: it keeps asking about the player's own device and now fails with a
+sentence that says what to do about it.
+
+**What the stand-in may and may not be used for.** The subscription is real
+— Nokia holds it, `GET …/subscriptions/{id}` returns it, cancelling it is a
+real call — but its subject is not the player. So
+`CamaraEvidenceAdapter.geofencing` will not turn silence on it into
+`CONTRADICTED`; only `origin = 'NOKIA'` earns that. An entry event on it is
+usable and labelled `NOKIA_CALLBACK_SIMULATOR_DEVICE`, because the network
+really did speak — just not about this player. `camara-evidence.adapter.spec.ts`
+pins both halves, and migration `0051` carries the reasoning.
+
+To verify it end to end, assign a destination quest and look:
+
+```sql
+SELECT status, origin, array_length(provider_subscription_ids, 1), failure_reason
+FROM geofencing_subscriptions ORDER BY created_at DESC LIMIT 1;
+--  active | NOKIA_SIMULATOR | 2 |
+```
+
+Two provider subscriptions, because Nokia enforces one event type each
+(`area-entered`, `area-left`).
 
 ## Local stack
 

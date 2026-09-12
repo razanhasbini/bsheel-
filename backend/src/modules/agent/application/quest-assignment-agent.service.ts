@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Environment } from '../../../config/environment.js';
 import { CamaraEvidenceAdapter } from '../../../integrations/camara/camara-evidence.adapter.js';
 import { CamaraGeofencingAdapter } from '../../../integrations/camara/camara-geofencing.adapter.js';
+import { GEOFENCE_SIMULATOR_DEVICE, isSimulatorNumber } from '../../../integrations/camara/camara-personas.js';
 import { haversineMeters } from '../domain/geo.js';
 import {
   deterministicQuestMinutes,
@@ -11,6 +12,7 @@ import {
   type RewardShapeInputs,
 } from '../domain/verification-policy.js';
 import { AgentContextRepository, type AssignmentContextRow } from '../infrastructure/agent-context.repository.js';
+import type { GeofenceOrigin } from '../domain/network-evidence.port.js';
 import { GeofencingRepository } from '../infrastructure/geofencing.repository.js';
 import { AgentContextService } from './agent-context.service.js';
 import { QuestTimeRecommendationService } from './quest-time-recommendation.service.js';
@@ -123,6 +125,8 @@ export class QuestAssignmentAgentService {
       return;
     }
 
+    const device = this.geofenceDevice(assignment.phone_number);
+
     const callbackSecret = randomBytes(24).toString('base64url');
     const subscription = await this.geofencing.create({
       userQuestId: assignment.user_quest_id,
@@ -130,6 +134,7 @@ export class QuestAssignmentAgentService {
       callbackSecret,
       startsAt: assignment.assigned_at,
       expiresAt,
+      origin: device.origin,
     });
     // Null means a concurrent run already claimed this assignment's single
     // subscription slot — never create a second provider subscription.
@@ -142,7 +147,7 @@ export class QuestAssignmentAgentService {
     }
 
     const result = await this.geofencingProvider.createSubscription({
-      phoneNumber: assignment.phone_number,
+      phoneNumber: device.phoneNumber,
       place: {
         latitude: assignment.latitude,
         longitude: assignment.longitude,
@@ -155,7 +160,12 @@ export class QuestAssignmentAgentService {
 
     if (result.ok) {
       await this.geofencing.markActive(subscription.id, result.providerSubscriptionIds);
-      this.logger.log({ userQuestId: assignment.user_quest_id }, 'Geofence opened for the quest window');
+      this.logger.log(
+        { userQuestId: assignment.user_quest_id, origin: device.origin },
+        device.origin === 'NOKIA_SIMULATOR'
+          ? 'Geofence opened for the quest window against a Nokia simulator device — real subscription, stand-in subject'
+          : 'Geofence opened for the quest window',
+      );
     } else {
       await this.geofencing.markFailed(subscription.id, result.reason);
       this.logger.warn(
@@ -163,5 +173,41 @@ export class QuestAssignmentAgentService {
         'Geofence could not be opened; location-based approval will need a human',
       );
     }
+  }
+
+  /**
+   * Which device to open the watch against, and how honest the result is.
+   *
+   * Geofencing is the one CAMARA capability that cannot degrade gracefully:
+   * Location Verification can answer UNKNOWN, but a subscription either
+   * exists for the whole quest window or the evidence is simply missing when
+   * the proof arrives. And Nokia will only register one for a device the
+   * network knows — anything else comes back `404 Target not found`, measured
+   * 2026-09-13. Every account here has a real +961 number, so on a
+   * simulator-backed deployment that is *every* quest: the watch never opened
+   * once, and the failure read as "HTTP 404", which looks like an outage.
+   *
+   * So a demo deployment opens it against a simulator device instead. That
+   * gate is `CAMARA_DEMO_PERSONAS_ENABLED`, which already means "this
+   * deployment may address Nokia's simulator identities" and which the
+   * environment schema refuses to accept on production at all — so a live
+   * deployment cannot reach this branch and keeps asking about the player's
+   * own device, failing loudly and truthfully if the operator does not know
+   * it.
+   *
+   * The substitution is recorded, not hidden. `NOKIA_SIMULATOR` travels with
+   * the subscription and onto every event, and `CamaraEvidenceAdapter`
+   * refuses to read silence on one as evidence the player stayed away. The
+   * demo gets a real Nokia subscription, real delivery and a real
+   * cancellation; what it does not get is the right to convict anybody.
+   */
+  private geofenceDevice(phoneNumber: string): { phoneNumber: string; origin: GeofenceOrigin } {
+    // Already a simulator identity — signed in through Number Verification
+    // against the simulator. That IS the device, so nothing is standing in.
+    if (isSimulatorNumber(phoneNumber)) return { phoneNumber, origin: 'NOKIA' };
+    if (this.config.get('CAMARA_DEMO_PERSONAS_ENABLED', { infer: true })) {
+      return { phoneNumber: GEOFENCE_SIMULATOR_DEVICE, origin: 'NOKIA_SIMULATOR' };
+    }
+    return { phoneNumber, origin: 'NOKIA' };
   }
 }

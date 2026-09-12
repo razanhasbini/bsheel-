@@ -20,7 +20,11 @@ const query: LocationEvidenceQuery = {
   },
   windowStart: '2026-09-10T10:00:00.000Z',
   windowEnd: '2026-09-10T11:00:00.000Z',
-  geofence: { status: 'active', events: [{ type: 'ENTER', occurredAt: '2026-09-10T10:30:00.000Z' }] },
+  geofence: {
+    status: 'active',
+    origin: 'NOKIA',
+    events: [{ type: 'ENTER', occurredAt: '2026-09-10T10:30:00.000Z', origin: 'NOKIA' }],
+  },
 };
 
 function evidenceAdapter(input: {
@@ -72,7 +76,7 @@ describe('CAMARA location evidence mapping', () => {
     const evidence = await adapter.getBaselineEvidence({
       ...query,
       phoneNumber: null,
-      geofence: { status: 'missing', events: [] },
+      geofence: { status: 'missing', origin: 'NOKIA', events: [] },
     });
     expect(evidence).toHaveLength(3);
     for (const item of evidence) {
@@ -104,10 +108,49 @@ describe('CAMARA location evidence mapping', () => {
 
   it('distinguishes an active geofence with no entry from unavailable setup', async () => {
     const { adapter } = evidenceAdapter({});
-    const noEntry = await adapter.getBaselineEvidence({ ...query, geofence: { status: 'active', events: [] } });
+    const noEntry = await adapter.getBaselineEvidence({ ...query, geofence: { status: 'active', origin: 'NOKIA', events: [] } });
     expect(noEntry[2].outcome).toBe('CONTRADICTED');
-    const failed = await adapter.getBaselineEvidence({ ...query, geofence: { status: 'failed', events: [] } });
+    const failed = await adapter.getBaselineEvidence({ ...query, geofence: { status: 'failed', origin: 'NOKIA', events: [] } });
     expect(failed[2].outcome).toBe('UNAVAILABLE');
+  });
+
+  /// The safety that lets a demo deployment open a real geofence at all.
+  ///
+  /// Nokia refuses to watch a device the network does not know (404 "Target
+  /// not found"), and a simulator-backed sandbox knows only its own MSISDNs —
+  /// so the watch is opened against a stand-in identity. That subscription is
+  /// real: Nokia holds it and would deliver on it. What it is not is a
+  /// measurement of THIS player's device, so its silence cannot convict them.
+  /// Only NOKIA silence may.
+  it('never reads silence on a stand-in or harness subscription as absence', async () => {
+    const { adapter } = evidenceAdapter({});
+    for (const origin of ['NOKIA_SIMULATOR', 'DEMO_HARNESS'] as const) {
+      const evidence = await adapter.getBaselineEvidence({
+        ...query,
+        geofence: { status: 'active', origin, events: [] },
+      });
+      expect(evidence[2].outcome).toBe('UNAVAILABLE');
+      expect(evidence[2].outcome).not.toBe('CONTRADICTED');
+    }
+  });
+
+  /// An entry on a stand-in subscription really was delivered by Nokia, so it
+  /// is usable — but a reader must be able to tell that the network spoke
+  /// about a stand-in rather than about this player, from the stored evidence
+  /// and not from wording chosen in a UI.
+  it('labels an entry delivered for a stand-in device as such', async () => {
+    const { adapter } = evidenceAdapter({});
+    const evidence = await adapter.getBaselineEvidence({
+      ...query,
+      geofence: {
+        status: 'active',
+        origin: 'NOKIA_SIMULATOR',
+        events: [{ type: 'ENTER', occurredAt: '2026-09-10T10:30:00.000Z', origin: 'NOKIA_SIMULATOR' }],
+      },
+    });
+    expect(evidence[2].outcome).toBe('SUPPORTED');
+    expect((evidence[2].result as { eventSource?: string }).eventSource)
+      .toBe('NOKIA_CALLBACK_SIMULATOR_DEVICE');
   });
 });
 

@@ -106,6 +106,21 @@ export const DEMO_PERSONA_IDS: readonly CamaraPersonaId[] = [
   'LOCATION_UNKNOWN',
 ];
 
+/**
+ * The simulator identity a demo deployment opens geofences against.
+ *
+ * Geofencing needs a device the network knows, and a simulator-backed
+ * deployment has exactly five. LOCATION_INSIDE is the coherent choice: it is
+ * the identity whose Location Verification agrees with the coordinate
+ * Location Retrieval reports for every simulator device, so the geofence and
+ * the two synchronous capabilities tell the same story instead of visibly
+ * contradicting each other in front of a judge.
+ *
+ * It is a STAND-IN, never the player. Everything registered against it is
+ * recorded with origin NOKIA_SIMULATOR for that reason.
+ */
+export const GEOFENCE_SIMULATOR_DEVICE = '+99999991001';
+
 const BY_ID = new Map(CAMARA_PERSONAS.map((persona) => [persona.id, persona]));
 const BY_NUMBER = new Map(CAMARA_PERSONAS.map((persona) => [persona.phoneNumber, persona]));
 
