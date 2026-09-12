@@ -1,3 +1,5 @@
+import 'dart:math';
+
 class MapCountry {
   const MapCountry(
       {required this.code,
@@ -266,11 +268,40 @@ class MapQuest {
       requiresVerification: j['requires_verification'] == true);
 }
 
+/// One piece of proof standing at a place, as the place sheet shows it.
+///
+/// Carries its media so the sheet can draw the picture rather than a play
+/// button: this is what a moment tile's "+N more" opens into, and a wall of
+/// identical icons answers none of what somebody tapped it to see.
 class MapPreview {
-  const MapPreview({required this.id, required this.username});
+  const MapPreview({
+    required this.id,
+    required this.username,
+    this.mediaUrl = '',
+    this.mediaType = 'image',
+    this.questId = '',
+    this.questTitle = '',
+  });
   final String id, username;
-  factory MapPreview.fromJson(Map<String, dynamic> j) =>
-      MapPreview(id: j['id'] as String, username: j['username'] as String);
+
+  /// Signed for display by the repository, like every other media URL.
+  final String mediaUrl;
+
+  /// `image` or `video`.
+  final String mediaType;
+
+  /// The quest this proof was submitted for — so the sheet can offer it.
+  final String questId, questTitle;
+
+  bool get isVideo => mediaType == 'video';
+
+  factory MapPreview.fromJson(Map<String, dynamic> j) => MapPreview(
+      id: j['id'] as String,
+      username: j['username'] as String,
+      mediaUrl: j['media_url'] as String? ?? '',
+      mediaType: j['media_type'] as String? ?? 'image',
+      questId: j['quest_id'] as String? ?? '',
+      questTitle: j['quest_title'] as String? ?? '');
 }
 
 class MapPlaceDetail {
@@ -287,4 +318,138 @@ class MapPlaceDetail {
       previews: (j['previews'] as List)
           .map((p) => MapPreview.fromJson(Map<String, dynamic>.from(p as Map)))
           .toList());
+}
+
+/// One piece of proof from the feed, pinned where it happened — the map's
+/// moments layer (Snap/Instagram-map shaped).
+///
+/// Everything here is already public on the feed; the map is a second way
+/// to come across it, not a second audience for it.
+///
+/// [latitude]/[longitude] are the **place's** coordinates, not the
+/// photograph's: Bsheel knows which place a quest belonged to, and does not
+/// know — or want to publish — where somebody stood. Several moments at one
+/// place therefore share a point, which is what [scatterOffset] exists for:
+/// the map spreads the tiles deterministically inside [radiusM] so they can
+/// be told apart, without either side pretending the spread is data.
+class MapMoment {
+  const MapMoment({
+    required this.id,
+    required this.mediaUrl,
+    required this.mediaType,
+    required this.submittedAt,
+    required this.netScore,
+    required this.caption,
+    required this.questId,
+    required this.questTitle,
+    required this.questCategory,
+    required this.placeId,
+    required this.placeName,
+    required this.city,
+    required this.countryCode,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusM,
+    required this.userId,
+    required this.username,
+    this.avatarUrl,
+    this.moreCount = 0,
+    this.questCount = 0,
+  });
+
+  /// The submission id — also the route parameter for the post itself.
+  final String id;
+
+  /// Signed for display by the repository, exactly as the feed signs its
+  /// media. Empty when signing failed, which the tile renders as a
+  /// placeholder rather than a broken image.
+  final String mediaUrl;
+
+  /// `image` or `video`.
+  final String mediaType;
+  final DateTime submittedAt;
+  final int netScore;
+  final String caption;
+  final String questId, questTitle, questCategory;
+  final String placeId, placeName, city, countryCode;
+  final double latitude, longitude;
+  final int radiusM;
+  final String userId, username;
+
+  /// The author's avatar, signed for display like the media. Null when they
+  /// have not set one — the tile falls back to their initial.
+  final String? avatarUrl;
+
+  /// How much else is standing at this place, drawn as "+N more" under the
+  /// tile. The map shows ONE piece of proof per place; this is the rest of
+  /// it, counted rather than drawn, so a busy landmark cannot bury the
+  /// board. Opening the place is where the full set lives.
+  final int moreCount;
+
+  /// Active, non-hidden quests on offer at this place. The tile says there
+  /// is something to *do* here, not only something to look at — which is
+  /// the whole reason the proof is on the map.
+  final int questCount;
+
+  bool get isVideo => mediaType == 'video';
+
+  factory MapMoment.fromJson(Map<String, dynamic> j) => MapMoment(
+        id: j['id'] as String,
+        mediaUrl: j['media_url'] as String? ?? '',
+        mediaType: j['media_type'] as String? ?? 'image',
+        submittedAt:
+            DateTime.tryParse(j['submitted_at'] as String? ?? '')?.toLocal() ??
+                DateTime.now(),
+        // bigint, and node-postgres hands bigints back as strings rather
+        // than numbers — a plain `as num` cast throws on the real response.
+        netScore: switch (j['net_score']) {
+          final num value => value.toInt(),
+          final String value => int.tryParse(value) ?? 0,
+          _ => 0,
+        },
+        caption: j['caption'] as String? ?? '',
+        questId: j['quest_id'] as String,
+        questTitle: j['quest_title'] as String? ?? '',
+        questCategory: j['quest_category'] as String? ?? '',
+        placeId: j['place_id'] as String,
+        placeName: j['place_name'] as String? ?? '',
+        city: j['city'] as String? ?? '',
+        countryCode: j['country_code'] as String? ?? '',
+        latitude: (j['latitude'] as num).toDouble(),
+        longitude: (j['longitude'] as num).toDouble(),
+        radiusM: (j['radius_m'] as num?)?.toInt() ?? 250,
+        userId: j['user_id'] as String,
+        username: j['username'] as String? ?? '',
+        avatarUrl: (j['avatar_url'] as String?)?.isEmpty == true
+            ? null
+            : j['avatar_url'] as String?,
+        moreCount: (j['more_count'] as num?)?.toInt() ?? 0,
+        questCount: (j['quest_count'] as num?)?.toInt() ?? 0,
+      );
+
+  /// Where to draw this moment's tile, in metres east and north of the
+  /// place's own point.
+  ///
+  /// Deterministic in the submission id, so a tile keeps its spot across
+  /// rebuilds, pans and app restarts — a tile that wandered on every frame
+  /// would read as live movement, which is the one thing this must never
+  /// suggest. Kept inside 70% of the place radius (and never more than 120 m,
+  /// so a 10 km geofence does not fling proof across a city) and bounded
+  /// below so two moments cannot land on the same pixel.
+  ///
+  /// The square root on the radius is what spreads them evenly over the
+  /// disc; without it they crowd the centre.
+  ({double east, double north}) get scatterOffset {
+    var hash = 0x811c9dc5;
+    for (final unit in id.codeUnits) {
+      hash = (hash ^ unit) * 0x01000193 & 0x7fffffff;
+    }
+    final angle = (hash % 3600) / 3600 * 2 * pi;
+    final spread = (radiusM * 0.7).clamp(20.0, 120.0);
+    // 0.35..1.0 of the spread: never on top of the pin, never at the rim.
+    // The square root is what spreads them evenly over the disc; without it
+    // they crowd the centre.
+    final distance = spread * (0.35 + 0.65 * sqrt(((hash >> 12) % 1000) / 1000));
+    return (east: distance * cos(angle), north: distance * sin(angle));
+  }
 }

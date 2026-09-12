@@ -60,6 +60,17 @@ final mapDiscoverProvider =
   return ref.watch(mapRepositoryProvider).discover(code);
 });
 
+/// Recent proof from the feed, pinned where it happened — the moments layer.
+///
+/// Keyed on the selected country (null = everywhere) so switching countries
+/// does not refetch the world, and autoDispose so leaving the map drops the
+/// signed URLs rather than holding them past their expiry.
+final mapMomentsProvider =
+    FutureProvider.autoDispose.family<List<MapMoment>, String?>((ref, country) {
+  ref.watch(authSessionProvider);
+  return ref.watch(mapRepositoryProvider).moments(country: country);
+});
+
 /// Whether the page loads OpenStreetMap tiles. Widget tests turn it off: the
 /// test HTTP client answers every tile with 400 and the map is still fully
 /// exercisable on its fog, pins and sheets alone.

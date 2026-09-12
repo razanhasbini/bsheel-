@@ -15,9 +15,13 @@ import 'package:go_router/go_router.dart';
 // the pin stem painter draws with.
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_ui/shared_ui.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/providers/current_profile_provider.dart';
+import '../../../core/providers/auth_session_provider.dart';
 import '../../../core/router/route_names.dart';
+import '../../reactions/presentation/widgets/bsheeel_dialog.dart'
+    show assignQuestFlow;
 import '../data/live_location_provider.dart';
 import '../data/map_providers.dart';
 import '../domain/map_geometry.dart';
@@ -94,6 +98,14 @@ class _MapPageState extends ConsumerState<MapPage>
 
   /// Zoomed out enough to show country badges rather than pins.
   bool _badges = true;
+
+  /// Whether the moments layer is drawn — the photo and video squares from
+  /// the feed, sitting at the place they were earned. On by default: seeing
+  /// that somebody actually did this here is the whole reason to look at a
+  /// map rather than a list. The toggle exists because they are also the
+  /// densest thing on the board, and a player hunting for one specific pin
+  /// deserves to be able to clear the clutter.
+  bool _moments = true;
 
   // ── Camera flight ─────────────────────────────────────────────────────
   // flutter_map moves the camera in one jump; the flight is a tween over
@@ -209,6 +221,13 @@ class _MapPageState extends ConsumerState<MapPage>
         ref.watch(activeJourneysProvider).valueOrNull ?? const <JourneyRun>[];
     final tiles = ref.watch(mapTilesEnabledProvider);
     final me = ref.watch(currentProfileProvider).valueOrNull;
+    // Only fetched once the board is worth drawing them on: at world zoom
+    // every tile would land on the same few pixels anyway, and the request
+    // carries signed URLs that start expiring the moment they are issued.
+    final moments = _moments && !_badges
+        ? ref.watch(mapMomentsProvider(_country)).valueOrNull ??
+            const <MapMoment>[]
+        : const <MapMoment>[];
 
     final countryRows = countries.valueOrNull ?? const <MapCountry>[];
     final rows = (places.valueOrNull ?? const <MapPlace>[])
@@ -328,6 +347,25 @@ class _MapPageState extends ConsumerState<MapPage>
                           onTap: () => _travelTo(c, everyPlace, navInset),
                         ),
                       ),
+                    // Moments first, so a place pin is always the thing on
+                    // top: the pin is what starts a quest, and a photo
+                    // covering it would cost the player the action.
+                    if (showPins)
+                      for (final moment in moments)
+                        Marker(
+                          point: _scatter(moment),
+                          // Card (66) + gap + the "+N more" chip, plus the
+                          // avatar ring's 6 of overhang. Measured, not
+                          // guessed: a Marker gives its child a fixed box
+                          // and a pixel short of it is a RenderFlex overflow
+                          // on every tile.
+                          width: 76,
+                          height: 104,
+                          child: _MomentTile(
+                            moment: moment,
+                            onTap: () => _openMoment(moment),
+                          ),
+                        ),
                     if (showPins)
                       for (final p in rows)
                         Marker(
@@ -512,6 +550,24 @@ class _MapPageState extends ConsumerState<MapPage>
               ),
             ),
           ),
+
+          // ── Right: moments toggle, above locate-me ───────────────────
+          if (!_badges)
+            Positioned(
+              right: 14,
+              bottom: navInset + 52,
+              child: _SmallButton(
+                icon: _moments
+                    ? Icons.photo_camera_rounded
+                    : Icons.photo_camera_outlined,
+                tooltip: _moments ? 'Hide quest moments' : 'Show quest moments',
+                active: _moments,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _moments = !_moments);
+                },
+              ),
+            ),
 
           // ── Right: locate me ─────────────────────────────────────────
           Positioned(
@@ -701,6 +757,75 @@ class _MapPageState extends ConsumerState<MapPage>
         },
       ),
     );
+  }
+
+  /// Where a moment's tile sits: its place's point, nudged by the metres
+  /// its own id decides.
+  ///
+  /// Several people completing quests at one landmark all carry that
+  /// landmark's coordinate — the only location Bsheel holds — so without the
+  /// nudge they stack into a single square and the map says one person went.
+  /// The offset is a presentation device and nothing else: it is derived
+  /// from the submission id rather than from anything about the person, it
+  /// never leaves the place's own radius, and it is stable, because a tile
+  /// that drifted between frames would read as somebody moving.
+  LatLng _scatter(MapMoment moment) {
+    final offset = moment.scatterOffset;
+    // Metres to degrees. Longitude degrees shrink towards the poles, which
+    // matters even across one country: an unadjusted offset elongates the
+    // scatter east-west the further north a place is.
+    const metresPerDegreeLat = 111320.0;
+    final metresPerDegreeLng =
+        metresPerDegreeLat * math.cos(moment.latitude * math.pi / 180);
+    return LatLng(
+      moment.latitude + offset.north / metresPerDegreeLat,
+      moment.longitude +
+          (metresPerDegreeLng.abs() < 1
+              ? 0
+              : offset.east / metresPerDegreeLng),
+    );
+  }
+
+  /// Opens the moment itself — the picture or the video — with the quest
+  /// behind it offered on the same screen.
+  ///
+  /// A pin answers "what can I do here"; a moment answers "what did somebody
+  /// actually do", and the two want different screens. Tapping a photograph
+  /// and being shown a list of quest titles loses the thing that was tapped.
+  /// So this plays the proof and puts DO THIS QUEST under it: the picture is
+  /// the pitch, the button is the answer to it.
+  ///
+  /// Everything else at the same place is one tap further on, which is what
+  /// the card's "+N more" refers to.
+  Future<void> _openMoment(MapMoment moment) async {
+    HapticFeedback.lightImpact();
+    final places = [
+      ...(ref.read(mapPlacesProvider(_filter)).valueOrNull ?? const <MapPlace>[]),
+      ...(ref.read(mapPlacesProvider(mapAllPlacesFilter)).valueOrNull ??
+          const <MapPlace>[]),
+    ];
+    final place = places.where((p) => p.id == moment.placeId).firstOrNull;
+    await showModalBottomSheet<void>(
+      context: context,
+      // Above the shell, so the floating nav pill never covers the sheet.
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: QuestColors.osBg,
+      builder: (_) => _MomentSheet(
+        moment: moment,
+        // Null when a filter has hidden the pin: the sheet then drops the
+        // "see everything here" row rather than offering a dead tap.
+        place: place,
+        onOpenPlace: place == null
+            ? null
+            : () {
+                Navigator.pop(context);
+                _openPlace(place);
+              },
+      ),
+    );
+    if (mounted) ref.invalidate(mapMomentsProvider(_country));
   }
 
   Future<void> _openPlace(MapPlace place) async {
@@ -1074,6 +1199,471 @@ String _pinEmoji(MapPlace p) {
     'heritage' => '🏛️',
     _ => '⭐',
   };
+}
+
+/// The moment itself: the proof, then the quest that produced it.
+///
+/// This is what a card on the map opens into, and the order is the argument.
+/// The picture or the video comes first at full width, because that is what
+/// was tapped and what makes somebody want the quest. DO THIS QUEST sits
+/// directly under it, so the gap between "that looks worth doing" and having
+/// it assigned is one button rather than a hunt through a list.
+///
+/// A video plays here rather than sending the player to the feed: being
+/// bounced to another screen to watch the thing you just tapped is how the
+/// invitation gets lost. The full post — votes, comments, report — is still
+/// one tap away, because those rules live in one place and are not
+/// reimplemented here.
+class _MomentSheet extends ConsumerStatefulWidget {
+  const _MomentSheet({
+    required this.moment,
+    required this.place,
+    required this.onOpenPlace,
+  });
+
+  final MapMoment moment;
+
+  /// Null when the place is filtered off the board; the "everything here"
+  /// row is then dropped rather than offering a tap that goes nowhere.
+  final MapPlace? place;
+  final VoidCallback? onOpenPlace;
+
+  @override
+  ConsumerState<_MomentSheet> createState() => _MomentSheetState();
+}
+
+class _MomentSheetState extends ConsumerState<_MomentSheet> {
+  VideoPlayerController? _video;
+  bool _videoReady = false;
+  bool _videoFailed = false;
+  bool _taking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.moment.isVideo && widget.moment.mediaUrl.isNotEmpty) {
+      final controller =
+          VideoPlayerController.networkUrl(Uri.parse(widget.moment.mediaUrl));
+      _video = controller;
+      controller.initialize().then((_) {
+        if (!mounted) return;
+        // Looping and muted: this is a preview inside a sheet, not the feed.
+        // Sound that starts itself under somebody's thumb on a map is a
+        // surprise, and the post is where watching it properly happens.
+        controller
+          ..setLooping(true)
+          ..setVolume(0)
+          ..play();
+        setState(() => _videoReady = true);
+      }).catchError((Object _) {
+        if (mounted) setState(() => _videoFailed = true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _video?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _doQuest() async {
+    final user = ref.read(authSessionProvider);
+    if (user == null) return;
+    setState(() => _taking = true);
+    try {
+      await assignQuestFlow(
+        context: context,
+        ref: ref,
+        questId: widget.moment.questId,
+        questTitle: widget.moment.questTitle,
+        userId: user.id,
+      );
+    } finally {
+      if (mounted) setState(() => _taking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final moment = widget.moment;
+    final signedIn = ref.watch(authSessionProvider) != null;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      builder: (context, scroll) => ListView(
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        children: [
+          Row(children: [
+            _AuthorRing(
+                avatarUrl: moment.avatarUrl, username: moment.username),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('@${moment.username}',
+                  style: QuestTypography.osHeadlineSmall,
+                  overflow: TextOverflow.ellipsis),
+            ),
+            IconButton(
+              tooltip: 'Close',
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // The proof, at full width. 4:5 because that is the shape most
+          // phone photos and clips arrive in; BoxFit.cover keeps the frame
+          // honest rather than letterboxing every one of them.
+          AspectRatio(
+            aspectRatio: 4 / 5,
+            child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: QuestColors.category(moment.questCategory),
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
+                border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: QuestSpacing.cardBorderWidth),
+                boxShadow: QuestSpacing.shadowSm,
+              ),
+              child: _media(moment),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(moment.questTitle.toUpperCase(),
+              style: QuestTypography.osDisplaySmall),
+          const SizedBox(height: 4),
+          Text(
+            '${moment.placeName}'
+            '${moment.city.isEmpty ? '' : ' · ${moment.city}'}'
+            ' · ${moment.questCategory.toUpperCase()}',
+            style: QuestTypography.osLabelSmall
+                .copyWith(color: QuestColors.osTextSecondary),
+          ),
+          if (moment.caption.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(moment.caption, style: QuestTypography.osBodyMedium),
+          ],
+          const SizedBox(height: 16),
+          // The answer to the picture.
+          ArcadeButton(
+            label: _taking ? 'TAKING…' : 'DO THIS QUEST',
+            icon: Icons.flag_rounded,
+            isLoading: _taking,
+            onTap: (!signedIn || _taking) ? null : _doQuest,
+          ),
+          const SizedBox(height: 12),
+          ArcadeButton(
+            label: 'OPEN POST',
+            icon: Icons.chat_bubble_outline,
+            variant: ArcadeButtonVariant.ghost,
+            onTap: () {
+              Navigator.pop(context);
+              context.pushNamed(RouteNames.feedPostDetails,
+                  pathParameters: {'id': moment.id});
+            },
+          ),
+          if (widget.onOpenPlace != null) ...[
+            const SizedBox(height: 12),
+            ArcadeButton(
+              label: moment.moreCount > 0
+                  ? 'SEE ALL ${moment.moreCount + 1} AT ${moment.placeName.toUpperCase()}'
+                  : 'EVERYTHING AT ${moment.placeName.toUpperCase()}',
+              icon: Icons.place_rounded,
+              variant: ArcadeButtonVariant.ghost,
+              onTap: widget.onOpenPlace,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _media(MapMoment moment) {
+    if (!moment.isVideo) {
+      if (moment.mediaUrl.isEmpty) {
+        return const Center(child: Text('📷', style: TextStyle(fontSize: 34)));
+      }
+      return CachedNetworkImage(
+        imageUrl: moment.mediaUrl,
+        fit: BoxFit.cover,
+        placeholder: (_, __) =>
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        errorWidget: (_, __, ___) =>
+            const Center(child: Text('📷', style: TextStyle(fontSize: 34))),
+      );
+    }
+    if (_videoFailed || moment.mediaUrl.isEmpty) {
+      // Says what happened instead of spinning forever on a clip that will
+      // never arrive — the quest below is still takeable either way.
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('This clip could not be loaded. Open the post to try again.',
+              textAlign: TextAlign.center),
+        ),
+      );
+    }
+    final video = _video;
+    if (!_videoReady || video == null) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: video.value.size.width,
+            height: video.value.size.height,
+            child: VideoPlayer(video),
+          ),
+        ),
+        // Muted by default, so say so and let it be turned up here rather
+        // than only in the post.
+        Positioned(
+          right: 8,
+          bottom: 8,
+          child: _MuteToggle(controller: video),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sound toggle for the moment sheet's clip.
+class _MuteToggle extends StatefulWidget {
+  const _MuteToggle({required this.controller});
+  final VideoPlayerController controller;
+
+  @override
+  State<_MuteToggle> createState() => _MuteToggleState();
+}
+
+class _MuteToggleState extends State<_MuteToggle> {
+  bool _muted = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: _muted ? 'Unmute' : 'Mute',
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _muted = !_muted);
+          widget.controller.setVolume(_muted ? 0 : 1);
+        },
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: QuestColors.osCard,
+            shape: BoxShape.circle,
+            border: Border.all(
+                color: QuestColors.osTextPrimary,
+                width: QuestSpacing.cardBorderWidth),
+          ),
+          child: Icon(_muted ? Icons.volume_off : Icons.volume_up, size: 18),
+        ),
+      ),
+    );
+  }
+}
+
+/// One piece of proof from the feed, as a card on the map.
+///
+/// The Snap/Instagram-map shape: the media fills a rounded card, the author
+/// rides in a ring on its corner, and everything else standing at the same
+/// place is summarised underneath as "+N more" rather than drawn as more
+/// cards. One place, one card — a landmark with two hundred completions
+/// cannot bury the rest of the board.
+///
+/// The difference from those maps, and it is the point: this is not a
+/// postcard, it is an **invitation**. Tapping it opens the place, where the
+/// quest that produced the picture can be taken. That is why the card
+/// carries the quest count — somebody did something here that you can go
+/// and do.
+///
+/// The coordinate is the **place's**, not the photographer's. Bsheel does
+/// not store where a photograph was taken, and the one source that could
+/// approximate it is telecom verification somebody consented to for a
+/// single quest.
+///
+/// A photo draws itself. A video draws its category tint and a play glyph:
+/// there are no server-side poster frames yet, and decoding one per marker
+/// would mean a video decoder per card on a map being panned.
+class _MomentTile extends StatelessWidget {
+  const _MomentTile({required this.moment, required this.onTap});
+  final MapMoment moment;
+  final VoidCallback onTap;
+
+  static const double _cardW = 54;
+  static const double _cardH = 66;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = QuestColors.category(moment.questCategory);
+    final more = moment.moreCount;
+    final semantics = [
+      '${moment.isVideo ? 'Video' : 'Photo'} proof by ${moment.username}',
+      'at ${moment.placeName}',
+      if (more > 0) 'and $more more',
+      if (moment.questCount > 0)
+        '${moment.questCount} quest${moment.questCount == 1 ? '' : 's'} here',
+    ].join(', ');
+
+    return Tooltip(
+      message: '${moment.placeName} · ${moment.questTitle} · @${moment.username}'
+          '${more > 0 ? ' · +$more more' : ''}',
+      child: Semantics(
+        button: true,
+        label: semantics,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: _cardW,
+                    height: _cardH,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: tint,
+                      borderRadius:
+                          BorderRadius.circular(QuestSpacing.radiusPanel),
+                      border: Border.all(
+                          color: QuestColors.osTextPrimary,
+                          width: QuestSpacing.cardBorderWidth),
+                      boxShadow: QuestSpacing.shadowSm,
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (!moment.isVideo && moment.mediaUrl.isNotEmpty)
+                          CachedNetworkImage(
+                            imageUrl: moment.mediaUrl,
+                            fit: BoxFit.cover,
+                            memCacheWidth: (_cardW * 3).round(),
+                            placeholder: (_, __) => const SizedBox.shrink(),
+                            errorWidget: (_, __, ___) =>
+                                const Center(child: Text('📷')),
+                          ),
+                        if (!moment.isVideo && moment.mediaUrl.isEmpty)
+                          const Center(child: Text('📷')),
+                        if (moment.isVideo)
+                          const Center(
+                            child: Icon(Icons.play_arrow_rounded,
+                                size: 26, color: QuestColors.osTextPrimary),
+                          ),
+                        // A quest waiting here, marked on the card: the
+                        // picture is the invitation, this is the promise
+                        // there is something to accept.
+                        if (moment.questCount > 0)
+                          Positioned(
+                            top: 3,
+                            right: 3,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: QuestColors.osCard,
+                                borderRadius: BorderRadius.circular(
+                                    QuestSpacing.radiusFull),
+                                border: Border.all(
+                                    color: QuestColors.osTextPrimary,
+                                    width: 1),
+                              ),
+                              child: Text('⚑${moment.questCount}',
+                                  style: QuestTypography.osLabelSmall
+                                      .copyWith(fontSize: 8, height: 1)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // The author's ring, the way the reference maps do it —
+                  // proof belongs to a person, and the face is what makes it
+                  // read as somebody's rather than as stock photography.
+                  Positioned(
+                    left: -6,
+                    bottom: -6,
+                    child: _AuthorRing(
+                        avatarUrl: moment.avatarUrl, username: moment.username),
+                  ),
+                ],
+              ),
+              if (more > 0) ...[
+                const SizedBox(height: 7),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: QuestColors.osCard,
+                    borderRadius:
+                        BorderRadius.circular(QuestSpacing.radiusFull),
+                    border: Border.all(
+                        color: QuestColors.osTextPrimary, width: 1),
+                  ),
+                  child: Text('+$more more',
+                      style: QuestTypography.osLabelSmall
+                          .copyWith(fontSize: 9, height: 1.1)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The avatar ring on a moment card. Falls back to the first letter of the
+/// username, because a missing picture must not leave a hole where the
+/// author should be.
+class _AuthorRing extends StatelessWidget {
+  const _AuthorRing({required this.avatarUrl, required this.username});
+  final String? avatarUrl;
+  final String username;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial =
+        username.isEmpty ? '?' : username.substring(0, 1).toUpperCase();
+    return Container(
+      width: 22,
+      height: 22,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: QuestColors.osCard,
+        shape: BoxShape.circle,
+        border:
+            Border.all(color: QuestColors.osTextPrimary, width: 1.5),
+        boxShadow: QuestSpacing.shadowSm,
+      ),
+      alignment: Alignment.center,
+      child: avatarUrl == null || avatarUrl!.isEmpty
+          ? Text(initial,
+              style: QuestTypography.osLabelSmall
+                  .copyWith(fontSize: 10, height: 1))
+          : CachedNetworkImage(
+              imageUrl: avatarUrl!,
+              fit: BoxFit.cover,
+              width: 22,
+              height: 22,
+              memCacheWidth: 66,
+              placeholder: (_, __) => const SizedBox.shrink(),
+              errorWidget: (_, __, ___) => Text(initial,
+                  style: QuestTypography.osLabelSmall
+                      .copyWith(fontSize: 10, height: 1)),
+            ),
+    );
+  }
 }
 
 class _PinGlyph extends StatelessWidget {
@@ -2221,33 +2811,110 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
                                                   QuestColors.osTextSecondary),
                                     ),
                                   ),
+                                // What the map tile's "+N more" opens into:
+                                // the proof standing here, as pictures. A
+                                // grid of play buttons answered none of what
+                                // somebody tapped a photograph to see.
                                 if (detail.previews.isNotEmpty) ...[
                                   const SizedBox(height: 16),
-                                  Text('QUEST VIDEOS',
+                                  Text(
+                                      'PROOF FROM HERE · ${detail.previews.length}',
                                       style: QuestTypography.osHeadlineMedium),
                                   const SizedBox(height: 8),
-                                  Wrap(spacing: 12, children: [
-                                    for (final p in detail.previews)
-                                      Column(children: [
-                                        IconButton.filled(
-                                            tooltip:
-                                                'Watch quest by ${p.username}',
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                              context.pushNamed(
-                                                  RouteNames.feedPostDetails,
-                                                  pathParameters: {'id': p.id});
-                                            },
-                                            icon: const Icon(
-                                                Icons.play_circle_outline,
-                                                size: 36)),
-                                        Text(p.username,
-                                            style: QuestTypography.osLabelSmall)
-                                      ])
-                                  ])
+                                  SizedBox(
+                                    height: 116,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: detail.previews.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(width: 10),
+                                      itemBuilder: (context, i) => _ProofThumb(
+                                        preview: detail.previews[i],
+                                        onTap: () {
+                                          Navigator.pop(context);
+                                          context.pushNamed(
+                                              RouteNames.feedPostDetails,
+                                              pathParameters: {
+                                                'id': detail.previews[i].id
+                                              });
+                                        },
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ])),
                 ]));
+  }
+}
+
+/// One piece of proof in the place sheet's strip.
+///
+/// Photo draws itself; video is a play card for the same reason the map tile
+/// is — there are no poster frames yet. Tapping either opens the post, where
+/// the video actually plays and the votes and comments live.
+class _ProofThumb extends StatelessWidget {
+  const _ProofThumb({required this.preview, required this.onTap});
+  final MapPreview preview;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label:
+          '${preview.isVideo ? 'Video' : 'Photo'} by ${preview.username}'
+          '${preview.questTitle.isEmpty ? '' : ', ${preview.questTitle}'}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 88,
+              height: 92,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: QuestColors.osSurface,
+                borderRadius: BorderRadius.circular(QuestSpacing.radiusPanel),
+                border: Border.all(
+                    color: QuestColors.osTextPrimary,
+                    width: QuestSpacing.cardBorderWidth),
+                boxShadow: QuestSpacing.shadowSm,
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (!preview.isVideo && preview.mediaUrl.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: preview.mediaUrl,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 264,
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) =>
+                          const Center(child: Text('📷')),
+                    ),
+                  if (preview.isVideo)
+                    const Center(
+                        child: Icon(Icons.play_circle_outline, size: 34)),
+                  if (!preview.isVideo && preview.mediaUrl.isEmpty)
+                    const Center(child: Text('📷')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 88,
+              child: Text('@${preview.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: QuestTypography.osLabelSmall),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

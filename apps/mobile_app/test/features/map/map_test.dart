@@ -62,6 +62,53 @@ class _MapRepo extends Fake implements MapRepository {
           longitude: 35.5),
       quests: [],
       previews: []);
+  /// Two moments at the one fixture place — the case the scatter exists
+  /// for, since both carry that place's coordinate.
+  @override
+  Future<List<MapMoment>> moments({String? country, int limit = 60}) async => [
+        MapMoment(
+            id: 'moment-photo',
+            mediaUrl: 'https://example.test/photo.png',
+            mediaType: 'image',
+            submittedAt: DateTime(2026, 9, 1),
+            netScore: 3,
+            caption: '',
+            questId: 'quest',
+            questTitle: 'Fixture quest',
+            questCategory: 'adventure',
+            placeId: 'place',
+            placeName: 'Test landmark',
+            city: 'Test',
+            countryCode: 'LB',
+            latitude: 33.9,
+            longitude: 35.5,
+            radiusM: 250,
+            userId: 'u1',
+            username: 'layla',
+            moreCount: 4,
+            questCount: 2),
+        MapMoment(
+            id: 'moment-video',
+            mediaUrl: 'https://example.test/clip.mp4',
+            mediaType: 'video',
+            submittedAt: DateTime(2026, 9, 2),
+            netScore: 8,
+            caption: '',
+            questId: 'quest',
+            questTitle: 'Fixture quest',
+            questCategory: 'creativity',
+            placeId: 'place',
+            placeName: 'Test landmark',
+            city: 'Test',
+            countryCode: 'LB',
+            latitude: 33.9,
+            longitude: 35.5,
+            radiusM: 250,
+            userId: 'u2',
+            username: 'omar',
+            questCount: 1),
+      ];
+
   @override
   Future<void> save(String id, bool value) async {
     saved = value;
@@ -164,5 +211,112 @@ void main() {
     // Exploration counts approved proof only: 2 of 10 places, not 3.
     expect(find.text('LEBANON · 20%'), findsOneWidget);
     expect(find.text('2 confirmed · 1 awaiting review'), findsOneWidget);
+  });
+
+  test('moments at one place scatter, stably and inside the radius', () {
+    MapMoment at(String id, {int radiusM = 250}) => MapMoment(
+        id: id,
+        mediaUrl: '',
+        mediaType: 'image',
+        submittedAt: DateTime(2026, 9, 1),
+        netScore: 0,
+        caption: '',
+        questId: 'q',
+        questTitle: 't',
+        questCategory: 'adventure',
+        placeId: 'place',
+        placeName: 'Test landmark',
+        city: '',
+        countryCode: 'LB',
+        latitude: 33.9,
+        longitude: 35.5,
+        radiusM: radiusM,
+        userId: 'u',
+        username: 'u');
+
+    final first = at('moment-a').scatterOffset;
+    final second = at('moment-b').scatterOffset;
+
+    // Stable: the same id must land in the same spot every time, or a tile
+    // would appear to move between frames — which would read as the person
+    // moving.
+    expect(at('moment-a').scatterOffset, first);
+
+    // Distinct: two moments at one place must not stack into one square.
+    final apart = (first.east - second.east).abs() +
+        (first.north - second.north).abs();
+    expect(apart, greaterThan(1));
+
+    // Bounded: never outside the place, and never further than 120 m however
+    // large the geofence is. The offset is presentation, not a claim about
+    // where anybody stood.
+    for (final moment in ['a', 'b', 'c', 'd', 'e', 'f'].map(at)) {
+      final offset = moment.scatterOffset;
+      final distance =
+          (offset.east * offset.east + offset.north * offset.north);
+      expect(distance, lessThanOrEqualTo(175.0 * 175.0));
+      expect(distance, greaterThan(0));
+    }
+    final wide = at('moment-a', radiusM: 10000).scatterOffset;
+    expect(wide.east.abs(), lessThanOrEqualTo(120));
+    expect(wide.north.abs(), lessThanOrEqualTo(120));
+  });
+
+  testWidgets('moments draw over the map and can be hidden', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      authSessionProvider.overrideWith((ref) => null),
+      mapRepositoryProvider.overrideWithValue(_MapRepo()),
+      mapGeometryProvider.overrideWith((ref) async => geometry),
+      mapTilesEnabledProvider.overrideWithValue(false),
+      liveLocationProvider.overrideWith((ref) =>
+          Stream.value(const LiveLocation(LiveLocationStatus.unavailable))),
+    ], child: MaterialApp(theme: QuestTheme.light, home: const MapPage())));
+    await tester.pumpAndSettle();
+    // Zoomed out, the board is badges and nothing else: at world zoom every
+    // tile would land on the same pixel.
+    expect(find.bySemanticsLabel(RegExp('proof by')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 2300));
+    await tester.pumpAndSettle();
+
+    // Both moments, labelled by medium and author rather than as anonymous
+    // squares — and carrying what the card shows: how much else stands at
+    // the place, and that there is something here to DO.
+    // Asserted on the Semantics widgets rather than through
+    // `find.bySemanticsLabel`: each card is wrapped in a Tooltip, whose
+    // message merges into the same semantics node, so an exact-string match
+    // against the node can never succeed. Reading the widget's own label is
+    // both what we mean and what survives that merge.
+    List<String?> cardLabels() => tester
+        .widgetList<Semantics>(find.byType(Semantics))
+        .map((w) => w.properties.label)
+        .where((l) => l != null && l.contains('proof by'))
+        .toList();
+
+    final labels = cardLabels();
+    expect(
+        labels,
+        containsAll([
+          // What the card carries: medium, author, place, how much else
+          // stands here, and that there is something to DO.
+          'Photo proof by layla, at Test landmark, and 4 more, 2 quests here',
+          'Video proof by omar, at Test landmark, 1 quest here',
+        ]),
+        reason: 'labels on screen: $labels');
+    // The "+N more" summary is drawn, not the four extra cards.
+    expect(find.text('+4 more'), findsOneWidget);
+    // The quest pin is still there — moments are an addition to the board,
+    // never a replacement for the thing that starts a quest.
+    expect(find.byTooltip('Test landmark'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Hide quest moments'));
+    await tester.pumpAndSettle();
+    expect(cardLabels(), isEmpty);
+    expect(find.byTooltip('Test landmark'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

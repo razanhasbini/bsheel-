@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
+import type { MapMomentsQueryDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
 import { MapRepository } from '../infrastructure/map.repository.js';
 
 @Injectable()
@@ -12,6 +12,7 @@ export class MapService {
     return rows.map(row=>({...row,saved:viewerId===userId?row.saved:0}));
   }
   places(userId:string,query:MapQueryDto){return this.repository.places(userId,query);}
+  moments(userId:string,query:MapMomentsQueryDto){return this.repository.moments(userId,query);}
   progress(userId:string){return this.repository.progress(userId);}
   discover(userId:string,code:string){return this.repository.discover(userId,code);}
   detail(userId:string,id:string){return this.repository.detail(userId,id);}

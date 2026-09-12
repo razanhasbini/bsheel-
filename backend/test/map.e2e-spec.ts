@@ -187,6 +187,137 @@ describe('map destinations and discovery', {timeout:120000}, () => {
   // publish a draft. Because destination assignment is blocked while a place
   // is unpublished, a bad link could leave a quest quietly unassignable with
   // no route back.
+  // The moments layer (Snap/Instagram-map shaped). Everything it shows is
+  // already on the feed; what this pins is that it shows nothing more, and
+  // that the coordinate it hands the client is the PLACE's.
+  describe('moments', () => {
+    let momentPlace:string,momentQuest:string,momentProof:string;
+    beforeAll(async()=>{
+      const created=await h.post('/map/admin/places',admin).send(input()).expect(201);
+      momentPlace=created.body.data.id;places.push(momentPlace);h.track(momentPlace);
+      const quest=await h.createQuest();momentQuest=quest.id;
+      await h.post(`/map/admin/places/${momentPlace}/quests`,admin).send({questId:momentQuest,requiresVerification:false}).expect(201);
+      const proof=await h.createSubmission(user,{questId:momentQuest});momentProof=proof.id;
+    });
+    const moments=async(as:TestUser)=>(await h.get('/map/moments?country=LB',as).expect(200)).body.data as Record<string,unknown>[];
+    const mine=async(as:TestUser)=>(await moments(as)).filter(m=>m.id===momentProof);
+
+    it('shows nothing until the proof is approved and public', async()=>{
+      // Pending proof is not a moment: the feed does not show it either.
+      expect(await mine(user)).toEqual([]);
+      await h.post(`/submissions/${momentProof}/approve`,admin).send({}).expect(204);
+      const [moment]=await mine(user);
+      expect(moment).toMatchObject({place_id:momentPlace,quest_id:momentQuest,media_type:'image',username:user.username});
+      // The PLACE's coordinate and radius — not a location for the person.
+      // The client scatters the tiles inside the radius; the API never
+      // pretends to know where somebody stood.
+      expect(moment).toMatchObject({latitude:33.9,longitude:35.5,radius_m:250});
+    });
+
+    it('is visible to everyone the feed is visible to', async()=>{
+      expect((await mine(other))).toHaveLength(1);
+    });
+
+    it('drops proof its author kept off the feed', async()=>{
+      await h.database.query('UPDATE submissions SET show_in_feed=false WHERE id=$1',[momentProof]);
+      expect(await mine(user)).toEqual([]);
+      await h.database.query('UPDATE submissions SET show_in_feed=true WHERE id=$1',[momentProof]);
+      expect(await mine(user)).toHaveLength(1);
+    });
+
+    it('drops proof a moderator took down', async()=>{
+      await h.database.query('UPDATE submissions SET moderation_removed_at=now() WHERE id=$1',[momentProof]);
+      expect(await mine(user)).toEqual([]);
+      await h.database.query('UPDATE submissions SET moderation_removed_at=NULL WHERE id=$1',[momentProof]);
+    });
+
+    it('hides a blocked account\'s proof in both directions', async()=>{
+      await h.database.query('INSERT INTO blocked_users(blocker_id,blocked_id) VALUES($1,$2)',[other.id,user.id]);
+      expect(await mine(other)).toEqual([]);
+      await h.database.query('DELETE FROM blocked_users WHERE blocker_id=$1 AND blocked_id=$2',[other.id,user.id]);
+      await h.database.query('INSERT INTO blocked_users(blocker_id,blocked_id) VALUES($1,$2)',[user.id,other.id]);
+      expect(await mine(other)).toEqual([]);
+      await h.database.query('DELETE FROM blocked_users WHERE blocker_id=$1 AND blocked_id=$2',[user.id,other.id]);
+    });
+
+    it('never shows a hidden quest, even at a place everyone can see', async()=>{
+      // The one most worth getting right. A later stage of a journey, or a
+      // quest that unlocks by reaching somewhere, is content the player is
+      // meant to discover. A tile of somebody else finishing it gives away
+      // that it exists and roughly where — the game's surprise, spent by a
+      // photograph. The place here is deliberately an ordinary visible one,
+      // so nothing but `is_hidden` is doing the work.
+      // Completed while the quest was ordinary — a hidden quest cannot be
+      // assigned through the normal endpoint, which is the unlock gate doing
+      // its job. Hiding it afterwards is also the real case: a quest becomes
+      // a journey's later stage after people have already played it.
+      const hiddenQuest=await h.createQuest();
+      await h.post(`/map/admin/places/${momentPlace}/quests`,admin).send({questId:hiddenQuest.id,requiresVerification:false}).expect(201);
+      const proof=await h.createSubmission(other,{questId:hiddenQuest.id});
+      await h.post(`/submissions/${proof.id}/approve`,admin).send({}).expect(204);
+      expect((await moments(user)).some(m=>m.id===proof.id)).toBe(true);
+
+      await h.database.query('UPDATE quests SET is_hidden=true WHERE id=$1',[hiddenQuest.id]);
+      // Gone for a stranger, and gone for the person who completed it too:
+      // a per-viewer rule here leaks the moment it is slightly wrong.
+      expect((await moments(user)).some(m=>m.id===proof.id)).toBe(false);
+      expect((await moments(other)).some(m=>m.id===proof.id)).toBe(false);
+    });
+
+    it('never leaks a locked place', async()=>{
+      // A hidden place withholds its name and blurs its position; a moment
+      // at one would hand back both, plus somebody's photograph. `user`
+      // earned the reveal here (an approved quest within 10 km), a third
+      // account never did — which is the asymmetry to check.
+      await h.database.query('UPDATE map_places SET is_published=true WHERE id=$1',[hiddenId]);
+      const nearby=await h.createQuest();
+      await h.post(`/map/admin/places/${placeId}/quests`,admin).send({questId:nearby.id,requiresVerification:false}).expect(201);
+      const reveal=await h.createSubmission(user,{questId:nearby.id});
+      await h.post(`/submissions/${reveal.id}/approve`,admin).send({}).expect(204);
+
+      const secret=await h.createQuest();
+      await h.post(`/map/admin/places/${hiddenId}/quests`,admin).send({questId:secret.id,requiresVerification:false}).expect(201);
+      const proof=await h.createSubmission(user,{questId:secret.id});
+      await h.post(`/submissions/${proof.id}/approve`,admin).send({}).expect(204);
+
+      const third=await h.createUser({prefix:'mapthird'});
+      expect((await moments(third)).some(m=>m.place_id===hiddenId)).toBe(false);
+      expect((await moments(user)).some(m=>m.place_id===hiddenId)).toBe(true);
+    });
+
+    it('draws one tile per place and counts the rest as "+N more"', async()=>{
+      // The Snap/Instagram-map shape. Without it a landmark with two hundred
+      // completions buries every other place on the board and the map stops
+      // being a map. The count is what keeps the summary honest: the tile
+      // says how much it is standing in front of.
+      const before=(await moments(user)).filter(m=>m.place_id===momentPlace);
+      expect(before).toHaveLength(1);
+      const countedBefore=Number(before[0].more_count);
+
+      const busy=await h.createQuest();
+      await h.post(`/map/admin/places/${momentPlace}/quests`,admin).send({questId:busy.id,requiresVerification:false}).expect(201);
+      for (const who of [await h.createUser({prefix:'mapbusy1'}),await h.createUser({prefix:'mapbusy2'}),await h.createUser({prefix:'mapbusy3'})]) {
+        const proof=await h.createSubmission(who,{questId:busy.id});
+        await h.post(`/submissions/${proof.id}/approve`,admin).send({}).expect(204);
+      }
+
+      const here=(await moments(user)).filter(m=>m.place_id===momentPlace);
+      expect(here).toHaveLength(1);
+      // Three more standing here than before, and the tile says so rather
+      // than three more tiles appearing.
+      expect(Number(here[0].more_count)).toBe(countedBefore+3);
+      // And it carries what there is to DO here — the reason a photograph is
+      // on a map at all.
+      expect(Number(here[0].quest_count)).toBeGreaterThan(0);
+    });
+
+    it('requires authentication and bounds the list', async()=>{
+      await h.get('/map/moments').expect(401);
+      await h.get('/map/moments?limit=500',user).expect(400);
+      expect((await h.get('/map/moments?limit=1',user).expect(200)).body.data).toHaveLength(1);
+    });
+  });
+
   describe('admin place management', () => {
     /// Creates a place and registers it for afterAll cleanup.
     const makePlace = async (overrides: Record<string, unknown> = {}) => {

@@ -20,6 +20,10 @@ abstract class MapRepository {
   /// A country as seen from anywhere: trending and discovery quests, hidden
   /// count, collections. Being there is never required.
   Future<MapCountryDiscovery> discover(String countryCode);
+
+  /// Recent proof from the feed, pinned at the place it happened. Media is
+  /// signed before it is returned, so the tiles can be drawn directly.
+  Future<List<MapMoment>> moments({String? country, int limit = 60});
 }
 
 class ApiMapRepository implements MapRepository {
@@ -92,6 +96,39 @@ class ApiMapRepository implements MapRepository {
     } else {
       await _client.delete('map/places/$id/save');
     }
+  }
+
+  @override
+  Future<List<MapMoment>> moments({String? country, int limit = 60}) async {
+    final rows = apiObjectList(await _client.get('map/moments', query: {
+      if (country != null) 'country': country,
+      'limit': limit,
+    })).map((r) => Map<String, dynamic>.from(r)).toList();
+    // Same signing path as the feed's, and for the same reason: `media_url`
+    // is an object key, and the key is the access. A row whose signing
+    // failed keeps an empty string rather than the raw key — the tile draws
+    // a placeholder, and nothing leaks a key that would not load anyway.
+    final raw = rows
+        .map((r) => r['media_url'] as String? ?? '')
+        .where((u) => u.isNotEmpty)
+        .toSet()
+        .toList();
+    // Avatars go through the same signer and the same request: the author's
+    // face is on the tile, and a second round trip per moment would be one
+    // request per pin.
+    raw.addAll(rows
+        .map((r) => r['avatar_url'] as String? ?? '')
+        .where((u) => u.isNotEmpty));
+    if (raw.isNotEmpty) {
+      final signed = await ApiMediaSigner(_client).signMany(raw.toSet().toList());
+      for (final row in rows) {
+        for (final key in ['media_url', 'avatar_url']) {
+          final url = row[key] as String?;
+          if (url != null && url.isNotEmpty) row[key] = signed[url] ?? '';
+        }
+      }
+    }
+    return rows.map(MapMoment.fromJson).toList();
   }
 
   @override

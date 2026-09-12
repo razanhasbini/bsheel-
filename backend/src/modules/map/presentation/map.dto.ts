@@ -9,6 +9,17 @@ export class MapQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 100;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100000) offset = 0;
 }
+/// Query for the moments layer.
+///
+/// Bounded low on purpose. This is a sample of what is happening on the
+/// board, not the feed drawn on a map: the client fetches signed URLs and
+/// draws an image per row, and a player looking for a quest pin should not
+/// have to find it under a hundred photographs. The place's own sheet is
+/// where the full set of proof lives.
+export class MapMomentsQueryDto {
+  @IsOptional() @Matches(/^[A-Z]{2}$/) country?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) limit = 24;
+}
 export class MapIdDto { @IsUUID() id!: string; }
 export class MapCountryDto { @Matches(/^[A-Z]{2}$/) code!: string; }
 export class MapPlaceDto {

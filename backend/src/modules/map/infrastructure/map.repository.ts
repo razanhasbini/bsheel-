@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../../infrastructure/database/database.service.js';
-import type { MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
+import type { MapMomentsQueryDto, MapPlaceDto, MapPlaceUpdateDto, MapQueryDto, MapQuestLinkDto } from '../presentation/map.dto.js';
 import { confirmedPlaceIds, locked, visible } from './map-visibility.sql.js';
 
 // A locked pin still marks the area — that is the invitation to go and earn
@@ -19,6 +19,17 @@ const hiddenVisible = `(NOT q.is_hidden
              WHERE j.quest_id=q.id AND j.target_user_id=$1 AND r.status='active'))`;
 
 const blurred = (column: string) => `CASE WHEN ${locked} THEN round(p.${column}::numeric, 2)::double precision ELSE p.${column} END`;
+
+/**
+ * How many moments one place may contribute to the map layer.
+ *
+ * One, and the rest are counted rather than drawn — the Snap/Instagram-map
+ * shape. A landmark with two hundred completions gets a single tile saying
+ * "+199 more", which is both the honest summary and the thing that keeps
+ * every other place on the board visible. Opening the place is where the
+ * full set lives.
+ */
+const MOMENTS_PER_PLACE = 1;
 
 @Injectable()
 export class MapRepository {
@@ -91,6 +102,94 @@ export class MapRepository {
     [userId, query.country ?? null, query.category ?? null, query.search?.trim() ?? '', query.limit, query.offset,query.saved==='true'])).rows;
   }
 
+  /// Recent proof, pinned where it happened — the map's "moments" layer.
+  ///
+  /// Snap/Instagram-map shaped, and built from the feed rather than beside
+  /// it: every row here is an approved submission that is already public on
+  /// the feed, at a place the viewer may see. It adds no new visibility —
+  /// the predicate is the feed's, plus the map's own locked-place rule —
+  /// which is what makes showing somebody's face on a map defensible. A
+  /// private, rejected, deleted or moderator-removed submission is not a
+  /// moment, and neither is one from a blocked account in either direction.
+  ///
+  /// **The coordinate is the place's, not the person's.** Bsheel does not
+  /// store where a photograph was taken; it stores which place the quest
+  /// belonged to. Returning the place's own point (and its radius, so the
+  /// client can scatter the tiles inside it rather than stack them) keeps
+  /// the claim exactly as strong as the evidence: a moment says "this
+  /// happened at Baalbek", never "this happened at 34.0069, 36.2039". The
+  /// alternative — reading a coordinate out of `network_evidence` — would
+  /// publish the output of telecom verification somebody consented to for
+  /// one quest, which is not what they agreed to.
+  ///
+  /// **It is a sample, not the feed on a map.** Two things are cut, and both
+  /// of them deliberately:
+  ///
+  /// - **Hidden quests never appear.** A later stage of a journey, or a
+  ///   quest that unlocks by reaching somewhere, is content the player is
+  ///   supposed to discover. A tile of somebody else completing it gives
+  ///   away that it exists, roughly where it is and what it involves — which
+  ///   is the game's whole surprise, spent by a photograph. `is_hidden` is
+  ///   excluded outright rather than filtered per viewer, because "you have
+  ///   unlocked it, so you may see other people's" is a rule that leaks the
+  ///   moment it is slightly wrong. (A locked *place* is already excluded by
+  ///   `visible`; this is the quest-level equivalent.)
+  /// - **At most MOMENTS_PER_PLACE per place.** A landmark with two hundred
+  ///   completions would otherwise bury every other place on the board and
+  ///   turn the map into the feed. A couple of tiles says "people have been
+  ///   here"; two hundred says nothing extra and hides the rest of the
+  ///   country. The place's own sheet is where the full set lives.
+  ///
+  /// Newest first within a place and overall, bounded. `media_url` is a raw
+  /// object key: the client signs it exactly as the feed does.
+  async moments(userId: string, query: MapMomentsQueryDto) {
+    // The place is aliased p because every fragment in map-visibility.sql
+    // is written against that name.
+    return (await this.database.query(`WITH visible_moments AS (
+        SELECT s.id, s.media_url, s.media_type::text AS media_type,
+          s.submitted_at, s.net_score, s.caption,
+          q.id AS quest_id, q.title AS quest_title, q.category AS quest_category,
+          p.id AS place_id, p.name AS place_name, p.city, p.country_code, p.radius_m,
+          p.latitude, p.longitude,
+          pr.id AS user_id, pr.username::text AS username, pr.avatar_url,
+          row_number() OVER (PARTITION BY p.id ORDER BY s.submitted_at DESC, s.id DESC) AS place_rank,
+          -- Everything else standing at this place. Drawn as "+N more" on
+          -- the tile rather than as N more tiles.
+          count(*) OVER (PARTITION BY p.id) - ${MOMENTS_PER_PLACE} AS more_count,
+          -- How many quests are on offer here, so the tile can say there is
+          -- something to DO and not only something to look at. This is the
+          -- point of the layer: a photograph is an invitation to a quest.
+          (SELECT count(*)::int FROM quest_destinations qd JOIN quests oq ON oq.id = qd.quest_id
+            WHERE qd.place_id = p.id AND oq.is_active AND NOT oq.is_hidden
+              AND (oq.available_from IS NULL OR oq.available_from <= now())
+              AND (oq.available_until IS NULL OR oq.available_until > now())) AS quest_count
+        FROM submissions s
+        JOIN user_quests uq ON uq.id = s.user_quest_id
+        JOIN quests q ON q.id = uq.quest_id
+        JOIN quest_destinations d ON d.quest_id = q.id
+        JOIN map_places p ON p.id = d.place_id
+        JOIN profiles pr ON pr.id = s.user_id
+        JOIN users u ON u.id = s.user_id
+        WHERE s.status = 'approved' AND s.show_in_feed AND s.visibility = 'visible'
+          AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
+          AND u.status = 'active' AND u.deleted_at IS NULL
+          AND NOT q.is_hidden
+          AND ${visible}
+          AND ($2::text IS NULL OR p.country_code = $2)
+          AND NOT EXISTS (SELECT 1 FROM blocked_users b
+            WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
+               OR (b.blocker_id = s.user_id AND b.blocked_id = $1))
+      )
+      SELECT id, media_url, media_type, submitted_at, net_score, caption,
+        quest_id, quest_title, quest_category, place_id, place_name, city,
+        country_code, radius_m, latitude, longitude, user_id, username,
+        avatar_url, GREATEST(more_count, 0)::int AS more_count, quest_count
+      FROM visible_moments
+      WHERE place_rank <= ${MOMENTS_PER_PLACE}
+      ORDER BY submitted_at DESC, id DESC
+      LIMIT $3`, [userId, query.country ?? null, query.limit])).rows;
+  }
+
   async detail(userId: string, id: string) {
     const place = (await this.database.query(`SELECT p.*, p.id IN (${confirmedPlaceIds}) AS confirmed
       FROM map_places p WHERE p.id=$2 AND ${visible}`, [userId,id])).rows[0];
@@ -103,11 +202,22 @@ export class MapRepository {
       FROM quest_destinations d JOIN quests q ON q.id=d.quest_id
       WHERE d.place_id=$2 AND q.is_active AND ${hiddenVisible}
       ORDER BY q.title,q.id`, [userId,id])).rows;
-    const previews = (await this.database.query(`SELECT s.id,s.user_id,p.username::text,s.media_type,s.submitted_at,s.media_url
+    // Every kind of proof standing here, not only the videos.
+    //
+    // This is what the map tile's "+N more" opens into, so it has to be the
+    // whole set a person can see — restricting it to video hid most of it
+    // and left the sheet showing play buttons for a place whose proof was
+    // mostly photographs. Hidden quests are excluded for the same reason
+    // they are excluded from the map: a later stage of a journey is content
+    // the player is meant to discover, and a picture of somebody finishing
+    // it gives that away.
+    const previews = (await this.database.query(`SELECT s.id,s.user_id,p.username::text,s.media_type::text AS media_type,s.submitted_at,s.media_url,
+        q.id AS quest_id, q.title AS quest_title
       FROM submissions s JOIN user_quests uq ON uq.id=s.user_quest_id
+      JOIN quests q ON q.id=uq.quest_id
       JOIN quest_destinations d ON d.quest_id=uq.quest_id JOIN profiles p ON p.id=s.user_id
       JOIN users u ON u.id=s.user_id
-      WHERE d.place_id=$2 AND s.status='approved' AND s.media_type='video'
+      WHERE d.place_id=$2 AND s.status='approved' AND NOT q.is_hidden
         AND s.show_in_feed AND s.visibility='visible' AND s.deleted_at IS NULL AND s.moderation_removed_at IS NULL
         AND u.status='active' AND u.deleted_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE
