@@ -142,6 +142,21 @@ media.bsheel.app {
 # ---------------------------------------------------------------------------
 #
 #   admin.bsheel.app {
+#       # The bare host opens the Bsheel panel (live 2026-09-12). The legacy
+#       # admin still owns every other route behind Basic Auth, and opening
+#       # the bare domain landed people in its credential prompt with the
+#       # Bsheel panel's login — which is not that password — so the browser
+#       # re-prompted forever. Only an exact / is redirected.
+#       #
+#       # `redir * /v2/ 302`, with the explicit `*` matcher: a first argument
+#       # that starts with `/` is parsed as a PATH MATCHER, so `redir /v2/ 302`
+#       # silently meant "redirect requests for /v2/ to the URL '302'" and
+#       # answered / with an empty 200.
+#       @bsheel_root_redirect path /
+#       handle @bsheel_root_redirect {
+#           redir * /v2/ 302
+#       }
+#
 #       handle /business {
 #           root * /srv/admin
 #           rewrite * /business/index.html
