@@ -116,6 +116,52 @@ export class VideoFrameExtractor {
     }
   }
 
+  /// One frame to show instead of the video, or null if it cannot be cut.
+  ///
+  /// Deliberately not `extract()[0]`. That samples evenly across the clip for
+  /// a vision model, which wants the *representative* frames; a poster wants
+  /// the frame a person would accept as a picture of this video, and it is
+  /// sized for a map tile rather than for a model's input budget.
+  ///
+  /// It seeks a little way in rather than to 0: the first frame of a
+  /// hand-held clip is very often the black or motion-blurred instant the
+  /// camera started, which is worse than the category tint it replaces. A
+  /// tenth of the way in, capped at two seconds, lands on the shot.
+  async poster(video: Buffer, maxEdge = 640): Promise<Buffer | null> {
+    if (!(await this.isAvailable())) return null;
+
+    const timeout = this.config.get('AI_VERIFICATION_FFMPEG_TIMEOUT_MS', { infer: true });
+    const directory = await mkdtemp(join(tmpdir(), 'bsheel-poster-'));
+    const source = join(directory, 'source');
+    const output = join(directory, 'poster.jpg');
+    try {
+      await writeFile(source, video);
+      const duration = await this.duration(source, timeout);
+      const at = duration > 0 ? Math.min(duration / 10, 2) : 0;
+      await this.run(
+        'ffmpeg',
+        [
+          '-ss', at.toFixed(3),
+          '-i', source,
+          '-frames:v', '1',
+          '-vf', `scale='min(${maxEdge},iw)':-2`,
+          '-q:v', '5',
+          '-y', output,
+        ],
+        timeout,
+      );
+      return await readFile(output);
+    } catch (error) {
+      this.logger.debug(
+        { err: error instanceof Error ? error.message : String(error) },
+        'Could not cut a poster frame',
+      );
+      return null;
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
   /// Duration in seconds, or 0 when ffprobe cannot say.
   private async duration(path: string, timeout: number): Promise<number> {
     try {

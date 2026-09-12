@@ -18,7 +18,7 @@ export class MapQueryDto {
 /// where the full set of proof lives.
 export class MapMomentsQueryDto {
   @IsOptional() @Matches(/^[A-Z]{2}$/) country?: string;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) limit = 24;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) limit = 40;
 }
 export class MapIdDto { @IsUUID() id!: string; }
 export class MapCountryDto { @Matches(/^[A-Z]{2}$/) code!: string; }

@@ -374,11 +374,14 @@ both pinned by `map.e2e-spec.ts`:
   already excluded by `visible`; this is the quest-level equivalent, and the
   test hides a quest people had already completed, because that is the real
   case: a quest becomes a journey's later stage after it has been played.
-- **At most `MOMENTS_PER_PLACE` (2) per place**, and 24 tiles by default
+- **At most `MOMENTS_PER_PLACE` (2) per place**, and 40 tiles by default
   (60 cap). A landmark with two hundred completions would bury every other
   place on the board and turn the map into the feed. Two tiles says people
   have been here and gives the scatter something to spread; the place's own
-  sheet is where the full set lives.
+  sheet is where the full set lives. Two rather than one for a second reason:
+  a single tile per place can never overlap another from the same place, so
+  the scatter was dead code and a busy landmark looked exactly as active as
+  a place one person had visited.
 
 Three more things decide the rest:
 
@@ -403,17 +406,36 @@ Three more things decide the rest:
   a 10 km geofence cannot fling proof across a city, and floor-bounded so two
   tiles never stack. `MapMoment.scatterOffset`, pinned by `map_test.dart`.
 
-Video tiles are a play glyph on the quest's category tint, not a frame:
-there is no thumbnailing job, and decoding a frame per marker would mean a
-video decoder per tile on a map being panned. Tapping any tile opens the
-ordinary feed post — the same screen, so votes, comments, BSHEEEL and report
-cannot drift into a map-only copy. Server-side poster frames are the obvious
-next step, and the only thing standing between a video tile and looking as
-good as a photo one.
+Video tiles draw a **poster frame** — a still the worker cut with ffmpeg,
+stored under `posters/` and signed exactly like the video. Cut server-side
+and once, because the alternative is a video decoder per marker on a map
+being panned; the play glyph survives on top of it, now over a scrim, because
+it is what says "this one moves". A video with no poster yet — not swept, or
+no ffmpeg where it was uploaded — falls back to the category tint, which is
+what every video tile used to be.
+
+`PosterFrameService` sweeps on the proof-verification schedule rather than
+consuming an event, so backfill, retry and steady state are one code path;
+`npm run posters:backfill` drains a backlog without waiting for it. A failure
+writes nothing at all rather than a `poster_failed_at`, so a deployment that
+gains ffmpeg later picks the videos up instead of having marked them
+permanently posterless. The poster is linked through `media_submission_links`,
+which is what makes it *exactly* as visible as the video it came from with no
+second rule — and `posters/` had to be added to `MediaService.KEY_SHAPE`, the
+shape gate in front of the signer, or every poster silently failed to sign and
+drew a placeholder that looked like a bug.
+
+Tapping any tile opens the ordinary feed post — the same screen, so votes,
+comments, BSHEEEL and report cannot drift into a map-only copy.
 
 The layer is fetched only above the pin-zoom threshold and can be toggled off
-from the map's right-hand controls; `seed-local.mjs` seeds two moments across
-up to eight published places, which is what makes the scatter visible at all.
+from the map's right-hand controls; `seed-local.mjs` seeds three moments
+across up to forty published places — two drawn and a third so the "+N more"
+badge appears on a real tile — and makes every third place a video. That
+sample clip is **synthesised by ffmpeg at seed time, not committed**: a binary
+fixture is a thing to review, license and carry forever, and where ffmpeg is
+absent the seed falls back to photos only, which is exactly the case in which
+no poster could be cut either.
 
 ## Emergency Mode / QoS on Demand: deliberately not built
 

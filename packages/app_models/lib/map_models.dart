@@ -337,6 +337,7 @@ class MapMoment {
     required this.id,
     required this.mediaUrl,
     required this.mediaType,
+    this.posterUrl,
     required this.submittedAt,
     required this.netScore,
     required this.caption,
@@ -367,6 +368,14 @@ class MapMoment {
 
   /// `image` or `video`.
   final String mediaType;
+
+  /// A still cut from a video submission, signed for display like [mediaUrl].
+  ///
+  /// Null for a photo — which has no need of one — and also for a video whose
+  /// frame has not been cut yet or could not be decoded. The tile falls back
+  /// to the category tint and a play glyph in that case, which is what every
+  /// video tile looked like before posters existed.
+  final String? posterUrl;
   final DateTime submittedAt;
   final int netScore;
   final String caption;
@@ -381,9 +390,9 @@ class MapMoment {
   final String? avatarUrl;
 
   /// How much else is standing at this place, drawn as "+N more" under the
-  /// tile. The map shows ONE piece of proof per place; this is the rest of
-  /// it, counted rather than drawn, so a busy landmark cannot bury the
-  /// board. Opening the place is where the full set lives.
+  /// tile. The map draws a couple of pieces of proof per place; this is the
+  /// rest of it, counted rather than drawn, so a busy landmark cannot bury
+  /// the board. Opening the place is where the full set lives.
   final int moreCount;
 
   /// Active, non-hidden quests on offer at this place. The tile says there
@@ -397,6 +406,9 @@ class MapMoment {
         id: j['id'] as String,
         mediaUrl: j['media_url'] as String? ?? '',
         mediaType: j['media_type'] as String? ?? 'image',
+        posterUrl: (j['poster_url'] as String?)?.isEmpty == true
+            ? null
+            : j['poster_url'] as String?,
         submittedAt:
             DateTime.tryParse(j['submitted_at'] as String? ?? '')?.toLocal() ??
                 DateTime.now(),

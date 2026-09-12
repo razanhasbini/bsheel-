@@ -24,13 +24,20 @@ const blurred = (column: string) => `CASE WHEN ${locked} THEN round(p.${column}:
 /**
  * How many moments one place may contribute to the map layer.
  *
- * One, and the rest are counted rather than drawn — the Snap/Instagram-map
- * shape. A landmark with two hundred completions gets a single tile saying
- * "+199 more", which is both the honest summary and the thing that keeps
+ * Two, and the rest are counted rather than drawn — the Snap/Instagram-map
+ * shape. A landmark with two hundred completions gets two tiles and a
+ * "+198 more", which is both the honest summary and the thing that keeps
  * every other place on the board visible. Opening the place is where the
  * full set lives.
+ *
+ * Two rather than one because one defeats the layer's own scatter: a single
+ * tile per place can never overlap another from the same place, so the
+ * offset logic the client spent effort on was dead code in production, and
+ * a busy landmark looked exactly as active as a place one person had ever
+ * visited. Two is the smallest number that shows a place is busier than
+ * another without turning the board into the feed.
  */
-const MOMENTS_PER_PLACE = 1;
+const MOMENTS_PER_PLACE = 2;
 
 @Injectable()
 export class MapRepository {
@@ -148,6 +155,10 @@ export class MapRepository {
     // is written against that name.
     return (await this.database.query(`WITH visible_moments AS (
         SELECT s.id, s.media_url, s.media_type::text AS media_type,
+          -- A still cut from the video, when one has been made. Signed by the
+          -- client exactly like media_url, and authorised by the same rule:
+          -- it is linked to this submission, so it is precisely as visible.
+          s.poster_object_key AS poster_url,
           s.submitted_at, s.net_score, s.caption,
           q.id AS quest_id, q.title AS quest_title, q.category AS quest_category,
           p.id AS place_id, p.name AS place_name, p.city, p.country_code, p.radius_m,
@@ -181,7 +192,7 @@ export class MapRepository {
             WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
                OR (b.blocker_id = s.user_id AND b.blocked_id = $1))
       )
-      SELECT id, media_url, media_type, submitted_at, net_score, caption,
+      SELECT id, media_url, media_type, poster_url, submitted_at, net_score, caption,
         quest_id, quest_title, quest_category, place_id, place_name, city,
         country_code, radius_m, latitude, longitude, user_id, username,
         avatar_url, GREATEST(more_count, 0)::int AS more_count, quest_count

@@ -1503,6 +1503,12 @@ class _MomentTile extends StatelessWidget {
   static const double _cardW = 54;
   static const double _cardH = 66;
 
+  /// What to draw in the square: the photo itself, or a video's poster
+  /// frame. Empty means there is nothing to draw and the tile falls back to
+  /// the category tint behind it.
+  String get _picture =>
+      moment.isVideo ? (moment.posterUrl ?? '') : moment.mediaUrl;
+
   @override
   Widget build(BuildContext context) {
     final tint = QuestColors.category(moment.questCategory);
@@ -1547,21 +1553,42 @@ class _MomentTile extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (!moment.isVideo && moment.mediaUrl.isNotEmpty)
+                        // One picture rule for both kinds: a photo shows
+                        // itself, a video shows the frame the backend cut
+                        // from it. A video without a poster yet — not
+                        // decoded, or no ffmpeg where it was uploaded —
+                        // falls back to the tint, which is what every video
+                        // tile used to be.
+                        if (_picture.isNotEmpty)
                           CachedNetworkImage(
-                            imageUrl: moment.mediaUrl,
+                            imageUrl: _picture,
                             fit: BoxFit.cover,
                             memCacheWidth: (_cardW * 3).round(),
                             placeholder: (_, __) => const SizedBox.shrink(),
                             errorWidget: (_, __, ___) =>
-                                const Center(child: Text('📷')),
+                                Center(child: Text(moment.isVideo ? '🎬' : '📷')),
                           ),
-                        if (!moment.isVideo && moment.mediaUrl.isEmpty)
-                          const Center(child: Text('📷')),
+                        if (_picture.isEmpty)
+                          Center(child: Text(moment.isVideo ? '🎬' : '📷')),
+                        // The glyph stays on a video even with a poster —
+                        // it is what says "this one moves". Over a real
+                        // frame it needs a scrim to stay legible, which a
+                        // flat tint never required.
                         if (moment.isVideo)
-                          const Center(
-                            child: Icon(Icons.play_arrow_rounded,
-                                size: 26, color: QuestColors.osTextPrimary),
+                          Center(
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: QuestColors.osCard.withAlpha(215),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: QuestColors.osTextPrimary,
+                                    width: 1.5),
+                              ),
+                              child: const Icon(Icons.play_arrow_rounded,
+                                  size: 16, color: QuestColors.osTextPrimary),
+                            ),
                           ),
                         // A quest waiting here, marked on the card: the
                         // picture is the invitation, this is the promise

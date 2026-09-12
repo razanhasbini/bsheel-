@@ -275,12 +275,12 @@ async function main() {
           secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
         },
       });
-      putObject = async (key) => {
+      putObject = async (key, body = pngBytes, contentType = 'image/png') => {
         await s3.send(new PutObjectCommand({
           Bucket: process.env.R2_BUCKET,
           Key: key,
-          Body: pngBytes,
-          ContentType: 'image/png',
+          Body: body,
+          ContentType: contentType,
         }));
         return key;
       };
@@ -691,13 +691,56 @@ async function main() {
     // partner place otherwise. Deliberately not a list of coordinates
     // invented here: a place is a real location, and seeds/validate.mjs
     // refuses fabricated ones for exactly that reason.
+    //
+    // Spread wide, not deep. Eight places out of the hundred-odd this
+    // database publishes put proof on 7% of the board: panning the map you
+    // saw a tile, then nothing for a country and a half, which reads as the
+    // layer being broken rather than as the game being new. The cap is here
+    // only to keep the seed quick — every place would be ~230 submissions.
     const momentPlaces = (await client.query(
       `SELECT id, name, country_code FROM map_places
         WHERE is_published AND category <> 'hidden'
-        ORDER BY country_code, name LIMIT 8`,
+        ORDER BY country_code, name LIMIT 40`,
     )).rows;
 
+    // A sample clip, synthesised rather than committed.
+    //
+    // The repository has no video in it and should not gain one: a binary
+    // fixture is a thing to review, license and carry forever. ffmpeg is
+    // already a dependency of this system (the Dockerfile installs it for
+    // #47's frame extraction), so where it exists the seed can make its own
+    // — three seconds of a test pattern, a few kilobytes, H.264 in an mp4 so
+    // every browser can decode it.
+    //
+    // Without ffmpeg this is null and every seeded moment is a photo, which
+    // is exactly what this seed did before. The video moments are what make
+    // the map's poster frames visible at all, and a poster is cut by the
+    // same ffmpeg — so the two are absent together or present together,
+    // never one without the other.
+    let sampleVideo = null;
+    try {
+      const { execFileSync } = await import('node:child_process');
+      const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+      const { tmpdir } = await import('node:os');
+      const { join } = await import('node:path');
+      const directory = mkdtempSync(join(tmpdir(), 'bsheel-seed-video-'));
+      const file = join(directory, 'sample.mp4');
+      execFileSync('ffmpeg', [
+        '-f', 'lavfi', '-i', 'testsrc=size=480x854:rate=24:duration=3',
+        '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-movflags', '+faststart', '-y', file,
+      ], { stdio: 'ignore' });
+      sampleVideo = readFileSync(file);
+      rmSync(directory, { recursive: true, force: true });
+    } catch {
+      log('moments: ffmpeg unavailable, seeding photos only');
+    }
+    const videoMd5 = sampleVideo
+      ? createHash('md5').update(sampleVideo).digest('hex')
+      : null;
+
     let moments = 0;
+    let videoMoments = 0;
     for (const [index, momentPlace] of momentPlaces.entries()) {
       const traveller = (await client.query(
         `INSERT INTO users (email, password_hash, email_verified_at, status)
@@ -726,9 +769,16 @@ async function main() {
         [momentQuest.id, momentPlace.id],
       );
 
-      // Two per place, because one tile per place would never exercise the
-      // scatter the client does — which is the part most likely to be wrong.
-      for (let copy = 0; copy < 2; copy += 1) {
+      // Three per place: two are drawn (MOMENTS_PER_PLACE) and the third
+      // is what makes the "+N more" badge appear on a real tile, which is
+      // otherwise only ever exercised in tests.
+      // Every third place is video, so the board carries both kinds and the
+      // poster pipeline has something to be seen doing. Not every place:
+      // a map of nothing but play glyphs would hide the photographs, which
+      // are still what most proof is.
+      const isVideoPlace = sampleVideo !== null && index % 3 === 2;
+
+      for (let copy = 0; copy < 3; copy += 1) {
         const daysAgo = index + copy + 1;
         const assignment = (await client.query(
           `INSERT INTO user_quests (user_id, quest_id, status, assigned_at, expires_at)
@@ -737,19 +787,26 @@ async function main() {
            RETURNING id`,
           [traveller.id, momentQuest.id, daysAgo],
         )).rows[0];
-        const key = `submissions/${traveller.id}/${randomUUID()}.png`;
-        await putObject(key);
+        const key = isVideoPlace
+          ? `submissions/${traveller.id}/${randomUUID()}.mp4`
+          : `submissions/${traveller.id}/${randomUUID()}.png`;
+        await putObject(
+          key,
+          isVideoPlace ? sampleVideo : pngBytes,
+          isVideoPlace ? 'video/mp4' : 'image/png',
+        );
         const submission = (await client.query(
           `INSERT INTO submissions
              (user_quest_id, user_id, media_url, media_type, caption, status,
               show_in_feed, visibility, submitted_at, reviewed_at, reviewed_by)
-           VALUES ($1, $2, $3, 'image', $4, 'approved', true, 'visible',
+           VALUES ($1, $2, $3, $7, $4, 'approved', true, 'visible',
                    now() - make_interval(days => $5),
                    now() - make_interval(days => $5) + interval '2 hours', $6)
            RETURNING id`,
           [
             assignment.id, traveller.id, key,
             `Seeded proof at ${momentPlace.name}.`, daysAgo, userIds.moderator,
+            isVideoPlace ? 'video' : 'image',
           ],
         )).rows[0];
         // Without the media_objects row POST /media/sign finds nothing and
@@ -760,10 +817,16 @@ async function main() {
              (user_id, client_request_id, object_key, kind, status, content_type,
               declared_size_bytes, stored_size_bytes, etag, submission_id,
               upload_expires_at, created_at, completed_at)
-           VALUES ($1, gen_random_uuid(), $2, 'submission', 'ready', 'image/png',
+           VALUES ($1, gen_random_uuid(), $2, 'submission', 'ready', $7,
                    $3, $3, $4, $5, now(), now() - make_interval(days => $6),
                    now() - make_interval(days => $6))`,
-          [traveller.id, key, pngBytes.length, pngMd5, submission.id, daysAgo],
+          [
+            traveller.id, key,
+            isVideoPlace ? sampleVideo.length : pngBytes.length,
+            isVideoPlace ? videoMd5 : pngMd5,
+            submission.id, daysAgo,
+            isVideoPlace ? 'video/mp4' : 'image/png',
+          ],
         );
         await client.query(
           `INSERT INTO media_submission_links (media_object_id, submission_id)
@@ -772,14 +835,16 @@ async function main() {
           [key, submission.id],
         );
         moments += 1;
+        if (isVideoPlace) videoMoments += 1;
       }
     }
-    // Every seeded moment is a photo. There is no sample video in the
-    // repository and no thumbnailing job yet, so a seeded `video` row would
-    // be a PNG that the post screen cannot play — and the map tile for a
-    // video is a play glyph either way, so seeding one would demonstrate
-    // nothing the photos do not.
-    log(`moments: ${moments} across ${momentPlaces.length} places`);
+    // The poster frames for those videos are not cut here. The worker's
+    // sweep does it, off the same partial index a production backlog would
+    // use — so seeding exercises the real path rather than a seed-only
+    // shortcut that could keep working after the real one broke. Until it
+    // runs, a video tile draws the category tint, which is the honest
+    // fallback and the thing to look for if posters ever stop appearing.
+    log(`moments: ${moments} across ${momentPlaces.length} places (${videoMoments} video)`);
 
     const counts = await client.query(
       `SELECT

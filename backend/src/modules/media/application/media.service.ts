@@ -124,13 +124,31 @@ export class MediaService {
     await this.storage.delete(object.object_key);
   }
 
+  /**
+   * The shapes of key this endpoint will consider at all.
+   *
+   * An allowlist, and the first gate of two: passing it only means the string
+   * looks like one of our object keys, never that the caller may have it —
+   * `authorizeKeys` decides that. Its job is to stop a crafted path reaching
+   * the signer, so a new prefix belongs here only when something actually
+   * stores objects under it.
+   *
+   * `posters` is one of those: a still cut from a video submission. It is
+   * authorised through `media_submission_links` under the submission's own
+   * visibility rule, so adding the prefix widens what can be *named*, not
+   * what can be seen — a poster is exactly as public as the video, and
+   * exactly as private.
+   */
+  private static readonly KEY_SHAPE =
+    /^(avatars|submissions|posters)\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i;
+
   private extractKey(raw: string): string | null {
     const value = raw.trim();
-    if (/^(avatars|submissions)\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(value)) return value;
+    if (MediaService.KEY_SHAPE.test(value)) return value;
     try {
       const url = new URL(value);
       const mediaPath = url.pathname.startsWith('/media/') ? decodeURIComponent(url.pathname.slice(7)) : url.pathname.replace(/^\/+/, '');
-      return /^(avatars|submissions)\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(mediaPath) ? mediaPath : null;
+      return MediaService.KEY_SHAPE.test(mediaPath) ? mediaPath : null;
     } catch {
       return null;
     }

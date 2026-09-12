@@ -121,11 +121,17 @@ class ApiMapRepository implements MapRepository {
     raw.addAll(rows
         .map((r) => r['avatar_url'] as String? ?? '')
         .where((u) => u.isNotEmpty));
+    // And the poster frame, for a video moment that has one. Same request
+    // again: a tile needs its picture and its author's face together, and
+    // the signer authorises a poster under the submission's own rule.
+    raw.addAll(rows
+        .map((r) => r['poster_url'] as String? ?? '')
+        .where((u) => u.isNotEmpty));
     if (raw.isNotEmpty) {
       final signed =
           await ApiMediaSigner(_client).signMany(raw.toSet().toList());
       for (final row in rows) {
-        for (final key in ['media_url', 'avatar_url']) {
+        for (final key in ['media_url', 'avatar_url', 'poster_url']) {
           final url = row[key] as String?;
           if (url != null && url.isNotEmpty) row[key] = signed[url] ?? '';
         }

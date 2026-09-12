@@ -11,6 +11,7 @@ import { OpenAiProofAnalyzer } from './infrastructure/openai-proof-analyzer.js';
 import { PROOF_ANALYZER } from './infrastructure/proof-analyzer.token.js';
 import { ProofVerificationRepository } from './infrastructure/proof-verification.repository.js';
 import { SubmissionsRepository } from './infrastructure/submissions.repository.js';
+import { PosterFrameService } from './application/poster-frame.service.js';
 import { VideoFrameExtractor } from './infrastructure/video-frame-extractor.js';
 import { SubmissionsController } from './presentation/submissions.controller.js';
 
@@ -26,6 +27,7 @@ import { SubmissionsController } from './presentation/submissions.controller.js'
     ProofProvenanceService,
     MediaForensicsService,
     VideoFrameExtractor,
+    PosterFrameService,
     OpenAiProofAnalyzer,
     ClaudeProofAnalyzer,
     {
@@ -44,6 +46,8 @@ import { SubmissionsController } from './presentation/submissions.controller.js'
   ],
   // ProofVerificationService is exported for the worker, which consumes
   // submission.created and runs the catch-up sweep.
-  exports: [SubmissionsService, ProofVerificationService, ProofVerificationRepository],
+  // PosterFrameService is exported because the worker's sweep processor
+  // consumes it — same reason ProofVerificationService is here.
+  exports: [SubmissionsService, ProofVerificationService, ProofVerificationRepository, PosterFrameService],
 })
 export class SubmissionsModule {}
