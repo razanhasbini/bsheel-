@@ -373,5 +373,29 @@
     "place": "bsheel:place:hu-range-city",
     "requiresVerification": true,
     "description": "CALIBRATION. 25 km north — outside Budapest. The handset the network reports at 47.48628, 19.07916 is 25000 m from this point, inside a 250 m radius, so location verification should REJECT. Submit any photo: the media is not what this tests."
+  },
+  {
+    "seedKey": "bsheel:q:hu-camara-demo-checkin",
+    "title": "CAMARA demo — photograph where you are",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-camara-demo-range",
+    "editorialTier": "standard",
+    "requiresVerification": true,
+    "description": "Take one photograph of your surroundings, outdoors, showing the place you are standing. This quest exists to demonstrate network verification: the photograph is assessed normally, and the four Nokia simulator devices are what change between runs."
+  },
+  {
+    "seedKey": "bsheel:q:hu-camara-demo-landmark",
+    "title": "CAMARA demo — show a building in frame",
+    "category": "creativity",
+    "difficulty": "medium",
+    "xpReward": 60,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-camara-demo-range",
+    "editorialTier": "standard",
+    "requiresVerification": true,
+    "description": "Photograph any building or structure with the sky visible behind it. A second demo quest so the panel can be shown on more than one verification contract."
   }
 ]
