@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/config/branded_media.dart';
 import '../../../../core/config/share_template.dart';
 import '../../../../core/services/analytics_service.dart';
+import '../../../../core/services/media_saver.dart';
 import '../../../../core/backend/app_backend.dart';
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../settings/data/blocked_users_provider.dart';
@@ -173,35 +174,29 @@ class _PostActionsSheet extends StatelessWidget {
         }
       }
 
-      // Handed over as bytes, never through a temp file.
+      // Handed over as bytes, never through a temp file — the save used to
+      // write to getTemporaryDirectory() and wrap a dart:io File, and
+      // neither exists on the web build.
       //
-      // This is what was broken: the save wrote to getTemporaryDirectory()
-      // and wrapped a dart:io File, and neither of those exists on the web
-      // build. Every SAVE in a browser threw before it reached the share
-      // sheet and landed in the catch below as "Could not save that",
-      // which described the symptom and hid the cause. XFile.fromData needs
-      // no filesystem and behaves the same on every platform.
+      // Which mechanism receives those bytes is decided per platform in
+      // saveMediaFile: the system share sheet on iOS/Android, a Blob and an
+      // `<a download>` in a browser. Routing web through the share sheet as
+      // well is what made SAVE on a video do nothing on desktop Chrome and
+      // Firefox, which cannot share files at all.
       final name =
           'bsheel_${postId.replaceAll(RegExp(r'[^A-Za-z0-9]'), '')}.$extension';
       final mimeType = isVideo ? 'video/mp4' : 'image/png';
 
-      // The system sheet is what offers "Save to Photos" / "Save to Files",
-      // and on the web it becomes a download. Going through it avoids a
-      // gallery plugin and the photo-library permission that comes with one.
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile.fromData(bytes, mimeType: mimeType, name: name)],
-          // The web implementation reads the filename from here, not from
-          // the XFile — without it the download arrives as "file" with no
-          // extension and the browser will not open it.
-          fileNameOverrides: [name],
-          text: ShareTemplate.quest(
-            postId: postId,
-            questTitle: questTitle ?? '',
-            country: questCountryName,
-            caption: caption,
-            username: postUsername,
-          ),
+      await saveMediaFile(
+        bytes: bytes,
+        fileName: name,
+        mimeType: mimeType,
+        shareText: ShareTemplate.quest(
+          postId: postId,
+          questTitle: questTitle ?? '',
+          country: questCountryName,
+          caption: caption,
+          username: postUsername,
         ),
       );
     } catch (_) {
