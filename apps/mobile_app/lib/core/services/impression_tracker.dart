@@ -45,14 +45,14 @@ class ImpressionTracker {
         _dwell = dwell,
         _isForeground = isForeground ?? (() => true);
 
-  final void Function(String questId, String? sourceSubmissionId)
-      _onImpression;
+  final void Function(String questId, String? sourceSubmissionId) _onImpression;
   final Duration _dwell;
   final bool Function() _isForeground;
 
   final Set<String> _counted = <String>{};
   Timer? _pending;
   String? _visible;
+
   /// The post through which the visible quest is being seen, if any. Carried
   /// through to the report so the post's author is credited with the exposure
   /// (virality attribution); it never affects whether a view counts.

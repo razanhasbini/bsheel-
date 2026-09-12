@@ -420,8 +420,8 @@ class _ReelsPostHost extends ConsumerWidget {
           caption: post.caption,
           // Already signed by the feed read, so SAVE fetches the same bytes
           // the card is showing rather than signing a second time.
-          mediaUrl: post.mediaUrls
-              .firstWhere((u) => u.isNotEmpty, orElse: () => ''),
+          mediaUrl:
+              post.mediaUrls.firstWhere((u) => u.isNotEmpty, orElse: () => ''),
           mediaType: post.mediaType,
         );
       },
