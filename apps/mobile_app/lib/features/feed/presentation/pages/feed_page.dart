@@ -8,7 +8,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/auth_session_provider.dart';
 import '../../../../core/router/route_names.dart';
+import '../../../../core/services/analytics_reporter.dart';
 import '../../../../core/services/analytics_service.dart';
+import '../../../../core/services/impression_tracker.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../comments/presentation/widgets/comments_section.dart';
 import '../../../reactions/presentation/providers/reaction_controller.dart';
@@ -48,19 +50,49 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   late int _currentPage;
   bool _feedViewTracked = false;
 
+  /// #81 §28. The feed is the only surface that can honestly claim an
+  /// impression, because one post fills the viewport — see
+  /// [ImpressionTracker] for why a list surface still cannot.
+  late final ImpressionTracker _impressions;
+
   @override
   void initState() {
     super.initState();
     _currentPage = ref.read(feedLastIndexProvider);
     _pageController = PageController(initialPage: _currentPage);
     _pageController.addListener(_onScroll);
+    _impressions = ImpressionTracker(
+      onImpression: (questId) => ref.read(analyticsReporterProvider).report(
+            eventType: AnalyticsEvents.questImpression,
+            questId: questId,
+            surface: AnalyticsSurfaces.feed,
+          ),
+      isForeground: () =>
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+  }
+
+  @override
+  void deactivate() {
+    // A route pushed over the feed, or the tab left. The card is no longer
+    // being looked at, so a dwell in progress must not be credited.
+    _impressions.onHidden();
+    super.deactivate();
   }
 
   @override
   void dispose() {
+    _impressions.dispose();
     _pageController.removeListener(_onScroll);
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// Reports the post at [index] as seen, once it has been there long enough.
+  void _markVisible(int index) {
+    final posts = ref.read(feedProvider).valueOrNull?.posts;
+    if (posts == null || index < 0 || index >= posts.length) return;
+    _impressions.onVisible(posts[index].questId);
   }
 
   void _onScroll() {
@@ -78,6 +110,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 
   void _onPageChanged(int index) {
     setState(() => _currentPage = index);
+    _markVisible(index);
     // Persist so the next FeedPage mount returns to this post.
     ref.read(feedLastIndexProvider.notifier).state = index;
     // Track scroll milestone every 5 cards.
@@ -136,6 +169,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         if (state != null && state.posts.isNotEmpty) {
           ref.read(commentsProvider(state.posts.first.id).future).ignore();
         }
+        // And for the same reason, the post the feed opens on would never
+        // be counted as seen — including the one a returning user is put
+        // back on, which is the most-looked-at card in the app.
+        _markVisible(_currentPage);
       });
     }
 

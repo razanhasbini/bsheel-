@@ -135,9 +135,13 @@ abstract final class AnalyticsEvents {
   static const questBsheeel = 'quest_bsheeel';
   static const questShare = 'quest_share';
 
-  /// Not emitted yet — see docs. Accurate impression counting needs
-  /// visibility detection, and an over-counted impression is worse than an
-  /// absent one because a business is shown it as a measurement.
+  /// Emitted from the feed only, through [ImpressionTracker]: one post
+  /// fills the viewport there, so "it was on screen" is a settled fact
+  /// rather than an estimate. The list surfaces (map, search, home) still
+  /// do not emit it — a row in a scrolling list needs real visibility
+  /// detection to make the same claim, and an over-counted impression is
+  /// worse than an absent one because a business is shown it as a
+  /// measurement.
   static const questImpression = 'quest_impression';
 }
 

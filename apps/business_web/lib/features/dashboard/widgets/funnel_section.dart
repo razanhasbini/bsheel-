@@ -97,9 +97,14 @@ class _ExposureBlock extends StatelessWidget {
                 SizedBox(
                   width: 190,
                   child: StatTile(
+                    // Counted in the app when a quest card was the thing on
+                    // screen and stayed there — not when it was scrolled
+                    // past, and once per visit to the feed rather than once
+                    // per glance. Deliberately conservative: this is the one
+                    // figure here nobody can audit.
                     label: 'Times shown',
                     value: '${exposure.impressions}',
-                    note: 'Screens, not people',
+                    note: 'Views of the card, not people',
                   ),
                 ),
                 SizedBox(
