@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show File;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -289,8 +290,16 @@ class _SubmitProofPageState extends ConsumerState<SubmitProofPage> {
       return;
     }
 
-    // Compress to 720p for faster uploads on Lebanese mobile networks
-    if (originalMb > 8) {
+    // Compress to 720p for faster uploads on Lebanese mobile networks.
+    //
+    // Never on the web: `video_compress` is a native plugin with no web
+    // implementation, and reaching it there throws an UnsupportedError from
+    // `Platform.isIOS` deep inside the package — asynchronously, outside the
+    // try/catch below, so it surfaces as an uncaught error and the picked
+    // clip just sits there grey. The browser is also the one place the
+    // saving does not matter much: nobody uploads proof over a phone network
+    // from a desktop browser.
+    if (!kIsWeb && originalMb > 8) {
       if (!mounted) return;
       setState(() => _isCompressing = true);
       try {
@@ -1231,7 +1240,13 @@ class _VideoTileState extends State<_VideoTile> {
   @override
   void initState() {
     super.initState();
-    final c = VideoPlayerController.file(File(widget.filePath));
+    // `File` is dart:io, which the web does not have. There, `XFile.path` is
+    // already a blob URL the browser can play, so the network constructor is
+    // the right one — with the file constructor the preview was a permanent
+    // grey box with the fallback icon on it.
+    final c = kIsWeb
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.filePath))
+        : VideoPlayerController.file(File(widget.filePath));
     _controller = c;
     c.initialize().then((_) {
       if (!mounted) return;
