@@ -2,10 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Environment } from '../../../config/environment.js';
 import { CV_EVIDENCE_PROVIDER, NETWORK_EVIDENCE_PROVIDER } from '../domain/agent.tokens.js';
+import { NETWORK_DEVICE_RESOLVER, type NetworkDeviceResolver } from '../domain/network-device.port.js';
 import type { CvEvidenceProvider } from '../domain/cv-evidence.port.js';
 import type { LocationEvidenceQuery, NetworkEvidenceProvider } from '../domain/network-evidence.port.js';
 import { VerificationDecisionSchema, type AgentContext, type CvEvidence, type NetworkEvidence, type VerificationDecision } from '../domain/agent.schemas.js';
-import { finalizeDecision, mandatoryEvidenceStatus } from '../domain/verification-policy.js';
+import { explainDuration, explainXp, finalizeDecision, mandatoryEvidenceStatus, type DurationBreakdown, type XpBreakdown } from '../domain/verification-policy.js';
 import { AgentContextService } from './agent-context.service.js';
 import { XpRecommendationService } from './xp-recommendation.service.js';
 import { AgentContextRepository } from '../infrastructure/agent-context.repository.js';
@@ -22,6 +23,15 @@ export interface SubmissionVerificationOutcome {
   readonly runId: string;
   readonly decision: VerificationDecision;
   readonly skipped?: 'DISABLED' | 'ALREADY_RUN';
+  /**
+   * On a demo run only: what an approval would have awarded, itemised.
+   *
+   * Deliberately not stored against the submission — see `verify` — so the
+   * processor persists it on the run, where it is visible and inert.
+   */
+  readonly expectedXp?: XpBreakdown | null;
+  /** On a demo run: how the completion window would have been sized. */
+  readonly expectedDuration?: DurationBreakdown | null;
 }
 
 /**
@@ -33,6 +43,34 @@ export interface SubmissionVerificationOutcome {
  * (SubmissionsService today; this module's own recommendation services
  * later) remain the only things authorised to act on the result.
  */
+/**
+ * How one verification run differs from the default.
+ *
+ * Both fields exist for the hackathon demo and both default to off, so an
+ * ordinary submission takes exactly the path it always did.
+ */
+export interface VerifyOptions {
+  /**
+   * A Nokia simulator persona for THIS run only.
+   *
+   * It reaches the resolver and nothing else: the CAMARA adapter is never
+   * told, `users.phone_number` is never written, and the resolver refuses it
+   * unless the deployment is entitled — so a payload carrying one on a live
+   * box changes nothing.
+   */
+  readonly personaId?: string | null;
+  /**
+   * Evaluate without applying.
+   *
+   * The run is real — real Nokia call, the stored CV analysis, the same
+   * agent, the same deterministic policy — and is recorded so an operator
+   * can audit it. What it does not do is act: the caller must not hand the
+   * outcome to approve/reject, and this method skips the one write that
+   * would outlive it (`submissions.recommended_xp`).
+   */
+  readonly demo?: boolean;
+}
+
 @Injectable()
 export class SubmissionVerificationService {
   private readonly logger = new Logger(SubmissionVerificationService.name);
@@ -49,6 +87,7 @@ export class SubmissionVerificationService {
     private readonly storage: ObjectStorageService,
     @Inject(CV_EVIDENCE_PROVIDER) private readonly cvProvider: CvEvidenceProvider,
     @Inject(NETWORK_EVIDENCE_PROVIDER) private readonly networkProvider: NetworkEvidenceProvider,
+    @Inject(NETWORK_DEVICE_RESOLVER) private readonly deviceResolver: NetworkDeviceResolver,
   ) {}
 
   /// Re-verifies submissions whose geofence evidence arrived after the agent
@@ -86,6 +125,7 @@ export class SubmissionVerificationService {
   async verify(
     submissionId: string,
     evidenceGeneration?: string,
+    options: VerifyOptions = {},
   ): Promise<SubmissionVerificationOutcome | null> {
     if (!this.config.get('AGENT_SUBMISSION_VERIFICATION_ENABLED', { infer: true })) {
       return { runId: '', decision: this.humanReviewFallback('Automated submission verification is disabled for this deployment.'), skipped: 'DISABLED' };
@@ -99,6 +139,14 @@ export class SubmissionVerificationService {
       this.logger.warn({ submissionId }, 'No agent context available for submission; nothing to verify');
       return null;
     }
+
+    // Resolved before the run is claimed, for two reasons: the run row has
+    // to record which device it asked about, and an unusable persona should
+    // fail before a claim, a Nokia call or a model call is spent on it.
+    const device = await this.deviceResolver.resolve({
+      userId: context.user.id,
+      personaId: options.personaId,
+    });
 
     const promptVersion = this.config.get('OPENAI_AGENT_PROMPT_VERSION', { infer: true });
     const idempotencyKey = evidenceGeneration
@@ -122,6 +170,9 @@ export class SubmissionVerificationService {
         promptVersion,
         policyVersion: 'v1',
         inputSnapshot: context,
+        isDemo: options.demo === true,
+        demoPersona: options.demo ? (device.persona?.id ?? null) : null,
+        deviceSource: device.source,
       },
       this.config.get('AGENT_RUN_LEASE_SECONDS', { infer: true }),
     );
@@ -132,19 +183,37 @@ export class SubmissionVerificationService {
       return { runId: '', decision: this.humanReviewFallback('Already evaluated or in flight.'), skipped: 'ALREADY_RUN' };
     }
 
+    let expectedXp: XpBreakdown | null = null;
+    let expectedDuration: DurationBreakdown | null = null;
     try {
       // Fetched once and threaded through — the CAMARA-verified device
       // identifier (issue #1), not part of AgentContext itself so it never
       // reaches the model (AgentContextSchema.user deliberately carries
       // only an id).
-      const phoneNumber = await this.contextService.phoneNumberForUser(context.user.id);
+      const phoneNumber = device.identifier;
       const geofence = await this.loadGeofence(context);
       const [networkEvidence, cvEvidence] = await Promise.all([
         this.gatherBaselineNetworkEvidence(context, phoneNumber, geofence),
         this.gatherCvEvidence(context, submissionId),
       ]);
       for (const evidence of networkEvidence) {
-        await this.agentRuns.recordNetworkEvidence(run.id, context.assignment.userQuestId, submissionId, evidence);
+        // The source travels with the evidence, so a dossier can never be
+        // read as a claim about a real subscriber when a simulator device
+        // was asked. It is metadata for people, not for the model: the
+        // agent is not shown it, and a test pins that it cannot move a
+        // verdict.
+        await this.agentRuns.recordNetworkEvidence(
+          run.id,
+          context.assignment.userQuestId,
+          submissionId,
+          evidence,
+          {
+            source: device.source,
+            personaId: device.persona?.id,
+            personaNumber: device.persona?.phoneNumber,
+            isDemo: options.demo === true,
+          },
+        );
       }
       await this.agentRuns.recordCvEvidence(run.id, submissionId, cvEvidence);
 
@@ -166,7 +235,26 @@ export class SubmissionVerificationService {
         minRelevance: this.config.get('AI_VERIFICATION_MIN_RELEVANCE', { infer: true }),
         bounds: context.policy,
       });
-      await this.recommendXp(context, submissionId);
+      // The one write in this method that outlives the run: it sets
+      // `submissions.recommended_xp`, which a later REAL approval reads to
+      // decide the award (`COALESCE(s.recommended_xp, q.xp_reward)`). A demo
+      // evaluation must not move that number — the whole point is that it
+      // changes nothing authoritative — so it is skipped rather than
+      // recomputed and discarded.
+      if (options.demo) {
+        // Both curves, itemised: what this completion would be worth and how
+        // long the player would have been given. They answer the same
+        // question from two directions — how much this particular attempt
+        // cost this particular person — and a judge should see the working.
+        //
+        // Computed, never stored against the submission: `recommended_xp` is
+        // read by a later REAL approval, and a demo must not move it.
+        const shape = await this.rewardShape(context);
+        expectedXp = shape ? explainXp(shape, context.policy) : null;
+        expectedDuration = shape ? explainDuration(shape, context.policy) : null;
+      } else {
+        await this.recommendXp(context, submissionId);
+      }
       // Deliberately NOT marked succeeded here. The caller applies the
       // decision, and a run is only finished once that has happened.
       //
@@ -176,7 +264,7 @@ export class SubmissionVerificationService {
       // retry short-circuited and the submission waited on a human forever
       // with no record of why. Leaving it 'running' means the lease reclaims
       // it, which is exactly what the lease is for.
-      return { runId: run.id, decision: finalized };
+      return { runId: run.id, decision: finalized, expectedXp, expectedDuration };
     } catch (error) {
       this.logger.error({ submissionId, runId: run.id, errorName: error instanceof Error ? error.name : 'UnknownError' }, 'Submission verification run failed');
       await this.agentRuns.fail(run.id, 'AGENT_RUN_FAILED', error instanceof Error ? error.message : 'Unknown error');
@@ -202,8 +290,10 @@ export class SubmissionVerificationService {
   private async loadGeofence(context: AgentContext): Promise<LocationEvidenceQuery['geofence']> {
     if (!context.quest.destination || !context.assignment) return null;
     const subscription = await this.geofencing.findByUserQuest(context.assignment.userQuestId);
-    if (!subscription) return { status: 'missing', events: [] };
-    if (subscription.status !== 'active') return { status: 'failed', events: [] };
+    if (!subscription) return { status: 'missing', events: [], origin: 'NOKIA' };
+    if (subscription.status !== 'active') {
+      return { status: 'failed', events: [], origin: subscription.origin };
+    }
 
     const windowStart = new Date(context.assignment.assignedAt);
     const windowEnd = new Date(context.assignment.submittedAt ?? new Date().toISOString());
@@ -214,7 +304,12 @@ export class SubmissionVerificationService {
     );
     return {
       status: 'active',
-      events: events.map((event) => ({ type: event.type, occurredAt: event.occurredAt.toISOString() })),
+      origin: subscription.origin,
+      events: events.map((event) => ({
+        type: event.type,
+        occurredAt: event.occurredAt.toISOString(),
+        origin: event.origin,
+      })),
     };
   }
 
@@ -224,6 +319,29 @@ export class SubmissionVerificationService {
    * approval prefers it over the quest's flat xp_reward when present, and
    * the backend still awards it exactly once.
    */
+  /**
+   * The inputs both reward curves read: how far this player travelled, and
+   * what the quest is.
+   *
+   * Built once and handed to `explainXp` and `explainDuration` — the same
+   * functions `deterministicXp` and `deterministicQuestMinutes` are built on
+   * — so a demo panel's arithmetic is the product's arithmetic rather than a
+   * second copy free to drift.
+   */
+  private async rewardShape(context: AgentContext) {
+    if (!context.assignment) return null;
+    const distanceMeters = await this.contextRepository.findAssignmentDistance(
+      context.assignment.userQuestId,
+    );
+    return {
+      distanceMeters,
+      hasDestination: Boolean(context.quest.destination),
+      category: context.quest.category,
+      difficulty: context.quest.difficulty,
+      participantCount: context.collaboration.participantCount,
+    };
+  }
+
   private async recommendXp(context: AgentContext, submissionId: string): Promise<void> {
     if (!context.assignment) return;
     // Measured once at assignment time and stored on the row — by now the

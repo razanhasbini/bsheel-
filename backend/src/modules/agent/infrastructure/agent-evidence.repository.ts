@@ -48,6 +48,28 @@ export interface VerificationDossier {
   readonly xpAwarded: number | null;
   readonly recommendedXp: number | null;
   readonly questXp: number;
+  /**
+   * A non-authoritative demo evaluation: real Nokia call, the stored CV
+   * analysis, the same agent and the same policy — decision deliberately
+   * never applied. Shown beside the real runs rather than hidden, and
+   * labelled, so nobody reads one as a completion.
+   */
+  readonly isDemo: boolean;
+  readonly demoPersona: string | null;
+  /**
+   * For a demo run: what an approval would have been worth, itemised.
+   *
+   * Written by the worker from `explainXp` — the same arithmetic a real
+   * award uses — and read here rather than recomputed, so the screen cannot
+   * drift from the number. Null on a real run, where the award is a fact
+   * (`xpAwarded`) rather than a projection.
+   */
+  readonly expectedXp: import('../domain/verification-policy.js').XpBreakdown | null;
+  /** For a demo run: how the completion window would have been sized. */
+  readonly expectedDuration:
+      import('../domain/verification-policy.js').DurationBreakdown | null;
+  /** LIVE_OPERATOR | NOKIA_SIMULATOR — which device CAMARA was asked about. */
+  readonly deviceSource: string | null;
 }
 
 /**
@@ -74,6 +96,67 @@ export class AgentEvidenceRepository {
       [limit, offset],
     );
     return Promise.all(runs.rows.map((row) => this.hydrate(row)));
+  }
+
+  /**
+   * Whether a submission belongs to this user.
+   *
+   * The demo endpoint is authorised by an allowlist, which says *who may run
+   * an evaluation* — not *whose proof they may run it on*. Without this an
+   * allowlisted account could evaluate a stranger's submission and read
+   * their media analysis back out of the dossier. A demo account is a
+   * trusted operator, but "trusted" is not a reason to widen what a route
+   * can reach.
+   */
+  async isOwnedBy(submissionId: string, userId: string): Promise<boolean> {
+    const result = await this.database.query(
+      'SELECT 1 FROM submissions WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [submissionId, userId],
+    );
+    return result.rowCount === 1;
+  }
+
+  /**
+   * The assignment behind a submission, and the place its quest requires —
+   * everything the geofence harness needs to open or reuse a subscription.
+   *
+   * Returns null for a quest with no destination, which is the honest answer:
+   * there is no area to cross.
+   */
+  async assignmentForGeofence(submissionId: string): Promise<{
+    id: string;
+    placeId: string;
+    startsAt: Date;
+    expiresAt: Date;
+    /**
+     * When the proof was submitted — the END of the window evidence is read
+     * back in. Returned because the harness has to place its event inside
+     * that window: geofence events are only ever read between assignment and
+     * submission, so one stamped "now" lands after the window and is
+     * correctly ignored, which looks exactly like the harness not working.
+     */
+    submittedAt: Date | null;
+  } | null> {
+    const result = await this.database.query<{
+      id: string; place_id: string; starts_at: Date; expires_at: Date; submitted_at: Date | null;
+    }>(
+      `SELECT uq.id, d.place_id, uq.assigned_at AS starts_at, uq.expires_at, s.submitted_at
+         FROM submissions s
+         JOIN user_quests uq ON uq.id = s.user_quest_id
+         JOIN quest_destinations d ON d.quest_id = uq.quest_id
+        WHERE s.id = $1`,
+      [submissionId],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          id: row.id,
+          placeId: row.place_id,
+          startsAt: row.starts_at,
+          expiresAt: row.expires_at,
+          submittedAt: row.submitted_at,
+        }
+      : null;
   }
 
   async forSubmission(submissionId: string): Promise<VerificationDossier | null> {
@@ -156,6 +239,11 @@ export class AgentEvidenceRepository {
       xpAwarded: row.xp_awarded_amount,
       recommendedXp: row.recommended_xp,
       questXp: row.quest_xp ?? 0,
+      isDemo: row.is_demo === true,
+      demoPersona: row.demo_persona,
+      expectedXp: (output.expectedXp as never) ?? null,
+      expectedDuration: (output.expectedDuration as never) ?? null,
+      deviceSource: row.device_source,
     };
   }
 }
@@ -170,10 +258,12 @@ interface Row {
   place_latitude: number | null; place_longitude: number | null;
   place_radius_meters: number | null;
   xp_awarded_amount: number | null; recommended_xp: number | null; quest_xp: number | null;
+  is_demo: boolean | null; demo_persona: string | null; device_source: string | null;
 }
 
 const SELECT_DOSSIER = `
   SELECT r.id AS run_id, r.subject_id, r.model, r.output, r.completed_at,
+         r.is_demo, r.demo_persona, r.device_source,
          q.title AS quest_title, q.xp_reward AS quest_xp,
          p.username::text AS username,
          s.submitted_at, s.status::text AS submission_status,

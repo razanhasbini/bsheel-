@@ -140,7 +140,57 @@ describe('SubmissionVerificationProcessor', () => {
       job('submission.verify', { submissionId: 'sub-1', evidenceGeneration: 'event-9' }),
     );
 
-    expect(service.verify).toHaveBeenCalledWith('sub-1', 'event-9');
+    expect(service.verify).toHaveBeenCalledWith('sub-1', 'event-9', {
+      personaId: undefined,
+      demo: undefined,
+    });
+  });
+
+  it('records a demo evaluation and applies nothing', async () => {
+    // The whole mechanism that makes the hackathon demo non-authoritative is
+    // this branch returning before the apply below it. A demo run that
+    // reaches approve/reject would award XP, complete a quest and advance a
+    // journey on the strength of a simulator device somebody picked from a
+    // menu — so this is the test that matters most in the file.
+    const { processor, service, submissions, agentRuns } = build({
+      outcome: { runId: 'run-1', decision: decision('APPROVED'), expectedXp: null },
+    });
+
+    await processor.process(
+      job('submission.verify', {
+        submissionId: 'sub-1',
+        evidenceGeneration: 'demo-LOCATION_INSIDE-1',
+        personaId: 'LOCATION_INSIDE',
+        demo: true,
+      }),
+    );
+
+    expect(service.verify).toHaveBeenCalledWith('sub-1', 'demo-LOCATION_INSIDE-1', {
+      personaId: 'LOCATION_INSIDE',
+      demo: true,
+    });
+    // Approved, and nothing approved.
+    expect(submissions.approve).not.toHaveBeenCalled();
+    expect(submissions.reject).not.toHaveBeenCalled();
+    // Still recorded, so an operator can audit it in the same history.
+    // Stored in the SAME shape a real run uses — the decision spread flat,
+    // not nested — because the dossier reads `output.decision` as a string.
+    // Nesting it made a demo run invisible to the Agent Evidence page, which
+    // is the one place it has to be visible.
+    expect(agentRuns.succeed).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ decision: 'APPROVED', demo: true, persona: 'LOCATION_INSIDE' }),
+    );
+  });
+
+  it('still applies an ordinary run, so the demo branch is not a blanket off-switch', async () => {
+    const { processor, submissions } = build({
+      outcome: { runId: 'run-2', decision: decision('APPROVED') },
+    });
+
+    await processor.process(job('submission.verify', { submissionId: 'sub-2' }));
+
+    expect(submissions.approve).toHaveBeenCalled();
   });
 
   /// The sweep enqueues; it does not verify inline. A sweep that did the work

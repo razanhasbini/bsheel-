@@ -16,6 +16,17 @@ export interface StartAgentRunInput {
   readonly promptVersion: string;
   readonly policyVersion: string;
   readonly inputSnapshot: Record<string, unknown>;
+  /**
+   * A non-authoritative demo evaluation (hackathon). Real Nokia call, real
+   * agent, real policy — the decision is deliberately never applied. Stored
+   * so the run appears in the Agent Evidence history beside the real ones,
+   * labelled rather than hidden.
+   */
+  readonly isDemo?: boolean;
+  /** The simulator persona a demo run asked about. Required when isDemo. */
+  readonly demoPersona?: string | null;
+  /** LIVE_OPERATOR | NOKIA_SIMULATOR — which device CAMARA was asked about. */
+  readonly deviceSource?: string | null;
 }
 
 @Injectable()
@@ -43,13 +54,16 @@ export class AgentRunsRepository {
    */
   async start(input: StartAgentRunInput, leaseSeconds: number): Promise<AgentRunRecord | null> {
     const result = await this.database.query<AgentRunRecord>(
-      `INSERT INTO agent_runs (kind, subject_type, subject_id, idempotency_key, status, model, prompt_version, policy_version, input_snapshot, started_at)
-       VALUES ($1, $2, $3, $4, 'running', $5, $6, $7, $8::jsonb, now())
+      `INSERT INTO agent_runs (kind, subject_type, subject_id, idempotency_key, status, model, prompt_version, policy_version, input_snapshot, started_at, is_demo, demo_persona, device_source)
+       VALUES ($1, $2, $3, $4, 'running', $5, $6, $7, $8::jsonb, now(), $10, $11, $12)
        ON CONFLICT (idempotency_key) DO UPDATE SET
          status = 'running', model = EXCLUDED.model,
          prompt_version = EXCLUDED.prompt_version,
          policy_version = EXCLUDED.policy_version,
          input_snapshot = EXCLUDED.input_snapshot,
+         is_demo = EXCLUDED.is_demo,
+         demo_persona = EXCLUDED.demo_persona,
+         device_source = EXCLUDED.device_source,
          output = NULL, error_code = NULL, error_message = NULL,
          started_at = now(), completed_at = NULL
        WHERE agent_runs.status = 'failed'
@@ -67,6 +81,9 @@ export class AgentRunsRepository {
         input.policyVersion,
         JSON.stringify(input.inputSnapshot),
         leaseSeconds,
+        input.isDemo ?? false,
+        input.demoPersona ?? null,
+        input.deviceSource ?? null,
       ],
     );
     return result.rows[0] ?? null;
@@ -91,7 +108,35 @@ export class AgentRunsRepository {
     userQuestId: string,
     submissionId: string,
     evidence: NetworkEvidence,
+    /**
+     * Which device CAMARA was asked about, and under whose authority.
+     *
+     * Stored beside the provider's own answer rather than inside the typed
+     * result union, because it is a fact about the REQUEST, not about what
+     * the network said. It rides in the same jsonb so the dossier — which
+     * reads `result` as-is — can print "NOKIA NETWORK AS CODE • SIMULATOR"
+     * without a schema change. Nothing reads it back into policy: a piece
+     * of evidence means the same thing whoever the device belonged to, and
+     * a test pins that the source cannot move a verdict.
+     */
+    device?: { source: string; personaId?: string; personaNumber?: string; isDemo?: boolean },
   ): Promise<void> {
+    // `network_evidence` is unique on (provider, capability,
+    // provider_reference), and the adapters build that reference from the
+    // SUBMISSION or the ASSIGNMENT — deliberately, so a retried verification
+    // records one row rather than a pile of duplicates.
+    //
+    // A demo evaluation breaks that assumption: the same submission is asked
+    // about repeatedly under different network conditions, and each answer is
+    // a different fact. Left alone, the first run's rows won and every later
+    // scenario silently recorded nothing — the panel then showed a geofence
+    // result from a previous persona, or none at all.
+    //
+    // Scoping the reference to the run restores one row per answer without
+    // touching how real verification de-duplicates.
+    const providerReference = device?.isDemo
+      ? `${evidence.providerReference}#run:${runId}`
+      : evidence.providerReference;
     await this.database.query(
       `INSERT INTO network_evidence (agent_run_id, user_quest_id, submission_id, capability, provider, provider_reference, outcome, result, observed_at, valid_until)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
@@ -102,16 +147,22 @@ export class AgentRunsRepository {
         submissionId,
         evidence.capability,
         evidence.provider,
-        evidence.providerReference,
+        providerReference,
         evidence.outcome,
         // The reason an UNAVAILABLE signal is unavailable rides inside the
         // stored result, so the dossier (which reads `result` as-is) can
         // show it without a schema change to the table.
-        JSON.stringify(
-          evidence.unavailableReason
-            ? { ...evidence.result, unavailableReason: evidence.unavailableReason }
-            : evidence.result,
-        ),
+        JSON.stringify({
+          ...evidence.result,
+          ...(evidence.unavailableReason ? { unavailableReason: evidence.unavailableReason } : {}),
+          ...(device
+            ? {
+                deviceSource: device.source,
+                ...(device.personaId ? { simulatorPersona: device.personaId } : {}),
+                ...(device.personaNumber ? { simulatorDevice: device.personaNumber } : {}),
+              }
+            : {}),
+        }),
         evidence.observedAt,
         evidence.validUntil ?? null,
       ],

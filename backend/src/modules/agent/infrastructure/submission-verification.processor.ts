@@ -12,6 +12,15 @@ interface SubmissionVerifyPayload {
   /// Present only on a re-run triggered by late evidence (#15); it re-opens
   /// the idempotency key for exactly that generation of evidence.
   readonly evidenceGeneration?: string;
+  /**
+   * A Nokia simulator persona, for a demo evaluation only. Reaches the
+   * device resolver and nothing else.
+   */
+  readonly personaId?: string;
+  /**
+   * Evaluate and record, never apply. Set only by the demo endpoint.
+   */
+  readonly demo?: true;
 }
 
 // @Processor concurrency must be a literal at decoration time (no DI
@@ -71,9 +80,41 @@ export class SubmissionVerificationProcessor extends WorkerHost {
       throw new Error(`Unknown submission-verification job: ${job.name}`);
     }
     const payload = this.payload(job.data);
-    const outcome = await this.service.verify(payload.submissionId, payload.evidenceGeneration);
+    const outcome = await this.service.verify(payload.submissionId, payload.evidenceGeneration, {
+      personaId: payload.personaId,
+      demo: payload.demo,
+    });
     if (!outcome) {
       this.logger.debug({ submissionId: payload.submissionId }, 'No agent context; nothing to verify');
+      return;
+    }
+
+    // A demo evaluation stops here, and that single `return` is the entire
+    // mechanism that makes it non-authoritative. The run is real and
+    // recorded — real Nokia call, the stored CV analysis, the same agent,
+    // the same deterministic policy — and the branch below, which is the
+    // only code that applies anything, is simply not reached. There is no
+    // second engine to keep in step and nothing to undo afterwards.
+    if (payload.demo) {
+      this.logger.log(
+        { submissionId: payload.submissionId, persona: payload.personaId, decision: outcome.decision.decision },
+        'Demo evaluation finished; decision deliberately not applied',
+      );
+      // Spread, not nested. A real run stores the decision flat
+      // (`succeed(runId, outcome.decision)`), and the dossier reads
+      // `output.decision` as a string — so nesting it here produced a run
+      // the Agent Evidence page could not read at all. One output shape,
+      // both kinds of run, one reader.
+      await this.agentRuns.succeed(outcome.runId, {
+        ...outcome.decision,
+        demo: true,
+        persona: payload.personaId ?? null,
+        // What an approval WOULD have been worth. Recorded on the run, never
+        // on the submission, so the panel can show its working without the
+        // number reaching anything that pays it out.
+        expectedXp: outcome.expectedXp ?? null,
+        expectedDuration: outcome.expectedDuration ?? null,
+      });
       return;
     }
     // Shadow mode governs this path too, and that is the point of it.
@@ -165,6 +206,13 @@ export class SubmissionVerificationProcessor extends WorkerHost {
       ...(typeof data.evidenceGeneration === 'string'
         ? { evidenceGeneration: data.evidenceGeneration }
         : {}),
+      // Only ever set by the demo endpoint, which is itself gated on the
+      // deployment allowing personas and the caller being on the allowlist.
+      // The resolver refuses a persona anyway if the deployment is not
+      // entitled, so a hand-crafted job cannot turn a live run into a
+      // simulator one.
+      ...(typeof data.personaId === 'string' ? { personaId: data.personaId } : {}),
+      ...(data.demo === true ? { demo: true as const } : {}),
     };
   }
 }

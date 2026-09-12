@@ -81,7 +81,33 @@ function travelBand(input: RewardShapeInputs): 'none' | 'local' | 'city' | 'regi
  * genuine long-distance travel gets a week. Two weeks is the ceiling and
  * only difficulty pushes anything that far.
  */
-export function deterministicQuestMinutes(input: RewardShapeInputs, bounds: PolicyBounds): number {
+/** One step of the duration arithmetic, for a screen that shows its working. */
+export interface DurationStep {
+  readonly label: string;
+  readonly minutes: number;
+  readonly basis: string;
+}
+
+export interface DurationBreakdown {
+  readonly steps: readonly DurationStep[];
+  /** Before clamping. */
+  readonly subtotal: number;
+  /** After clamping — what `deterministicQuestMinutes` returns. */
+  readonly total: number;
+  readonly clampedTo: { readonly min: number; readonly max: number };
+  readonly travelBand: ReturnType<typeof travelBand>;
+}
+
+/**
+ * The deterministic time curve, itemised.
+ *
+ * Same relationship to `deterministicQuestMinutes` as `explainXp` has to
+ * `deterministicXp`: one implementation, so an explanation cannot disagree
+ * with the number it explains. Each step is the RUNNING total after that
+ * rule, because the curve multiplies rather than adds — showing "×2.5" as a
+ * bare number would mean nothing on its own.
+ */
+export function explainDuration(input: RewardShapeInputs, bounds: PolicyBounds): DurationBreakdown {
   const hour = 60;
   const baseByTravel: Record<ReturnType<typeof travelBand>, number> = {
     none: 4 * hour,
@@ -91,42 +117,142 @@ export function deterministicQuestMinutes(input: RewardShapeInputs, bounds: Poli
     far: 168 * hour,
     unknown: 24 * hour,
   };
-  let minutes = baseByTravel[travelBand(input)];
+  const band = travelBand(input);
+  const steps: DurationStep[] = [];
 
-  // Learning, research and creative work take time even with no travel.
+  let minutes = baseByTravel[band];
+  steps.push({
+    label: 'Travel time',
+    minutes,
+    basis: band === 'none' ? 'completable anywhere' : `${band} travel`,
+  });
+
   const category = input.category.toLowerCase();
-  if (category === 'learning' || category === 'creativity') {
-    minutes = Math.max(minutes, 8 * hour);
+  if ((category === 'learning' || category === 'creativity') && minutes < 8 * hour) {
+    minutes = 8 * hour;
+    steps.push({
+      label: 'Thinking time',
+      minutes,
+      basis: `${category} work takes time even without travel`,
+    });
   }
 
   const difficulty = input.difficulty.toLowerCase();
-  if (difficulty === 'medium') minutes *= 1.5;
-  if (difficulty === 'hard') minutes *= 2.5;
+  if (difficulty === 'medium' || difficulty === 'hard') {
+    minutes *= difficulty === 'medium' ? 1.5 : 2.5;
+    steps.push({
+      label: 'Difficulty',
+      minutes,
+      basis: `${difficulty} (×${difficulty === 'medium' ? '1.5' : '2.5'})`,
+    });
+  }
 
-  // Coordinating other people costs a day on top.
-  if (input.participantCount > 1) minutes += 24 * hour;
+  if (input.participantCount > 1) {
+    minutes += 24 * hour;
+    steps.push({
+      label: 'Coordination',
+      minutes,
+      basis: `${input.participantCount} participants`,
+    });
+  }
 
-  return clampDurationMinutes(minutes, bounds);
+  return {
+    steps,
+    subtotal: Math.round(minutes),
+    total: clampDurationMinutes(minutes, bounds),
+    clampedTo: { min: bounds.minDurationMinutes, max: bounds.maxDurationMinutes },
+    travelBand: band,
+  };
+}
+
+export function deterministicQuestMinutes(input: RewardShapeInputs, bounds: PolicyBounds): number {
+  return explainDuration(input, bounds).total;
 }
 
 /**
  * The deterministic XP curve: 5 for something simple done at home, up to
  * 100 for a hard quest someone genuinely travelled for.
  */
-export function deterministicXp(input: RewardShapeInputs, bounds: PolicyBounds): number {
-  const xpByTravel: Record<ReturnType<typeof travelBand>, number> = {
-    none: 0,
-    local: 5,
-    city: 15,
-    regional: 35,
-    far: 60,
-    unknown: 10,
-  };
+/** One line of the XP arithmetic, for a screen that has to show its working. */
+export interface XpComponent {
+  readonly code: 'base' | 'travel' | 'difficulty' | 'collaboration';
+  readonly label: string;
+  readonly xp: number;
+  /** What produced this number — the travel band, the difficulty word. */
+  readonly basis: string;
+}
+
+/** The deterministic XP curve, itemised. */
+export interface XpBreakdown {
+  readonly components: readonly XpComponent[];
+  /** Before clamping. */
+  readonly subtotal: number;
+  /** After clamping to the policy range — what `deterministicXp` returns. */
+  readonly total: number;
+  readonly clampedTo: { readonly min: number; readonly max: number };
+  readonly travelBand: ReturnType<typeof travelBand>;
+}
+
+const XP_BY_TRAVEL: Record<ReturnType<typeof travelBand>, number> = {
+  none: 0,
+  local: 5,
+  city: 15,
+  regional: 35,
+  far: 60,
+  unknown: 10,
+};
+
+const TRAVEL_BASIS: Record<ReturnType<typeof travelBand>, string> = {
+  none: 'no destination — completable anywhere',
+  local: 'under 5 km from where the quest was taken',
+  city: '5–50 km',
+  regional: '50–500 km',
+  far: 'over 500 km',
+  unknown: 'distance not measured at assignment',
+};
+
+/**
+ * The same arithmetic as `deterministicXp`, with its working shown.
+ *
+ * Exists so a screen can explain an award without re-deriving it. Both
+ * functions read one table of constants, so an explanation cannot drift
+ * from the number it is explaining — which is the failure that makes a
+ * breakdown worse than no breakdown at all.
+ */
+export function explainXp(input: RewardShapeInputs, bounds: PolicyBounds): XpBreakdown {
+  const band = travelBand(input);
   const difficulty = input.difficulty.toLowerCase();
   const difficultyXp = difficulty === 'hard' ? 25 : difficulty === 'medium' ? 10 : 0;
   const collaborationXp = input.participantCount > 1 ? 5 : 0;
 
-  return clampXp(bounds.minXp + xpByTravel[travelBand(input)] + difficultyXp + collaborationXp, bounds);
+  const components: XpComponent[] = [
+    { code: 'base', label: 'Base award', xp: bounds.minXp, basis: 'every approved quest' },
+    { code: 'travel', label: 'Travel', xp: XP_BY_TRAVEL[band], basis: TRAVEL_BASIS[band] },
+    {
+      code: 'difficulty',
+      label: 'Difficulty',
+      xp: difficultyXp,
+      basis: difficulty || 'unspecified',
+    },
+    {
+      code: 'collaboration',
+      label: 'Collaboration',
+      xp: collaborationXp,
+      basis: input.participantCount > 1 ? `${input.participantCount} participants` : 'solo',
+    },
+  ];
+  const subtotal = components.reduce((sum, component) => sum + component.xp, 0);
+  return {
+    components,
+    subtotal,
+    total: clampXp(subtotal, bounds),
+    clampedTo: { min: bounds.minXp, max: bounds.maxXp },
+    travelBand: band,
+  };
+}
+
+export function deterministicXp(input: RewardShapeInputs, bounds: PolicyBounds): number {
+  return explainXp(input, bounds).total;
 }
 
 export function clampDurationMinutes(recommended: number, bounds: PolicyBounds): number {
