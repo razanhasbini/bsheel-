@@ -77,8 +77,12 @@ export class AgentEvidenceRepository {
   }
 
   async forSubmission(submissionId: string): Promise<VerificationDossier | null> {
+    // `AND`, not `WHERE`: SELECT_DOSSIER already carries its WHERE clause.
+    // A second one is a syntax error, and it made this endpoint 500 on every
+    // submission while the list endpoint (which only appends ORDER BY) kept
+    // working — so the review card's panel could never load.
     const runs = await this.database.query<Row>(
-      `${SELECT_DOSSIER} WHERE r.subject_id = $1 ORDER BY r.created_at DESC LIMIT 1`,
+      `${SELECT_DOSSIER} AND r.subject_id = $1 ORDER BY r.created_at DESC LIMIT 1`,
       [submissionId],
     );
     return runs.rows[0] ? this.hydrate(runs.rows[0]) : null;

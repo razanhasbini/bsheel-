@@ -101,6 +101,16 @@ void main() {
             }),
         contains('1 entry/exit'),
       );
+      // Unavailable also arrives with an empty event list — and must not be
+      // described as a live fence the device stayed out of. Seen on the
+      // review card: "never crossed into it — no subscription covered this
+      // assignment", which contradicts itself in one line.
+      final unavailable = capabilityMeasurement(
+          capability: 'GEOFENCING',
+          outcome: 'UNAVAILABLE',
+          detail: {'events': []});
+      expect(unavailable, contains('no geofence covered'));
+      expect(unavailable, isNot(contains('never crossed')));
     });
 
     // Reachability is context about the network and never about the player.

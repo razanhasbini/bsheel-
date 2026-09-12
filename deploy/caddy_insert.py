@@ -88,6 +88,13 @@ ROOT_PATHS = (
     "/phone-signin-callback",
     "/.well-known/apple-app-site-association",
     "/.well-known/assetlinks.json",
+    # Swagger, when SWAGGER_ENABLED=true: SwaggerModule.setup('docs') mounts
+    # at the domain root, not under /api/v1. Harmless when Swagger is off —
+    # the API answers 404 there.
+    "/docs",
+    "/docs/*",
+    "/docs-json",
+    "/docs-yaml",
 )
 ROOT_MATCHER = "@bsheel_root"
 
@@ -137,6 +144,19 @@ def insert(src, upstream):
     """Return the edited config, None if nothing is missing, or raise ValueError."""
     need_api = not ("/api/v1/*" in src and "/socket.io/*" in src)
     need_root = ROOT_MATCHER not in src
+
+    # The root matcher exists but ROOT_PATHS has grown since it was written:
+    # rewrite just its `path ...` line so a new root-level route reaches the
+    # API on the next apply instead of the catch-all.
+    if not need_root:
+        wanted = f"{ROOT_MATCHER} path {' '.join(ROOT_PATHS)}"
+        pattern = re.compile(rf"^([ \t]*){re.escape(ROOT_MATCHER)} path [^\n]*$", re.M)
+        match = pattern.search(src)
+        if match and match.group(0).strip() != wanted:
+            src = src[: match.start()] + match.group(1) + wanted + src[match.end():]
+            if not need_api:
+                return src
+
     if not need_api and not need_root:
         return None  # already present
 
@@ -188,6 +208,12 @@ def main():
 
     if result is None:
         print("  routes already present — nothing to do (idempotent)")
+        return 0
+
+    if "/api/v1/*" in src and ROOT_MATCHER in src:
+        with open(path, "w") as handle:
+            handle.write(result)
+        print(f"  updated {ROOT_MATCHER} paths -> {', '.join(ROOT_PATHS)}")
         return 0
 
     with open(path, "w") as handle:
