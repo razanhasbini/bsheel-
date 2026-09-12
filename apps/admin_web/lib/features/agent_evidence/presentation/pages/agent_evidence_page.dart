@@ -102,6 +102,19 @@ class _DossierState extends State<_Dossier> {
       ? widget.row['cv'] as Map<String, dynamic>
       : null;
 
+  /// Whether this run was a CAMARA Demo Mode evaluation.
+  ///
+  /// Read strictly: anything other than a literal true is treated as a real
+  /// run, because the failure that matters is labelling a real verdict as a
+  /// demo and having somebody dismiss it.
+  bool get _isDemo => widget.row['isDemo'] == true;
+
+  String get _demoPersona => '${widget.row['demoPersona'] ?? ''}';
+
+  /// LIVE_OPERATOR or NOKIA_SIMULATOR — which device the network was asked
+  /// about, which is the thing a persona actually changes.
+  String get _deviceSource => '${widget.row['deviceSource'] ?? ''}';
+
   @override
   Widget build(BuildContext context) {
     final decision = _s('decision', 'NO DECISION');
@@ -122,6 +135,32 @@ class _DossierState extends State<_Dossier> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // A demo run is stored exactly like a real one — same table,
+            // same flat decision — precisely so it is auditable here. That
+            // makes saying so on the row load-bearing rather than
+            // decorative: without it a moderator reads a hackathon
+            // walkthrough's verdict as a verdict about this submission, and
+            // the whole point of demo mode is that it decided nothing.
+            if (_isDemo) ...[
+              Row(
+                children: [
+                  const BsheelPill('DEMO EVALUATION',
+                      tone: BsheelPillTone.gold),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Non-authoritative — nothing was applied'
+                      '${_demoPersona.isEmpty ? '' : ' · persona $_demoPersona'}'
+                      '${_deviceSource.isEmpty ? '' : ' · device $_deviceSource'}',
+                      style: BsheelType.labelSm
+                          .copyWith(color: BsheelColors.accentText),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               children: [
                 BsheelPill(decision, tone: tone),

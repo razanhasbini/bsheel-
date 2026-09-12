@@ -23,7 +23,7 @@
     return registrations.length > 0 || !!navigator.serviceWorker.controller;
   }
 
-  window.addEventListener('load', async function () {
+  async function boot() {
     const hadServiceWorker = await unregisterServiceWorkers();
     await clearFlutterCaches();
 
@@ -35,5 +35,19 @@
 
     sessionStorage.removeItem(RESET_KEY);
     _flutter.loader.load({});
-  });
+  }
+
+  // index.html loads this with `async`, so there is no guarantee it runs
+  // before `load` fires — a warm cache on a fast connection routinely
+  // finishes loading first. Registering a `load` listener at that point
+  // waits for an event that has already happened, `_flutter.loader.load` is
+  // never called, and the dashboard is a blank white page with a clean
+  // console. Nothing errors; the app is simply never started.
+  //
+  // So: run now if the document is already done, and only wait otherwise.
+  if (document.readyState === 'complete') {
+    boot();
+  } else {
+    window.addEventListener('load', boot);
+  }
 }());

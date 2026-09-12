@@ -29,8 +29,9 @@ class ApiMediaSigner {
 
     final result = <String, String>{};
     for (var start = 0; start < values.length; start += _batchSize) {
-      final end =
-          start + _batchSize < values.length ? start + _batchSize : values.length;
+      final end = start + _batchSize < values.length
+          ? start + _batchSize
+          : values.length;
       // Each chunk stands alone: one failing batch costs its own keys, not
       // every key in the request. A screen with a hundred images should lose
       // the ones it could not sign, never all of them.

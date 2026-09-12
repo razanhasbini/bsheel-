@@ -1583,8 +1583,8 @@ class _MomentTile extends StatelessWidget {
                             fit: BoxFit.cover,
                             memCacheWidth: (_cardW * 3).round(),
                             placeholder: (_, __) => const SizedBox.shrink(),
-                            errorWidget: (_, __, ___) =>
-                                Center(child: Text(moment.isVideo ? '🎬' : '📷')),
+                            errorWidget: (_, __, ___) => Center(
+                                child: Text(moment.isVideo ? '🎬' : '📷')),
                           ),
                         if (_picture.isEmpty)
                           Center(child: Text(moment.isVideo ? '🎬' : '📷')),

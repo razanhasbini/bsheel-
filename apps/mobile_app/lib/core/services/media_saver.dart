@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'media_saver_io.dart'
-    if (dart.library.js_interop) 'media_saver_web.dart' as impl;
+import 'media_saver_io.dart' if (dart.library.js_interop) 'media_saver_web.dart'
+    as impl;
 
 /// Hands finished media to the platform as something the user keeps.
 ///

@@ -498,8 +498,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 // routing to the page it is already on.
                                 children: [
                                   CollabPage(
-                                      embedded: true,
-                                      onRollQuest: _rollWheel),
+                                      embedded: true, onRollQuest: _rollWheel),
                                 ],
                               ),
                             ),

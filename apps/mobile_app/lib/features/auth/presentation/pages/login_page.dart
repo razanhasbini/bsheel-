@@ -226,60 +226,59 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           _MonoLink(
                             label: 'LOG IN WITH EMAIL INSTEAD',
                             alignment: Alignment.center,
-                            onTap: () =>
-                                setState(() => _emailFormOpen = true),
+                            onTap: () => setState(() => _emailFormOpen = true),
                           ),
                         if (_emailFormOpen) ...[
-                        const SizedBox(height: 9),
-                        AuthField(
-                          controller: _emailController,
-                          focusNode: _emailFocus,
-                          label: l.email,
-                          hint: l.enterEmail,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          errorText: _emailError,
-                          autocorrect: false,
-                          autofillHints: const [AutofillHints.email],
-                          onChanged: (_) {
-                            if (_emailError != null) {
-                              setState(() => _emailError = null);
-                            }
-                          },
-                          onSubmitted: (_) => _passwordFocus.requestFocus(),
-                        ),
-                        const SizedBox(height: 15),
-                        AuthField(
-                          controller: _passwordController,
-                          focusNode: _passwordFocus,
-                          label: l.password,
-                          hint: l.enterPassword,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          errorText: _passwordError,
-                          autocorrect: false,
-                          autofillHints: const [AutofillHints.password],
-                          onSubmitted: (_) => _login(),
-                        ),
-                        // No 15 either side: `_MonoLink` is a 45pt box
-                        // around a 15pt label, which is exactly the frame's
-                        // 15 + label + 15. Padding it as well would push the
-                        // primary button 29 down the screen.
-                        _MonoLink(
-                          label: l.forgotPassword,
-                          alignment: Alignment.centerRight,
-                          onTap: () =>
-                              context.pushNamed(RouteNames.forgotPassword),
-                        ),
-                        ArcadeButton(
-                          // Ghost, not the frame's primary: the violet
-                          // button on this page is the phone one at the top,
-                          // and two primaries would say they are equals.
-                          label: _isLoading ? l.loading : l.login,
-                          variant: ArcadeButtonVariant.ghost,
-                          isLoading: _isLoading,
-                          onTap: _isLoading ? null : _login,
-                        ),
+                          const SizedBox(height: 9),
+                          AuthField(
+                            controller: _emailController,
+                            focusNode: _emailFocus,
+                            label: l.email,
+                            hint: l.enterEmail,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            errorText: _emailError,
+                            autocorrect: false,
+                            autofillHints: const [AutofillHints.email],
+                            onChanged: (_) {
+                              if (_emailError != null) {
+                                setState(() => _emailError = null);
+                              }
+                            },
+                            onSubmitted: (_) => _passwordFocus.requestFocus(),
+                          ),
+                          const SizedBox(height: 15),
+                          AuthField(
+                            controller: _passwordController,
+                            focusNode: _passwordFocus,
+                            label: l.password,
+                            hint: l.enterPassword,
+                            obscureText: true,
+                            textInputAction: TextInputAction.done,
+                            errorText: _passwordError,
+                            autocorrect: false,
+                            autofillHints: const [AutofillHints.password],
+                            onSubmitted: (_) => _login(),
+                          ),
+                          // No 15 either side: `_MonoLink` is a 45pt box
+                          // around a 15pt label, which is exactly the frame's
+                          // 15 + label + 15. Padding it as well would push the
+                          // primary button 29 down the screen.
+                          _MonoLink(
+                            label: l.forgotPassword,
+                            alignment: Alignment.centerRight,
+                            onTap: () =>
+                                context.pushNamed(RouteNames.forgotPassword),
+                          ),
+                          ArcadeButton(
+                            // Ghost, not the frame's primary: the violet
+                            // button on this page is the phone one at the top,
+                            // and two primaries would say they are equals.
+                            label: _isLoading ? l.loading : l.login,
+                            variant: ArcadeButtonVariant.ghost,
+                            isLoading: _isLoading,
+                            onTap: _isLoading ? null : _login,
+                          ),
                         ],
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin

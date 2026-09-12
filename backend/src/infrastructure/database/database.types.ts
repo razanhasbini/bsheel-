@@ -58,6 +58,9 @@ export interface Database {
     "started_at": Timestamp | null;
     "completed_at": Timestamp | null;
     "created_at": Generated<Timestamp>;
+    "is_demo": Generated<boolean>;
+    "demo_persona": string | null;
+    "device_source": string | null;
   };
   "analytics_events": {
     "id": Generated<string>;
@@ -223,6 +226,7 @@ export interface Database {
     "occurred_at": Timestamp;
     "received_at": Generated<Timestamp>;
     "provider_event_id": string | null;
+    "origin": Generated<string>;
   };
   "geofencing_subscriptions": {
     "id": Generated<string>;
@@ -236,6 +240,7 @@ export interface Database {
     "expires_at": Timestamp;
     "created_at": Generated<Timestamp>;
     "provider_subscription_ids": Generated<Array<string>>;
+    "origin": Generated<string>;
   };
   "idempotency_keys": {
     "scope": string;
@@ -299,7 +304,7 @@ export interface Database {
     "user_id": string;
     "client_request_id": string;
     "object_key": string;
-    "kind": "avatar" | "submission";
+    "kind": "avatar" | "submission" | "poster";
     "status": Generated<"pending" | "ready" | "rejected" | "deleted">;
     "content_type": string;
     "declared_size_bytes": string;
@@ -682,6 +687,7 @@ export interface Database {
     "net_score": Generated<string>;
     "moderation_removed_at": Timestamp | null;
     "recommended_xp": number | null;
+    "poster_object_key": string | null;
   };
   "telegram_command_state": {
     "chat_id": string;
