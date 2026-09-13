@@ -62,13 +62,17 @@
       overflow: hidden;
       font-family: 'Inter', -apple-system, system-ui, sans-serif;
     }
-    /* Phone: the app owns the whole viewport. */
+    /* Phone: the app owns the whole viewport. The frame and shell stay in
+       the tree as plain containers — hiding them would hide #screen, and
+       Flutter cannot render into a display:none host. Only the chrome
+       (status strip, island, home bar, caption) is dropped. */
+    #frame, #shell { display: block; }
     #screen {
       position: fixed;
       inset: 0;
       background: var(--cream);
     }
-    #frame, #stage-caption { display: none; }
+    #status, #island, #home, #stage-caption { display: none; }
 
     @media (min-width: 700px) {
       body {
@@ -82,8 +86,9 @@
           repeating-linear-gradient(90deg, rgba(26,19,48,.045) 0 1px, transparent 1px 28px),
           var(--cream);
       }
+      #status, #island, #home { display: block; }
+      #status { display: flex; }
       #frame {
-        display: block;
         position: relative;
         width: calc(var(--screen-w) + 2 * var(--bezel));
         height: calc(var(--screen-h) + 2 * var(--bezel));
@@ -224,6 +229,9 @@
         island.style.marginLeft = (-63 * s).toFixed(1) + 'px';
         island.style.top = (11 * s).toFixed(1) + 'px';
         document.getElementById('status').style.fontSize = (17 * s).toFixed(1) + 'px';
+        // The caption only fits when the phone is at full size; when the
+        // window is short enough to shrink the phone it would sit on the bezel.
+        document.getElementById('stage-caption').style.visibility = s < 1 ? 'hidden' : 'visible';
       }
       fit();
       window.addEventListener('resize', fit);
@@ -240,9 +248,11 @@
     })();
   </script>
 
-  {{flutter_js}}
-  {{flutter_build_config}}
   <script>
+    // The two tokens expand to raw JavaScript (flutter.js and the build
+    // config), so they live inside this script tag rather than beside it.
+    {{flutter_js}}
+    {{flutter_build_config}}
     // Render into #screen rather than <body>, so the phone frame is the
     // viewport the app lays out against. On a real phone #screen is the
     // whole window, so this is a no-op there.
