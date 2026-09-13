@@ -956,5 +956,115 @@
     "longitude": 19.07915613,
     "radiusM": 2000,
     "description": "A calibration range, not a destination. Nokia's Network-as-Code simulator reports this exact position for every simulator device, so a quest sited here is the one place all three location signals — verification, retrieval and geofencing — can support the same answer. Used to demonstrate the verification pipeline without falsifying a real destination."
+  },
+  {
+    "seedKey": "bsheel:place:hu-corvin-promenade",
+    "countryCode": "HU",
+    "name": "Corvin Promenade",
+    "city": "Budapest",
+    "category": "culture",
+    "latitude": 47.4856,
+    "longitude": 19.0722,
+    "radiusM": 900,
+    "description": "The rebuilt Ferencváros quarter around Corvin köz: cafés, cinema, tram 4-6 rattling past."
+  },
+  {
+    "seedKey": "bsheel:place:hu-great-market-hall",
+    "countryCode": "HU",
+    "name": "Great Market Hall",
+    "city": "Budapest",
+    "category": "heritage",
+    "latitude": 47.487,
+    "longitude": 19.0587,
+    "radiusM": 300,
+    "description": "Nagyvásárcsarnok — paprika and salami downstairs, lángos and embroidery upstairs, under a Zsolnay-tiled roof."
+  },
+  {
+    "seedKey": "bsheel:place:hu-chain-bridge",
+    "countryCode": "HU",
+    "name": "Széchenyi Chain Bridge",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.499,
+    "longitude": 19.0436,
+    "radiusM": 300,
+    "description": "The 1849 suspension bridge with the stone lions, first permanent link between Buda and Pest."
+  },
+  {
+    "seedKey": "bsheel:place:hu-parliament",
+    "countryCode": "HU",
+    "name": "Hungarian Parliament",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.5071,
+    "longitude": 19.0458,
+    "radiusM": 350,
+    "description": "The neo-Gothic parliament on the Pest bank, 268 m long, with a dome exactly 96 m high."
+  },
+  {
+    "seedKey": "bsheel:place:hu-fishermans-bastion",
+    "countryCode": "HU",
+    "name": "Fisherman's Bastion",
+    "city": "Budapest",
+    "category": "heritage",
+    "latitude": 47.5022,
+    "longitude": 19.0347,
+    "radiusM": 300,
+    "description": "Seven white turrets on Castle Hill, one per Magyar tribe, with the best view over the Danube to Parliament."
+  },
+  {
+    "seedKey": "bsheel:place:hu-heroes-square",
+    "countryCode": "HU",
+    "name": "Heroes' Square",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.5148,
+    "longitude": 19.0778,
+    "radiusM": 300,
+    "description": "Hősök tere at the top of Andrássy út: the Millennium column, the seven chieftains and fourteen kings."
+  },
+  {
+    "seedKey": "bsheel:place:hu-szechenyi-baths",
+    "countryCode": "HU",
+    "name": "Széchenyi Thermal Bath",
+    "city": "Budapest",
+    "category": "culture",
+    "latitude": 47.5186,
+    "longitude": 19.0818,
+    "radiusM": 300,
+    "description": "The yellow neo-baroque bath in City Park — steam, chess players in the water, open in winter."
+  },
+  {
+    "seedKey": "bsheel:place:hu-gellert-hill",
+    "countryCode": "HU",
+    "name": "Gellért Hill",
+    "city": "Budapest",
+    "category": "landmark",
+    "latitude": 47.4866,
+    "longitude": 19.0465,
+    "radiusM": 500,
+    "description": "The wooded hill above the Liberty Bridge, topped by the Citadella and the Liberty Statue."
+  },
+  {
+    "seedKey": "bsheel:place:hu-margaret-island",
+    "countryCode": "HU",
+    "name": "Margaret Island",
+    "city": "Budapest",
+    "category": "culture",
+    "latitude": 47.5275,
+    "longitude": 19.049,
+    "radiusM": 900,
+    "description": "The car-free island in the Danube: running track, musical fountain, medieval ruins, the water tower."
+  },
+  {
+    "seedKey": "bsheel:place:hu-jewish-quarter",
+    "countryCode": "HU",
+    "name": "Jewish Quarter ruin bars",
+    "city": "Budapest",
+    "category": "culture",
+    "latitude": 47.497,
+    "longitude": 19.0633,
+    "radiusM": 400,
+    "description": "District VII around Kazinczy utca: Szimpla Kert and the ruin bars in crumbling courtyards."
   }
 ]

@@ -397,5 +397,148 @@
     "editorialTier": "standard",
     "requiresVerification": true,
     "description": "Photograph any building or structure with the sky visible behind it. A second demo quest so the panel can be shown on more than one verification contract."
+  },
+  {
+    "seedKey": "bsheel:q:hu-corvin-kave",
+    "title": "Order a kávé and say köszönöm",
+    "category": "social",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-corvin-promenade",
+    "requiresVerification": true,
+    "description": "Order a coffee at any café on Corvin Promenade, in Hungarian if you can (egy kávét kérek). Film the cup and your köszönöm to whoever made it."
+  },
+  {
+    "seedKey": "bsheel:q:hu-corvin-only-here",
+    "title": "Frame one thing that is only Budapest",
+    "category": "creativity",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-corvin-promenade",
+    "requiresVerification": true,
+    "description": "Find one detail on the promenade that could not be anywhere else — a yellow tram, a street sign, a doorway — and photograph it so we can tell where you are."
+  },
+  {
+    "seedKey": "bsheel:q:hu-corvin-tram",
+    "title": "Ride tram 4 or 6 one stop",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-corvin-promenade",
+    "requiresVerification": true,
+    "description": "Board the yellow tram 4 or 6 at Corvin-negyed, ride one stop in either direction and film the doors opening at the next one."
+  },
+  {
+    "seedKey": "bsheel:q:hu-market-langos",
+    "title": "Find the lángos upstairs",
+    "category": "learning",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-great-market-hall",
+    "requiresVerification": true,
+    "description": "Go up to the gallery of the Great Market Hall, buy a lángos and show what you had put on it. Say its name on camera."
+  },
+  {
+    "seedKey": "bsheel:q:hu-market-paprika",
+    "title": "Ask which paprika is the sweet one",
+    "category": "learning",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-great-market-hall",
+    "requiresVerification": true,
+    "description": "At any spice stall, ask the seller to show you the difference between édes (sweet) and erős (hot) paprika. Film their answer and what you bought."
+  },
+  {
+    "seedKey": "bsheel:q:hu-chain-bridge-lions",
+    "title": "Check the lions for tongues",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-chain-bridge",
+    "requiresVerification": true,
+    "description": "Legend says the Chain Bridge lions have no tongues. Get close to one, film its mouth and settle it — then walk the bridge to the other bank."
+  },
+  {
+    "seedKey": "bsheel:q:hu-parliament-pace",
+    "title": "Pace the Parliament",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-parliament",
+    "requiresVerification": true,
+    "description": "Walk the whole riverside façade of the Parliament and count your steps. Film the start, the end and your count — it is 268 m long."
+  },
+  {
+    "seedKey": "bsheel:q:hu-bastion-frame",
+    "title": "Frame Parliament from the Bastion",
+    "category": "creativity",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-fishermans-bastion",
+    "requiresVerification": true,
+    "description": "From Fisherman's Bastion, frame the Parliament between two of the white turrets. Show yourself in the shot."
+  },
+  {
+    "seedKey": "bsheel:q:hu-heroes-one-king",
+    "title": "Pick one king and say one thing",
+    "category": "learning",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-heroes-square",
+    "requiresVerification": true,
+    "description": "Choose one statue in the colonnade on Heroes' Square, read the name and tell us one thing about him — from the plaque or from a passer-by."
+  },
+  {
+    "seedKey": "bsheel:q:hu-szechenyi-yellow",
+    "title": "Find the chess players' bath",
+    "category": "social",
+    "difficulty": "easy",
+    "xpReward": 40,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-szechenyi-baths",
+    "requiresVerification": true,
+    "description": "Film the yellow façade of Széchenyi Bath and ask somebody coming out whether the chess players were in the water today."
+  },
+  {
+    "seedKey": "bsheel:q:hu-gellert-liberty",
+    "title": "Climb to the Liberty Statue",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 50,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-gellert-hill",
+    "requiresVerification": true,
+    "description": "Walk up Gellért Hill to the Liberty Statue and film the city from the top, with the statue in frame."
+  },
+  {
+    "seedKey": "bsheel:q:hu-margaret-fountain",
+    "title": "Catch the musical fountain",
+    "category": "adventure",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-margaret-island",
+    "requiresVerification": true,
+    "description": "Cross to Margaret Island and film the musical fountain at the southern tip while it plays. If it is off, the water tower will do."
+  },
+  {
+    "seedKey": "bsheel:q:hu-szimpla-object",
+    "title": "Find the strangest object in a ruin bar",
+    "category": "creativity",
+    "difficulty": "easy",
+    "xpReward": 45,
+    "durationHours": 24,
+    "place": "bsheel:place:hu-jewish-quarter",
+    "requiresVerification": true,
+    "description": "Step into Szimpla Kert or any ruin bar on Kazinczy utca and photograph the strangest thing hanging there. Explain it in one sentence."
   }
 ]
