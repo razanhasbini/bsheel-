@@ -29,16 +29,11 @@ import '../../../../l10n/app_localizations.dart';
 /// submission is checked against. Email and password are the optional extra,
 /// and the page is ordered to say so.
 ///
-/// Phone is the PRIMARY action and sits at the top, above Apple and Google.
-/// The email/password form is below them, behind a disclosure, because it is
-/// the path fewest accounts can even use: a phone account has no password,
-/// and its credential is the carrier check rather than anything typed. A
-/// form asking for an email first told most arrivals to produce something
-/// they never set.
-///
-/// The form is not removed — accounts made with email before phone existed
-/// still sign in with it, and so do the seeded test accounts — it is
-/// demoted. One tap opens it, and it stays open once opened.
+/// Email and password first, LOG IN as the primary, then Apple, Google and
+/// the phone number underneath — the product owner's decision for this page
+/// (2026-09-13), settled after it had flipped twice. The phone path stays
+/// one tap away as the last of the three alternatives; it is not hoisted
+/// above the form and the form is never collapsed behind a disclosure.
 ///
 /// There is no card behind the fields and no wordmark above the title — both
 /// were inventions of the previous pass. The fields carry no shadow and no
@@ -60,13 +55,6 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
   bool _isLoading = false;
   String? _emailError;
 
-  /// The email/password form starts closed and never closes again.
-  ///
-  /// Opened on demand rather than shown by default, because the page's job
-  /// is to get somebody signed in by the means they actually have — and for
-  /// most accounts that is the carrier check above. Once opened it stays
-  /// open: collapsing a form somebody is typing into would lose the typing.
-  bool _emailFormOpen = false;
   String? _passwordError;
 
   /// True once the pending-error dialog for this failure has been raised,
@@ -208,78 +196,56 @@ class _LoginPageState extends ConsumerState<LoginPage> with SecureScreenMixin {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        // Phone first, and on its own: the carrier check is
-                        // the credential every account has.
-                        const PhoneAuthButton(
-                          label: 'LOG IN WITH PHONE',
-                          variant: ArcadeButtonVariant.primary,
+                        AuthField(
+                          controller: _emailController,
+                          focusNode: _emailFocus,
+                          label: l.email,
+                          hint: l.enterEmail,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          errorText: _emailError,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.email],
+                          onChanged: (_) {
+                            if (_emailError != null) {
+                              setState(() => _emailError = null);
+                            }
+                          },
+                          onSubmitted: (_) => _passwordFocus.requestFocus(),
                         ),
-                        // Apple and Google next. `includePhone: false` —
-                        // the button above is the phone path, and two of
-                        // them on one page is a choice nobody can make.
-                        const SocialSignInButtons(
-                          labelPrefix: 'LOG IN WITH',
-                          includePhone: false,
+                        const SizedBox(height: 15),
+                        AuthField(
+                          controller: _passwordController,
+                          focusNode: _passwordFocus,
+                          label: l.password,
+                          hint: l.enterPassword,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          errorText: _passwordError,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.password],
+                          onSubmitted: (_) => _login(),
                         ),
-                        const SizedBox(height: 6),
-                        if (!_emailFormOpen)
-                          _MonoLink(
-                            label: 'LOG IN WITH EMAIL INSTEAD',
-                            alignment: Alignment.center,
-                            onTap: () => setState(() => _emailFormOpen = true),
-                          ),
-                        if (_emailFormOpen) ...[
-                          const SizedBox(height: 9),
-                          AuthField(
-                            controller: _emailController,
-                            focusNode: _emailFocus,
-                            label: l.email,
-                            hint: l.enterEmail,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            errorText: _emailError,
-                            autocorrect: false,
-                            autofillHints: const [AutofillHints.email],
-                            onChanged: (_) {
-                              if (_emailError != null) {
-                                setState(() => _emailError = null);
-                              }
-                            },
-                            onSubmitted: (_) => _passwordFocus.requestFocus(),
-                          ),
-                          const SizedBox(height: 15),
-                          AuthField(
-                            controller: _passwordController,
-                            focusNode: _passwordFocus,
-                            label: l.password,
-                            hint: l.enterPassword,
-                            obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            errorText: _passwordError,
-                            autocorrect: false,
-                            autofillHints: const [AutofillHints.password],
-                            onSubmitted: (_) => _login(),
-                          ),
-                          // No 15 either side: `_MonoLink` is a 45pt box
-                          // around a 15pt label, which is exactly the frame's
-                          // 15 + label + 15. Padding it as well would push the
-                          // primary button 29 down the screen.
-                          _MonoLink(
-                            label: l.forgotPassword,
-                            alignment: Alignment.centerRight,
-                            onTap: () =>
-                                context.pushNamed(RouteNames.forgotPassword),
-                          ),
-                          ArcadeButton(
-                            // Ghost, not the frame's primary: the violet
-                            // button on this page is the phone one at the top,
-                            // and two primaries would say they are equals.
-                            label: _isLoading ? l.loading : l.login,
-                            variant: ArcadeButtonVariant.ghost,
-                            isLoading: _isLoading,
-                            onTap: _isLoading ? null : _login,
-                          ),
-                        ],
+                        // No 15 either side: `_MonoLink` is a 45pt box
+                        // around a 15pt label, which is exactly the frame's
+                        // 15 + label + 15. Padding it as well would push the
+                        // primary button 29 down the screen.
+                        _MonoLink(
+                          label: l.forgotPassword,
+                          alignment: Alignment.centerRight,
+                          onTap: () =>
+                              context.pushNamed(RouteNames.forgotPassword),
+                        ),
+                        ArcadeButton(
+                          // The frame's primary: violet ground, white label,
+                          // 56pt, r14, 5px shadow. No icon.
+                          label: _isLoading ? l.loading : l.login,
+                          isLoading: _isLoading,
+                          onTap: _isLoading ? null : _login,
+                        ),
+                        // Apple, Google, then the phone number — the three
+                        // alternatives to the form above, in that order.
+                        const SocialSignInButtons(labelPrefix: 'LOG IN WITH'),
                         // 6 + the 44pt box's 22 of half-height puts the
                         // line's baseline where the frame's 15 + 4 margin
                         // does, without the hit target moving it.
