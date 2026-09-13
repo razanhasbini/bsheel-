@@ -2,29 +2,21 @@
 <html>
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    The base href placeholder is replaced by the `--base-href` argument
+    passed to `flutter build web` (the hosted build uses /app/).
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Bsheel — real-world quests, verified by the network.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
   <!-- Mobile web / iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="mobile_app">
+  <meta name="apple-mobile-web-app-title" content="Bsheel">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Preload Google Fonts for immediate rendering -->
@@ -37,8 +29,231 @@
 
   <title>Bit Sheel</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    On a desktop browser the app is shown inside an iPhone 16 Plus shaped
+    frame (430 x 932 pt screen, Dynamic Island, rounded corners), because the
+    layout was designed for a phone and a 1400px-wide viewport is not one.
+    On an actual phone (viewport narrower than 700px) the frame is dropped and
+    the app fills the screen exactly as before.
+
+    The frame scales by *real* size rather than a CSS transform: Flutter maps
+    pointer events through the host element's bounding box, and a transformed
+    host would put every tap a few pixels from where it landed. Shrinking the
+    host itself keeps hit-testing exact; the app simply lays out at a slightly
+    smaller logical width when the window is short, which is what it does on a
+    smaller iPhone anyway.
+  -->
+  <style>
+    :root {
+      --screen-w: 430px;
+      --screen-h: 932px;
+      --status-h: 54px;
+      --bezel: 14px;
+      --frame-radius: 62px;
+      --cream: #FFF9EE;
+      --ink: #1A1330;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--cream);
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    }
+    /* Phone: the app owns the whole viewport. */
+    #screen {
+      position: fixed;
+      inset: 0;
+      background: var(--cream);
+    }
+    #frame, #stage-caption { display: none; }
+
+    @media (min-width: 700px) {
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(circle at 20% 15%, rgba(107,59,255,.14), transparent 45%),
+          radial-gradient(circle at 85% 90%, rgba(255,90,110,.14), transparent 45%),
+          repeating-linear-gradient(0deg, rgba(26,19,48,.045) 0 1px, transparent 1px 28px),
+          repeating-linear-gradient(90deg, rgba(26,19,48,.045) 0 1px, transparent 1px 28px),
+          var(--cream);
+      }
+      #frame {
+        display: block;
+        position: relative;
+        width: calc(var(--screen-w) + 2 * var(--bezel));
+        height: calc(var(--screen-h) + 2 * var(--bezel));
+        background: #0b0b0f;
+        border-radius: var(--frame-radius);
+        box-shadow:
+          0 0 0 2px #3a3a42,
+          0 0 0 4px #17171c,
+          12px 14px 0 0 var(--ink),
+          0 40px 90px rgba(26,19,48,.35);
+      }
+      /* Side buttons, drawn as part of the bezel. */
+      #frame::before, #frame::after {
+        content: '';
+        position: absolute;
+        background: #2a2a31;
+        border-radius: 3px;
+      }
+      #frame::before { /* volume, left */
+        left: -6px; top: 22%; width: 4px; height: 8%;
+      }
+      #frame::after { /* power, right */
+        right: -6px; top: 28%; width: 4px; height: 12%;
+      }
+      #shell {
+        position: absolute;
+        inset: var(--bezel);
+        border-radius: calc(var(--frame-radius) - var(--bezel));
+        overflow: hidden;
+        background: var(--cream);
+      }
+      /* The iOS status strip: not part of the app, so the island covers no content. */
+      #status {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: var(--status-h);
+        background: var(--cream);
+        color: var(--ink);
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding: 0 32px 6px 36px;
+        box-sizing: border-box;
+        font-weight: 600;
+        font-size: 17px;
+        letter-spacing: -0.2px;
+        user-select: none;
+        pointer-events: none;
+      }
+      #status .right { display: flex; align-items: center; gap: 7px; }
+      #status svg { display: block; }
+      #island {
+        position: absolute;
+        top: 11px; left: 50%;
+        width: 126px; height: 37px;
+        margin-left: -63px;
+        background: #000;
+        border-radius: 20px;
+        pointer-events: none;
+      }
+      #island::after { /* camera glint */
+        content: '';
+        position: absolute;
+        right: 14px; top: 12px;
+        width: 12px; height: 12px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, #2b3b5a, #05070c 70%);
+      }
+      #screen {
+        position: absolute;
+        inset: var(--status-h) 0 0 0;
+      }
+      #home {
+        position: absolute;
+        bottom: 8px; left: 50%;
+        width: 140px; height: 5px;
+        margin-left: -70px;
+        border-radius: 3px;
+        background: rgba(26,19,48,.55);
+        pointer-events: none;
+      }
+      #stage-caption {
+        display: block;
+        position: fixed;
+        left: 50%; bottom: 18px;
+        transform: translateX(-50%);
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: rgba(26,19,48,.55);
+        white-space: nowrap;
+      }
+    }
+  </style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <div id="frame">
+    <div id="shell">
+      <div id="status">
+        <span id="clock">9:41</span>
+        <span class="right">
+          <!-- cellular -->
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#1A1330"><rect x="0" y="8" width="3" height="4" rx=".8"/><rect x="5" y="5.5" width="3" height="6.5" rx=".8"/><rect x="10" y="3" width="3" height="9" rx=".8"/><rect x="15" y="0" width="3" height="12" rx=".8"/></svg>
+          <!-- wifi -->
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="#1A1330" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 4.2a9.5 9.5 0 0 1 13 0"/><path d="M4 7a6 6 0 0 1 8 0"/><circle cx="8" cy="10" r="1.2" fill="#1A1330" stroke="none"/></svg>
+          <!-- battery -->
+          <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x=".75" y=".75" width="22.5" height="11.5" rx="3.2" stroke="#1A1330" stroke-opacity=".45" stroke-width="1.5"/><rect x="2.4" y="2.4" width="19.2" height="8.2" rx="1.8" fill="#17C27B"/><path d="M25 4.5v4a2 2 0 0 0 0-4z" fill="#1A1330" fill-opacity=".45"/></svg>
+        </span>
+      </div>
+      <div id="island"></div>
+      <div id="screen"></div>
+      <div id="home"></div>
+    </div>
+  </div>
+  <div id="stage-caption">Bsheel · iPhone 16 Plus preview</div>
+
+  <script>
+    // Fit the whole phone into the window by real size (see the note in
+    // <style>): scale the screen's logical pixels, never CSS-transform it.
+    (function () {
+      var root = document.documentElement;
+      var BASE_W = 430, BASE_H = 932, STATUS = 54, BEZEL = 14, RADIUS = 62, PAD = 36;
+      function fit() {
+        if (window.innerWidth < 700) return;
+        var s = Math.min(1,
+          (window.innerHeight - PAD * 2) / (BASE_H + BEZEL * 2),
+          (window.innerWidth - PAD * 2) / (BASE_W + BEZEL * 2));
+        s = Math.max(s, 0.5);
+        root.style.setProperty('--screen-w', (BASE_W * s).toFixed(1) + 'px');
+        root.style.setProperty('--screen-h', (BASE_H * s).toFixed(1) + 'px');
+        root.style.setProperty('--status-h', (STATUS * s).toFixed(1) + 'px');
+        root.style.setProperty('--bezel', (BEZEL * s).toFixed(1) + 'px');
+        root.style.setProperty('--frame-radius', (RADIUS * s).toFixed(1) + 'px');
+        var island = document.getElementById('island');
+        island.style.width = (126 * s).toFixed(1) + 'px';
+        island.style.height = (37 * s).toFixed(1) + 'px';
+        island.style.marginLeft = (-63 * s).toFixed(1) + 'px';
+        island.style.top = (11 * s).toFixed(1) + 'px';
+        document.getElementById('status').style.fontSize = (17 * s).toFixed(1) + 'px';
+      }
+      fit();
+      window.addEventListener('resize', fit);
+
+      // A live clock in the status strip, the way a real one would show.
+      function tick() {
+        var d = new Date();
+        var h = d.getHours(), m = d.getMinutes();
+        document.getElementById('clock').textContent =
+          ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m;
+      }
+      tick();
+      setInterval(tick, 15000);
+    })();
+  </script>
+
+  {{flutter_js}}
+  {{flutter_build_config}}
+  <script>
+    // Render into #screen rather than <body>, so the phone frame is the
+    // viewport the app lays out against. On a real phone #screen is the
+    // whole window, so this is a no-op there.
+    _flutter.loader.load({
+      onEntrypointLoaded: async function (engineInitializer) {
+        var appRunner = await engineInitializer.initializeEngine({
+          hostElement: document.getElementById('screen')
+        });
+        await appRunner.runApp();
+      }
+    });
+  </script>
 </body>
 </html>
