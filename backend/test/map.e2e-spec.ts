@@ -285,14 +285,18 @@ describe('map destinations and discovery', {timeout:120000}, () => {
       expect((await moments(user)).some(m=>m.place_id===hiddenId)).toBe(true);
     });
 
-    it('draws one tile per place and counts the rest as "+N more"', async()=>{
+    it('caps the tiles per place and counts the rest as "+N more"', async()=>{
       // The Snap/Instagram-map shape. Without it a landmark with two hundred
       // completions buries every other place on the board and the map stops
       // being a map. The count is what keeps the summary honest: the tile
-      // says how much it is standing in front of.
+      // says how much it is standing in front of. Two tiles per place, not
+      // one — a single tile can never overlap another from the same place,
+      // so the scatter was dead code and a busy landmark looked exactly as
+      // active as a place one person had visited.
+      const perPlace=2;
       const before=(await moments(user)).filter(m=>m.place_id===momentPlace);
       expect(before).toHaveLength(1);
-      const countedBefore=Number(before[0].more_count);
+      expect(Number(before[0].more_count)).toBe(0);
 
       const busy=await h.createQuest();
       await h.post(`/map/admin/places/${momentPlace}/quests`,admin).send({questId:busy.id,requiresVerification:false}).expect(201);
@@ -301,11 +305,12 @@ describe('map destinations and discovery', {timeout:120000}, () => {
         await h.post(`/submissions/${proof.id}/approve`,admin).send({}).expect(204);
       }
 
+      // Four pieces of proof stand here now. The cap draws two of them and
+      // every drawn tile says how many it is standing in front of, rather
+      // than two more tiles appearing.
       const here=(await moments(user)).filter(m=>m.place_id===momentPlace);
-      expect(here).toHaveLength(1);
-      // Three more standing here than before, and the tile says so rather
-      // than three more tiles appearing.
-      expect(Number(here[0].more_count)).toBe(countedBefore+3);
+      expect(here).toHaveLength(perPlace);
+      for (const tile of here) expect(Number(tile.more_count)).toBe(1+3-perPlace);
       // And it carries what there is to DO here — the reason a photograph is
       // on a map at all.
       expect(Number(here[0].quest_count)).toBeGreaterThan(0);
