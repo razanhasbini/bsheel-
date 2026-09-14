@@ -56,7 +56,7 @@ dependencies:
   http: ^1.2.0
   # Somewhere to write the branded image before handing it to the system
   # share sheet, which is what offers "Save to Photos".
-  path_provider: ^2.1.4
+  path_provider: ^2.1.6
   flutter_local_notifications: ^18.0.0
 
   intl: any
