@@ -55,7 +55,7 @@
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/websockets": "^11.1.6",
-    "@openai/agents": "^0.17.2",
+    "@openai/agents": "^0.18.0",
     "argon2": "^0.44.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.58.5",
