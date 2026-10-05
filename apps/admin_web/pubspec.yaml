@@ -31,7 +31,7 @@ dependencies:
   go_router: ^13.0.0
 
   # Backend
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   http: ^1.2.0
 
   # Required by app_repositories (social auth)
