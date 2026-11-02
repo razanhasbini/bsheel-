@@ -37,7 +37,7 @@ dependencies:
   # Required by app_repositories (social auth)
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^6.1.0
-  crypto: ^3.0.0
+  crypto: ^3.0.8
 
   # Excel import for quest management
   excel: ^4.0.6
