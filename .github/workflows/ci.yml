@@ -75,17 +75,21 @@ jobs:
       - name: Verify database types match the schema
         run: npm run db:types:check
 
+      # The platform suites run against migrations only, as before.
+      - name: Platform e2e
+        run: npm run test:e2e -- --exclude test/quest-ecosystem.e2e-spec.ts
+
       # quest-ecosystem.e2e-spec.ts checks the curated catalogue (hidden
       # quests, destination shelves, collections), which lives in seeds/*.json
       # and is loaded by scripts/seed-quests.mjs, not by a migration. Without
-      # this step that suite has failed on every run since it was added
-      # (2026-09-11). The script is idempotent and only writes rows whose
-      # seed_key starts with `bsheel:`.
+      # it that suite failed on every run since it was added (2026-09-11).
+      # It runs last, on its own, because the seeded quests change what the
+      # random picker returns to the other suites.
       - name: Seed curated quest catalogue
         run: npm run seed:quests
 
-      - name: Platform e2e
-        run: npm run test:e2e
+      - name: Quest ecosystem e2e
+        run: npm run test:e2e -- test/quest-ecosystem.e2e-spec.ts
 
   analyze-and-test:
     runs-on: ubuntu-latest
