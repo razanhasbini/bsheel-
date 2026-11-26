@@ -59,8 +59,8 @@ flutter drive \
   -d "$DEVICE_UDID" \
   --dart-define-from-file="$ENV_FILE" \
   --dart-define=SUPABASE_URL=https://api.bsheel.app \
-  "--dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MDIzMjcyLCJleHAiOjIwOTkzODMyNzJ9.0HGp8OvHc0peJcxlditiKrzFpz442iITeFQhyA_Vu7s" \
-  --dart-define=MIXPANEL_TOKEN=55b3f6acdaa760fc8a637a591692ce5c
+  "--dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:?set SUPABASE_ANON_KEY}" \
+  --dart-define=MIXPANEL_TOKEN=${MIXPANEL_TOKEN:-}
 
 # ── Copy to Desktop folder for easy Figma plugin pickup ──────────────────────
 mkdir -p "$DESKTOP_DIR"
