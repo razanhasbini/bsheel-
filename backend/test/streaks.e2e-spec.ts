@@ -120,7 +120,7 @@ describe('streaks (e2e)', { timeout: 180_000 }, () => {
     expect(streak.longest).toBe(2);
   });
 
-  it('does not call a streak submitted-to today at risk just after midnight', async () => {
+  it('does not call a streak submitted-to today at risk just after midnight', async (ctx) => {
     const user = await harness.createUser({ prefix: 'stat' });
     const today = await approvedDay(user, 0);
 
@@ -140,7 +140,12 @@ describe('streaks (e2e)', { timeout: 180_000 }, () => {
          FROM submissions WHERE id = $1`,
       [today],
     );
-    expect(utcDay.rows[0].same).toBe(true);
+    // The scenario needs 00:30 Beirut to fall on the previous UTC day, which
+    // is false when the suite runs between 22:00 and 24:00 UTC. Skip rather
+    // than fail in that window; every other hour still exercises the bug.
+    if (!utcDay.rows[0].same) {
+      ctx.skip();
+    }
 
     const streak = await streakOf(user);
     expect(streak.current).toBe(1);
